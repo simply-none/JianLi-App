@@ -21,7 +21,8 @@ export function useWorkOrRest() {
 
   const waitTime = 3 * 1000
 
-  onMounted(() => {
+  // 软件初始化 - 注册全局侦听事件 函数
+  function registerGlobalListener() {
     window.ipcRenderer.on('before-close', (e, data) => {
       console.warn('before-close', e, data)
     });
@@ -31,16 +32,16 @@ export function useWorkOrRest() {
     });
 
     window.ipcRenderer.on('close-rest', (e, data) => {
-      alert('结束休息')
       startForceWorkFn({ isUpdateStartTime: true })
     });
-  })
-
-  onBeforeUnmount(() => {
+  }
+  // 软件初始化 - 取消注册全局侦听事件
+  function unregisterGlobalListener() {
     window.ipcRenderer.removeAllListeners('before-close');
     window.ipcRenderer.removeAllListeners('close-work');
-    window.ipcRenderer.removeAllListeners('close-rest');
-  })
+    window.ipcRenderer.removeAllListeners('close-rest'); 
+  }
+  
 
   // 软件初始化
   function initFn() {
@@ -197,5 +198,8 @@ export function useWorkOrRest() {
     restTimeGapUnitC,
     closeWorkTimeC,
     startWorkTimeC,
+    // 事件函数
+    registerGlobalListener,
+    unregisterGlobalListener,
   }
 }

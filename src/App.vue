@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { watch, onMounted, ref } from 'vue';
+import { watch, onMounted, ref, onBeforeUnmount } from 'vue';
 import { useRoute } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
@@ -9,17 +9,23 @@ import { useWorkOrRest } from '@/hooks/useWorkOrReset';
 import useGlobalSetting from '@/store/useGlobalSetting';
 
 const { setAppBgColor, setAppInnerColor } = useGlobalSetting()
-const { appBgColorC, appInnerColorC, curStatusC } = storeToRefs(useGlobalSetting());
+const { appBgColorC, appInnerColorC, curStatusC, globalFontC } = storeToRefs(useGlobalSetting());
 const { nextRestTime, nextWorkTime } = storeToRefs((useWorkOrResetStore()))
-const { startApp } = useWorkOrRest();
+const { startApp, registerGlobalListener, unregisterGlobalListener } = useWorkOrRest();
 
 onMounted(() => {
   console.log(window.location.href)
   if (window.location.href.includes('isSecondWindow=true')) {
     return true;
   }
+  document.documentElement.style.setProperty('--jianli-global-font', globalFontC.value)
   startApp();
+  registerGlobalListener();
 });
+onBeforeUnmount(() => {
+  unregisterGlobalListener(); 
+})
+
 console.log('appBgColorC', appBgColorC);
 let bgColor = ref(appBgColorC)
 const innerColor = ref(appInnerColorC)

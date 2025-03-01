@@ -8,7 +8,7 @@ import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
 
 import './utils/devtools'
-import './style.css'
+import './style.scss'
 import './lib/heti.min.css'
 
 import './demos/ipc'

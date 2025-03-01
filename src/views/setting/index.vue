@@ -28,18 +28,20 @@
           </div>
         </el-form-item>
         <el-form-item label="工作时间">
-          <el-input v-model="workTimeGap" placeholder="Please input">
+          <el-input v-model="workTimeGapCc" placeholder="Please input" @change="changeWorkTimeGapCc">
             <template #append>
-              <el-select v-model="workTimeGapUnit" placeholder="Select" style="width: 115px">
+              <el-select v-model="workTimeGapUnitCc" placeholder="Select" style="width: 115px"
+                @change="changeWorkTimeGapUnitCc">
                 <el-option v-for="value in timeUnit" :key="value.times" :label="value.label" :value="value.times" />
               </el-select>
             </template>
           </el-input>
         </el-form-item>
         <el-form-item label="休息时间">
-          <el-input v-model="restTimeGap" placeholder="Please input">
+          <el-input v-model="restTimeGapCc" placeholder="Please input" @change="changeRestTimeGapCc">
             <template #append>
-              <el-select v-model="restTimeGapUnit" placeholder="Select" style="width: 115px">
+              <el-select v-model="restTimeGapUnitCc" placeholder="Select" style="width: 115px"
+                @change="changeRestTimeGapUnitCc">
                 <el-option v-for="value in timeUnit" :key="value.times" :label="value.label" :value="value.times" />
               </el-select>
             </template>
@@ -77,7 +79,7 @@
         </el-form-item>
         <el-form-item label="应用背景颜色">
           <el-color-picker v-model="appBgColorCc" show-alpha @change="changeAppBgColor" /><span>{{ appBgColorCc
-            }}</span>
+          }}</span>
         </el-form-item>
         <el-form-item label="页面背景颜色">
           <el-color-picker v-model="appInnerColorCc" show-alpha @change="changeAppInnerColor" /><span>{{ appInnerColorCc
@@ -87,6 +89,9 @@
         <!-- 分割线 -->
         <el-divider></el-divider>
         <homeMode />
+
+        <!-- 分割线 -->
+        <CacheSet />
 
         <!-- 分割线 -->
         <el-divider></el-divider>
@@ -101,13 +106,13 @@
 
         </el-form-item>
         <el-form-item label="是否开始休息">
-          <el-button type="primary" @click="() => startRestFn({ isUpdateCloseTime: true})">开始休息</el-button>
+          <el-button type="primary" @click="() => startRestFn({ isUpdateCloseTime: true })">开始休息</el-button>
         </el-form-item>
         <el-form-item label="清空系统数据">
           <el-button type="primary" @click="clearStore">清空数据</el-button>
         </el-form-item>
         <el-form-item label="全局字体设置">
-          <el-select v-model="globalFontC" placeholder="请选择" style="width: 300px" @change="setGlobalFont">
+          <el-select v-model="globalFontCc" placeholder="请选择" style="width: 300px" @change="setGlobalFontC">
             <el-option v-for="value in globalFontOpsC" :key="value.value" :label="value.label" :value="value.value" />
           </el-select>
         </el-form-item>
@@ -142,6 +147,7 @@ import useGlobalSetting from '@/store/useGlobalSetting';
 import { storeToRefs } from 'pinia';
 import { timeUnit } from '@/utils/time';
 import confirmDialog from '@/utils/confirmDialog';
+import CacheSet from '@/views/setting/cacheSet.vue';
 
 const router = useRouter();
 
@@ -152,6 +158,13 @@ const {
   changeEffectFn,
   forceWorkWithTimes,
 } = useWorkOrRest();
+
+const {
+  setWorkTimeGap,
+  setRestTimeGap,
+  setWorkTimeGapUnit,
+  setRestTimeGapUnit,
+} = useWorkOrResetStore()
 const {
   workTimeGap,
   restTimeGap,
@@ -164,6 +177,40 @@ const {
 } = storeToRefs(useWorkOrResetStore());
 const { setForceWorkTimes, setAppBgColor, setAppInnerColor, setIsStartup, setHomeMode, setGlobalFont, setHomeModeOps } = useGlobalSetting();
 const { isStartupC, forceWorkTimesC, todayForceWorkTimesC, appBgColorC, appInnerColorC, globalFontC, globalFontOpsC, homeModeOpsC, curStatusC } = storeToRefs(useGlobalSetting());
+
+const workTimeGapCc = ref(JSON.parse(JSON.stringify(workTimeGap.value)))
+const restTimeGapCc = ref(JSON.parse(JSON.stringify(restTimeGap.value)))
+const workTimeGapUnitCc = ref(JSON.parse(JSON.stringify(workTimeGapUnit.value)))
+const restTimeGapUnitCc = ref(JSON.parse(JSON.stringify(restTimeGapUnit.value)))
+
+watch(() => workTimeGap.value, (n) => {
+  workTimeGapCc.value = JSON.parse(JSON.stringify(n));
+})
+watch(() => restTimeGap.value, (n) => {
+  restTimeGapCc.value = JSON.parse(JSON.stringify(n));
+})
+
+watch(() => workTimeGapUnit.value, (n) => {
+  workTimeGapUnitCc.value = JSON.parse(JSON.stringify(n));
+})
+watch(() => restTimeGapUnit.value, (n) => {
+  restTimeGapUnitCc.value = JSON.parse(JSON.stringify(n));
+})
+
+function changeWorkTimeGapCc() {
+  setWorkTimeGap(workTimeGapCc.value);
+}
+
+function changeRestTimeGapCc() {
+  setRestTimeGap(restTimeGapCc.value);
+}
+
+function changeWorkTimeGapUnitCc() {
+  setWorkTimeGapUnit(workTimeGapUnitCc.value);
+}
+function changeRestTimeGapUnitCc() {
+  setRestTimeGapUnit(restTimeGapUnitCc.value);
+}
 
 const appBgColorCc = ref(JSON.parse(JSON.stringify(appBgColorC.value)))
 const appInnerColorCc = ref(JSON.parse(JSON.stringify(appInnerColorC.value)))
@@ -205,6 +252,15 @@ function changeIsStartup(value: boolean) {
 
 function changeAppInnerColor(value: string) {
   setAppInnerColor(value);
+}
+
+const globalFontCc = ref(JSON.parse(JSON.stringify(globalFontC.value)))
+
+watch(() => globalFontC.value, (n) => {
+  globalFontCc.value = JSON.parse(JSON.stringify(n)); 
+})
+function setGlobalFontC() {
+  setGlobalFont(globalFontCc.value);
 }
 
 
