@@ -1,8 +1,5 @@
 <template>
   <layout-vue isPadding>
-    <template #top>
-      <header-nav title="设置" @back="toHome"></header-nav>
-    </template>
     <template #main>
       <el-form class="setting-form" label-width="108" label-position="left" :style="{
         // backgroundColor: appInnerColorCc,
@@ -87,10 +84,6 @@
         </el-form-item>
 
         <!-- 分割线 -->
-        <el-divider></el-divider>
-        <homeMode />
-
-        <!-- 分割线 -->
         <CacheSet />
 
         <!-- 分割线 -->
@@ -112,17 +105,14 @@
           <el-button type="primary" @click="clearStore">清空数据</el-button>
         </el-form-item>
         <el-form-item label="全局字体设置">
-          <el-select v-model="globalFontCc" placeholder="请选择" style="width: 300px" @change="setGlobalFontC">
-            <el-option v-for="value in globalFontOpsC" :key="value.value" :label="value.label" :value="value.value" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="休息背景设置">
-          <el-select v-model="restBgColor" placeholder="请选择" style="width: 300px" @change="setHomeMode">
-            <el-option v-for="value in homeModeOpsC" :key="value.value" :label="value.label" :value="value.value" />
+          <el-select v-model="globalFontCc" style="width: 300px" @change="setGlobalFontC">
+            <el-option v-for="value in globalFontOpsC" :key="value.value" :value="value.value">
+              {{ value.label }}
+            </el-option>
           </el-select>
         </el-form-item>
         <el-form-item label="开机自启动">
-          <el-switch v-model="isStartupC" inline-prompt active-text="是" inactive-text="否" @change="changeIsStartup" />
+          <el-switch v-model="isStartupCc" inline-prompt active-text="是" inactive-text="否" @change="changeIsStartup" />
         </el-form-item>
         <el-form-item label="退出应用">
           <el-button type="primary" @click="quitApp">点击退出应用</el-button>
@@ -138,8 +128,6 @@ import { ref, reactive, watch, computed, toRaw } from 'vue';
 import { useRouter } from 'vue-router';
 
 import LayoutVue from '@/components/layout.vue';
-import HeaderNav from '@/components/header.vue';
-import homeMode from '@/views/setting/homeMode.vue';
 import useWorkOrResetStore from '@/store/useWorkOrReset'
 import { useWorkOrRest } from '@/hooks/useWorkOrReset';
 import useClearStore from '@/hooks/useClearStore';
@@ -182,6 +170,7 @@ const workTimeGapCc = ref(JSON.parse(JSON.stringify(workTimeGap.value)))
 const restTimeGapCc = ref(JSON.parse(JSON.stringify(restTimeGap.value)))
 const workTimeGapUnitCc = ref(JSON.parse(JSON.stringify(workTimeGapUnit.value)))
 const restTimeGapUnitCc = ref(JSON.parse(JSON.stringify(restTimeGapUnit.value)))
+const isStartupCc = ref(JSON.parse(JSON.stringify(isStartupC.value)))
 
 watch(() => workTimeGap.value, (n) => {
   workTimeGapCc.value = JSON.parse(JSON.stringify(n));
@@ -233,7 +222,7 @@ function changeModeOps() {
 const restBgColor = ref();
 
 function quitApp() {
-  confirmDialog.open('确定要退出应用吗？', () => {
+  confirmDialog.open('确定要退出应用吗？', 3, () => {
     window.ipcRenderer.send('quit-app');
   });
 }
@@ -247,6 +236,7 @@ function changeAppBgColor(value: string) {
 }
 
 function changeIsStartup(value: boolean) {
+  isStartupCc.value = value;
   setIsStartup(value);
 }
 
@@ -257,7 +247,7 @@ function changeAppInnerColor(value: string) {
 const globalFontCc = ref(JSON.parse(JSON.stringify(globalFontC.value)))
 
 watch(() => globalFontC.value, (n) => {
-  globalFontCc.value = JSON.parse(JSON.stringify(n)); 
+  globalFontCc.value = JSON.parse(JSON.stringify(n));
 })
 function setGlobalFontC() {
   setGlobalFont(globalFontCc.value);

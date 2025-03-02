@@ -59,13 +59,29 @@ onMounted(() => {
   width: 100%;
   box-sizing: border-box;
 
+  .top {
+    border-bottom: 2px solid #f3f3f3;
+    padding-bottom: 12px;
+  }
+
   .content {
     flex: 1;
     overflow: auto;
+    display: flex;
 
     .left,
     .main {
       height: 100%;
+    }
+
+    .left {
+      flex: 0 0 200px;
+      overflow: auto;
+    }
+
+    .main {
+      flex: 1;
+      overflow: auto;
     }
   }
 }

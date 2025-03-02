@@ -13,6 +13,10 @@
 
 ## 开发回顾
 
+### 2025-03-02
+
+消息通信，若是同步（sendSync）的，很可能会卡顿，所以需要异步通信（send）
+
 ### 2025-02-22
 
 开启vue调试，安装vue/devtools，在html文件中加入devtools启动的脚本，启动命令npm run debug后才能npm run dev

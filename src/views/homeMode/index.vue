@@ -1,22 +1,25 @@
 <template>
-  <el-form class="setting-home-mode-form" label-width="108" label-position="left">
+  <el-form class="home-mode-form" label-width="108" label-position="left">
     <el-form-item>
       <template #label>
         <div class="setting-title">主页模式</div>
       </template>
     </el-form-item>
     <el-form-item label="日常模式" class="mode-wrapper">
-      <el-select v-model="homeModeCc.work.value" value-key="value" placeholder="Select" style="width: 226px" @change="changeHomeMode('work')">
+      <el-select v-model="homeModeCc.work.value" value-key="value" placeholder="Select" style="width: 226px"
+        @change="changeHomeMode('work')">
         <el-option v-for="item in homeModeOpsCc" :key="item.value" :label="item.label" :value="item.value" />
       </el-select>
     </el-form-item>
     <el-form-item label="锁定模式" class="mode-wrapper">
-      <el-select v-model="homeModeCc.rest.value" value-key="value" placeholder="Select" style="width: 226px" @change="changeHomeMode('rest')">
+      <el-select v-model="homeModeCc.rest.value" value-key="value" placeholder="Select" style="width: 226px"
+        @change="changeHomeMode('rest')">
         <el-option v-for="item in homeModeOpsCc" :key="item.value" :label="item.label" :value="item.value" />
       </el-select>
     </el-form-item>
     <el-form-item label="屏保模式" class="mode-wrapper">
-      <el-select v-model="homeModeCc.screen.value" value-key="value" placeholder="Select" style="width: 226px" @change="changeHomeMode('screen')">
+      <el-select v-model="homeModeCc.screen.value" value-key="value" placeholder="Select" style="width: 226px"
+        @change="changeHomeMode('screen')">
         <el-option v-for="item in homeModeOpsCc" :key="item.value" :label="item.label" :value="item.value" />
       </el-select>
     </el-form-item>
@@ -43,7 +46,7 @@
             :disabled="['label', 'value'].includes(key as unknown as string)" @change="changeModeOps" />
         </el-form-item>
       </div>
-      
+
     </el-form-item>
 
   </el-form>
@@ -100,7 +103,7 @@ watch(() => homeModeOpsC.value, (n) => {
   deep: true,
 })
 watch(() => homeModeC.value, (n) => {
-  homeModeCc.value = JSON.parse(JSON.stringify(n)); 
+  homeModeCc.value = JSON.parse(JSON.stringify(n));
 }, { deep: true })
 
 function changeModeOps() {
@@ -111,12 +114,12 @@ function changeHomeMode(key: StatusMode) {
   const find = homeModeOpsCc.value.find((item: any) => item.value === homeModeCc.value[key].value);
   homeModeCc.value[key] = find;
   activeHomeModeOps.value = find;
-  setHomeMode(homeModeCc.value); 
+  setHomeMode(homeModeCc.value);
   activeHomeMode.value = key;
 }
 
 function quitApp() {
-  confirmDialog.open('确定要退出应用吗？', () => {
+  confirmDialog.open('确定要退出应用吗？', 3, () => {
     window.ipcRenderer.send('quit-app');
   });
 }
@@ -150,6 +153,10 @@ function toHome() {
 </script>
 
 <style scoped lang="scss">
+.home-mode-form {
+  padding: 24px;
+}
+
 .setting-title {
   padding-left: 3px;
   border-bottom: 6px solid #6d6d6d;
@@ -177,7 +184,7 @@ function toHome() {
   width: 100%;
   box-sizing: border-box;
   padding: 12px;
-  background-color: #ffffff;  
+  background-color: #ffffff;
 }
 
 // 主页模式

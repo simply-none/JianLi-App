@@ -1,7 +1,7 @@
 <template>
   <el-page-header :icon="ArrowLeft" @back="back">
     <template #content>
-      <span class="text-large font-600 mr-3">{{ title }}</span>
+      <span class="title">{{ title }}</span>
     </template>
   </el-page-header>
 </template>

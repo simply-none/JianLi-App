@@ -179,6 +179,7 @@ function countDown(time) {
   max-width: 600px;
   backdrop-filter: blur(6px);
   overflow: auto;
+  background: #c5c5c51c;
 
   /*隐藏垂直滚动条*/
   &::-webkit-scrollbar {
@@ -198,6 +199,7 @@ function countDown(time) {
     justify-content: center;
     backdrop-filter: blur(6px);
     padding: 12px 24px;
+    background: #c5c5c51c;
 
     .label {
       font-size: 24px;

@@ -42,13 +42,28 @@ function merge() {
   fileSliceList.sort((a, b) => {
     return a - b;
   });
+  let fileName = fileSliceList[0].split(".temp.")[0];
+  // 判断是否存在文件
+  if (fs.existsSync(fileName)) {
+    // 存在则重新命名
+    fileName = fileName + "_copy_" + moment().format("YYYY-MM-DD_HH-mm-ss");
+  }
   for (let i = 0; i < fileSliceList.length; i++) {
     const arr = fs.readFileSync(fileSliceList[i]);
-    fs.writeFileSync(fileSliceList[0] + "end", arr, { flag: "a+" });
+
+    fs.writeFileSync(fileName, arr, { flag: "a+" });
   }
 }
 // 使用nodejs的fs同步模块保存文件 函数，保存成功返回ok，否则返回失败信息
-export async function saveFile(filePath: string, content: any) {
+export async function saveFile({
+  filePath,
+  content,
+  chunkLength,
+}: {
+  filePath: string;
+  content: any;
+  chunkLength: number;
+}) {
   try {
     const buffer = Buffer.from(content);
     // 获取res的类型 使用toString.call
@@ -56,9 +71,13 @@ export async function saveFile(filePath: string, content: any) {
     console.log(type, "type");
     fs.writeFileSync(filePath, buffer);
     fileSliceList.push(filePath);
-    if (fileSliceList.length == 2) {
+    if (fileSliceList.length == chunkLength) {
       // 合片
-      merge();
+      await merge();
+      // 删除缓存文件
+      for (let i = 0; i < fileSliceList.length; i++) {
+        fs.unlinkSync(fileSliceList[i]);
+      }
       fileSliceList.length = 0;
     }
     return "ok";

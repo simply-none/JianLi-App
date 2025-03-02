@@ -1,25 +1,25 @@
 @font-face {
-  font-family: 'Basteleur Bold';
-  src: url('./assets/font/Basteleur-Bold.ttf');
+  font-family: "Basteleur Bold";
+  src: url("./assets/font/Basteleur-Bold.ttf");
 }
 
 @font-face {
-  font-family: 'Chill Pixels Mono';
-  src: url('./assets/font/ChillPixels-Mono.otf');
+  font-family: "Chill Pixels Mono";
+  src: url("./assets/font/ChillPixels-Mono.otf");
 }
 
 @font-face {
-  font-family: '鼎猎珠海体';
-  src: url('./assets/font/dingliezhuhaifont.ttf');
+  font-family: "鼎猎珠海体";
+  src: url("./assets/font/dingliezhuhaifont.ttf");
 }
 
 @font-face {
-  font-family: 'Norican';
-  src: url('./assets/font/Norican-Regular.ttf');
+  font-family: "Norican";
+  src: url("./assets/font/Norican-Regular.ttf");
 }
 
 :root {
-  --jianli-global-font: '';
+  --jianli-global-font: "";
 }
 
 html,
@@ -28,6 +28,31 @@ body {
   height: 100%;
   margin: 0;
   padding: 0;
+}
+html,
+body,
+button,
+input {
   font-family: var(--jianli-global-font);
 }
 
+* {
+  ::-webkit-scrollbar {
+    /*滚动条整体样式*/
+    width: 3px; /*高宽分别对应横竖滚动条的尺寸*/
+    height: 1px;
+    display: none;
+  }
+  ::-webkit-scrollbar-thumb {
+    /*滚动条里面小方块*/
+    border-radius: 3px;
+    box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.2);
+    background: #e8e8e8;
+  }
+  ::-webkit-scrollbar-track {
+    /*滚动条里面轨道*/
+    box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.2);
+    border-radius: 3px;
+    background: #ffffff;
+  }
+}

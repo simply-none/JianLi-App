@@ -47,7 +47,7 @@ function handleExceed(files: any, fileList: any) {
   ElMessage.error(`当前限制选择 1 个文件，本次选择了 ${files.length} 个文件，共选择了 ${fileList.length} 个文件`);
 }
 
-function readerFile(file: any , filePath: any) {
+function readerFile(file: any , filePath: any, chunkLength: number, curentChunk: number) {
   let reader = new FileReader();
 
   reader.onload = function (e: any) {
@@ -61,7 +61,9 @@ function readerFile(file: any , filePath: any) {
 
     const val = sendSync('save-file', {
       filePath: filePath,
-      content: res
+      content: res,
+      chunkLength,
+      curentChunk,
     })
 
     console.log(val, 'val')
@@ -86,12 +88,21 @@ function save() {
     chunkSize = Math.floor(size / 10)
   }
 
-  while (start < size) {
-    let chunk = file.slice(start, end);
-    readerFile(chunk, filePath + start);
-    start += chunkSize;
-    end += chunkSize;
+  // 计算chunk的数量
+  let chunkCount = Math.ceil(size / chunkSize);
+
+  // while (start < size) {
+  //   let chunk = file.slice(start, end);
+  //   readerFile(chunk, filePath + start, chunkCount, start);
+  //   start += chunkSize;
+  //   end += chunkSize;
+  // }
+  // 上面的while循环改成for循环
+  for (let i = 0; i < chunkCount; i++) {
+    let chunk = file.slice(i * chunkSize, (i + 1) * chunkSize);
+    readerFile(chunk, filePath + '.temp.' + i * chunkSize, chunkCount, i);
   }
+
 }
 
 </script>

@@ -119,7 +119,8 @@ function countDown(time) {
 
   .home-rest2-text-number {
     text-align: center;
-    width: 400px;
+    width: 1em;
+    margin: 0 0.2em;
   }
 
   .home-rest2-text-number,

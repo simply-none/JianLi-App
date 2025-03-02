@@ -1,7 +1,7 @@
 import { computed, onMounted, ref } from "vue";
 import type { Ref } from "vue";
 import { defineStore, storeToRefs } from "pinia";
-import { getStore, sendSync, setStore } from "../utils/common";
+import { getStore, send, sendSync, setStore } from "../utils/common";
 import moment from "moment";
 import useWorkOrRestStore from "@/store/useWorkOrReset";
 
@@ -76,7 +76,7 @@ export default defineStore("global-setting", () => {
   function setIsStartup(value: boolean) {
     isStartup.value = value;
     setStore("isStartup", value);
-    sendSync("set-startup", value)
+    send("set-startup", value)
   }
 
   // 系统样式布局设置
@@ -204,7 +204,7 @@ export default defineStore("global-setting", () => {
           { label: 'Chill Pixels Mono', value: 'Chill Pixels Mono' },
           { label: '鼎猎珠海体', value: '鼎猎珠海体' },
           { label: 'Norican', value: 'Norican' },
-          { label: '系统字体', value: '' },
+          { label: '系统字体', value: 'initial' },
         ], map: globalFontOps
       },
       {

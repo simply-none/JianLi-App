@@ -17,7 +17,12 @@ import os from "node:os";
 import ElectronStore from "electron-store";
 import { readFileList, readJsonFileContent } from "./utils/common.ts";
 import { createJob, stopJob } from "./module/job.ts";
-import { getFilePath, saveFile, copyFolder, type CopyFolderType } from "./module/dialog.ts";
+import {
+  getFilePath,
+  saveFile,
+  copyFolder,
+  type CopyFolderType,
+} from "./module/dialog.ts";
 
 let appName = "渐离App";
 app.setName(appName);
@@ -136,9 +141,9 @@ async function createWindow() {
       } else {
         isSetStartup(isStartup);
       }
+    } else {
+      isSetStartup(isStartup);
     }
-
-    isSetStartup(isStartup);
   });
   ipcMain.on("poet-data", (e, fullScreen: boolean) => {
     // 获取诗词数据，用于首页展示
@@ -204,16 +209,16 @@ async function createWindow() {
   // 监听文件保存
   ipcMain.on(
     "save-file",
-    async (e, { filePath, content }: { filePath: string; content: any }) => {
-      let result = await saveFile(filePath, content);
-      console.log(result, "result")
+    async (e, { filePath, content, chunkLength }: { filePath: string; content: any, chunkLength: number }) => {
+      let result = await saveFile({ filePath, content, chunkLength });
+      console.log(result, "result");
       e.returnValue = result;
     }
   );
   // 监听文件夹复制
   ipcMain.on("copy-folder", async (e, copyArgs: CopyFolderType) => {
     copyFolder(copyArgs, win);
-  })
+  });
 
   tray = new Tray(icon);
   tray.setToolTip(appName);
