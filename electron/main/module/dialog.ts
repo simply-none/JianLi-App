@@ -1,7 +1,29 @@
-import { BrowserWindow, dialog } from "electron";
+import { BrowserWindow, dialog, shell, ipcMain } from "electron";
 import fs from "fs";
 import axios from "axios";
 import moment from "moment";
+
+interface FileSaveObjType {
+  content: any;
+  path: string;
+  name: string;
+  tempSplit: string;
+  chunkLength: number;
+  currentChunkIndex: number;
+}
+
+// 获取下述函数的参数类型
+export type CopyFolderType = {
+  source: string;
+  target: string;
+  ignore?: string[];
+  include?: string[];
+  ignoreSuffix?: string[];
+  includeSuffix?: string[];
+  preserveTimestamps?: boolean;
+  force?: boolean;
+  recursive?: boolean;
+};
 
 export function getFilePath({
   openFile,
@@ -37,46 +59,64 @@ export function getFilePath({
 
 const fileSliceList = [];
 
-function merge() {
+async function merge() {
   // 排序
   fileSliceList.sort((a, b) => {
-    return a - b;
+    return a.currentChunkIndex - b.currentChunkIndex;
   });
-  let fileName = fileSliceList[0].split(".temp.")[0];
+  let path = fileSliceList[0].path;
+  let name = fileSliceList[0].name;
+  let fileName = path + name;
   // 判断是否存在文件
-  if (fs.existsSync(fileName)) {
+  if (fs.existsSync(path + name)) {
     // 存在则重新命名
-    fileName = fileName + "_copy_" + moment().format("YYYY-MM-DD_HH-mm-ss");
+    fileName = path + moment().format("_YYYY-MM-DD_HH-mm-ss_") + name;
   }
   for (let i = 0; i < fileSliceList.length; i++) {
-    const arr = fs.readFileSync(fileSliceList[i]);
-
+    console.log(fileSliceList[i], `, ${i + 1}\n`);
+    const arr = fs.readFileSync(
+      fileSliceList[i].path +
+        fileSliceList[i].tempSplit +
+        fileSliceList[i].name +
+        "." +
+        fileSliceList[i].currentChunkIndex
+    );
     fs.writeFileSync(fileName, arr, { flag: "a+" });
   }
 }
 // 使用nodejs的fs同步模块保存文件 函数，保存成功返回ok，否则返回失败信息
 export async function saveFile({
-  filePath,
+  path,
+  name,
+  tempSplit,
   content,
   chunkLength,
-}: {
-  filePath: string;
-  content: any;
-  chunkLength: number;
-}) {
+  currentChunkIndex,
+}: FileSaveObjType) {
   try {
     const buffer = Buffer.from(content);
     // 获取res的类型 使用toString.call
     const type = Object.prototype.toString.call(buffer);
     console.log(type, "type");
-    fs.writeFileSync(filePath, buffer);
-    fileSliceList.push(filePath);
+    fs.writeFileSync(path + tempSplit + name + "." + currentChunkIndex, buffer);
+    fileSliceList.push({
+      path,
+      name,
+      tempSplit,
+      currentChunkIndex,
+    });
     if (fileSliceList.length == chunkLength) {
       // 合片
       await merge();
       // 删除缓存文件
       for (let i = 0; i < fileSliceList.length; i++) {
-        fs.unlinkSync(fileSliceList[i]);
+        const oldPath =
+          fileSliceList[i].path +
+          fileSliceList[i].tempSplit +
+          fileSliceList[i].name +
+          "." +
+          fileSliceList[i].currentChunkIndex;
+        fs.unlinkSync(oldPath);
       }
       fileSliceList.length = 0;
     }
@@ -86,19 +126,6 @@ export async function saveFile({
     return err;
   }
 }
-
-// 获取下述函数的参数类型
-export type CopyFolderType = {
-  source: string;
-  target: string;
-  ignore?: string[];
-  include?: string[];
-  ignoreSuffix?: string[];
-  includeSuffix?: string[];
-  preserveTimestamps?: boolean;
-  force?: boolean;
-  recursive?: boolean;
-};
 
 // 使用fs.cp 进行整个文件夹的复制
 export function copyFolder(
@@ -212,4 +239,53 @@ export function copyFolder(
     win.webContents.send("copy-folder", err);
     console.log(err, "res");
   }
+}
+
+// 导出数据到json
+export function exportDataToJson(data: any, path: string) {
+  try {
+    // 格式化json数据并导出
+    const jsonData = JSON.stringify(data, null, 2);
+    fs.writeFileSync(path, jsonData);
+    return "ok";
+  } catch (err) {
+    return err;
+  }
+}
+
+// 打开资源管理器文件
+export function openFileInAssetsManager(path: string) {
+  shell.openPath(path);
+}
+
+export function initFile(win: BrowserWindow) {
+  // 监听获取文件路径
+  ipcMain.on("get-file-list", (e, value: string) => {
+    console.log(value, "e");
+    let result = getFilePath({
+      openDirectory: true,
+    });
+    e.returnValue = result;
+  });
+
+  // 监听文件保存
+  ipcMain.on("save-file", async (e, fileSaveObj: FileSaveObjType) => {
+    let result = await saveFile(fileSaveObj);
+    console.log(result, "result");
+    e.returnValue = result;
+  });
+
+  // 监听文件夹复制
+  ipcMain.on("copy-folder", async (e, copyArgs: CopyFolderType) => {
+    copyFolder(copyArgs, win);
+  });
+
+  // 数据保存
+  ipcMain.on("export-data-to-json", (e, { data, path }) => {
+    e.returnValue = exportDataToJson(data, path);
+  });
+
+  ipcMain.on("open-file-in-assets-manager", (e, { path }) => {
+    openFileInAssetsManager(path);
+  });
 }

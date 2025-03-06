@@ -21,3 +21,6 @@ declare namespace NodeJS {
     VITE_PUBLIC: string
   }
 }
+
+// 生成JavaScript对象的类型
+type ObjectType = Record<string, any>;

@@ -14,42 +14,28 @@ import {
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import os from "node:os";
-import ElectronStore from "electron-store";
+import colors from "colors";
 import { readFileList, readJsonFileContent } from "./utils/common.ts";
-import { createJob, stopJob } from "./module/job.ts";
+import { initJob } from "./module/job.ts";
+import { initFile } from "./module/dialog.ts";
+import { initCrypto } from "./module/crypto.ts";
+import { initStore } from "./module/store.ts";
+import { initTray, destroyTray } from "./module/tray.ts";
+import { initPoetData } from "./module/poetData.ts";
+
 import {
-  getFilePath,
-  saveFile,
-  copyFolder,
-  type CopyFolderType,
-} from "./module/dialog.ts";
+  appName,
+  __dirname,
+  VITE_DEV_SERVER_URL,
+  appLogoIco,
+  preload,
+  indexHtml,
+} from "./variables.ts";
 
-let appName = "渐离App";
 app.setName(appName);
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-process.env.APP_ROOT = path.join(__dirname, "../..");
-
-export const MAIN_DIST = path.join(process.env.APP_ROOT, "dist-electron");
-export const RENDERER_DIST = path.join(process.env.APP_ROOT, "dist");
-export const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL;
-
-process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
-  ? path.join(process.env.APP_ROOT, "public")
-  : RENDERER_DIST;
-
-let store = new ElectronStore();
 
 let win: BrowserWindow | null = null;
 let childWindow: Record<string, BrowserWindow | null> = {};
-const preload = path.join(__dirname, "../preload/index.mjs");
-const indexHtml = path.join(RENDERER_DIST, "index.html");
-
-let timer = null;
-let tray = null;
-let poetDataPathList = null;
-const icon = path.join(process.env.VITE_PUBLIC, "logo.png");
 
 export function focusAppToTop() {
   win?.setAlwaysOnTop(true, "screen-saver");
@@ -64,6 +50,9 @@ export function hideApp() {
 }
 
 export function exitApp() {
+  globalShortcut.unregisterAll();
+  destroyTray();
+  app.removeAllListeners();
   const allWindows = BrowserWindow.getAllWindows();
   if (allWindows.length > 0) {
     for (let window of allWindows) {
@@ -74,9 +63,6 @@ export function exitApp() {
       }
     }
   }
-  globalShortcut.unregisterAll();
-  tray?.destroy();
-  app.removeAllListeners();
   app.exit();
 }
 
@@ -104,7 +90,7 @@ function isSetStartup(isStartup, hidden = false) {
 async function createWindow() {
   win = new BrowserWindow({
     title: "Main window",
-    icon: path.join(process.env.VITE_PUBLIC, "favicon.ico"),
+    icon: appLogoIco,
     transparent: true,
     resizable: false,
     frame: false,
@@ -145,113 +131,28 @@ async function createWindow() {
       isSetStartup(isStartup);
     }
   });
-  ipcMain.on("poet-data", (e, fullScreen: boolean) => {
-    // 获取诗词数据，用于首页展示
-    poetDataPathList = readFileList(
-      path.join(process.env.VITE_PUBLIC, "/宋词/"),
-      [".json"]
-    );
-    let randomFile =
-      poetDataPathList[Math.floor(Math.random() * poetDataPathList.length)];
-    let randomPoetData = readJsonFileContent(randomFile);
-    e.returnValue = randomPoetData;
-  });
   ipcMain.on("hide-app", (e) => {
     hideApp();
   });
-  ipcMain.on("start-work", (e, workTimeGap: number) => {
-    hideApp();
-    createJob({
-      win,
-      msgName: "close-work",
-      time: workTimeGap,
-      onTick: () => {
-        // 打开第二窗口
-        // createOtherWindow('small')
-      },
-    });
-  });
-  ipcMain.on("start-rest", (e, restTimeGap: number) => {
-    focusAppToTop();
-    createJob({
-      win,
-      msgName: "close-rest",
-      time: restTimeGap,
-      onTick: () => {
-        hideApp();
-        // closeOtherWindow('small')
-      },
-    });
-  });
-  ipcMain.on("get-store", (e, key: any) => {
-    e.returnValue = store.get(key);
-  });
-  ipcMain.on("set-store", (e, key: any, value: any) => {
-    if (key === "multi-field") {
-      e.returnValue = store.set(value);
-    } else {
-      e.returnValue = store.set(key, value);
-    }
-  });
-  ipcMain.on("clear-store", (e) => {
-    store.clear();
-    e.returnValue = "清空成功";
+
+  initPoetData()
+
+  initJob({
+    win,
+    hideApp,
+    focusAppToTop,
   });
 
-  // 监听获取文件路径
-  ipcMain.on("get-file-list", (e, value: string) => {
-    console.log(value, "e");
-    let result = getFilePath({
-      openDirectory: true,
-    });
-    e.returnValue = result;
-  });
-  // 监听文件保存
-  ipcMain.on(
-    "save-file",
-    async (e, { filePath, content, chunkLength }: { filePath: string; content: any, chunkLength: number }) => {
-      let result = await saveFile({ filePath, content, chunkLength });
-      console.log(result, "result");
-      e.returnValue = result;
-    }
-  );
-  // 监听文件夹复制
-  ipcMain.on("copy-folder", async (e, copyArgs: CopyFolderType) => {
-    copyFolder(copyArgs, win);
-  });
+  initStore();
 
-  tray = new Tray(icon);
-  tray.setToolTip(appName);
-  tray.setTitle(appName);
-  const contextMenu = Menu.buildFromTemplate([
-    {
-      label: "隐藏应用",
-      click: () => {
-        if (win) {
-          hideApp();
-        }
-      },
-    },
-    {
-      label: "打开应用",
-      click: () => {
-        if (win) {
-          win.show();
-        }
-      },
-    },
-    {
-      label: "退出应用",
-      click: () => {
-        exitApp();
-      },
-    },
-  ]);
-  tray.setContextMenu(contextMenu);
+  initFile(win);
 
-  tray.on("double-click", () => {
-    // 这里仅仅打开应用界面，不调用 focusAppToTop()，不然屏幕无法点击
-    win.show();
+  initCrypto();
+
+  initTray({
+    win,
+    exitApp,
+    hideApp,
   });
 
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -274,7 +175,7 @@ app.whenReady().then(async () => {
 
 app.on("window-all-closed", (e) => {
   e.preventDefault(); //先阻止一下默认行为，不然直接关了，提示框只会闪一下
-  app?.exit();
+  exitApp();
 });
 
 app.on("second-instance", () => {
@@ -298,7 +199,7 @@ function createOtherWindow(arg: string) {
   if (childWindow[arg]) closeOtherWindow[arg]();
   childWindow[arg] = new BrowserWindow({
     title: "second window",
-    icon: path.join(process.env.VITE_PUBLIC, "favicon.ico"),
+    icon: appLogoIco,
     transparent: true,
     resizable: true,
     frame: false,

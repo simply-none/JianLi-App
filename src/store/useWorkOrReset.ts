@@ -1,13 +1,7 @@
 import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue';
-import type { Ref } from 'vue';
 import { storeToRefs, defineStore } from 'pinia';
 import { getStore, sendSync, setStore } from "../utils/common";
-
-type defaultField = {
-  field: string,
-  default: any,
-  map: Ref<any>,
-}
+import { initPiniaStatus, type defaultField } from "@/utils/store";
 
 const useWorkOrRestStore = defineStore('workOrRest', () => {
   const closeWorkTime = ref()
@@ -113,22 +107,7 @@ const useWorkOrRestStore = defineStore('workOrRest', () => {
     ]
 
     // 默认值赋值
-    allVars.forEach((item) => {
-      const { field, default: defaultValue, map } = item;
-      assignDefaultValue(field, defaultValue, map);
-    })
-  }
-
-  // 变量默认值赋值操作：
-  // 1. 先从store中获取数据
-  // 2. 如果store中没有数据，则从默认值中获取数据
-  // 3. 将数据赋值给该变量
-  function assignDefaultValue<T>(key: string, defaultValue: T, map: Ref<any>): void {
-    const storeValue = getStore(key);
-    map.value = storeValue || defaultValue;
-    if (storeValue === undefined) {
-      setStore(key, defaultValue);
-    }
+    initPiniaStatus(allVars);
   }
 
   function $reset() {

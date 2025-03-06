@@ -7,7 +7,7 @@
     </el-form-item>
     <!-- 文件上传测试 -->
     <el-form-item label="文件上传测试" class="mode-wrapper">
-      <upload-vue />
+      <upload-vue :limit="1" @update-data="updateDataFn"/>
     </el-form-item>
     <!-- 文件夹复制测试 -->
     <el-form-item label="文件转移" class="mode-wrapper file-move">
@@ -250,6 +250,9 @@ function copyDir() {
   send('copy-folder', copyArgs);
 }
 
+function updateDataFn(data: any, data2: any) {
+  console.log(data, data2, 'data'); 
+}
 onMounted(() => {
   window.ipcRenderer.on('copy-folder', (event: any, res: any) => {
     console.log(res, 'res');

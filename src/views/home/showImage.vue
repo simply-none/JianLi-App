@@ -2,10 +2,10 @@
   <div class="home-rest2">
     <el-image :src="RestBg"></el-image>
     <div class="home-rest2-text">
-      <div class="home-rest2-text-item" v-for="(tItem, tIndex) in (toNextWorkTime || '00:00:00').split(':')"
+      <div class="home-rest2-text-item" v-for="(tItem, tIndex) in (toNextTime || '00:00:00').split(':')"
         :key="tItem">
         <div class="home-rest2-text-number">{{ tItem }}</div>
-        <div class="home-rest2-text-split" v-if="(toNextWorkTime || '00:00:00').split(':').length != tIndex + 1">:
+        <div class="home-rest2-text-split" v-if="(toNextTime || '00:00:00').split(':').length != tIndex + 1">:
         </div>
       </div>
     </div>
@@ -20,11 +20,11 @@ import { storeToRefs } from 'pinia';
 import RestBg from '@/assets/rest-bg.png'
 import useGlobalSetting from '@/store/useGlobalSetting';
 import useWorkOrRestStore from '@/store/useWorkOrReset';
+import moment from 'moment';
 
 const showContent = ref({ error: true });
 const timer = ref(null);
-const toNextWorkTime = ref('00:00:00');
-const toNextRestTime = ref('00:00:00');
+const toNextTime = ref('00:00:00');
 const percentage = ref(1);
 
 const {
@@ -38,10 +38,10 @@ onMounted(() => {
   timer.value = setInterval(() => {
     if (curStatusC.value.value === 'work') {
       console.log(countDown(nextRestTime.value), 'countDown', nextRestTime.value)
-      toNextRestTime.value = countDown(nextRestTime.value);
+      toNextTime.value = countDown(nextRestTime.value);
     } else if (curStatusC.value.value === 'rest') {
       console.log(countDown(nextWorkTime.value), 'countDown', nextWorkTime.value)
-      toNextWorkTime.value = countDown(nextWorkTime.value);
+      toNextTime.value = countDown(nextWorkTime.value);
       let isAdd = 1
       if (percentage.value < 60) {
         isAdd = Math.random() > 0.6 ? percentage.value + 1 : percentage.value;
@@ -49,6 +49,9 @@ onMounted(() => {
         isAdd = Math.random() > percentage.value * 0.01 ? percentage.value + 1 : percentage.value;
       }
       percentage.value = isAdd > 97 ? 97 : isAdd;
+    } else if (curStatusC.value.value == 'screen') {
+      // 展示时钟
+      toNextTime.value = moment().format('HH:mm:ss');
     }
   }, 1000);
 });
@@ -109,7 +112,7 @@ function countDown(time) {
     left: 50%;
     transform: translate(-50%, -50%);
     padding: 10px 20px;
-    color: #8686861f;
+    color: #6b686845;
     display: flex;
   }
 

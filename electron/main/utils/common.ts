@@ -8,12 +8,12 @@ export function readFileList(dir, whiteExt = [], ignoreFolder = []) {
     if (ignoreFolder.includes(item)) return;
     let stat = fs.statSync(dir + item);
     if (stat.isDirectory()) {
-      console.log('检测到文件夹：' + dir + item);
+      // console.log('检测到文件夹：' + dir + item);
       //递归读取文件
       readFileList(dir + item + "/", filesList)
     } else {
       if (whiteExt.includes(path.extname(dir + item))) {
-        console.log('检测到白名单文件，路径为：' + dir + item);
+        // console.log('检测到白名单文件，路径为：' + dir + item);
         filesList.push(dir + item);
       }
     }

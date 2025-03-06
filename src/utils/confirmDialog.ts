@@ -1,7 +1,7 @@
 import { ElMessage, ElMessageBox } from "element-plus";
 import { ref } from "vue";
 
-const open = (
+export const open = (
   msg: string,
   delay: number = 3,
   confirmFn?: () => void,

@@ -34,12 +34,17 @@ export function useWorkOrRest() {
     window.ipcRenderer.on('close-rest', (e, data) => {
       startForceWorkFn({ isUpdateStartTime: true })
     });
+
+    window.ipcRenderer.on('close-screen-saver', (e, data) => {
+      startForceWorkFn({ isUpdateStartTime: true })
+    })
   }
   // 软件初始化 - 取消注册全局侦听事件
   function unregisterGlobalListener() {
     window.ipcRenderer.removeAllListeners('before-close');
     window.ipcRenderer.removeAllListeners('close-work');
-    window.ipcRenderer.removeAllListeners('close-rest'); 
+    window.ipcRenderer.removeAllListeners('close-rest');
+    window.ipcRenderer.removeAllListeners('close-screen-saver');
   }
   
 
@@ -133,7 +138,7 @@ export function useWorkOrRest() {
   }
 
   function forceWorkWithTimes({ isUpdateStartTime }: { isUpdateStartTime?: boolean } = {}) {
-    if (todayForceWorkTimesC.value?.times > forceWorkTimesC.value) {
+    if (todayForceWorkTimesC.value?.times >= forceWorkTimesC.value) {
       appNotify('提示', '太累了，您不能再继续强制工作');
       sysNotify('提示', '太累了，您不能再继续强制工作', '');
       return
@@ -185,12 +190,35 @@ export function useWorkOrRest() {
     }
   }
 
+  // 开启屏保模式
+  function startScreenSaverFn({ gap, msg, notTimeout }: { gap?: number, msg?: string, notTimeout?: boolean } = {}) {
+    if (startTimer.value) clearTimeout(startTimer.value);
+    sysNotify('提示', msg || '3秒后开始进入屏保状态', '')
+    appNotify('提示', msg || '3秒后开始进入屏保状态'); 
+    if (!notTimeout) {
+      startTimer.value = setTimeout(() => {
+        setCurStatus({
+          label: '锁屏模式',
+          value: 'screen',
+        })
+        window.ipcRenderer.send('start-screen-saver');
+      }, waitTime); 
+    }
+  }
+
+  // 关闭屏保模式
+  function closeScreenSaverFn() {
+    startForceWorkFn({ isUpdateStartTime: true })
+  }
+
   return {
     startApp: initFn,
     startWorkFn,
     startForceWorkFn,
     forceWorkWithTimes,
     startRestFn,
+    startScreenSaverFn,
+    closeScreenSaverFn,
     changeEffectFn,
     workTimeGapC,
     restTimeGapC,

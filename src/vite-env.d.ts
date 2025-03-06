@@ -13,3 +13,6 @@ interface Window {
 
 type ShowContentType = { error: boolean }
 
+// 生成JavaScript对象的类型
+type ObjectKey = string | number | symbol;
+type ObjectType = Record<ObjectKey, any>;

@@ -4,55 +4,48 @@ import { defineStore, storeToRefs } from "pinia";
 import { getStore, send, sendSync, setStore } from "../utils/common";
 import moment from "moment";
 import useWorkOrRestStore from "@/store/useWorkOrReset";
+import { initPiniaStatus, type defaultField } from "@/utils/store";
 
-type defaultField = {
-  field: string,
-  default: any,
-  map: Ref<any>,
-  initFn?: Function,
-}
-
-export type StatusMode = 'work' | 'rest' | 'screen';
+export type StatusMode = "work" | "rest" | "screen";
 
 interface Status {
   label?: string;
-  value?: StatusMode
+  value?: StatusMode;
 }
 
-export interface CommonOps {
+interface CommonOps {
   label?: string;
   value?: string;
 }
 
-export type CommonObj = {
-  [key: string]: any
-}
-
 export default defineStore("global-setting", () => {
-  const { startWorkTimeC, closeWorkTimeC } = storeToRefs(useWorkOrRestStore())
+  const { startWorkTimeC, closeWorkTimeC } = storeToRefs(useWorkOrRestStore());
   // 当前的状态
-  const curStatus = ref<Status>({})
-  const curStatusC = computed(() => curStatus.value)
+  const curStatus = ref<Status>({});
+  const curStatusC = computed(() => curStatus.value);
   function setCurStatus(status?: Status) {
     if (!status) {
-      curStatus.value = startWorkTimeC.value >= closeWorkTimeC.value ? {
-        label: '正在工作',
-        value: 'work',
-      } : {
-        label: '正在休息',
-        value: 'rest',
-      }
+      curStatus.value =
+        startWorkTimeC.value >= closeWorkTimeC.value
+          ? {
+              label: "正在工作",
+              value: "work",
+            }
+          : {
+              label: "正在休息",
+              value: "rest",
+            };
       return true;
     }
     curStatus.value = status;
-    setStore("curStatus", status)
+    setStore("curStatus", status);
   }
 
   // 强制解锁屏幕限制（即可以玩电脑）
-  const forceWorkTimes = ref()
-  const todayForceWorkTimes = ref()
-  const forceWorkTimesC = computed(() => forceWorkTimes.value)
-  const todayForceWorkTimesC = computed(() => todayForceWorkTimes.value)
+  const forceWorkTimes = ref();
+  const todayForceWorkTimes = ref();
+  const forceWorkTimesC = computed(() => forceWorkTimes.value);
+  const todayForceWorkTimesC = computed(() => todayForceWorkTimes.value);
 
   function setForceWorkTimes(value: number) {
     forceWorkTimes.value = value;
@@ -60,37 +53,37 @@ export default defineStore("global-setting", () => {
   }
 
   function setTodayForceWorkTimes(value: number) {
-    if (typeof value !== 'number') value = 0;
+    if (typeof value !== "number") value = 0;
     const t = {
-      today: moment().format('YYYY/MM/DD'),
+      today: moment().format("YYYY/MM/DD"),
       times: value,
-    }
+    };
     todayForceWorkTimes.value = t;
     setStore("todayForceWorkTimes", t);
   }
 
   // 是否开机启动
-  const isStartup = ref()
-  const isStartupC = computed(() => isStartup.value)
+  const isStartup = ref();
+  const isStartupC = computed(() => isStartup.value);
 
   function setIsStartup(value: boolean) {
     isStartup.value = value;
     setStore("isStartup", value);
-    send("set-startup", value)
+    send("set-startup", value);
   }
 
   // 系统样式布局设置
   // 应用内颜色
-  const appInnerColor = ref()
+  const appInnerColor = ref();
   // 应用背景颜色
-  const appBgColor = ref()
+  const appBgColor = ref();
   // 应用全局字体
-  const globalFont = ref()
-  const globalFontOps = ref<CommonOps[]>([])
-  const appInnerColorC = computed(() => appInnerColor.value)
-  const appBgColorC = computed(() => appBgColor.value)
-  const globalFontC = computed(() => globalFont.value)
-  const globalFontOpsC = computed(() => globalFontOps.value)
+  const globalFont = ref();
+  const globalFontOps = ref<CommonOps[]>([]);
+  const appInnerColorC = computed(() => appInnerColor.value);
+  const appBgColorC = computed(() => appBgColor.value);
+  const globalFontC = computed(() => globalFont.value);
+  const globalFontOpsC = computed(() => globalFontOps.value);
 
   function setAppInnerColor(value: string) {
     appInnerColor.value = value;
@@ -105,33 +98,33 @@ export default defineStore("global-setting", () => {
   function setGlobalFont(value: string) {
     globalFont.value = value;
     setStore("globalFont", value);
-    document.documentElement.style.setProperty('--jianli-global-font', value)
+    document.documentElement.style.setProperty("--jianli-global-font", value);
   }
 
   function setGlobalFontOps(value: CommonOps[]) {
     globalFontOps.value = value;
-    console.log(value, 'value')
+    console.log(value, "value");
     setStore("globalFontOps", value);
   }
 
   // 应用强制锁定（即休息时）设置存储思路：
   // 1. 包含多套方案
   // 2. 每套方案包含一种或多种属性
-  const homeMode = ref<Record<StatusMode, CommonObj>>({
+  const homeMode = ref<Record<StatusMode, ObjectType>>({
     work: {},
     rest: {},
     screen: {},
-  })
-  const homeModeOps = ref<CommonObj[]>([])
-  const homeModeC = computed(() => homeMode.value)
-  const homeModeOpsC = computed(() => homeModeOps.value)
+  });
+  const homeModeOps = ref<ObjectType[]>([]);
+  const homeModeC = computed(() => homeMode.value);
+  const homeModeOpsC = computed(() => homeModeOps.value);
 
-  function setHomeMode(value: Record<StatusMode, CommonObj>) {
+  function setHomeMode(value: Record<StatusMode, ObjectType>) {
     homeMode.value = value;
     setStore("homeMode", value);
   }
 
-  function setHomeModeOps(value: CommonObj[]) {
+  function setHomeModeOps(value: ObjectType[]) {
     homeModeOps.value = value;
     setStore("homeModeOps", value);
   }
@@ -139,24 +132,20 @@ export default defineStore("global-setting", () => {
   // pinia状态初始化
   function init() {
     // 布尔值变量
-    const boolVars = [
-      { field: 'isStartup', default: false, map: isStartup },
-    ]
+    const boolVars = [{ field: "isStartup", default: false, map: isStartup }];
     // 数字值变量
     const numberVars = [
-      { field: 'forceWorkTimes', default: 3, map: forceWorkTimes },
-    ]
+      { field: "forceWorkTimes", default: 3, map: forceWorkTimes },
+    ];
     // 字符串值变量
-    const stringVars: defaultField[] = []
+    const stringVars: defaultField[] = [];
     // 颜色值变量
     const colorVars = [
-      { field: 'appInnerColor', default: '#ffffff', map: appInnerColor },
-      { field: 'appBgColor', default: '#d4d4d4', map: appBgColor },
-    ]
+      { field: "appInnerColor", default: "#ffffff", map: appInnerColor },
+      { field: "appBgColor", default: "#d4d4d4", map: appBgColor },
+    ];
     // 字体值变量
-    const fontVars = [
-      { field: 'globalFont', default: '', map: globalFont },
-    ]
+    const fontVars = [{ field: "globalFont", default: "", map: globalFont }];
 
     const originHomeModeOps = [
       {
@@ -180,45 +169,54 @@ export default defineStore("global-setting", () => {
         secondaryColor: "#ffffff",
         opacity: 0.8,
       },
-    ]
+    ];
     // 对象值变量
     const objectVars = [
       {
-        field: 'curStatus', default: {
-          label: '正在工作',
-          value: 'work',
+        field: "curStatus",
+        default: {
+          label: "正在工作",
+          value: "work",
           // 匹配当前主页的模式
-          mode: '',
-        }, map: curStatus
+          mode: "",
+        },
+        map: curStatus,
       },
       {
-        field: 'todayForceWorkTimes', default: {
-          today: moment().format('YYYY/MM/DD'),
+        field: "todayForceWorkTimes",
+        default: {
+          today: moment().format("YYYY/MM/DD"),
           times: 0,
-        }, map: todayForceWorkTimes,
+        },
+        map: todayForceWorkTimes,
         initFn: initTodayForceWorkTimes,
       },
       {
-        field: 'globalFontOps', default: [
-          { label: 'Basteleur Bold', value: 'Basteleur Bold' },
-          { label: 'Chill Pixels Mono', value: 'Chill Pixels Mono' },
-          { label: '鼎猎珠海体', value: '鼎猎珠海体' },
-          { label: 'Norican', value: 'Norican' },
-          { label: '系统字体', value: 'initial' },
-        ], map: globalFontOps
+        field: "globalFontOps",
+        default: [
+          { label: "Basteleur Bold", value: "Basteleur Bold" },
+          { label: "Chill Pixels Mono", value: "Chill Pixels Mono" },
+          { label: "鼎猎珠海体", value: "鼎猎珠海体" },
+          { label: "Norican", value: "Norican" },
+          { label: "系统字体", value: "initial" },
+        ],
+        map: globalFontOps,
       },
       {
-        field: 'homeMode', default: {
+        field: "homeMode",
+        default: {
           work: originHomeModeOps[0],
           rest: originHomeModeOps[0],
           screen: originHomeModeOps[0],
-        }, map: homeMode
+        },
+        map: homeMode,
       },
       {
-        field: 'homeModeOps', default: originHomeModeOps, map: homeModeOps
+        field: "homeModeOps",
+        default: originHomeModeOps,
+        map: homeModeOps,
       },
-
-    ]
+    ];
 
     // 所有的变量集合
     const allVars: defaultField[] = [
@@ -228,52 +226,40 @@ export default defineStore("global-setting", () => {
       ...colorVars,
       ...fontVars,
       ...objectVars,
-    ]
+    ];
 
     // 默认值赋值
-    allVars.forEach((item) => {
-      const { field, default: defaultValue, map } = item;
-      if (!item.initFn) {
-        assignDefaultValue(field, defaultValue, map);
-      } else {
-        item.initFn(field, defaultValue, map)
-      }
-      
-    })
+    initPiniaStatus(allVars);
   }
 
   // 当天时间判断，初始化
-  function initTodayForceWorkTimes<T>(key: string, defaultValue: T, map: Ref<any>): void {
+  function initTodayForceWorkTimes<T>(
+    key: string,
+    defaultValue: T,
+    map: Ref<any>
+  ): void {
     const storeValue = getStore(key);
-    const today = moment().format('YYYY/MM/DD');
+    const today = moment().format("YYYY/MM/DD");
 
-    if (storeValue == undefined || storeValue == null || today !== storeValue.today) {
-      map.value = defaultValue
+    if (
+      storeValue == undefined ||
+      storeValue == null ||
+      today !== storeValue.today
+    ) {
+      map.value = defaultValue;
       setStore(key, defaultValue);
     } else {
-      map.value = storeValue
-    }
-  }
-
-  // 变量默认值赋值操作：
-  // 1. 先从store中获取数据
-  // 2. 如果store中没有数据，则从默认值中获取数据
-  // 3. 将数据赋值给该变量
-  function assignDefaultValue<T>(key: string, defaultValue: T, map: Ref<any>): void {
-    const storeValue = getStore(key);
-    map.value = storeValue || defaultValue;
-    if (storeValue === undefined) {
-      setStore(key, defaultValue);
+      map.value = storeValue;
     }
   }
 
   function $reset() {
-    init()
+    init();
   }
 
   onMounted(() => {
-    init()
-  })
+    init();
+  });
 
   return {
     // 变量
@@ -309,7 +295,7 @@ export default defineStore("global-setting", () => {
     globalFontOpsC,
     homeModeC,
     homeModeOpsC,
-    // 其他 
+    // 其他
     $reset,
   };
 });

@@ -16,11 +16,19 @@ export const layoutRouters: RouteRecordRaw[] = [
     }
   },
   {
-    path: "/test",
-    name: "test",
-    component: () => import("@/views/test.vue"),
+    path: '/homeMode',
+    name: 'homeMode',
+    component: () => import("@/views/homeMode/index.vue"),
     meta: {
-      title: "测试",
+      title: "主页模式", 
+    }
+  },
+  {
+    path: "/appCache",
+    name: "appCache",
+    component: () => import("@/views/appCache/index.vue"),
+    meta: {
+      title: "应用缓存",
     },
   },
   {
@@ -32,13 +40,22 @@ export const layoutRouters: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/homeMode',
-    name: 'homeMode',
-    component: () => import("@/views/homeMode/index.vue"),
+    path: '/safetyProtection',
+    name:'safetyProtection',
+    component: () => import("@/views/safetyProtection/index.vue"),
     meta: {
-      title: "主页模式", 
+      title: "安全防护", 
     }
-  }
+  },
+  {
+    path: "/test",
+    name: "test",
+    component: () => import("@/views/test.vue"),
+    meta: {
+      title: "测试",
+    },
+  },
+  
 ];
 
 const routers: RouteRecordRaw[] = [

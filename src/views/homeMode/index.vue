@@ -66,7 +66,7 @@ import { storeToRefs } from 'pinia';
 import { timeUnit } from '@/utils/time';
 import confirmDialog from '@/utils/confirmDialog';
 import LayoutVue from '@/components/layout.vue';
-import type { StatusMode, CommonObj } from '@/store/useGlobalSetting'
+import type { StatusMode } from '@/store/useGlobalSetting'
 
 const router = useRouter();
 
@@ -92,7 +92,7 @@ const { isStartupC, forceWorkTimesC, todayForceWorkTimesC, appBgColorC, appInner
 
 const appBgColorCc = ref(JSON.parse(JSON.stringify(appBgColorC.value)))
 const appInnerColorCc = ref(JSON.parse(JSON.stringify(appInnerColorC.value)))
-const homeModeCc = ref<Record<StatusMode, CommonObj>>(JSON.parse(JSON.stringify(homeModeC.value)))
+const homeModeCc = ref<Record<StatusMode, ObjectType>>(JSON.parse(JSON.stringify(homeModeC.value)))
 const homeModeOpsCc = ref(JSON.parse(JSON.stringify(homeModeOpsC.value)))
 const activeHomeModeOps = ref(toRaw(homeModeOpsCc.value[0]))
 const activeHomeMode = ref<StatusMode>('work');

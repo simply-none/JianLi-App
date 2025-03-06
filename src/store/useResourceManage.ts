@@ -1,15 +1,22 @@
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, toRaw } from "vue";
 import { defineStore, storeToRefs } from "pinia";
 import { getStore, sendSync, setStore } from "../utils/common";
 import { initPiniaStatus, type defaultField } from "@/utils/store";
 
-export default defineStore("cache-set", () => {
-  // 文件存储目录
-  const fileCachePath = ref()
-  const fileCachePathC = computed(() => fileCachePath.value)
-  function setFileCachePath(value: string) {
-    fileCachePath.value = value;
-    setStore("fileCachePath", value); 
+export default defineStore("resource-manage", () => {
+  // 图片资源对象
+  const imageResource = ref();
+  const imageResourceC = computed(() => imageResource.value);
+
+  function setImageResource(value: ObjectType) {
+    // 新增资源，并更新到本地存储
+    imageResource.value.push(value);
+    // 保存资源到系统中
+    sendSync("save-file", {
+      type: "image",
+      resource: value,
+    });
+    setStore("imageResource", imageResource.value);
   }
   
   // pinia状态初始化
@@ -22,7 +29,6 @@ export default defineStore("cache-set", () => {
     ]
     // 字符串值变量
     const stringVars: defaultField[] = [
-      { field: 'fileCachePath', default: '', map: fileCachePath },
     ]
     // 颜色值变量
     const colorVars: defaultField[] = [
@@ -59,10 +65,9 @@ export default defineStore("cache-set", () => {
 
   return {
     // 变量
-    fileCachePath,
-    fileCachePathC,
+    
     // 方法
-    setFileCachePath,
+
     // 其他 
     $reset,
   };

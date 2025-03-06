@@ -23,6 +23,15 @@ export default defineConfig(({ command }) => {
         '@': resolve(__dirname, './src'),
       }
     },
+    css: {
+      preprocessorOptions: {
+        // 消除：Deprecation Warning [legacy-js-api]: The legacy JS API is deprecated and will be removed in Dart Sass 2.0.0.
+        scss: {
+          api: 'modern-compiler',
+          silenceDeprecations: ['legacy-js-api'],
+        }
+      }
+    },
     plugins: [
       vue(),
       jsonX(),
