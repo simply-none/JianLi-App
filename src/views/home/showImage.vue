@@ -17,7 +17,7 @@
 import { ref, reactive, watch, computed, onMounted, onUnmounted } from 'vue';
 import { storeToRefs } from 'pinia';
 
-import RestBg from '@/assets/rest-bg.png'
+import RestBg from '@/assets/codeBackgroundDefault.png'
 import useGlobalSetting from '@/store/useGlobalSetting';
 import useWorkOrRestStore from '@/store/useWorkOrReset';
 import moment from 'moment';
