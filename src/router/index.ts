@@ -80,6 +80,11 @@ const routers: RouteRecordRaw[] = [
     name: "small",
     component: () => import("@/views/smallWindow.vue"),
   },
+  {
+    path: "/second",
+    name: "second",
+    component: () => import("@/views/pomodoroMiniWindow/index.vue"),
+  }
 ];
 
 export default createRouter({

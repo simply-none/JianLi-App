@@ -1,5 +1,6 @@
 import { Tray, Menu } from "electron";
 import { appLogoPng, appName } from "../variables.ts";
+import { win, hideApp, exitApp } from "./mainWindow.ts";
 
 let tray = null;
 
@@ -15,7 +16,7 @@ export function destroyTray() {
   }
 }
 
-export function initTray({ win, hideApp, exitApp }) {
+export function initTray() {
   setTray();
 
   const contextMenu = Menu.buildFromTemplate([

@@ -1,4 +1,4 @@
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, toRaw, watchEffect } from "vue";
 import type { Ref } from "vue";
 import { defineStore, storeToRefs } from "pinia";
 import { getStore, send, sendSync, setStore } from "../utils/common";
@@ -19,7 +19,7 @@ interface CommonOps {
 }
 
 export default defineStore("global-setting", () => {
-  const { startWorkTimeC, closeWorkTimeC } = storeToRefs(useWorkOrRestStore());
+  const { startWorkTimeC, closeWorkTimeC, workTimeGapC, workTimeGapUnitC, restTimeGapC, restTimeGapUnitC } = storeToRefs(useWorkOrRestStore());
   // 当前的状态
   const curStatus = ref<Status>({});
   const curStatusC = computed(() => curStatus.value);
@@ -260,6 +260,22 @@ export default defineStore("global-setting", () => {
   onMounted(() => {
     init();
   });
+
+  // 监听上面所有状态的变化，打开番茄钟小窗口同步数据
+  watchEffect(() => {
+    console.log(curStatus.value, "curStatus.value");
+    console.log(forceWorkTimes.value, "forceWorkTimes.value");
+    console.log(todayForceWorkTimes.value, "todayForceWorkTimes.value");
+    send('sync-data-to-other-window', {
+      curStatus: toRaw(curStatus.value),
+      startWorkTime: toRaw(startWorkTimeC.value),
+      closeWorkTime: toRaw(closeWorkTimeC.value),
+      workTimeGap: toRaw(workTimeGapC.value),
+      workTimeGapUnit: toRaw(workTimeGapUnitC.value),
+      restTimeGap: toRaw(restTimeGapC.value),
+      restTimeGapUnit: toRaw(restTimeGapUnitC.value),
+    }) 
+  })
 
   return {
     // 变量

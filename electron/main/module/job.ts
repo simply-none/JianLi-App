@@ -1,6 +1,7 @@
 import { ipcMain } from "electron";
 import { CronJob } from "cron";
 import momemt from "moment";
+import { win, hideApp, focusAppToTop } from "./mainWindow.ts";
 
 let job;
 
@@ -39,7 +40,7 @@ export function stopJob() {
   job = null;
 }
 
-export function initJob({ win, hideApp, focusAppToTop }) {
+export function initJob() {
   ipcMain.on("start-work", (e, workTimeGap: number) => {
     hideApp();
     createJob({

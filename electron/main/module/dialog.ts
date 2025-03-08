@@ -2,6 +2,7 @@ import { BrowserWindow, dialog, shell, ipcMain } from "electron";
 import fs from "fs";
 import axios from "axios";
 import moment from "moment";
+import { win } from "./mainWindow.ts";
 
 interface FileSaveObjType {
   content: any;
@@ -258,7 +259,7 @@ export function openFileInAssetsManager(path: string) {
   shell.openPath(path);
 }
 
-export function initFile(win: BrowserWindow) {
+export function initFile() {
   // 监听获取文件路径
   ipcMain.on("get-file-list", (e, value: string) => {
     console.log(value, "e");

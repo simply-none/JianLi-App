@@ -54,9 +54,8 @@
     "vue-devtools": "^5.1.4",
     "vue-echarts": "^7.0.3",
     "vue-router": "^4.4.5",
-    "vue-tsc": "^2.0.6"
-  },
-  "dependencies": {
-    "colors": "^1.4.0"
+    "vue-tsc": "^2.0.6",
+    "colors": "^1.4.0",
+    "vue3-draggable-resizable": "^1.6.5"
   }
 }

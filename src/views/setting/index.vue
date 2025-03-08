@@ -106,8 +106,7 @@
         </el-form-item>
         <el-form-item label="全局字体设置">
           <el-select v-model="globalFontCc" style="width: 300px" @change="setGlobalFontC">
-            <el-option v-for="value in globalFontOpsC" :key="value.value" :value="value.value">
-              {{ value.label }}
+            <el-option v-for="value in globalFontOpsC" :key="value.value" :value="value.value" :label="value.label">
             </el-option>
           </el-select>
         </el-form-item>
