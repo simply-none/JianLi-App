@@ -11,6 +11,22 @@
 - npm i -g cnpm
 - cnpm i xxx
 
+## 版本管理
+
+`standard-version`用法：设置了`"release": "standard-version"`之后，可以根据需要执行相应的代码：
+
+- 发布主版本：`npm run release -- --release-as major`
+- 发布次版本：`npm run release -- --release-as minor`
+- 发布补丁版本：`npm run release -- --release-as patch`
+- 发布预发布版本：`npm run release -- --prerelease alpha`
+- 发布beta版本：`npm run release -- --prerelease beta`
+- 发布rc版本：`npm run release -- --prerelease rc`
+- 发布自定义版本：`npm run release -- --release-as 1.1.0`
+
+## 鸣谢
+
+- [electron-vite-vue]
+
 ## 开发回顾
 
 ### 2025-03-07
