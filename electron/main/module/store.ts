@@ -6,7 +6,7 @@ let store = new ElectronStore();
 const disabledShowKeys = ["RSAKey", "password"];
 
 // 获取所有的store数据，同时过滤掉disabledShowKeys中的key
-function getAllStore(): ObjectType {
+export function getAllStore(): ObjectType {
   let storeData: ObjectType = store.store;
   const keys = Object.keys(storeData || {});
   const newStoreData: ObjectType = {};

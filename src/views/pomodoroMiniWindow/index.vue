@@ -6,7 +6,7 @@
     </div>
     <div class="drag"></div>
     <div class="tip">
-      <div class="tip-status" v-if="curStatusC.value">
+      <div class="tip-status" v-if="curStatusC?.value">
         <template v-if="curStatusC.value == 'work'">
           <div class="work"></div>
         </template>

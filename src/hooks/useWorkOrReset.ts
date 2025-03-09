@@ -159,7 +159,8 @@ export function useWorkOrRest() {
       console.warn('当前处于11:50-13:30之间', moment().format('HH:mm'))
       isNoonRestTime = true
       // 计算当前时间距离13:30的时间差(毫秒级)
-      noonRestTimeGap = moment().diff(moment('13:30', 'HH:mm'), 'seconds', true) * 1000
+      noonRestTimeGap = Math.abs(moment().diff(moment('13:30', 'HH:mm'), 'seconds', true) * 1000)
+      
       console.warn('当前时间距离13:30的时间差', noonRestTimeGap, '毫秒')
     }
 

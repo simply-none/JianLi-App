@@ -1,5 +1,6 @@
 import { BrowserWindow, ipcMain, screen } from "electron";
 import colors from "colors";
+import { getAllStore } from "./store.ts";
 import {
   appLogoIco,
   indexHtml,
@@ -21,7 +22,11 @@ function getScreenInfo() {
 
 function createOtherWindow(arg: string) {
   getScreenInfo();
-  if (childWindow[arg]) closeOtherWindow[arg]();
+  if (childWindow[arg]) {
+    childWindow[arg]?.show();
+    childWindow[arg]?.focus();
+    return;
+  }
   childWindow[arg] = new BrowserWindow({
     title: "second window",
     icon: appLogoIco,
@@ -56,12 +61,22 @@ function createOtherWindow(arg: string) {
       query: { isSecondWindow: "true" },
     });
   }
+  // 不在任务栏显示
+  childWindow[arg]?.setSkipTaskbar(true);
+
+  const store = getAllStore();
+  setTimeout(() => {
+    childWindow[arg].webContents.send("sync-data-to-other-window", {
+      ...store,
+    });
+  }, 2000)
 }
 
 function closeOtherWindow(arg) {
   if (childWindow) {
-    childWindow[arg].close();
+    childWindow[arg]?.close();
     childWindow[arg]?.destroy();
+    childWindow[arg] = null;
   }
 }
 
@@ -73,6 +88,10 @@ export function initNewWindow() {
   // 打开新窗口
   ipcMain.on("open-new-window", (_, newWindowName) => {
     createOtherWindow(newWindowName);
+  });
+  // 关闭新窗口
+  ipcMain.on("close-new-window", (_, newWindowName) => {
+    closeOtherWindow(newWindowName);
   });
 
   ipcMain.on("sync-data-to-other-window", (event, arg) => {

@@ -7,7 +7,8 @@ import electronConfig from './electron-builder.json5'
 import useWorkOrResetStore from '@/store/useWorkOrReset'
 import { useWorkOrRest } from '@/hooks/useWorkOrReset';
 import useGlobalSetting from '@/store/useGlobalSetting';
-import { send } from './utils/common';
+import useWindowMode from '@/store/useWindowMode';
+import { send } from '@/utils/common';
 
 const { setAppBgColor, setAppInnerColor } = useGlobalSetting()
 const { appBgColorC, appInnerColorC, curStatusC, globalFontC } = storeToRefs(useGlobalSetting());

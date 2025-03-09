@@ -74,6 +74,8 @@ function loadMainWindow() {
   } else {
     win.loadFile(indexHtml);
   }
+  // 不在任务栏显示
+  win.setSkipTaskbar(true);
 }
 
 export function initMainWindow() {

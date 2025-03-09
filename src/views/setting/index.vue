@@ -275,15 +275,23 @@ function toHome() {
 .cur-status {
   &-work {
     &::before {
-      content: '•';
-      color: #00ffbf;
+      content: "";
       display: inline-block;
+      width: 12px;
+      height: 12px;
+      background: #00ffbf;
+      border-radius: 50%;
+      margin-right: 6px;
     }
 
     &::rest {
-      content: '•';
-      color: #ff0303;
+      content: "";
       display: inline-block;
+      width: 12px;
+      height: 12px;
+      background: #ff0303;
+      border-radius: 50%;
+      margin-right: 6px;
     }
   }
 }

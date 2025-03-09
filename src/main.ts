@@ -11,9 +11,12 @@ import './utils/devtools'
 import './style.scss'
 import './lib/heti.min.css'
 
-import './demos/ipc'
-// If you want use Node.js, the`nodeIntegration` needs to be enabled in the Main process.
-// import './demos/node'
+import { initDevtools } from './utils/devtools'
+
+const isSecondWindow = location.href.includes('isSecondWindow=true')
+if (!isSecondWindow) {
+  initDevtools() 
+}
 
 const pinia = createPinia()
 

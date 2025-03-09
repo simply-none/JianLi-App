@@ -24,6 +24,14 @@ export const layoutRouters: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/windowMode',
+    name: 'windowMode',
+    component: () => import("@/views/windowMode/index.vue"),
+    meta: {
+      title: "窗口模式",
+    }
+  },
+  {
     path: "/appCache",
     name: "appCache",
     component: () => import("@/views/appCache/index.vue"),
