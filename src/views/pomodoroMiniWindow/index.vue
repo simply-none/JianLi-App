@@ -54,15 +54,18 @@ function countDown() {
     const diff = next.diff(now)
     const diffTime = moment.duration(diff)
 
+    // 如果时间小于0，就停止定时器
+    if (diff < 0) {
+      clearInterval(timer)
+      nextDiffTime.value = '等待中...'
+      return;
+    }
+
     const diffHours = diffTime.hours() < 10 ? '0' + diffTime.hours() : diffTime.hours()
     const diffMinutes = diffTime.minutes() < 10 ? '0' + diffTime.minutes() : diffTime.minutes()
     const diffSeconds = diffTime.seconds() < 10 ? '0' + diffTime.seconds() : diffTime.seconds()
 
     nextDiffTime.value = diffHours + ':' + diffMinutes + ':' + diffSeconds
-    // 如果时间小于0，就停止定时器
-    if (diff <= 0) {
-      clearInterval(timer)
-    }
   }, 1000) // 1秒执行一次
 }
 

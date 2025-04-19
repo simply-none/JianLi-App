@@ -154,6 +154,7 @@ export default defineStore("global-setting", () => {
         primaryColor: "#ffffff",
         secondaryColor: "#000000",
         opacity: 0.8,
+        newField: 'newField',
       },
       {
         label: "模拟Windows更新",

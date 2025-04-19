@@ -1,51 +1,9 @@
 <script setup lang="ts">
-import { watch, onMounted, ref, onBeforeUnmount } from 'vue';
-import { useRoute } from 'vue-router';
-import { storeToRefs } from 'pinia';
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
-import electronConfig from './electron-builder.json5'
-import useWorkOrResetStore from '@/store/useWorkOrReset'
-import { useWorkOrRest } from '@/hooks/useWorkOrReset';
-import useGlobalSetting from '@/store/useGlobalSetting';
-import useWindowMode from '@/store/useWindowMode';
-import { send } from '@/utils/common';
+import useOpenWindow from '@/hooks/useOpenWindow';
 
-const { setAppBgColor, setAppInnerColor } = useGlobalSetting()
-const { appBgColorC, appInnerColorC, curStatusC, globalFontC } = storeToRefs(useGlobalSetting());
-const { nextRestTime, nextWorkTime } = storeToRefs((useWorkOrResetStore()))
-const { startApp, registerGlobalListener, unregisterGlobalListener } = useWorkOrRest();
-
-onMounted(() => {
-  console.log(window.location.href)
-  if (window.location.href.includes('isSecondWindow=true')) {
-    return true;
-  }
-  send('open-new-window', 'second')
-  document.documentElement.style.setProperty('--jianli-global-font', globalFontC.value)
-  startApp();
-  registerGlobalListener();
-});
-onBeforeUnmount(() => {
-  unregisterGlobalListener(); 
-})
-
-console.log('appBgColorC', appBgColorC);
-let bgColor = ref(appBgColorC)
-const innerColor = ref(appInnerColorC)
-
-watch(() => curStatusC.value.value, (n) => {
-  console.log('curStatusC', n);
-  if (n == 'rest') {
-    // TODO: 设置背景色
-  }
-}, { immediate: true, deep: true })
-
-
-watch(appInnerColorC, (n, o) => {
-  console.log('appInnerColorC', n, o);
-});
-
-document.title = electronConfig.productName;
+// 使用不同窗口打开时分别处理的hook
+useOpenWindow()
 
 </script>
 
@@ -73,14 +31,12 @@ body,
   width: 100%;
   height: 100%;
   padding: 12px;
-  background-color: v-bind('bgColor');
   box-sizing: border-box;
 
   &-container {
     width: 100%;
     height: 100%;
     padding: 12px;
-    background-color: v-bind('innerColor');
     overflow-y: auto;
     box-sizing: border-box;
   }

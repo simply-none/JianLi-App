@@ -2,6 +2,11 @@
   <el-form class="home-mode-form" label-width="108" label-position="left">
     <el-form-item>
       <template #label>
+        <div class="setting-title">模式选项</div>
+      </template>
+    </el-form-item>
+    <el-form-item>
+      <template #label>
         <div class="setting-title">主页模式</div>
       </template>
     </el-form-item>

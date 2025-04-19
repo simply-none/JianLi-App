@@ -1,7 +1,8 @@
 // 状态初始化
 
 import type { Ref } from "vue";
-import { getStore, setStore } from "./common";
+import { getStore, setStore } from "@/utils/common";
+import { getCompositeObj, getCompositeObjArr, isArray, isObject, isObjectOrArray, isSameKey } from "@/utils/index";
 
 export type defaultField = {
   field: string;
@@ -48,7 +49,29 @@ function assignDefaultValue<T>(
   map: Ref<any>
 ): void {
   const storeValue = getStore(key);
-  map.value = storeValue || defaultValue;
+  // 判断是否是对象类型
+  const isObjType = isObject(storeValue)
+  const isArrayType = isArray(storeValue)
+  if (isObjType) {
+    const { obj: newData, isSame } = getCompositeObj(defaultValue, storeValue)
+    console.log(newData, isSame, 'newData isSame assignDefaultValue isObjType');
+    map.value = newData || defaultValue;
+    if (!isSame) {
+      setStore(key, newData)
+    }
+  }
+  else if (isArrayType) {
+    const { arr: newData, isSame } = getCompositeObjArr(defaultValue, storeValue, 'value')
+    console.log(newData, isSame, 'newData isSame assignDefaultValue isArrayType');
+    map.value = newData || defaultValue;
+    if (!isSame) {
+      setStore(key, newData)
+    }
+  }
+  else {
+    map.value = storeValue || defaultValue;
+  }
+  
   if (storeValue === undefined) {
     setStore(key, defaultValue);
   }

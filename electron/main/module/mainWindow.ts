@@ -6,8 +6,28 @@ import {
   indexHtml,
 } from "../variables.ts";
 import { destroyTray } from "./tray.ts";
+import AutoLaunch from 'auto-launch'
 
 export let win: BrowserWindow | null;
+
+let autoLauncher = new AutoLaunch({
+  name: "渐离App",
+});
+
+function startupWithAutoLauncher(flag = 'enable') {
+  autoLauncher
+    .isEnabled()
+    .then(function (isEnabled) {
+      if (isEnabled) {
+        flag == 'disable' && autoLauncher.disable();
+        return;
+      }
+      flag == 'enable' && autoLauncher.enable();
+    })
+    .catch(function (err) {
+      console.log('启动失败', err)
+    });
+}
 
 export function focusAppToTop() {
   win?.setAlwaysOnTop(true, "screen-saver");
@@ -17,11 +37,14 @@ export function focusAppToTop() {
 }
 
 export function isSetStartup(isStartup, hidden = false) {
-  app.setLoginItemSettings({
-    openAtLogin: isStartup,
-    // 如果应用以管理员身份运行，设置此选项为true可避免UAC（用户账户控制）对话框在Windows上弹出。
-    openAsHidden: hidden, // macOS特有的，当设置为true时，应用会隐藏式启动
-  });
+  // 系统自带
+  // app.setLoginItemSettings({
+  //   openAtLogin: isStartup,
+  //   // 如果应用以管理员身份运行，设置此选项为true可避免UAC（用户账户控制）对话框在Windows上弹出。
+  //   openAsHidden: hidden, // macOS特有的，当设置为true时，应用会隐藏式启动
+  // });
+  // 使用第三方库
+  startupWithAutoLauncher(isStartup ? 'enable' : 'disable')
 }
 
 export function hideApp() {
@@ -73,9 +96,9 @@ function loadMainWindow() {
     win.webContents.openDevTools();
   } else {
     win.loadFile(indexHtml);
+    // 不在任务栏显示
+    win.setSkipTaskbar(true);
   }
-  // 不在任务栏显示
-  win.setSkipTaskbar(true);
 }
 
 export function initMainWindow() {
@@ -104,15 +127,15 @@ export function initMainWindow() {
   });
 
   win.webContents.setWindowOpenHandler(({ url }) => {
-      if (url.startsWith("https:")) shell.openExternal(url);
-      return { action: "deny" };
-    });
-    win.webContents.on("did-finish-load", () => {
-      win?.webContents.send("main-process-message", new Date().toLocaleString());
-      focusAppToTop();
-    });
-    win.on("close", (e) => {
-      e.preventDefault(); //先阻止一下默认行为，不然直接关了，提示框只会闪一下
-      win.webContents.send("before-close");
-    });
+    if (url.startsWith("https:")) shell.openExternal(url);
+    return { action: "deny" };
+  });
+  win.webContents.on("did-finish-load", () => {
+    win?.webContents.send("main-process-message", new Date().toLocaleString());
+    focusAppToTop();
+  });
+  win.on("close", (e) => {
+    e.preventDefault(); //先阻止一下默认行为，不然直接关了，提示框只会闪一下
+    win.webContents.send("before-close");
+  });
 }
