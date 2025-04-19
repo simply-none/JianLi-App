@@ -1,4 +1,11 @@
 变更日志
+## [1.0.0-rc.2](https://github.com/simply-none/JianLi-App/compare/v1.0.0-rc.1...v1.0.0-rc.2) (2025-04-19)
+
+
+### 🐛 Bug Fixes | Bug 修复
+
+* **bug:** 项目依赖必须装在devDependencies上，不然打包报错 ([cc46fa9](https://github.com/simply-none/JianLi-App/commit/cc46fa9854a2f5d4b9b5f4d41214284eedd907fa))
+
 ## [1.0.0-rc.1](https://github.com/simply-none/JianLi-App/compare/v1.0.0-rc.0...v1.0.0-rc.1) (2025-04-19)
 
 
