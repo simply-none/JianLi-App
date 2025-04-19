@@ -1,4 +1,12 @@
 变更日志
+## [1.0.0-rc.1](https://github.com/simply-none/JianLi-App/compare/v1.0.0-rc.0...v1.0.0-rc.1) (2025-04-19)
+
+
+### ✨ Features | 新功能
+
+* 番茄钟小窗优化，新增开闭小窗功能；任务栏图标默认隐藏 ([166c3cc](https://github.com/simply-none/JianLi-App/commit/166c3cc8219806025ad7f0daa76491f9260b3687))
+* 优化开机启动事件；首页模式hook封装；番茄钟小窗口封装； ([3ab0bba](https://github.com/simply-none/JianLi-App/commit/3ab0bba32ad053aeb0aa3b1fbabd4a9249135260))
+
 ## [1.0.0-rc.0](https://github.com/simply-none/JianLi-App/compare/v1.0.0-beta.3...v1.0.0-rc.0) (2025-03-08)
 
 
