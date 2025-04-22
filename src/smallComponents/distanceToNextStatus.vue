@@ -1,5 +1,5 @@
 <template>
-  <draggableContainer>
+  <draggableContainer v-bind="distanceToNextStatusComponentPropsCc.position" @update="updateFn">
     <div class="item" v-if="curStatusC.value === 'rest'">
       <div class="label">
         下次工作时间
