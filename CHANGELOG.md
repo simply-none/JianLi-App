@@ -1,4 +1,16 @@
 变更日志
+## [1.0.0-rc.3](https://github.com/simply-none/JianLi-App/compare/v1.0.0-rc.2...v1.0.0-rc.3) (2025-04-22)
+
+
+### ✨ Features | 新功能
+
+* 引入小组件DIY功能，初步添加小组件拖拽功能 ([732eff5](https://github.com/simply-none/JianLi-App/commit/732eff541a5f9873acf5f2bb77a1a176462b87a2))
+
+
+### 🐛 Bug Fixes | Bug 修复
+
+* 开发环境不进行开机自启动 ([6cedd02](https://github.com/simply-none/JianLi-App/commit/6cedd020c44239e02cdf13278daab0126d3f11e5))
+
 ## [1.0.0-rc.2](https://github.com/simply-none/JianLi-App/compare/v1.0.0-rc.1...v1.0.0-rc.2) (2025-04-19)
 
 
