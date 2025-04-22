@@ -119,7 +119,7 @@ export function initMainWindow() {
         isSetStartup(isStartup);
       }
     } else {
-      isSetStartup(isStartup);
+      // isSetStartup(isStartup);
     }
   });
   ipcMain.on("hide-app", (e) => {
