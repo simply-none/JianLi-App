@@ -9,6 +9,7 @@ import { initPoetData } from "./module/poetData.ts";
 import { initMainWindow, win } from "./module/mainWindow.ts";
 import { initNewWindow } from "./module/newWindow.ts";
 import { initApiTest } from "./module/apiTest.ts";
+import { registerJlocalProtocol } from "./module/protocol.ts";
 import { appName } from "./variables.ts";
 
 app.setName(appName);
@@ -45,6 +46,8 @@ async function createWindow() {
   initApiTest();
   // 新窗口相关
   initNewWindow();
+  // 注册协议
+  registerJlocalProtocol();
 }
 
 app.whenReady().then(async () => {

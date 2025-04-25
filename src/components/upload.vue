@@ -9,7 +9,7 @@
       <div class="el-upload__tip" slot="tip">只能上传jpg/png文件，且不超过500kb</div>
     </el-upload>
 
-    <slot name="btnHandle">
+    <slot name="btnHandle" v-if="!props.autoSave">
       <div>
         <el-button @click="save">保存</el-button>
       </div>
@@ -22,6 +22,7 @@ import { ref, watch } from 'vue';
 import { ElMessage, genFileId } from 'element-plus';
 import type { UploadFile } from 'element-plus'
 import useCacheSetStore from '@/store/useCacheSet'
+import useResourceManage from '@/store/useResourceManage';
 import { storeToRefs } from 'pinia';
 import { sendSync } from '@/utils/common';
 
@@ -34,15 +35,25 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  autoSave: {
+    type: Boolean,
+    default: false,
+  }
 })
-const emit = defineEmits(['updateData'])
 
+const emit = defineEmits(['updateData', 'getFilePath'])
+
+const { imageResourceC } = storeToRefs(useResourceManage())
+const { setImageResource } = useResourceManage()
 const { fileCachePathC } = storeToRefs(useCacheSetStore())
 
 const uploadRef = ref();
 const fileList = ref<UploadFile[]>([]);
 watch(() => fileList.value, (n) => {
   emit('updateData', uploadRef.value, n)
+  if (props.autoSave) {
+    save() 
+  }
 })
 
 function handleAvatarSuccess(res: any, file: any) {
@@ -111,8 +122,18 @@ function readerFile({
       currentChunkIndex: curentChunk,
     })
 
-    console.log(val, 'val')
-
+    console.warn(val, 'val')
+    if (!(val || '').includes('error')) {
+      emit('getFilePath', val)
+      val && setImageResource({
+        val: val,
+        name: val,
+        origin: name || val,
+      })
+    } else {
+      // 弹窗提示消息
+      ElMessage.error(val)
+    }
   };
   reader.readAsArrayBuffer(file);
 }

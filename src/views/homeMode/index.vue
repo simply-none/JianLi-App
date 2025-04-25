@@ -72,6 +72,7 @@ import { timeUnit } from '@/utils/time';
 import confirmDialog from '@/utils/confirmDialog';
 import LayoutVue from '@/components/layout.vue';
 import type { StatusMode } from '@/store/useGlobalSetting'
+import { getCompositeObj } from '@/utils';
 
 const router = useRouter();
 
@@ -117,7 +118,17 @@ function changeModeOps() {
 
 function changeHomeMode(key: StatusMode) {
   const find = homeModeOpsCc.value.find((item: any) => item.value === homeModeCc.value[key].value);
-  homeModeCc.value[key] = find;
+  if (!find) { return }
+  // homeModeCc.value[key] = find;
+  homeModeCc.value[key] = {
+    ...homeModeCc.value[key],
+    ...find,
+    mode: {
+      ...toRaw(homeModeCc.value[key].mode || {}),
+      [homeModeCc.value[key].value]: toRaw(homeModeCc.value[key].mode[homeModeCc.value[key].value] || {}),
+    }
+  }
+  delete homeModeCc.value[key].mode.undefined;
   activeHomeModeOps.value = find;
   setHomeMode(homeModeCc.value);
   activeHomeMode.value = key;

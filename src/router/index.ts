@@ -48,6 +48,14 @@ export const layoutRouters: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/resourceManage',
+    name:'resourceManage',
+    component: () => import("@/views/resourceManage/index.vue"),
+    meta: {
+      title: "资源管理", 
+    }
+  },
+  {
     path: '/safetyProtection',
     name:'safetyProtection',
     component: () => import("@/views/safetyProtection/index.vue"),

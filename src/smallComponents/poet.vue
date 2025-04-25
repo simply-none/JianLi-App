@@ -26,7 +26,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, computed, onMounted, onUnmounted } from 'vue';
+import { ref, reactive, watch, computed, onMounted, onUnmounted, toRaw } from 'vue';
 import { storeToRefs } from 'pinia';
 
 import draggableContainer from '@/components/draggableContainer.vue';
@@ -48,7 +48,7 @@ const showContent = ref({ error: true });
 function updateFn(position) {
   poetComponentPropsCc.value = {
     ...poetComponentPropsCc.value,
-    position,
+    position: toRaw(position),
   }
   setPoetComponentProps(poetComponentPropsCc.value)
 }

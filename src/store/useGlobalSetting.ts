@@ -18,6 +18,19 @@ interface CommonOps {
   value?: string;
 }
 
+interface HomeModeOps {
+  label?: string;
+  value?: string;
+  primaryColor?: string;
+  secondaryColor?: string;
+  opacity?: number;
+  newField?: string;
+  // 样式
+  style?: ObjectType;
+  // 小组件
+  widgets?: ObjectType[];
+}
+
 export default defineStore("global-setting", () => {
   const { startWorkTimeC, closeWorkTimeC, workTimeGapC, workTimeGapUnitC, restTimeGapC, restTimeGapUnitC } = storeToRefs(useWorkOrRestStore());
   // 当前的状态
@@ -147,7 +160,7 @@ export default defineStore("global-setting", () => {
     // 字体值变量
     const fontVars = [{ field: "globalFont", default: "", map: globalFont }];
 
-    const originHomeModeOps = [
+    const originHomeModeOps: HomeModeOps[] = [
       {
         label: "透明诗词板",
         value: "0",

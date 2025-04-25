@@ -86,8 +86,11 @@ export function getCompositeObjArr(
   let isSame = true;
   const isArrayType = isArray(oldArr);
   // 如果不数组类型
-  if (!isArrayType) {
-    return newArr;
+  if (!isArrayType || oldArr.length === 0) {
+    return {
+      arr: newArr,
+      isSame: false,
+    };
   }
   // 遍历旧数组，进行每项的字段比较
   const newOldCopy = oldArr.map((item: any) => {

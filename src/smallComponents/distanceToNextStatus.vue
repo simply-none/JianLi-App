@@ -27,7 +27,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, computed, onMounted, onUnmounted } from 'vue';
+import { ref, reactive, watch, computed, onMounted, onUnmounted, toRaw } from 'vue';
 import { storeToRefs } from 'pinia';
 
 import useGlobalSetting from '@/store/useGlobalSetting';
@@ -77,7 +77,7 @@ onUnmounted(() => {
 function updateFn(position) {
   distanceToNextStatusComponentPropsCc.value = {
     ...distanceToNextStatusComponentPropsCc.value,
-    position,
+    position: toRaw(position),
   }
   setDistanceToNextStatusComponentProps(distanceToNextStatusComponentPropsCc.value)
 }

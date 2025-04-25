@@ -33,6 +33,16 @@ export default defineStore("small-components-ops", () => {
     setStore("distanceToNextStatusComponentProps", value);
   }
 
+  // 大日期时间小组件 属性
+  const largeDateTimeComponentProps = ref();
+  const largeDateTimeComponentPropsC = computed(
+    () => largeDateTimeComponentProps.value
+  );
+  function setLargeDateTimeComponentProps(value: ObjectType) {
+    largeDateTimeComponentProps.value = value;
+    setStore("largeDateTimeComponentProps", value);
+  }
+
   // pinia状态初始化
   function init() {
     // 布尔值变量
@@ -84,6 +94,18 @@ export default defineStore("small-components-ops", () => {
         },
         map: distanceToNextStatusComponentProps,
       },
+      {
+        field: "largeDateTimeComponentProps",
+        default: {
+          position: {
+            x: 100,
+            y: 100,
+            w: 300,
+            h: 300,
+          },
+        },
+        map: largeDateTimeComponentProps,
+      },
     ];
 
     // 所有的变量集合
@@ -116,10 +138,13 @@ export default defineStore("small-components-ops", () => {
     currentStatusComponentPropsC,
     distanceToNextStatusComponentProps,
     distanceToNextStatusComponentPropsC,
+    largeDateTimeComponentProps,
+    largeDateTimeComponentPropsC,
     // 方法
     setPoetComponentProps,
     setCurrentStatusComponentProps,
     setDistanceToNextStatusComponentProps,
+    setLargeDateTimeComponentProps,
     // 其他
     $reset,
   };

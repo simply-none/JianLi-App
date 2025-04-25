@@ -5,17 +5,17 @@ import { initPiniaStatus, type defaultField } from "@/utils/store";
 
 export default defineStore("resource-manage", () => {
   // 图片资源对象
+  // val: val,
+  // name: val,
+  // origin: name,
   const imageResource = ref();
   const imageResourceC = computed(() => imageResource.value);
 
   function setImageResource(value: ObjectType) {
     // 新增资源，并更新到本地存储
     imageResource.value.push(value);
-    // 保存资源到系统中
-    sendSync("save-file", {
-      type: "image",
-      resource: value,
-    });
+    // 去除 value为空的
+    imageResource.value = imageResource.value.filter((item: any) => item.val);
     setStore("imageResource", imageResource.value);
   }
   
@@ -39,6 +39,11 @@ export default defineStore("resource-manage", () => {
 
     // 对象值变量
     const objectVars: defaultField[] = [
+      {
+        field: "imageResource",
+        default: [],
+        map: imageResource,
+      }
     ]
 
     // 所有的变量集合
@@ -65,9 +70,10 @@ export default defineStore("resource-manage", () => {
 
   return {
     // 变量
-    
+    imageResource,
+    imageResourceC,
     // 方法
-
+    setImageResource,
     // 其他 
     $reset,
   };

@@ -84,6 +84,7 @@ async function merge() {
     );
     fs.writeFileSync(fileName, arr, { flag: "a+" });
   }
+  return fileName
 }
 // 使用nodejs的fs同步模块保存文件 函数，保存成功返回ok，否则返回失败信息
 export async function saveFile({
@@ -95,6 +96,7 @@ export async function saveFile({
   currentChunkIndex,
 }: FileSaveObjType) {
   try {
+    let newPath = ''
     const buffer = Buffer.from(content);
     // 获取res的类型 使用toString.call
     const type = Object.prototype.toString.call(buffer);
@@ -108,7 +110,7 @@ export async function saveFile({
     });
     if (fileSliceList.length == chunkLength) {
       // 合片
-      await merge();
+      newPath = await merge();
       // 删除缓存文件
       for (let i = 0; i < fileSliceList.length; i++) {
         const oldPath =
@@ -121,10 +123,10 @@ export async function saveFile({
       }
       fileSliceList.length = 0;
     }
-    return "ok";
+    return newPath;
   } catch (err) {
     console.log(err, "err");
-    return err;
+    return 'error' + err;
   }
 }
 
