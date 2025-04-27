@@ -3,7 +3,7 @@
     <template #main>
       <component :is="curComponent" />
       <div class="setting">
-        <el-image :src="SettingSvg" @click="toSetting" @mouseover="openHomeBtnsFn"></el-image>
+        <el-image :src="SettingSvg" @click="toSetting" @contextmenu.self="openHomeBtnsFn"></el-image>
       </div>
       <div class="home-btns" v-if="isHiddenHomeBtns">
         <el-button type="primary" v-if="curStatusC.value != 'screen'" @click="startLockedFn">
