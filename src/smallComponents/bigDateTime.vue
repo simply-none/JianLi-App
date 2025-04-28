@@ -50,7 +50,7 @@ const initPosition = {
 
 const computedPosition = computed({
   get() {
-    const p = JSON.parse(JSON.stringify(props.themetData || { position: initPosition }))
+    const p = JSON.parse(JSON.stringify(props.data || { position: initPosition }))
     console.warn(p, 'p')
     return p.position || initPosition;
   },

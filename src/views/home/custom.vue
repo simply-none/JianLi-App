@@ -1,6 +1,25 @@
-<!-- 
-  该页面，用于自定义屏幕页面，后续的功能思路：
-  1. 功能完全自定义
-  2. 可能包含拖拽元素，保存元素位置等信息
-  3. 锁屏加上密码，高斯模糊等
--->
+<template>
+  <div class="home-rest2" @contextmenu="contextmenuFn">
+    <importSmallComponents ref="importSmallComponentsRef" :modeName="modeName"></importSmallComponents>
+  </div>
+</template>
+
+<script setup>
+import { ref, toRaw, watch, computed } from 'vue'
+import importSmallComponents from '@/components/importSmallComponents.vue';
+
+const importSmallComponentsRef = ref()
+const modeName = ref('custom')
+
+const contextmenuFn = (event) => {
+  importSmallComponentsRef.value.contextmenuFn(event)
+}
+</script>
+
+<style lang="scss" scoped>
+.home-rest2 {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+</style>

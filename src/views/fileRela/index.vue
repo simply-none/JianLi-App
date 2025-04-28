@@ -277,6 +277,9 @@ onMounted(() => {
 <style scoped lang="scss">
 .fileRela-form {
   padding: 24px;
+  box-sizing: border-box;
+  height: 100%;
+  overflow: auto;
 }
 .setting-title {
   padding-left: 3px;

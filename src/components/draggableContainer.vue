@@ -93,6 +93,7 @@ function resizeEndCont({ x, y, w, h }) {
 }
 
 onMounted(() => {
+  fixMyPosition(myPosition.value)
   window.addEventListener('resize', () => {
     emit('update', fixMyPosition(myPosition.value))
   })

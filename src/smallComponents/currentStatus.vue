@@ -1,6 +1,6 @@
 <template>
-  <draggableContainer v-bind="currentStatusComponentPropsCc.position" @update="updateFn">
-    <div class="item">
+  <draggableContainer v-bind="computedPosition" @update="updateFn">
+    <div data-el="1" class="item" @contextmenu.stop="contextmenuFn">
       <div class="label">
         当前状态
       </div>
@@ -18,27 +18,76 @@ import { storeToRefs } from 'pinia';
 import useGlobalSetting from '@/store/useGlobalSetting';
 
 import draggableContainer from '@/components/draggableContainer.vue';
-import smallComponentsOps from '@/store/smallComponentsOps';
 
-const { homeModeOpsC, curStatusC } = storeToRefs(useGlobalSetting());
-const smallComponentsOpsStore = smallComponentsOps()
-const { setCurrentStatusComponentProps } = smallComponentsOpsStore
-const { currentStatusComponentPropsC } = storeToRefs(smallComponentsOpsStore);
-
-const currentStatusComponentPropsCc = ref(JSON.parse(JSON.stringify(currentStatusComponentPropsC.value || {})))
-watch(() => currentStatusComponentPropsC.value, (n) => {
-  currentStatusComponentPropsCc.value = JSON.parse(JSON.stringify(n || {}))
-}, {
-  immediate: true,
-  deep: true,
+const props = defineProps({
+  data: {
+    type: Object,
+    default: () => {
+      return {};
+    }
+  },
+  // 主题数据
+  themetData: {
+    type: Object,
+    default: () => {
+      return {};
+    }
+  }
 })
 
+const emit = defineEmits(['rightClick', 'update'])
+const initPosition = {
+  x: 0,
+  y: 0,
+  width: 200,
+  height: 200,
+}
+
+const computedPosition = computed({
+  get() {
+    const p = JSON.parse(JSON.stringify(props.data || { position: initPosition }))
+    console.warn(p, 'p')
+    return p.position || initPosition;
+  },
+  set() { }
+})
+
+const { homeModeOpsC, curStatusC } = storeToRefs(useGlobalSetting());
+
 function updateFn(position) {
-  currentStatusComponentPropsCc.value = {
-    ...currentStatusComponentPropsCc.value,
-    position: toRaw(position),
+  console.log(position, 'position')
+  computedPosition.value = {
+    ...toRaw(computedPosition.value || {}),
+    ...toRaw(position || {}),
   }
-  setCurrentStatusComponentProps(currentStatusComponentPropsCc.value)
+  console.log(computedPosition.value, 'computedPosition')
+  emit('update', {
+    ...toRaw(computedPosition.value || {}),
+    ...toRaw(position || {}),
+  })
+}
+
+function contextmenuFn(event) {
+  const target = event.target;
+  // 获取target所有的data-*属性
+  const data = target.dataset;
+  // 获取target所有的css样式
+  const style = {
+    ...window.getComputedStyle(target)
+  }
+  // 排除style中键为数字的属性
+  for (let key in style) {
+    if (!isNaN(key)) {
+      delete style[key];
+    }
+  }
+  console.log(data, 'data')
+  console.log(style, 'style', Object.keys(style))
+
+  emit('rightClick', {
+    el: data.el,
+    data: style,
+  })
 }
 
 </script>

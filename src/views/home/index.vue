@@ -24,6 +24,7 @@ import { ref, reactive, watch, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { storeToRefs } from 'pinia';
 
+import custom from '@/views/home/custom.vue';
 import ShowImage from '@/views/home/showImage.vue';
 import TranslucentPoemDisplay from '@/views/home/translucentPoemDisplay.vue';
 import ImitationWindowsUpdate from '@/views/home/imitationWindowsUpdate.vue';
@@ -52,6 +53,9 @@ watch(() => homeModeC.value[curStatusC.value.value], (n, o) => {
       break;
     case '2':
       curComponent.value = ShowImage
+      break;
+    case '3':
+      curComponent.value = custom
       break;
   }
 }, { immediate: true, deep: true })

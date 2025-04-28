@@ -1,10 +1,57 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { defineStore, storeToRefs } from "pinia";
+
+import bigDateTime from '@/smallComponents/bigDateTime.vue'
+import currentStatus from '@/smallComponents/currentStatus.vue';
+import distanceToNextStatus from '@/smallComponents/distanceToNextStatus.vue';
+import poet from '@/smallComponents/poet.vue';
+
 import { getStore, sendSync, setStore, send } from "../utils/common";
 import { initPiniaStatus, type defaultField } from "@/utils/store";
 
 // 小组件 选项/属性
 export default defineStore("small-components-ops", () => {
+  // 组件列表选项
+  const smallComponents = ref({
+    bigDateTime: {
+      name: 'bigDateTime',
+      comp: bigDateTime,
+      label: '大日期时间',
+    },
+    currentStatus: {
+      name: 'currentStatus',
+      comp: currentStatus,
+      label: '当前状态',
+    },
+    distanceToNextStatus: {
+      name: 'distanceToNextStatus',
+      comp: distanceToNextStatus,
+      label: '距离下次状态切换',
+    },
+    poet: {
+      name: 'poet',
+      comp: poet,
+      label: '古诗',
+    }
+  })
+  const smallComponentsC = computed(() => smallComponents.value);
+
+  // 模式的默认组件
+  const defaultSmallComponent = ref({
+    // 空模式
+    empty: [],
+    showImage: [
+      { name: 'bigDateTime' },
+    ],
+    translucentPoemDisplay: [
+      { name: 'poet' },
+      { name: 'currentStatus' },
+      { name: 'distanceToNextStatus' }, 
+    ],
+    custom: [],
+  });
+  const defaultSmallComponentC = computed(() => defaultSmallComponent.value);
+
   // 古诗小组件 属性
   const poetComponentProps = ref();
   const poetComponentPropsC = computed(() => poetComponentProps.value);
@@ -140,6 +187,10 @@ export default defineStore("small-components-ops", () => {
     distanceToNextStatusComponentPropsC,
     largeDateTimeComponentProps,
     largeDateTimeComponentPropsC,
+    smallComponents,
+    smallComponentsC,
+    defaultSmallComponent,
+    defaultSmallComponentC,
     // 方法
     setPoetComponentProps,
     setCurrentStatusComponentProps,

@@ -66,22 +66,22 @@ onMounted(() => {
 
   .content {
     flex: 1;
-    overflow: auto;
+    overflow: hidden;
     display: flex;
 
     .left,
     .main {
       height: 100%;
+      // overflow: auto;
     }
 
     .left {
       flex: 0 0 200px;
-      overflow: auto;
     }
 
     .main {
       flex: 1;
-      overflow: auto;
+      // overflow: auto;
     }
   }
 }

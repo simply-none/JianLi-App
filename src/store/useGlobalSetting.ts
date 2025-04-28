@@ -183,6 +183,13 @@ export default defineStore("global-setting", () => {
         secondaryColor: "#ffffff",
         opacity: 0.8,
       },
+      {
+        label: "自定义",
+        value: "3",
+        primaryColor: "#000000",
+        secondaryColor: "#ffffff",
+        opacity: 0.8,
+      }
     ];
     // 对象值变量
     const objectVars = [
