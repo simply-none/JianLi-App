@@ -9,6 +9,7 @@ import { initPoetData } from "./module/poetData.ts";
 import { initMainWindow, win } from "./module/mainWindow.ts";
 import { initNewWindow } from "./module/newWindow.ts";
 import { initApiTest } from "./module/apiTest.ts";
+import { initClipboard } from "./module/clipboard.ts";
 import { registerJlocalProtocol } from "./module/protocol.ts";
 import { appName } from "./variables.ts";
 
@@ -48,6 +49,8 @@ async function createWindow() {
   initNewWindow();
   // 注册协议
   registerJlocalProtocol();
+  // 剪贴板
+  initClipboard();
 }
 
 app.whenReady().then(async () => {

@@ -56,6 +56,14 @@ export const layoutRouters: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/clipboard',
+    name:'clipboard',
+    component: () => import("@/views/clipboard/index.vue"),
+    meta: {
+      title: "剪贴板",
+    }
+  },
+  {
     path: '/safetyProtection',
     name:'safetyProtection',
     component: () => import("@/views/safetyProtection/index.vue"),
