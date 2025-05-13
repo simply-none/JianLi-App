@@ -1,4 +1,23 @@
 变更日志
+## [1.0.0-rc.4](https://github.com/simply-none/JianLi-App/compare/v1.0.0-rc.3...v1.0.0-rc.4) (2025-05-13)
+
+
+### 🐛 Bug Fixes | Bug 修复
+
+* distanceToNextStatus小组件问题修复 ([cd66dc4](https://github.com/simply-none/JianLi-App/commit/cd66dc474bdd9d2854b7693712dc8fe1a7b726bc))
+
+
+### ♻️ Code Refactoring | 代码重构
+
+* 首页锁屏按钮展示位置修改，改成右键设置显示 ([b0eccc7](https://github.com/simply-none/JianLi-App/commit/b0eccc716edc187ee5500ab76f7f7c22f7176b79))
+* 小组件功能完善，可根据模式和内置选项自定义不同的状态，同时存储所有已经设置过的选项数据 ([7df3f25](https://github.com/simply-none/JianLi-App/commit/7df3f25ba5dac870cc9f840acdc8ea3d642b8091))
+
+
+### ✨ Features | 新功能
+
+* 剪切板试用 ([9e4a82b](https://github.com/simply-none/JianLi-App/commit/9e4a82bdf3612e949559f896a420296b3a9a0fba))
+* 新增自定义模式+主题功能; 新增资源管理功能; ([06abd59](https://github.com/simply-none/JianLi-App/commit/06abd59c05382794d1a1810daa17c8c514080531))
+
 ## [1.0.0-rc.3](https://github.com/simply-none/JianLi-App/compare/v1.0.0-rc.2...v1.0.0-rc.3) (2025-04-22)
 
 
