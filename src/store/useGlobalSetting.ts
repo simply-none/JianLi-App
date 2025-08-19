@@ -6,6 +6,8 @@ import moment from "moment";
 import useWorkOrRestStore from "@/store/useWorkOrReset";
 import { initPiniaStatus, type defaultField } from "@/utils/store";
 
+export const prefix = 'curStatusInfo'
+
 export type StatusMode = "work" | "rest" | "screen";
 
 interface Status {
@@ -48,10 +50,40 @@ export default defineStore("global-setting", () => {
               label: "正在休息",
               value: "rest",
             };
+      cacheCurStatusInfo(curStatus.value)
       return true;
     }
     curStatus.value = status;
     setStore("curStatus", status);
+    // 存储当前状态和时间
+    cacheCurStatusInfo(status)
+  }
+
+  function cacheCurStatusInfo(status: Status) {
+    const current = moment().format("YYYY-MM-DD");
+    let curDate = getStore(`${prefix}`)
+    let storeValue = []
+    if (!curDate) {
+      curDate = []
+    } else if (Array.isArray(curDate)) {
+      const find = curDate.find((item: any) => item === current)
+      if (find) {
+        storeValue = getStore(`${prefix}_${current}`)
+        curDate = curDate.filter((item: any) => item != current)
+      }
+    }
+    // 追加数据
+    setStore(
+      'multi-field',
+      {
+        [prefix]: [...curDate, current],
+        [`${prefix}_${current}`]: [...storeValue, {
+          ...status,
+          dateTime: moment().format("YYYY-MM-DD HH:mm:ss"),
+          mode: import.meta.env.MODE,
+        }]
+      }
+    )
   }
 
   // 强制解锁屏幕限制（即可以玩电脑）

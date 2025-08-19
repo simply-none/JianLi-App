@@ -1,6 +1,6 @@
 {
   "name": "jianli-app",
-  "version": "1.0.0-rc.4",
+  "version": "1.0.0-rc.5",
   "main": "dist-electron/main/index.js",
   "description": "工作时强制休息，保护眼睛，守护健康！",
   "author": "JadeQiu <xxx@xxx.com>",
@@ -29,12 +29,14 @@
     "preview": "vite preview"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.1",
     "@element-plus/icons-vue": "^2.3.1",
     "@originjs/vite-plugin-commonjs": "^1.0.3",
     "@vitejs/plugin-vue": "^5.0.4",
     "@vue/devtools": "^7.7.2",
     "auto-launch": "^5.0.6",
     "axios": "^1.8.1",
+    "better-sqlite3": "^11.10.0",
     "clipboard-event": "^1.6.0",
     "colors": "^1.4.0",
     "cron": "^4.3.0",

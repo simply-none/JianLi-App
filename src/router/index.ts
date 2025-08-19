@@ -32,6 +32,14 @@ export const layoutRouters: RouteRecordRaw[] = [
     }
   },
   {
+    path: "/pomodoroRecord",
+    name: "pomodoroRecord",
+    component: () => import("@/views/pomodoroRecord/index.vue"),
+    meta: {
+      title: "番茄钟记录",
+    },
+  },
+  {
     path: "/appCache",
     name: "appCache",
     component: () => import("@/views/appCache/index.vue"),
