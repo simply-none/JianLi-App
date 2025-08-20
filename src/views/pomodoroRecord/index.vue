@@ -7,7 +7,7 @@
     </el-form-item>
 
     <el-form-item label="选择日期" class="mode-wrapper">
-      <el-date-picker v-model="curDate" type="date" placeholder="选择日期"></el-date-picker>
+      <el-date-picker v-model="curDate" value-format="YYYY-MM-DD" type="date" placeholder="选择日期"></el-date-picker>
     </el-form-item>
     <el-form-item label="该日番茄钟记录" class="mode-wrapper">
       <el-table :data="curDateData" max-height="360" :row-class-name="tableRowClassName">

@@ -56,7 +56,7 @@ export default defineConfig(({ command }) => {
                 // we can use `external` to exclude them to ensure they work correctly.
                 // Others need to put them in `dependencies` to ensure they are collected into `app.asar` after the app is built.
                 // Of course, this is not absolute, just this way is relatively simple. :)
-                external: [...Object.keys('dependencies' in pkg ? pkg.dependencies : {}), 'better-sqlite3'],
+                external: [...Object.keys('dependencies' in pkg ? pkg.dependencies : {}), ],
               },
             },
           },
