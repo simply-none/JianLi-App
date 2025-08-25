@@ -1,7 +1,7 @@
 import { ipcMain } from "electron";
 import ElectronStore from "electron-store";
 // 使用nodejs原生crypto模块进行加密，解密
-let store = new ElectronStore();
+export let store = new ElectronStore();
 
 const disabledShowKeys = ["RSAKey", "password"];
 

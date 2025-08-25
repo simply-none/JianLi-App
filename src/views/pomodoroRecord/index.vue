@@ -28,7 +28,7 @@
 
 <script setup lang="ts">
 import { h, ref, reactive, watch, computed, toRaw, onMounted } from 'vue';
-import { send, sendSync, getStore, setStore } from '@/utils/common';
+import { send, sendSync, getStore, setStore, getSqlData, pomodoroStatusTable } from '@/utils/common';
 import moment from 'moment';
 import { prefix } from '@/store/useGlobalSetting';
 
@@ -38,17 +38,21 @@ const curDateData = ref<ObjectType[]>([])
 watch(curDate, (val) => {
   console.log(val)
   if (val) {
-    const dateArr = getStore(prefix) || [] as string[]
-    if (dateArr.includes(val)) {
-      let getData = getStore(`${prefix}_${val}`)
+    getSqlData({
+      tableName: pomodoroStatusTable,
+      conditions: {
+        date: val,
+      }
+    }).then(res => {
+      console.log(res, '获取当前日期的数据')
+      let getData = res.data || [] as ObjectType[]
       getData.sort = (a: any, b: any) => {
         return a.dateTime - b.dateTime
       }
       console.log(getData)
-      curDateData.value = (getData || []).filter((item: ObjectType) => item.mode != 'development')
-    } else {
-      curDateData.value = []
-    }
+      curDateData.value = (getData || [])
+      // .filter((item: ObjectType) => item.mode != 'development')
+    })
   }
 }, {
   immediate: true
@@ -78,9 +82,11 @@ const tableRowClassName = ({
   --el-table-tr-bg-color: #f0f9eb;
 
 }
+
 :deep(.el-table .table-rest) {
   --el-table-tr-bg-color: #fff5f5;
 }
+
 :deep(.el-table .table-screen) {
   --el-table-tr-bg-color: #e6fffb;
 }

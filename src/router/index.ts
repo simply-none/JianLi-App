@@ -40,6 +40,14 @@ export const layoutRouters: RouteRecordRaw[] = [
     },
   },
   {
+    path: "/sqlTest",
+    name: "sqlTest",
+    component: () => import("@/views/sqlTest/index.vue"),
+    meta: {
+      title: "数据库测试",
+    },
+  },
+  {
     path: "/appCache",
     name: "appCache",
     component: () => import("@/views/appCache/index.vue"),

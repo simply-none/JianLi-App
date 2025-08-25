@@ -1,7 +1,7 @@
 import { computed, onMounted, ref, toRaw, watchEffect } from "vue";
 import type { Ref } from "vue";
 import { defineStore, storeToRefs } from "pinia";
-import { getStore, send, sendSync, setStore } from "../utils/common";
+import { getStore, pomodoroStatusTable, send, sendSync, setSqlData, setStore } from "../utils/common";
 import moment from "moment";
 import useWorkOrRestStore from "@/store/useWorkOrReset";
 import { initPiniaStatus, type defaultField } from "@/utils/store";
@@ -39,6 +39,7 @@ export default defineStore("global-setting", () => {
   const curStatus = ref<Status>({});
   const curStatusC = computed(() => curStatus.value);
   function setCurStatus(status?: Status) {
+    console.log(status, '测试')
     if (!status) {
       curStatus.value =
         startWorkTimeC.value >= closeWorkTimeC.value
@@ -54,7 +55,7 @@ export default defineStore("global-setting", () => {
       return true;
     }
     curStatus.value = status;
-    setStore("curStatus", status);
+    // setStore("curStatus", status);
     // 存储当前状态和时间
     cacheCurStatusInfo(status)
   }
@@ -72,18 +73,19 @@ export default defineStore("global-setting", () => {
         curDate = curDate.filter((item: any) => item != current)
       }
     }
-    // 追加数据
-    setStore(
-      'multi-field',
-      {
-        [prefix]: [...curDate, current],
-        [`${prefix}_${current}`]: [...storeValue, {
-          ...status,
-          dateTime: moment().format("YYYY-MM-DD HH:mm:ss"),
-          mode: import.meta.env.MODE,
-        }]
+    setSqlData({
+      tableName: pomodoroStatusTable,
+      data: {
+        ...status,
+        date: moment().format("YYYY-MM-DD"),
+        dateTime: moment().format("YYYY-MM-DD HH:mm:ss"),
+        mode: import.meta.env.MODE,
       }
-    )
+    }).then(res => {
+      console.error(res, 'setSqlData')
+    }).catch(err => {
+      console.error(err, 'setSqlData error')
+    })
   }
 
   // 强制解锁屏幕限制（即可以玩电脑）

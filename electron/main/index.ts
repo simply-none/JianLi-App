@@ -11,7 +11,7 @@ import { initNewWindow } from "./module/newWindow.ts";
 import { initApiTest } from "./module/apiTest.ts";
 import { initClipboard } from "./module/clipboard.ts";
 import { registerJlocalProtocol } from "./module/protocol.ts";
-// import { initDB } from "./module/sql.ts";
+import { initSqlite } from "./module/sql.ts";
 import { appName } from "./variables.ts";
 
 app.setName(appName);
@@ -53,7 +53,7 @@ async function createWindow() {
   // 剪贴板
   initClipboard();
   // 数据库
-  // initDB();
+  initSqlite();
 }
 
 app.whenReady().then(async () => {

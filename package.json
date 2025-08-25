@@ -66,5 +66,8 @@
     "vue-router": "^4.4.5",
     "vue-tsc": "^2.0.6",
     "vue3-draggable-resizable": "^1.6.5"
+  },
+  "dependencies": {
+    "sqlite3": "^5.1.7"
   }
 }

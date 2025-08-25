@@ -1,4 +1,18 @@
 import { isProxy, isRef, toRaw, toValue, unref } from "vue"
+import moment from 'moment';
+
+// 数据表名称
+export const pomodoroStatusTable = 'pomodoro_status'
+
+function formatValue (value: any) {
+  if (isRef(value)) {
+    value = unref(value) 
+  }
+  if (isProxy(value)) {
+    value = toRaw(value) 
+  }
+  return value
+}
 
 // 从store中获取数据
 export function getStore(key: string) {
@@ -29,4 +43,58 @@ export function sendSync(key: string, value: any) {
 // 发送异步数据
 export function send(key: string, value: any) {
   window.ipcRenderer.send(key, value)
+}
+
+// sql
+export const setSqlData = async ({
+  tableName,
+  data,
+}: {
+  tableName: string,
+  data: Object,
+}) => {
+  const curTime = moment().format('YYYY-MM-DD HH:mm:ss')
+
+  return window.ipcRenderer.handlePromise('set-data', {
+    tableName: tableName,
+    data: {
+      ...formatValue(data),
+      create_time: curTime,
+    }
+  }).catch(err => {
+    console.error(err, 'setSqlData error')
+    return false
+  })
+}
+
+export const getSqlData = async ({
+  tableName,
+  conditions,
+}: {
+  tableName: string,
+  conditions: Object,
+}) => {
+  return window.ipcRenderer.handlePromise('query-data', {
+    tableName: tableName,
+    conditions: conditions,
+  }).catch(err => {
+    console.error(err, 'getSqlData error')
+    return []
+  })
+}
+
+export const deleteSqlData = async ({
+  tableName,
+  conditions,
+}: {
+  tableName: string,
+  conditions: Object,
+}) => {
+  return window.ipcRenderer.handlePromise('delete-data', {
+    tableName: tableName,
+    condition: conditions,
+  }).catch(err => {
+    console.error(err, 'deleteSqlData error')
+    return false
+  })
 }

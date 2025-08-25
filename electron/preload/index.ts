@@ -2,6 +2,10 @@ const { ipcRenderer, contextBridge } = require('electron')
 
 // --------- Expose some API to the Renderer process ---------
 contextBridge.exposeInMainWorld('ipcRenderer', {
+  // 新增handle方法
+  handlePromise(onName: string, args: ObjectType) {
+    return ipcRenderer.invoke(onName, args)
+  },
   on(...args: Parameters<typeof ipcRenderer.on>) {
     const [channel, listener] = args
     return ipcRenderer.on(channel, (event, ...args) => listener(event, ...args))
