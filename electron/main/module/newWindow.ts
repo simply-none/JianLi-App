@@ -1,12 +1,15 @@
 import { BrowserWindow, ipcMain, screen } from "electron";
 import colors from "colors";
-import { getAllStore } from "./store.ts";
+import { getAllStore, tableName } from "./store.ts";
+import { db } from "./sql.ts";
 import {
   appLogoIco,
   indexHtml,
   preload,
   VITE_DEV_SERVER_URL,
 } from "../variables.ts";
+import { queryByConditions } from "../utils/sql.ts";
+import { objectArrayToObject } from "../utils/common.ts";
 
 let childWindow: Record<string, BrowserWindow | null> = {};
 // 获取屏幕宽高
@@ -64,12 +67,26 @@ function createOtherWindow(arg: string) {
   // 不在任务栏显示
   childWindow[arg]?.setSkipTaskbar(true);
 
-  const store = getAllStore();
-  setTimeout(() => {
-    childWindow[arg].webContents.send("sync-data-to-other-window", {
-      ...store,
-    });
-  }, 2000)
+  queryByConditions({
+    db,
+    tableName: tableName,
+    conditions: {},
+    callback: (err, data) => {
+      let res = null
+      if (err) {
+        console.log(err, "err");
+        res = "error";
+      } else {
+        res = objectArrayToObject(data);
+      }
+      setTimeout(() => {
+        childWindow[arg].webContents.send("sync-data-to-other-window", {
+          ...res,
+        });
+      }, 2000);
+    },
+  });
+  
 }
 
 function closeOtherWindow(arg) {
@@ -95,7 +112,8 @@ export function initNewWindow() {
   });
 
   ipcMain.on("sync-data-to-other-window", (event, arg) => {
-    console.log(colors.bgGreen(arg));
+    console.log(colors.bgGreen(arg), 'in sync-data-to-other-window');
+
     // 遍历window
     const allWindows = BrowserWindow.getAllWindows();
     // 获取发送事件的窗口id

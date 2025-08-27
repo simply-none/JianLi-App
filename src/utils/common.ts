@@ -3,6 +3,7 @@ import moment from 'moment';
 
 // 数据表名称
 export const pomodoroStatusTable = 'pomodoro_status'
+export const basicInfoTable = 'basic_info'
 
 function formatValue (value: any) {
   if (isRef(value)) {
@@ -49,9 +50,11 @@ export function send(key: string, value: any) {
 export const setSqlData = async ({
   tableName,
   data,
+  config,
 }: {
   tableName: string,
   data: Object,
+  config?: Object,
 }) => {
   const curTime = moment().format('YYYY-MM-DD HH:mm:ss')
 
@@ -60,7 +63,8 @@ export const setSqlData = async ({
     data: {
       ...formatValue(data),
       create_time: curTime,
-    }
+    },
+    config: config
   }).catch(err => {
     console.error(err, 'setSqlData error')
     return false

@@ -14,8 +14,9 @@ function compareVersions(v1, v2) {
 
 // 检查nodejs主要版本是否满足要求
 if (compareVersions(currentVersion.split('.')[0], requiredVersion.split('.')[0]) < 0) {
-  console.error(`❌ 需要Node.js ${requiredVersion} 或更高版本，当前版本为 ${currentVersion}`)
+  console.error(`❌ 需要Node.js ${requiredVersion} 或更高版本，当前版本为 ${currentVersion}，同时请使用cnpm安装依赖包。`)
   process.exit(1)
 }
 
-console.log(`✅ Node.js版本检查通过 (${currentVersion})`)
+console.log(`✅ Node.js版本检查通过 (${currentVersion})，在使用cnpm安装依赖包后，再运行npm run dev。`)
+

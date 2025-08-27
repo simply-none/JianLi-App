@@ -26,16 +26,17 @@
 import { onMounted, ref, onBeforeUnmount } from 'vue';
 import moment from 'moment';
 import { throttle } from '@/utils/index';
-const curStatusC = ref()
+const curStatusC = ref({})
 const nextTime = ref()
 const nextDiffTime = ref()
 
 window.ipcRenderer.on('sync-data-to-other-window', (event, arg) => {
-  console.log(arg)
+  console.log(arg, 'MY PomodoroMiniWindow')
+
   if (Object.prototype.toString.call(arg) === '[object Object]') {
     curStatusC.value = arg.curStatus
     // 判断是否是work还是rest
-    if (arg.curStatus.value === 'work') {
+    if (arg.curStatus && arg.curStatus.value === 'work') {
       nextTime.value = moment(arg.startWorkTime + arg.workTimeGapUnit * arg.workTimeGap).format('YYYY-MM-DD HH:mm:ss')
     } else {
       nextTime.value = moment(arg.closeWorkTime + arg.restTimeGapUnit * arg.restTimeGap).format('YYYY-MM-DD HH:mm:ss')

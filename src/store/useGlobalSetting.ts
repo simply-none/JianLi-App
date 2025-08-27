@@ -1,7 +1,7 @@
 import { computed, onMounted, ref, toRaw, watchEffect } from "vue";
 import type { Ref } from "vue";
 import { defineStore, storeToRefs } from "pinia";
-import { getStore, pomodoroStatusTable, send, sendSync, setSqlData, setStore } from "../utils/common";
+import { basicInfoTable, getStore, pomodoroStatusTable, send, sendSync, setSqlData, setStore } from "../utils/common";
 import moment from "moment";
 import useWorkOrRestStore from "@/store/useWorkOrReset";
 import { initPiniaStatus, type defaultField } from "@/utils/store";
@@ -86,6 +86,7 @@ export default defineStore("global-setting", () => {
     }).catch(err => {
       console.error(err, 'setSqlData error')
     })
+    setStore("curStatus", status);
   }
 
   // 强制解锁屏幕限制（即可以玩电脑）

@@ -7,9 +7,22 @@
 
 import { Database } from "sqlite3";
 import colors from "colors";
+import { getObjectKeys } from "./common.ts";
+
+// 事务状态跟踪变量
+let transactionCount = 0;
+
+// 检查当前是否有活动事务
+async function hasActiveTransaction(db) {
+  return new Promise((resolve) => {
+    db.get('SELECT 1', (err) => {
+      resolve(err && err.message.includes('within a transaction'));
+    });
+  });
+}
 
 export function queryByConditions({ db, tableName, conditions, callback }) {
-  db.serialize(() => {
+  db.serialize(async () => {
     // 构建WHERE子句和参数
     const whereClauses = [];
     const params = [];
@@ -25,14 +38,18 @@ export function queryByConditions({ db, tableName, conditions, callback }) {
     const whereStr =
       whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
 
+    // 构建完整的SQL查询语句并执行
+
     const sql = `SELECT * FROM ${tableName} ${whereStr} ${orderByStr} ${limitStr}`;
 
     db.all(sql, params, (err, rows) => {
       if (err) {
-        return callback(err, null);
+        return callback(null, []);
+
       }
       callback(null, rows);
     });
+
   });
 }
 
@@ -42,18 +59,19 @@ async function ensureTableColumns({ db, tableName, data, config }) {
   return new Promise((resolve, reject) => {
     db.get(
       `SELECT sql FROM sqlite_master WHERE type='table' AND name='${tableName}'`,
-      (err, result) => {
+      async (err, result) => {
         if (err) return reject(err);
         if (!result || !result.sql) {
           // 创建表结构
           // 创建表，默认主键为 id
           const primaryKey = config?.primaryKey ? `${config.primaryKey} PRIMARY KEY` : 'id INTEGER PRIMARY KEY AUTOINCREMENT';
 
-          db.run(`CREATE TABLE ${tableName} (${primaryKey});`, [], (err) => {
+          await db.run(`CREATE TABLE ${tableName} (${primaryKey});`, [], (err) => {
               if (err) {
                   return reject(err);
               }
           });
+          // return;
           
         }
 
@@ -80,7 +98,7 @@ async function ensureTableColumns({ db, tableName, data, config }) {
           })
           .filter(Boolean);
 
-        const newColumns = Object.keys(data).filter(
+        const newColumns = getObjectKeys(data).filter(
           (key) => !existingColumns.includes(key)
         );
 
@@ -88,7 +106,7 @@ async function ensureTableColumns({ db, tableName, data, config }) {
           const alterPromises = newColumns.map(
             (col) =>
               new Promise((res, rej) => {
-                const type = typeof data[col] === "number" ? "REAL" : "TEXT";
+                const type = "TEXT";
                 db.run(
                   `ALTER TABLE ${tableName} ADD COLUMN ${col} ${type}`,
                   (alterErr) => (alterErr ? rej(alterErr) : res("success"))
@@ -114,13 +132,17 @@ export async function upsertData({
 }: {
   db: Database;
   tableName: string;
-  data: Record<string, any>;
+  data: Record<string, any> | Record<string, any>[];
   config?: {
     primaryKey?: string;
   }
   callback: (err: Error | null, result: any) => void;
 }): Promise<void> {
-  const columns = Object.keys(data);
+  // const columns = Object.keys(data);
+  console.log(colors.bgYellow(JSON.stringify(data)), 'data')
+  console.log('----------------------------------------')
+  const newData = Array.isArray(data) ? data : [data];
+  const columns = getObjectKeys(data)
   let placeholders = columns.map(() => "?").join(",");
   const values = columns.map((col) => data[col]);
 
@@ -128,7 +150,7 @@ export async function upsertData({
   db.serialize(async () => {
 
     // 创建/更新表
-    await ensureTableColumns({ db, tableName, data, config });
+    await ensureTableColumns({ db, tableName, data: newData, config });
 
     // 构建UPSERT语句(SQLite特有语法)
     const sql = `
@@ -138,11 +160,32 @@ export async function upsertData({
         ${columns.map((col) => `${col}=excluded.${col}`).join(",")}
       `;
 
-    db.run(sql, values, function (err, result) {
-      console.log(err, result, 'err, result')
-      if (err) return callback(err, null);
-      callback(null, result);
+    // 检查事务状态
+    const hasTransaction = await hasActiveTransaction(db);
+    
+    // 如果没有事务则开始新事务：防止报错，cannot start transaction within a transaction
+    if (!hasTransaction) {
+      // 执行批量插入/更新操作
+      db.run('BEGIN TRANSACTION');
+    }
+    
+    const stmt = db.prepare(sql);
+    newData.forEach((item) => {
+      stmt.run(Object.values(item));
     });
+    stmt.finalize();
+
+    // 提交事务
+    db.run('COMMIT', (err) => {
+      if (err) return callback(err, null);
+      callback(null, "success");
+    });
+
+    // db.run(sql, values, function (err, result) {
+    //   console.log(err, result, 'err, result')
+    //   if (err) return callback(err, null);
+    //   callback(null, result);
+    // });
   });
 }
 

@@ -36,3 +36,23 @@ export function readJsonFileContent(url) {
     return { error: true }
   }
 }
+
+// 获取对象数组下的所有对象属性
+export function getObjectKeys(objArr: ObjectType[] | ObjectType) {
+  if (!Array.isArray(objArr)) objArr = [objArr]
+  const keys = []
+  objArr.forEach(obj => {
+    keys.push(...Object.keys(obj))
+  })
+  // 去重不排序
+  return [...new Set(keys)]
+}
+
+// 将一个对象数组[{ key: value: JSON.string()}]，转换为{ key: JSON.parse(value) }
+export function objectArrayToObject(objArr: ObjectType[]) {
+  const obj = {}
+  objArr.forEach(item => {
+    obj[item.key] = JSON.parse(item.value)
+  })
+  return obj
+}

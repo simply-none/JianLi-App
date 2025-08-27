@@ -69,10 +69,11 @@ function assignDefaultValue<T>(
     }
   }
   else {
+    console.error('都进来了这里？？？？', key, storeValue)
     map.value = storeValue || defaultValue;
   }
   
-  if (storeValue === undefined) {
+  if (storeValue === undefined || storeValue === null) {
     setStore(key, defaultValue);
   }
 }
