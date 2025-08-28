@@ -1,11 +1,76 @@
-import clipboardListener from 'clipboard-event';
+import { createTable, queryByConditions, upsertData } from "../utils/sql.ts";
 import { win, hideApp, focusAppToTop } from "./mainWindow.ts";
+import moment from 'moment';
+import { db } from "./sql.ts";
+import { clipboard, ipcMain } from "electron";
+import colors from "colors";
+
+export const tableName = "clipboard_history";
 
 export function initClipboard() {
-  clipboardListener.startListening();
-  console.log('clipboardListener started');
-  clipboardListener.on('change', (e) => {
-    console.log(e);
-    win?.webContents.send('clipboard-change', e.text);
-  })
+  createTable({
+    db,
+    tableName: tableName,
+    callback: (err, res) => {
+      if (!err) {
+        // 监听剪贴板变化
+        setInterval(async () => {
+          const text = clipboard.readText();
+          const html = clipboard.readHTML();
+          const image = clipboard.readImage();
+          const rtf = clipboard.readRTF();
+          const bookmark = clipboard.readBookmark();
+          const findText = clipboard.readFindText();
+
+          let lastClipboardData: ObjectType = {};
+
+          await queryByConditions({
+            db,
+            tableName,
+            conditions: {
+              orderBy: "create_time",
+              orderByDesc: true,
+              limit: 1,
+            },
+            callback: (err, res) => {
+              if (err) {
+                console.error(err);
+                return;
+              }
+              lastClipboardData = res[0] || {};
+
+              // 判断是否是新数据
+              console.log(text, lastClipboardData.text, text === lastClipboardData.text);
+
+              if (text === lastClipboardData.text || !text.trim()) {
+                return;
+              }
+
+              upsertData({
+                db,
+                tableName,
+                data: {
+                  text,
+                  html,
+                  image: JSON.stringify(image),
+                  rtf,
+                  bookmark: JSON.stringify(bookmark),
+                  findText,
+                  create_time: moment().format('YYYY-MM-DD HH:mm:ss'),
+                },
+                config: {},
+                callback: (err, res) => {
+                  if (err) {
+                    console.error(err);
+                    return;
+                  }
+                },
+              });
+            },
+          });
+        }, 1000);
+      }
+    },
+    config: {},
+  });
 }

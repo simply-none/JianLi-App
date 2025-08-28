@@ -1,76 +1,65 @@
 <template>
-  <div class="clipboard">
-    <el-card class="clipboard-card">
-      <template #header>
-        <div class="card-header">
-          <span>剪切板历史</span>
-          <el-button 
-            type="primary" 
-            size="small" 
-            @click="clearClipboard"
-            :disabled="!clipboardItems.length"
-          >
-            清空
-          </el-button>
-        </div>
+  <el-form class="fileRela-form" label-width="108" label-position="left">
+    <el-form-item>
+      <template #label>
+        <div class="setting-title">剪切板历史</div>
       </template>
-      
-      <el-scrollbar height="400px">
-        <el-timeline>
-          <el-timeline-item
-            v-for="(item, index) in clipboardItems"
-            :key="index"
-            :timestamp="item.timestamp"
-            placement="top"
-          >
-            <el-card class="clipboard-item" shadow="hover">
-              <div class="item-content">
-                <el-tooltip 
-                  :content="item.content" 
-                  placement="top"
-                  :disabled="item.content.length <= 50"
-                >
-                  <span>{{ truncateText(item.content) }}</span>
-                </el-tooltip>
-                <el-button 
-                  type="success" 
-                  size="small" 
-                  @click="copyToClipboard(item.content)"
-                >
-                  复制
-                </el-button>
-              </div>
-            </el-card>
-          </el-timeline-item>
-        </el-timeline>
-      </el-scrollbar>
-    </el-card>
-  </div>
+    </el-form-item>
+
+    <el-form-item label="番茄钟小窗口" class="mode-wrapper">
+      <el-timeline>
+        <el-timeline-item v-for="(item, index) in clipboardItems" :key="index" :timestamp="item.create_time"
+          placement="top">
+          <el-card class="clipboard-item" shadow="hover">
+            <div class="item-content">
+              <el-input v-model="item.text" type="textarea" :autosize="{ minRows: 1, maxRows: 30 }" />
+
+            </div>
+            <div class="item-actions">
+              <el-button type="success" size="small" @click="copyToClipboard(item.text)">
+                复制
+              </el-button>
+              <!-- 删除 -->
+              <el-button type="danger" size="small" @click="deleteClipboardItem(item)">删除</el-button>
+            </div>
+          </el-card>
+        </el-timeline-item>
+      </el-timeline>
+    </el-form-item>
+  </el-form>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { useRoute, useRouter } from 'vue-router'
+
+// 判断路由变更
+const route = useRoute()
+watch(() => route.path, (newPath) => {
+  if (newPath !== '/clipboard') return
+  getClipboardHistory()
+})
+
 
 const clipboardItems = ref([])
 
-window.ipcRenderer.on('clipboard-change', (event, arg) => {
-  console.log(arg, 'clipboard-change')
-})
-
 // 获取剪切板历史
 function getClipboardHistory() {
-  // 这里使用 Electron 的 clipboard 模块
-  // const clipboard = window.electron.clipboard
-  // 获取历史记录的逻辑
-  // 示例数据
-  clipboardItems.value = [
-    {
-      content: '这是一条剪切板内容',
-      timestamp: '2023-10-01 10:00:00'
-    },
-    // 更多记录...
-  ]
+  window.ipcRenderer.handlePromise('query-data', {
+    tableName: 'clipboard_history',
+    conditions: {
+      orderBy: 'create_time',
+      orderByDesc: true,
+      limit: 100
+    }
+  }).then(result => {
+    if (result.success) {
+      clipboardItems.value = result.data
+    }
+  }).catch(err => {
+    console.log('查询失败:', err);
+  })
 }
 
 // 清空剪切板
@@ -85,9 +74,25 @@ function copyToClipboard(text) {
   ElMessage.success('已复制到剪切板')
 }
 
-// 截断长文本
-function truncateText(text, maxLength = 50) {
-  return text.length > maxLength ? text.slice(0, maxLength) + '...' : text
+// 删除剪切板历史
+function deleteClipboardItem(item) {
+  console.log(item)
+  window.ipcRenderer.handlePromise('delete-data', {
+    tableName: 'clipboard_history',
+    condition: {
+      id: item.id,
+    }
+  }).then(result => {
+    console.log(result, '删除剪切板历史')
+
+    if (result.success) {
+      ElMessage.success('删除成功')
+      getClipboardHistory()
+    }
+  }).catch(err => {
+    console.log('删除失败:', err);
+  })
+
 }
 
 onMounted(() => {
@@ -96,36 +101,41 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
-.clipboard {
-  padding: 20px;
+.fileRela-form {
+  padding: 24px;
+  box-sizing: border-box;
+  height: 100%;
+  overflow: auto;
+}
 
-  &-card {
-    max-width: 800px;
-    margin: 0 auto;
-    background: rgba(255, 255, 255, 0.8);
-    backdrop-filter: blur(10px);
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
-  }
+.setting-title {
+  padding-left: 3px;
+  border-bottom: 6px solid #6d6d6d;
+  width: 100%;
+  font-weight: 600;
+}
 
-  .card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
+.el-timeline {
+  width: 100%;
+}
 
-  &-item {
-    margin: 10px 0;
-    background: rgba(255, 255, 255, 0.9);
-    border-radius: 8px;
+.clipboard-item {
+  margin: 10px 0;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 8px;
+}
 
-    .item-content {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 8px 12px;
-    }
-  }
+.item-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.item-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding-top: 10px;
+
 }
 </style>

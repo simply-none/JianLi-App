@@ -50,10 +50,10 @@ async function createWindow() {
   initNewWindow();
   // 注册协议
   registerJlocalProtocol();
-  // 剪贴板
-  initClipboard();
   // 数据库
   initSqlite();
+  // 剪贴板
+  initClipboard();
 }
 
 app.whenReady().then(async () => {
