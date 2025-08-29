@@ -6,27 +6,30 @@
       </template>
     </el-form-item>
     <!-- 原密码 -->
-    <el-form-item label="原密码" style="width: 100%;">
+    <el-form-item label="原密码" style="width: 100%;" v-if="passwordC">
       <!-- 使用<div class="password">元素展示 -->
       <div class="password">
         {{ passwordC }}
       </div>
     </el-form-item>
     <!-- 校验密码是否相同 -->
-    <el-form-item label="密码校验" style="width: 100%;">
-      <el-input v-model="verifyPassword" placeholder="请输入" style="width: 100%">
+    <el-form-item label="密码校验" style="width: 100%;" v-if="passwordC">
+      <el-input v-model="verifyPassword" type="password" placeholder="请输入" style="width: 100%">
         <template #append>
           <el-button @click="checkPassword">
             校验
           </el-button>
         </template>
       </el-input>
+      <div v-if="showValidatePwdQuestionBtn">密码校验失败，是否通过校验密保问题重置密码？<el-button
+          @click="showValidatePwdQuestion = true">校验密保问题</el-button></div>
+
     </el-form-item>
     <!-- 设置密码 -->
     <el-form-item label="设置密码" style="width: 100%;" v-if="ischeckPassword">
       <!-- 新密码 -->
       <!-- 需要一边输入一边进行密码强度校验，改写上述注释内容 -->
-      <el-input v-model="newPassword" placeholder="请输入" style="width: 100%" @keyup.enter="updatePwd">
+      <el-input v-model="newPassword" type="password" placeholder="请输入" style="width: 100%" @keyup.enter="updatePwd">
         <template #append>
           <el-button @click="updatePwd">
             确定
@@ -38,7 +41,8 @@
     </el-form-item>
     <!-- 确认密码 -->
     <el-form-item label="确认密码" style="width: 100%;" v-if="ischeckPassword">
-      <el-input v-model="confirmPassword" placeholder="请输入" style="width: 100%" @keyup.enter="updatePwd">
+      <el-input v-model="confirmPassword" type="password" placeholder="请输入" style="width: 100%"
+        @keyup.enter="updatePwd">
         <template #append>
           <el-button @click="updatePwd">
             确定
@@ -48,35 +52,68 @@
       <!-- 校验密码强度等级 -->
       <el-progress :percentage="checkPasswordStrength(confirmPassword) * 100" striped status="success"></el-progress>
     </el-form-item>
-    
-    <!-- 密保问题 -->
-    <el-form-item label="密保问题" style="width: 100%;">
-      <!-- 读取密保问题和答案 循环 -->
-      <div v-for="(item, index) in pwdQuestionListCc" :key="index">
-        <div>问题{{ index + 1 }}: </div>
-        <div class="problem">
-          <div class="label">问题：</div>
-          <el-input v-model="item.question" placeholder="请输入问题" :disabled="!item.isAdd"></el-input>
-        </div>
-        <div class="answer">
-          <div class="label">答案：</div>
-          <el-input type="textarea" rows="3" v-model="item.answer" placeholder="请输入答案"
-            :disabled="!item.isAdd"></el-input>
-        </div>
-      </div>
-      <!-- 如果列表长度小于3，可以新增密保问题 -->
-      <el-button v-if="pwdQuestionListCc?.length < 3" @click="addPwdQuestion">新增密保问题</el-button>
-      <!-- 保存 -->
-      <div>
-        <el-button @click="savePwdQuestion">保存</el-button>
 
+    <!-- 忘记密码 -->
+    <el-form-item label="忘记密码" style="width: 100%;" v-if="showValidatePwdQuestion">
+      <!-- 读取密保问题，验证答案 循环 -->
+      <div v-for="(item, index) in pwdQuestionListCc" :key="index">
+        <template v-if="activeAnswer == index">
+          <div>问题{{ index + 1 }}: </div>
+          <div class="problem">
+            <div class="label">问题：</div>
+            <el-input v-model="item.question" placeholder="请输入问题" :disabled="!item.isAdd"></el-input>
+          </div>
+          <div class="answer">
+            <div class="label">答案：</div>
+            <el-input type="textarea" rows="3" v-model="item.answerValid" placeholder="请输入答案"></el-input>
+          </div>
+        </template>
+
+      </div>
+      <el-steps :active="activeAnswer" finish-status="success">
+        <el-step :title="'第' + (idx + 1) + '个问题'" v-for="(val, idx) in pwdQuestionListCc" />
+      </el-steps>
+      <div>
+        <el-button @click="validatePwdQuestion">{{ activeAnswer + 1 != pwdQuestionListCc?.length ? '下一步' : '验证'
+        }}</el-button>
       </div>
     </el-form-item>
 
-
-
+    <!-- 密保问题 -->
+    <!-- 分割线 -->
+    <el-divider></el-divider>
+    <el-form-item>
+      <template #label>
+        <div class="setting-title">密保问题</div>
+      </template>
+    </el-form-item>
+    <el-form-item label="密保问题" style="width: 100%;">
+      <div>
+        <el-button @click="showValidatePwdQuestionList = !showValidatePwdQuestionList">显示密保问题</el-button>
+      </div>
+      <template v-if="showValidatePwdQuestionList">
+        <!-- 读取密保问题和答案 循环 -->
+        <div v-for="(item, index) in pwdQuestionListCc" :key="index">
+          <div>问题{{ index + 1 }}: </div>
+          <div class="problem">
+            <div class="label">问题：</div>
+            <el-input v-model="item.question" placeholder="请输入问题" :disabled="!item.isAdd"></el-input>
+          </div>
+          <div class="answer">
+            <div class="label">答案：</div>
+            <el-input type="textarea" rows="3" v-model="item.answer" placeholder="请输入答案"
+              :disabled="!item.isAdd"></el-input>
+          </div>
+        </div>
+        <!-- 如果列表长度小于3，可以新增密保问题 -->
+        <el-button v-if="pwdQuestionListCc?.length < 3" @click="addPwdQuestion">新增密保问题</el-button>
+        <!-- 保存 -->
+        <div>
+          <el-button @click="savePwdQuestion">保存</el-button>
+        </div>
+      </template>
+    </el-form-item>
   </el-form>
-
 </template>
 
 <script setup lang="ts">
@@ -90,9 +127,19 @@ import useSafetyProtection from '@/store/useSafetyProtection';
 const { passwordC, pwdQuestionListC } = storeToRefs(useSafetyProtection());
 const { setPassword, isPwdSame, setPwdQuestionList } = useSafetyProtection();
 const passwordCc = ref(passwordC.value);
+const ischeckPassword = ref(false);
+const activeAnswer = ref(0);
+const showValidatePwdQuestion = ref(false);
+const showValidatePwdQuestionBtn = ref(false);
+const showValidatePwdQuestionList = ref(false);
 
 watch(() => passwordC.value, (newVal) => {
   passwordCc.value = newVal;
+  console.error(passwordCc.value ? false : true, passwordCc.value, passwordCc.value?.length)
+  ischeckPassword.value = passwordCc.value ? false : true;
+}, {
+  immediate: true,
+  deep: true,
 })
 
 const pwdQuestionListCc = ref(JSON.parse(JSON.stringify(pwdQuestionListC.value || [])));
@@ -103,7 +150,6 @@ watch(() => pwdQuestionListC.value, (newVal) => {
 const newPassword = ref('');
 const confirmPassword = ref('');
 const verifyPassword = ref('');
-const ischeckPassword = ref(false);
 
 function updatePwd() {
   if (newPassword.value !== confirmPassword.value) {
@@ -185,6 +231,12 @@ function checkPasswordStrength(password: string) {
 
 // 原密码和新密码校验
 function checkPassword() {
+  if (!passwordCc.value) {
+    ElMessage.error('当前系统无原密码，校验通过');
+    ischeckPassword.value = true;
+    return;
+  }
+
   const hasSame = isPwdSame(verifyPassword.value, passwordCc.value)
   if (hasSame) {
     ElMessage.success('密码校验成功');
@@ -192,7 +244,7 @@ function checkPassword() {
     return;
   } else {
     ElMessage.error('密码校验失败');
-
+    showValidatePwdQuestionBtn.value = true;
     return;
   }
 }
@@ -226,6 +278,29 @@ function savePwdQuestion() {
   console.log(toRaw(addPwdQuestions), pwdQuestionListCc.value, 'addPwdQuestions');
 
   setPwdQuestionList(toRaw(addPwdQuestions));
+}
+
+// 验证密保问题
+function validatePwdQuestion() {
+  const item = pwdQuestionListCc.value[activeAnswer.value];
+  const hasSame = isPwdSame(item.answerValid, item.answer)
+  if (hasSame) {
+    activeAnswer.value = activeAnswer.value + 1;
+
+    if (activeAnswer.value == pwdQuestionListCc.value?.length) {
+      ElMessage.success('密保验证成功，请重置密码');
+      showValidatePwdQuestion.value = false;
+      activeAnswer.value = 0;
+      ischeckPassword.value = true;
+      return;
+    } else {
+      ElMessage.success('问题验证成功');
+    }
+  } else {
+    ElMessage.error('问题验证失败');
+    return;
+  }
+
 }
 
 </script>
@@ -269,6 +344,12 @@ function savePwdQuestion() {
   }
 }
 
+:deep(.el-steps.el-steps--horizontal) {
+
+  width: 100%;
+  max-width: 100%;
+}
+
 .mode-ops {
   width: 100%;
 
@@ -284,6 +365,7 @@ function savePwdQuestion() {
 
 .safetyProtection-form {
   padding: 24px;
+
   :deep(.el-form-item__content) {
     display: block;
 

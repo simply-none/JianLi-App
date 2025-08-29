@@ -32,6 +32,8 @@ if (!app.requestSingleInstanceLock()) {
 async function createWindow() {
   // 主窗口
   initMainWindow();
+  // 数据库
+  initSqlite();
   // 诗词数据
   initPoetData();
   // 定时任务（番茄钟）
@@ -50,8 +52,6 @@ async function createWindow() {
   initNewWindow();
   // 注册协议
   registerJlocalProtocol();
-  // 数据库
-  initSqlite();
   // 剪贴板
   initClipboard();
 }

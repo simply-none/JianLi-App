@@ -1,10 +1,13 @@
 import { ipcMain } from "electron";
 import crypto from "node:crypto";
-import ElectronStore from "electron-store";
-// 使用nodejs原生crypto模块进行加密，解密
-let store = new ElectronStore();
+import { queryByConditions, upsertData } from "../utils/sql.ts";
+import { tableName } from "./store.ts";
+import { db } from "./sql.ts";
+import colors from "colors";
 
+// 使用nodejs原生crypto模块进行加密，解密
 const originPassPhrase = "mysecretpassphrase afjaoewLKFWAJFOAWJF";
+
 // 生成RSA密钥对
 export function generateRSAKeyPair(passphrase: string = originPassPhrase): {
   publicKey: string;
@@ -23,7 +26,22 @@ export function generateRSAKeyPair(passphrase: string = originPassPhrase): {
       passphrase: passphrase || originPassPhrase, // 可选的密码短语
     },
   });
-  store.set("RSAKey", { publicKey, privateKey });
+  upsertData({
+    db,
+    tableName,
+    data: {
+      key: "RSAKey",
+      value: JSON.stringify({ publicKey, privateKey }),
+    },
+    config: {
+      primaryKey: "key",
+    },
+    callback: (err, result) => {
+      if (err) {
+        console.log(err, "------err");
+      }
+    },
+  });
 
   return { publicKey, privateKey };
 }
@@ -62,36 +80,93 @@ export function decrypt(
 export function initCrypto() {
   ipcMain.on("encrypt-pwd", (event, arg: ObjectType) => {
     const { text } = arg;
-    const RSAKey: any = store.get("RSAKey");
-    const { publicKey } = RSAKey ? RSAKey : generateRSAKeyPair();
-    const encryptedText = encrypt(text, publicKey);
-    event.returnValue = encryptedText;
+    let RSAKey: any = null;
+    queryByConditions({
+      db,
+      tableName,
+      conditions: {
+        key: "RSAKey",
+      },
+      callback: (err, data) => {
+        if (err) {
+          console.log(err, "------err");
+          RSAKey = generateRSAKeyPair();
+        } else {
+          RSAKey =
+            data.length > 0 ? JSON.parse(data[0].value) : generateRSAKeyPair();
+        }
+        const { publicKey } = RSAKey ? RSAKey : generateRSAKeyPair();
+        const encryptedText = encrypt(text, publicKey);
+        event.returnValue = encryptedText;
+      },
+    });
   });
 
   ipcMain.on("decrypt-pwd", (event, arg: ObjectType) => {
     const { text, passphrase } = arg;
-    const RSAKey: any = store.get("RSAKey");
-    const { privateKey } = RSAKey ? RSAKey : generateRSAKeyPair();
-    const decryptedText = decrypt(text, privateKey, passphrase);
-    event.returnValue = decryptedText;
+    let RSAKey: any = null;
+    queryByConditions({
+      db,
+      tableName,
+      conditions: {
+        key: "RSAKey",
+      },
+      callback: (err, data) => {
+        if (err) {
+          console.log(err, "------err");
+          RSAKey = generateRSAKeyPair();
+        } else {
+          RSAKey =
+            data.length > 0 ? JSON.parse(data[0].value) : generateRSAKeyPair();
+        }
+        const { privateKey } = RSAKey ? RSAKey : generateRSAKeyPair();
+        const decryptedText = decrypt(text, privateKey, passphrase);
+        event.returnValue = decryptedText;
+      },
+    });
   });
 
   // 比较密码是否相同
   ipcMain.on("compare-pwd", (event, arg: ObjectType) => {
     try {
       const { text, encryptText, passphrase } = arg;
-      console.log(text, '------', encryptText, '------', passphrase, '------passphrase')
-      const RSAKey: any = store.get("RSAKey");
-      const { privateKey } = RSAKey ? RSAKey : generateRSAKeyPair();
-      console.log(privateKey, '------privateKey')
-      const decryptedText = decrypt(encryptText, privateKey, passphrase);
-      console.log(decryptedText, '------decryptedText')
-      event.returnValue = decryptedText === text;
+      console.log(
+        text,
+        "------",
+        encryptText,
+        "------",
+        passphrase,
+        "------passphrase"
+      );
+
+      let RSAKey: any = null;
+      queryByConditions({
+        db,
+        tableName,
+        conditions: {
+          key: "RSAKey",
+        },
+        callback: (err, data) => {
+          if (err) {
+            console.log(err, "------err");
+            RSAKey = generateRSAKeyPair();
+          } else {
+            RSAKey =
+              data.length > 0
+                ? JSON.parse(data[0].value)
+                : generateRSAKeyPair();
+          }
+          const { privateKey } = RSAKey ? RSAKey : generateRSAKeyPair();
+          const decryptedText = decrypt(encryptText, privateKey, passphrase);
+          console.log(decryptedText, "------decryptedText");
+          event.returnValue = decryptedText === text;
+        },
+      });
     } catch (error) {
-      console.log(error)
+      console.log(error);
       event.returnValue = false;
     }
-  })
+  });
 }
 
 // 使用示例

@@ -3,16 +3,20 @@
     <template #main>
       <component :is="curComponent" />
       <div class="setting">
-        <el-image :src="SettingSvg" @click="toSetting" @contextmenu.self="openHomeBtnsFn"></el-image>
-      </div>
-      <div class="home-btns" v-if="isHiddenHomeBtns">
-        <el-button type="primary" v-if="curStatusC.value != 'screen'" @click="startLockedFn">
-          开启锁屏状态
-        </el-button>
-        <el-button v-if="curStatusC.value == 'screen'" @click="closeLockedFn">
-          开始工作
-        </el-button>
-        <el-button @click="closeHomeBtnsFn">隐藏操作按钮</el-button>
+        <el-popover placement="right" :width="100" trigger="contextmenu" :auto-close="3000">
+          <template #reference>
+            <el-image :src="SettingSvg" @click="toSetting"></el-image>
+          </template>
+          <div class="home-btns">
+            <el-button type="primary" v-if="curStatusC.value != 'screen'" @click="startLockedFn">
+              开启锁屏状态
+            </el-button>
+            <el-button v-if="curStatusC.value == 'screen'" @click="closeLockedFn">
+              开始工作
+            </el-button>
+            <el-button @click="closeHomeBtnsFn">隐藏操作按钮</el-button>
+          </div>
+        </el-popover>
       </div>
     </template>
   </layout-vue>
@@ -98,12 +102,12 @@ function closeLockedFn() {
   ElMessageBox.prompt('请输入密码', '确认关闭锁屏', {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
-    inputType: 'password', 
+    inputType: 'password',
   }).then(({ value }) => {
     console.log(value, 'value', isPwdSame(value));
     if (isPwdSame(value)) {
       closeScreenSaverFn()
-      closeHomeBtnsFn() 
+      closeHomeBtnsFn()
     }
     else {
       ElMessage.error('密码错误')
@@ -138,9 +142,20 @@ function toSetting() {
 }
 
 .home-btns {
-  position: fixed;
-  bottom: 50px;
-  left: 50%;
-  transform: translateX(-50%);
+  width: 100%;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 18px;
+
+  .el-button {
+    width: 100%;
+  }
+
+  .el-button+.el-button {
+    margin-left: 0px;
+  }
 }
 </style>

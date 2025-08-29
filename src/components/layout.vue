@@ -81,6 +81,7 @@ onMounted(() => {
 
     .main {
       flex: 1;
+      width: 0;
       // overflow: auto;
     }
   }

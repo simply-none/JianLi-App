@@ -40,14 +40,6 @@ export const layoutRouters: RouteRecordRaw[] = [
     },
   },
   {
-    path: "/sqlTest",
-    name: "sqlTest",
-    component: () => import("@/views/sqlTest/index.vue"),
-    meta: {
-      title: "数据库测试",
-    },
-  },
-  {
     path: "/appCache",
     name: "appCache",
     component: () => import("@/views/appCache/index.vue"),
@@ -88,6 +80,14 @@ export const layoutRouters: RouteRecordRaw[] = [
     }
   },
   {
+    path: "/styleBeauty",
+    name: "styleBeauty",
+    component: () => import("@/views/styleBeauty/index.vue"),
+    meta: {
+      title: "样式美化", 
+    }
+  },
+  {
     path: "/test",
     name: "test",
     component: () => import("@/views/test.vue"),
@@ -95,7 +95,14 @@ export const layoutRouters: RouteRecordRaw[] = [
       title: "测试",
     },
   },
-  
+  {
+    path: "/sqlTest",
+    name: "sqlTest",
+    component: () => import("@/views/sqlTest/index.vue"),
+    meta: {
+      title: "数据库测试",
+    },
+  },
 ];
 
 const routers: RouteRecordRaw[] = [

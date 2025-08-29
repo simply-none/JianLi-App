@@ -69,21 +69,6 @@
 
         <!-- 分割线 -->
         <el-divider></el-divider>
-        <el-form-item>
-          <template #label>
-            <div class="setting-title">样式美化</div>
-          </template>
-        </el-form-item>
-        <el-form-item label="应用背景颜色">
-          <el-color-picker v-model="appBgColorCc" show-alpha @change="changeAppBgColor" /><span>{{ appBgColorCc
-          }}</span>
-        </el-form-item>
-        <el-form-item label="页面背景颜色">
-          <el-color-picker v-model="appInnerColorCc" show-alpha @change="changeAppInnerColor" /><span>{{ appInnerColorCc
-          }}</span>
-        </el-form-item>
-
-        <!-- 分割线 -->
         <CacheSet />
 
         <!-- 分割线 -->
@@ -200,8 +185,6 @@ function changeRestTimeGapUnitCc() {
   setRestTimeGapUnit(restTimeGapUnitCc.value);
 }
 
-const appBgColorCc = ref(JSON.parse(JSON.stringify(appBgColorC.value)))
-const appInnerColorCc = ref(JSON.parse(JSON.stringify(appInnerColorC.value)))
 const homeModeOpsCc = ref(JSON.parse(JSON.stringify(homeModeOpsC.value)))
 const activeHomeModeOps = ref(toRaw(homeModeOpsCc.value[0]))
 
@@ -211,14 +194,6 @@ watch(() => homeModeOpsC.value, (n) => {
   immediate: true,
   deep: true,
 })
-
-function changeModeOps() {
-  const findIndex = homeModeOpsCc.value.findIndex((item: any) => item.value === activeHomeModeOps.value.value);
-  homeModeOpsCc.value.splice(findIndex, 1, activeHomeModeOps.value);
-  setHomeModeOps(homeModeOpsCc.value);
-}
-
-const restBgColor = ref();
 
 function quitApp() {
   confirmDialog.open('确定要退出应用吗？', 3, () => {
@@ -230,17 +205,9 @@ function changeForceWorkTimes(value: number) {
   setForceWorkTimes(Number(value));
 }
 
-function changeAppBgColor(value: string) {
-  setAppBgColor(value);
-}
-
 function changeIsStartup(value: boolean) {
   isStartupCc.value = value;
   setIsStartup(value);
-}
-
-function changeAppInnerColor(value: string) {
-  setAppInnerColor(value);
 }
 
 const globalFontCc = ref(JSON.parse(JSON.stringify(globalFontC.value)))
@@ -250,16 +217,6 @@ watch(() => globalFontC.value, (n) => {
 })
 function setGlobalFontC() {
   setGlobalFont(globalFontCc.value);
-}
-
-
-function toHome() {
-  router.push({
-    path: '/',
-    query: {
-      from: 'setting',
-    },
-  });
 }
 
 </script>

@@ -2,12 +2,20 @@
   <el-form class="fileRela-form" label-width="108" label-position="left">
     <el-form-item>
       <template #label>
-        <div class="setting-title">文件相关</div>
+        <div class="setting-title">文件上传测试</div>
       </template>
     </el-form-item>
     <!-- 文件上传测试 -->
     <el-form-item label="文件上传测试" class="mode-wrapper">
       <upload-vue :limit="1" @update-data="updateDataFn"/>
+    </el-form-item>
+
+    <!-- 分割线 -->
+    <el-divider></el-divider>
+    <el-form-item>
+      <template #label>
+        <div class="setting-title">文件转移</div>
+      </template>
     </el-form-item>
     <!-- 文件夹复制测试 -->
     <el-form-item label="文件转移" class="mode-wrapper file-move">

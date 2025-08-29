@@ -6,7 +6,7 @@
       </template>
     </el-form-item>
 
-    <el-form-item label="番茄钟小窗口" class="mode-wrapper">
+    <el-form-item label="剪切板历史" class="mode-wrapper">
       <el-timeline>
         <el-timeline-item v-for="(item, index) in clipboardItems" :key="index" :timestamp="item.create_time"
           placement="top">
