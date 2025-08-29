@@ -3,8 +3,10 @@ import defaultSqlite3, { Database } from "sqlite3";
 import path from "node:path";
 import fs from "node:fs";
 import { win } from "./mainWindow.ts";
-import { store } from "./store.ts";
-import { deleteData, queryByConditions, upsertData } from "../utils/sql.ts";
+import { store, tableName as basicInfoTableName } from "./store.ts";
+import { tableName as clipboardTableName } from "./clipboard.ts";
+import { deleteData, queryByConditions, upsertData, createTable } from "../utils/sql.ts";
+import colors from 'colors'
 
 const verbose = defaultSqlite3.verbose;
 
@@ -33,6 +35,9 @@ export function initSqlite() {
 
   db = new sqlite3.Database(dbPath);
   db.exec('PRAGMA foreign_keys = ON;');
+
+  // 初始化表结构，不然打不开
+  initTable()
 
   // 获取表数据，参数为表名，以及查询条件
   ipcMain.handle("query-data", async (event, { tableName, conditions }) => {
@@ -85,5 +90,37 @@ export function initSqlite() {
         }
       })
     })
+  })
+}
+
+function initTable() {
+  // 表结构basicInfoTableName: key 主键
+  // 表结构clipboardTableName: 默认id主键
+  createTable({
+    db,
+    tableName: basicInfoTableName,
+    config: {
+      primaryKey: 'key',
+    },
+    callback: (err, data) => {
+      if (err) {
+        console.log(colors.red(err), '创建表失败')
+        return;
+      }
+      console.log(colors.green(data), '创建表成功')
+    }
+  })
+  createTable({
+    db,
+    tableName: clipboardTableName,
+    config: {
+    },
+    callback: (err, data) => {
+      if (err) {
+        console.log(colors.red(err), '创建表失败')
+        return;
+      }
+      console.log(colors.green(data), '创建表成功')
+    }
   })
 }

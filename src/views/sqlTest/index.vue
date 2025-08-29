@@ -84,6 +84,13 @@ onMounted(() => {
   overflow: auto;
 }
 
+.setting-title {
+  padding-left: 3px;
+  border-bottom: 6px solid #6d6d6d;
+  width: 100%;
+  font-weight: 600;
+}
+
 :deep(.el-table .table-work) {
   --el-table-tr-bg-color: #f0f9eb;
 

@@ -69,7 +69,7 @@ function assignDefaultValue<T>(
     }
   }
   else {
-    console.error('都进来了这里？？？？', key, storeValue)
+    console.error('都进来了这里？？？？', key, storeValue, defaultValue)
     map.value = storeValue || defaultValue;
   }
   

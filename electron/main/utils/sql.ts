@@ -52,6 +52,7 @@ export function queryByConditions({ db, tableName, conditions, callback }) {
 
     db.all(sql, params, (err, rows) => {
       if (err) {
+        console.log(colors.red(err), 'ceshushuju')
         return callback(null, []);
       }
       callback(null, rows);
@@ -85,7 +86,7 @@ async function ensureTableColumns({ db, tableName, data, config }) {
           // return;
         }
 
-        const createSQL = result.sql;
+        const createSQL = result ? result.sql : '';
         // console.log(
         //   colors.bgCyan(createSQL),
         //   colors.bgMagenta("动态更新表字段")

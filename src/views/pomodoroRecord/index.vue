@@ -10,7 +10,7 @@
       <el-date-picker v-model="curDate" value-format="YYYY-MM-DD" type="date" placeholder="选择日期"></el-date-picker>
     </el-form-item>
     <el-form-item label="该日番茄钟记录" class="mode-wrapper">
-      <el-table :data="curDateData" max-height="360" :row-class-name="tableRowClassName">
+      <el-table :data="curDateData" max-height="600" :row-class-name="tableRowClassName">
         <el-table-column prop="label" label="工作状态">
           <template #default="scope">
             {{ scope.row.label }}
@@ -76,6 +76,13 @@ const tableRowClassName = ({
   box-sizing: border-box;
   height: 100%;
   overflow: auto;
+}
+
+.setting-title {
+  padding-left: 3px;
+  border-bottom: 6px solid #6d6d6d;
+  width: 100%;
+  font-weight: 600;
 }
 
 :deep(.el-table .table-work) {
