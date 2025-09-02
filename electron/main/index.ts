@@ -13,6 +13,8 @@ import { initClipboard } from "./module/clipboard.ts";
 import { registerJlocalProtocol } from "./module/protocol.ts";
 import { initSqlite } from "./module/sql.ts";
 import { appName } from "./variables.ts";
+import { initRegisterShortcut } from "./module/registerShortcut.ts";
+
 
 app.setName(appName);
 
@@ -54,6 +56,8 @@ async function createWindow() {
   registerJlocalProtocol();
   // 剪贴板
   initClipboard();
+  // 注册快捷键
+  initRegisterShortcut();
 }
 
 app.whenReady().then(async () => {

@@ -71,6 +71,24 @@ export const layoutRouters: RouteRecordRaw[] = [
       title: "剪贴板",
     }
   },
+  // 笔记本
+  {
+    path: '/notebook',
+    name:'notebook',
+    component: () => import("@/views/notebook/index.vue"),
+    meta: {
+      title: "笔记本", 
+    }
+  },
+  // 注册快捷键
+  {
+    path: '/registerShortcut',
+    name:'registerShortcut',
+    component: () => import("@/views/registerShortcut/index.vue"),
+    meta: {
+      title: "注册快捷键", 
+    }
+  },
   {
     path: '/safetyProtection',
     name:'safetyProtection',
@@ -131,6 +149,11 @@ const routers: RouteRecordRaw[] = [
     path: "/second",
     name: "second",
     component: () => import("@/views/pomodoroMiniWindow/index.vue"),
+  },
+  {
+    path: "/miniNotebook",
+    name: "miniNotebook",
+    component: () => import("@/views/miniNotebook/index.vue"),
   }
 ];
 

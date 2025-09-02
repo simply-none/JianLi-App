@@ -23,7 +23,7 @@ function getScreenInfo() {
   screenHeight = primaryDisplay.size.height;
 }
 
-function createOtherWindow(arg: string) {
+function createOtherWindow(arg: string, ops?: ObjectType) {
   getScreenInfo();
   if (childWindow[arg]) {
     childWindow[arg]?.show();
@@ -33,14 +33,15 @@ function createOtherWindow(arg: string) {
   childWindow[arg] = new BrowserWindow({
     title: "second window",
     icon: appLogoIco,
-    transparent: true,
-    resizable: false,
-    frame: false,
-    fullscreenable: false,
-    width: 99,
-    height: 81,
-    x: screenWidth - 120,
-    y: screenHeight - 219,
+    transparent: ops?.transparent || true,
+
+    resizable: ops?.resizable || false,
+    frame: ops?.frame || false,
+    fullscreenable: ops?.fullscreenable || false,
+    width: ops?.width || 99,
+    height: ops?.height || 81,
+    x: ops?.x || screenWidth - 120,
+    y: ops?.y || screenHeight - 219,
     webPreferences: {
       preload,
       devTools: true,
@@ -103,8 +104,8 @@ export function initNewWindow() {
   });
 
   // 打开新窗口
-  ipcMain.on("open-new-window", (_, newWindowName) => {
-    createOtherWindow(newWindowName);
+  ipcMain.on("open-new-window", (_, newWindowName, ops: ObjectType) => {
+    createOtherWindow(newWindowName, ops);
   });
   // 关闭新窗口
   ipcMain.on("close-new-window", (_, newWindowName) => {

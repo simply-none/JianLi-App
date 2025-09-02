@@ -12,6 +12,13 @@
         <el-radio label="关闭" :value="false" border></el-radio>
       </el-radio-group>
     </el-form-item>
+
+    <el-form-item label="笔记本小窗口" class="mode-wrapper">
+      <el-radio-group v-model="showMiniNotebookWindowCc" @change="changeShowMiniNotebookWindowFn">
+        <el-radio label="开启" :value="true" border></el-radio>
+        <el-radio label="关闭" :value="false" border></el-radio>
+      </el-radio-group>
+    </el-form-item>
   </el-form>
 
 </template>
@@ -21,17 +28,25 @@ import { ref, reactive, watch, computed, toRaw, onMounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import useWindowMode from '@/store/useWindowMode';
 
-const { showPomodoroMiniWindowC } = storeToRefs(useWindowMode());
-const { setShowPomodoroMiniWindow } = useWindowMode();
+const { showPomodoroMiniWindowC, showMiniNotebookWindowC } = storeToRefs(useWindowMode());
+const { setShowPomodoroMiniWindow, setShowMiniNotebookWindow } = useWindowMode();
 
 const showPomodoroMiniWindowCc = ref(showPomodoroMiniWindowC.value)
+const showMiniNotebookWindowCc = ref(showMiniNotebookWindowC.value)
 
 watch(showPomodoroMiniWindowC, (val) => {
   showPomodoroMiniWindowCc.value = JSON.parse(JSON.stringify(val));
 });
+watch(showMiniNotebookWindowC, (val) => {
+  showMiniNotebookWindowCc.value = JSON.parse(JSON.stringify(val));
+});
 
 function changeShowPomodoroMiniWindowFn(val: any) {
   setShowPomodoroMiniWindow(toRaw(val));
+}
+
+function changeShowMiniNotebookWindowFn(val: any) {
+  setShowMiniNotebookWindow(toRaw(val));
 }
 
 

@@ -46,6 +46,11 @@ export function send(key: string, value: any) {
   window.ipcRenderer.send(key, value)
 }
 
+// 发送异步数据，参数是key: string, ...args: any[]
+export function sendMany(key: string, ...args: any[]) {
+  window.ipcRenderer.send(key, ...args)
+}
+
 // sql
 export const setSqlData = async ({
   tableName,

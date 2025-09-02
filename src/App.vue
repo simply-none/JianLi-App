@@ -1,9 +1,17 @@
 <script setup lang="ts">
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import useOpenWindow from '@/hooks/useOpenWindow';
+import { useRouter } from 'vue-router';
+
+const router = useRouter()
 
 // 使用不同窗口打开时分别处理的hook
 useOpenWindow()
+
+// 监听事件
+window.ipcRenderer.on('open-match-page', (event, url) => {
+  router.push(url)
+})
 
 </script>
 

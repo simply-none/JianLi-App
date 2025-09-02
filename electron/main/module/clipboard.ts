@@ -40,8 +40,6 @@ export function initClipboard() {
               lastClipboardData = res[0] || {};
 
               // 判断是否是新数据
-              console.log(text, lastClipboardData.text, text === lastClipboardData.text);
-
               if (text === lastClipboardData.text || !text.trim()) {
                 return;
               }

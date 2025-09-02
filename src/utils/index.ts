@@ -109,3 +109,11 @@ export function getCompositeObjArr(
     isSame,
   };
 }
+
+// 合并两个对象数组，根据key合并
+export const mergeShortcuts = (origin: ObjectType[], current: ObjectType[]) => {
+  return origin.map(item => {
+    const cur = current.find(c => c.key === item.key)
+    return cur ? cur : item
+  })
+}

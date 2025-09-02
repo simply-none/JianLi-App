@@ -1,6 +1,6 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { defineStore, storeToRefs } from "pinia";
-import { getStore, sendSync, setStore, send } from "../utils/common";
+import { getStore, sendSync, setStore, send, sendMany } from "../utils/common";
 import { initPiniaStatus, type defaultField } from "@/utils/store";
 
 export default defineStore("window-mode", () => {
@@ -19,6 +19,26 @@ export default defineStore("window-mode", () => {
     }
   });
 
+  // 笔记本小窗口
+  const showMiniNotebookWindow = ref();
+  const showMiniNotebookWindowC = computed(() => showMiniNotebookWindow.value);
+  function setShowMiniNotebookWindow(value: boolean) {
+    showMiniNotebookWindow.value = value;
+    setStore("showMiniNotebookWindow", value);
+  }
+  watch(showMiniNotebookWindow, (newValue, oldValue) => {
+    if (newValue == true) {
+      sendMany("open-new-window", "miniNotebook", {
+        width: 800,
+        height: 600,
+        x: 100,
+        y: 100,
+      });
+    } else {
+      send("close-new-window", "miniNotebook");
+    }
+  });
+
   // pinia状态初始化
   function init() {
     // 布尔值变量
@@ -27,6 +47,11 @@ export default defineStore("window-mode", () => {
         field: "showPomodoroMiniWindow",
         default: false,
         map: showPomodoroMiniWindow,
+      },
+      {
+        field: "showMiniNotebookWindow",
+        default: false,
+        map: showMiniNotebookWindow,
       },
     ];
     // 数字值变量
@@ -69,6 +94,11 @@ export default defineStore("window-mode", () => {
     showPomodoroMiniWindowC,
     // 方法
     setShowPomodoroMiniWindow,
+    // 变量
+    showMiniNotebookWindow,
+    showMiniNotebookWindowC,
+    // 方法
+    setShowMiniNotebookWindow,
     // 其他
     $reset,
   };

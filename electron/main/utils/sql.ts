@@ -23,6 +23,18 @@ async function hasActiveTransaction(db) {
 
 export function queryByConditions({ db, tableName, conditions, callback }) {
   db.serialize(async () => {
+    // 判断是否有where语句
+    if (conditions && conditions.whereStr) {
+      const sql = `SELECT * FROM ${tableName} WHERE ${conditions.whereStr}`;
+      db.all(sql, (err, rows) => {
+        if (err) {
+          console.log(colors.red(err), "ceshushuju");
+          return callback(null, []);
+        }
+        callback(null, rows);
+      });
+      return;
+    }
     // 构建WHERE子句和参数
     const whereClauses = [];
     const params = [];
@@ -52,7 +64,7 @@ export function queryByConditions({ db, tableName, conditions, callback }) {
 
     db.all(sql, params, (err, rows) => {
       if (err) {
-        console.log(colors.red(err), 'ceshushuju')
+        console.log(colors.red(err), "ceshushuju");
         return callback(null, []);
       }
       callback(null, rows);
@@ -86,7 +98,7 @@ async function ensureTableColumns({ db, tableName, data, config }) {
           // return;
         }
 
-        const createSQL = result ? result.sql : '';
+        const createSQL = result ? result.sql : "";
         // console.log(
         //   colors.bgCyan(createSQL),
         //   colors.bgMagenta("动态更新表字段")
