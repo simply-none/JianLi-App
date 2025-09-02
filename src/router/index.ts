@@ -80,13 +80,13 @@ export const layoutRouters: RouteRecordRaw[] = [
       title: "笔记本", 
     }
   },
-  // 注册快捷键
+  // 快捷键注册
   {
     path: '/registerShortcut',
     name:'registerShortcut',
     component: () => import("@/views/registerShortcut/index.vue"),
     meta: {
-      title: "注册快捷键", 
+      title: "快捷键注册", 
     }
   },
   {

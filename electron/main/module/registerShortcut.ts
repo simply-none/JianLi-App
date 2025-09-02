@@ -14,6 +14,15 @@ function openMatchPage(url: string) {
   // 聚焦到窗口
   win.webContents.send("open-match-page", url);
 }
+// 显示应用
+function showApp() {
+  // 如果当前是显示的，则隐藏，否则显示
+  if (win.isVisible()) {
+    hideApp();
+  } else {
+    win.show();
+  }
+} 
 
 export function initRegisterShortcut() {
   createTable({
@@ -57,6 +66,9 @@ function globalShortcutFn(item) {
     // 如果是打开匹配页面
     if (item.type === "open_match_page") {
       openMatchPage(item.url);
+    }
+    else if (item.type == 'show_app') {
+      showApp();
     }
     console.log("Electron loves global shortcuts!");
   });

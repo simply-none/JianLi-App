@@ -30,14 +30,33 @@ import Header from '@/components/header.vue';
 import { ref } from 'vue';
 import { useRoute, useRouter, type RouteRecordNameGeneric, type Router, type RouteRecordRaw } from 'vue-router';
 import { layoutRouters } from '@/router';
-
+import { storeToRefs } from 'pinia';
+import useRuntimeVariables from '@/store/useRuntimeVariables';
+import { watch } from 'vue';
 
 const router = useRouter();
 const route = useRoute();
 console.log('route', route);
 const title = ref(route.meta?.title || '占位');
 
+const { activeRouteName } = storeToRefs(useRuntimeVariables())
+const { updateActiveRouteName } = useRuntimeVariables()
+
 const activeIndex = ref<RouteRecordNameGeneric>(route.name || 'setting');
+
+watch(activeRouteName, (newVal: string) => {
+  if (!newVal || newVal == activeIndex.value) {
+    return;
+  }
+  const cur = layoutRouters.find(item => item.name == newVal);
+  if (cur) {
+    activeIndex.value = cur.name;
+    title.value = cur.meta?.title || '占位';
+  }
+}, {
+  immediate: true,
+  deep: true,
+})
 
 const toggleRoute = (item: RouteRecordRaw) => {
   activeIndex.value = item.name;

@@ -1,16 +1,23 @@
 <script setup lang="ts">
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
-import useOpenWindow from '@/hooks/useOpenWindow';
 import { useRouter } from 'vue-router';
+import { storeToRefs } from 'pinia';
+import useOpenWindow from '@/hooks/useOpenWindow';
+import useRuntimeVariables from '@/store/useRuntimeVariables';
 
 const router = useRouter()
+const { activeRouteName } = storeToRefs(useRuntimeVariables())
+const { updateActiveRouteName } = useRuntimeVariables()
 
 // 使用不同窗口打开时分别处理的hook
 useOpenWindow()
 
 // 监听事件
 window.ipcRenderer.on('open-match-page', (event, url) => {
-  router.push(url)
+  router.push({
+    name: url,
+  })
+  updateActiveRouteName(url)
 })
 
 </script>

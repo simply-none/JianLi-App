@@ -3,12 +3,12 @@
 
     <el-form-item>
       <template #label>
-        <div class="setting-title">注册快捷键</div>
+        <div class="setting-title">快捷键注册</div>
       </template>
     </el-form-item>
 
     <el-form-item v-for="(item, index) in allShortcuts" :key="item.key" :label="item.name" class="mode-wrapper">
-      <!-- 注册快捷键 -->
+      <!-- 快捷键注册 -->
       <shortcut :shortcut="item.shortcut"></shortcut>
       <!-- 注册按钮 -->
       <el-button class="register-btn" type="primary" @click="registerCommonFn(item)">注册</el-button>
@@ -66,29 +66,36 @@ const registerShortcut = (shortcut) => {
 
 const originShortcuts = ref([
   {
+    type: 'show_app',
+    url: '',
+    name: '显示应用',
+    key: 'showAppShortcut',
+    shortcut: ['', '', ''],
+  },
+  {
     type: 'open_match_page',
-    url: '/home',
+    url: 'home',
     name: '打开首屏',
     key: 'homeShortcut',
     shortcut: ['', '', ''],
   },
   {
     type: 'open_match_page',
-    url: '/notebook',
+    url: 'notebook',
     name: '打开记事本',
     key: 'notebookShortcut',
     shortcut: ['', '', ''],
   },
   {
     type: 'open_match_page',
-    url: '/pomodoroRecord',
+    url: 'pomodoroRecord',
     name: '打开番茄钟记录',
     key: 'pomodoroRecordShortcut',
     shortcut: ['', '', ''],
   },
   {
     type: 'open_match_page',
-    url: '/clipboard',
+    url: 'clipboard',
     name: '打开剪贴板',
     key: 'clipboardShortcut',
     shortcut: ['', '', ''],

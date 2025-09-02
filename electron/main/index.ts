@@ -56,7 +56,7 @@ async function createWindow() {
   registerJlocalProtocol();
   // 剪贴板
   initClipboard();
-  // 注册快捷键
+  // 快捷键注册
   initRegisterShortcut();
 }
 
