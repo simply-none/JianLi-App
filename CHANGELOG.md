@@ -1,4 +1,18 @@
 变更日志
+## [1.0.0-rc.7](https://github.com/simply-none/JianLi-App/compare/v1.0.0-rc.4...v1.0.0-rc.7) (2025-09-02)
+
+
+### ✨ Features | 新功能
+
+* 番茄钟记录优化 ([52a5185](https://github.com/simply-none/JianLi-App/commit/52a5185e19b19999d31fb8816d784cb6a83d9e29))
+* 全面使用sqlite本地数据库，替代electron-store ([ce9b320](https://github.com/simply-none/JianLi-App/commit/ce9b320242925cca60a442f30ab1f821ef8b27ea))
+* 添加本地数据库splite3 ([77ba0e0](https://github.com/simply-none/JianLi-App/commit/77ba0e0bbb9f296ad36eaed1ecb89cf83db4585d))
+* 添加番茄钟记录 ([453c8d1](https://github.com/simply-none/JianLi-App/commit/453c8d155231aa9737c33d4f49808e7b8cb32eb2))
+* 添加快捷键功能 ([871598d](https://github.com/simply-none/JianLi-App/commit/871598d68c15beac290787a4991a64a6f2924efd))
+* 优化剪切板功能 ([38725b3](https://github.com/simply-none/JianLi-App/commit/38725b3e705aae105393c0e8c617ce01fbaed8fb))
+* 优化首次打开数据库报错的问题 ([1fcba8c](https://github.com/simply-none/JianLi-App/commit/1fcba8cd12d35a6e0dcd73f277c378633103d18c))
+* 优化原有功能 ([570cf34](https://github.com/simply-none/JianLi-App/commit/570cf349c0d4280ea75621c849f0281f2e3ffda3))
+
 ## [1.0.0-rc.4](https://github.com/simply-none/JianLi-App/compare/v1.0.0-rc.3...v1.0.0-rc.4) (2025-05-13)
 
 
