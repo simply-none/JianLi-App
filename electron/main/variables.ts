@@ -38,6 +38,9 @@ export let appLogoIco = path.join(process.env.VITE_PUBLIC, "favicon.ico");
 // 预加载文件
 export const preload = path.join(__dirname, "../preload/index.mjs");
 
+// 扫描进程worker
+export const scanWorkerPath = path.join(vitePublic, "worker.mjs");
+
 // 启动文件
 export const indexHtml = path.join(RENDERER_DIST, "index.html");
 

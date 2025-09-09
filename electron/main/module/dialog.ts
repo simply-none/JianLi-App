@@ -3,6 +3,11 @@ import fs from "fs";
 import axios from "axios";
 import moment from "moment";
 import { win } from "./mainWindow.ts";
+import path from "path";
+import { Worker } from "worker_threads";
+import { scanWorkerPath } from "../variables.ts";
+// 扫描进程worker
+let scanWorker;
 
 interface FileSaveObjType {
   content: any;
@@ -84,7 +89,7 @@ async function merge() {
     );
     fs.writeFileSync(fileName, arr, { flag: "a+" });
   }
-  return fileName
+  return fileName;
 }
 // 使用nodejs的fs同步模块保存文件 函数，保存成功返回ok，否则返回失败信息
 export async function saveFile({
@@ -96,7 +101,7 @@ export async function saveFile({
   currentChunkIndex,
 }: FileSaveObjType) {
   try {
-    let newPath = ''
+    let newPath = "";
     const buffer = Buffer.from(content);
     // 获取res的类型 使用toString.call
     const type = Object.prototype.toString.call(buffer);
@@ -126,7 +131,7 @@ export async function saveFile({
     return newPath;
   } catch (err) {
     console.log(err, "err");
-    return 'error' + err;
+    return "error" + err;
   }
 }
 
@@ -291,4 +296,51 @@ export function initFile() {
   ipcMain.on("open-file-in-assets-manager", (e, { path }) => {
     openFileInAssetsManager(path);
   });
+
+  // 资源扫描
+  ipcMain.handle("start-scan", async (event, { startPath, extensions }) => {
+    console.log(startPath, "startPath, extensions");
+    console.log(extensions, "startPath, extensions");
+    return new Promise((resolve, reject) => {
+      if (scanWorker) {
+        scanWorker.terminate();
+      }
+
+      scanWorker = new Worker(scanWorkerPath);
+
+      scanWorker.on("message", (message) => {
+        if (message.type === "progress") {
+          win.webContents.send("scan-progress", message.data);
+        } else if (message.type === "complete") {
+          win.webContents.send("scan-complete", message.data);
+        } else if (message.type === "error") {
+          reject(new Error(message.data));
+        }
+      });
+
+      scanWorker.on("error", (error) => {
+        reject(error);
+      });
+
+      scanWorker.on("exit", (code) => {
+        if (code !== 0) {
+          reject(new Error(`Worker stopped with exit code ${code}`));
+        }
+      });
+
+      scanWorker.postMessage({
+        type: "start-scan",
+        data: { startPath, extensions },
+      });
+    });
+  });
+
+  ipcMain.handle('cancel-scan', () => {
+    if (scanWorker) {
+        scanWorker.terminate();
+        scanWorker = null;
+        return true;
+    }
+    return false;
+});
 }

@@ -7,7 +7,7 @@
     </el-form-item>
     <!-- 文件上传测试 -->
     <el-form-item label="文件上传测试" class="mode-wrapper">
-      <upload-vue :limit="1" @update-data="updateDataFn"/>
+      <upload-vue :limit="1" @update-data="updateDataFn" />
     </el-form-item>
 
     <!-- 分割线 -->
@@ -122,6 +122,48 @@
         复制转移
       </el-button>
     </el-form-item>
+
+    <!-- 分割线 -->
+    <el-divider></el-divider>
+    <el-form-item>
+      <template #label>
+        <div class="setting-title">文件扫描</div>
+      </template>
+    </el-form-item>
+    <!-- 文件夹复制测试 -->
+    <el-form-item label="扫描位置" class="mode-wrapper file-move">
+      <el-input v-model="scanPath" placeholder="请选择" style="width: 100%" disabled :title="scanPath">
+        <template #append>
+          <el-button @click="selectScanPath">
+            选择目录
+          </el-button>
+        </template>
+      </el-input>
+    </el-form-item>
+    <!-- 扫描后缀 -->
+    <el-form-item label="扫描后缀包含" class="mode-wrapper file-move">
+      <el-input v-model="scanSuffix" placeholder="请输入" style="width: 100%" @keyup.enter="selectScanSuffix">
+        <template #append>
+          <el-button @click="selectScanSuffix">
+            添加
+          </el-button>
+        </template>
+      </el-input>
+      <!-- 后缀包含的列表 -->
+      <div class="copy-include-list">
+        <el-tag v-for="(item, index) in scanSuffixList" :key="index" closable @close="removeScanSuffix(item)">
+          {{ item }}
+        </el-tag>
+      </div>
+    </el-form-item>
+    <el-form-item>
+      <el-button @click="startScan" type="primary">
+        开始扫描
+      </el-button>
+      <el-button @click="stopScan" type="danger">
+        停止扫描
+      </el-button>
+    </el-form-item>
   </el-form>
 
 </template>
@@ -164,6 +206,72 @@ function selectCopyTarget() {
   const res = sendSync('get-file-list', 'select-dir');
   copyTarget.value = res[0];
   console.log(res);
+}
+
+const scanPath = ref('');
+function selectScanPath() {
+  const res = sendSync('get-file-list', 'select-dir');
+  scanPath.value = res[0];
+  console.log(res);
+}
+
+const scanSuffix = ref('');
+const scanSuffixList = ref<string[]>([]);
+function selectScanSuffix() {
+  // 去除首尾空格
+  scanSuffix.value = scanSuffix.value.trim();
+  if (scanSuffix.value) {
+    scanSuffixList.value.push(scanSuffix.value);
+    scanSuffix.value = '';
+  }
+}
+
+function removeScanSuffix(item: string) {
+  scanSuffixList.value = scanSuffixList.value.filter((val) => val !== item);
+}
+
+const startScan = async () => {
+  const startDefaultPath = 'C:\\'
+  const startPath = scanPath.value || startDefaultPath;
+
+  // 如果后缀为空，则不进行扫描
+  if (scanSuffixList.value.length === 0) {
+    ElMessage.error('请添加扫描后缀');
+    return;
+  }
+
+  try {
+    // 设置进度监听
+    window.ipcRenderer.on('scan-progress', (e, progress) => {
+      console.log(`扫描中: ${progress.currentDir}, 已找到: ${progress.totalFound}`);
+    });
+
+    // 扫描完成
+    window.ipcRenderer.on('scan-complete', (e, progress) => {
+      console.log(`扫描完成: ${progress.currentDir}, 已找到: ${progress.totalFound}`);
+    });
+
+    // 开始扫描
+    console.log('后缀', toRaw(scanSuffixList.value))
+    const musicFiles = await window.ipcRenderer.handlePromise('start-scan', {
+      startPath,
+      extensions: toRaw(scanSuffixList.value),
+    });
+    console.log('扫描完成，找到音乐文件:', musicFiles.length);
+
+    // 移除监听
+    // removeProgressListener();
+  } catch (error) {
+    console.error('扫描失败:', error);
+  }
+}
+
+const stopScan = () => {
+  window.ipcRenderer.handlePromise('cancel-scan', {}).then(res => {
+    console.log('取消扫描:', res);
+  }).catch(err => {
+    console.log('取消扫描失败:', err);
+  })
 }
 
 const copyType = ref('include');
@@ -259,13 +367,13 @@ function copyDir() {
 }
 
 function updateDataFn(data: any, data2: any) {
-  console.log(data, data2, 'data'); 
+  console.log(data, data2, 'data');
 }
 onMounted(() => {
   window.ipcRenderer.on('copy-folder', (event: any, res: any) => {
     console.log(res, 'res');
     if (!errFlag.value) {
-      return; 
+      return;
     }
     errFlag.value = false;
     if (res == null) {
@@ -289,6 +397,7 @@ onMounted(() => {
   height: 100%;
   overflow: auto;
 }
+
 .setting-title {
   padding-left: 3px;
   border-bottom: 6px solid #6d6d6d;
