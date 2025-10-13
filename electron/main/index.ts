@@ -14,6 +14,7 @@ import { registerJlocalProtocol } from "./module/protocol.ts";
 import { initSqlite } from "./module/sql.ts";
 import { appName } from "./variables.ts";
 import { initRegisterShortcut } from "./module/registerShortcut.ts";
+import { initSys } from "./module/sys.ts";
 
 
 app.setName(appName);
@@ -58,6 +59,8 @@ async function createWindow() {
   initClipboard();
   // 快捷键注册
   initRegisterShortcut();
+  // 系统相关
+  initSys();
 }
 
 app.whenReady().then(async () => {

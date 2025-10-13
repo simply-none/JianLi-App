@@ -91,7 +91,7 @@
         </el-form-item>
         <el-form-item label="全局字体设置">
           <el-select v-model="globalFontCc" style="width: 300px" @change="setGlobalFontC">
-            <el-option v-for="value in globalFontOpsC" :key="value.value" :value="value.value" :label="value.label">
+            <el-option v-for="value in [...globalFontOpsC, ...sysFonts]" :key="value.value" :value="value.value" :label="value.label">
             </el-option>
           </el-select>
         </el-form-item>
@@ -150,6 +150,7 @@ const {
 const { setForceWorkTimes, setAppBgColor, setAppInnerColor, setIsStartup, setHomeMode, setGlobalFont, setHomeModeOps } = useGlobalSetting();
 const { isStartupC, forceWorkTimesC, todayForceWorkTimesC, appBgColorC, appInnerColorC, globalFontC, globalFontOpsC, homeModeOpsC, curStatusC } = storeToRefs(useGlobalSetting());
 
+const sysFonts = ref([])
 const workTimeGapCc = ref(JSON.parse(JSON.stringify(workTimeGap.value)))
 const restTimeGapCc = ref(JSON.parse(JSON.stringify(restTimeGap.value)))
 const workTimeGapUnitCc = ref(JSON.parse(JSON.stringify(workTimeGapUnit.value)))
@@ -184,6 +185,12 @@ function changeWorkTimeGapUnitCc() {
 function changeRestTimeGapUnitCc() {
   setRestTimeGapUnit(restTimeGapUnitCc.value);
 }
+
+window.ipcRenderer.handlePromise('get-fonts', {}).then(result => {
+  sysFonts.value = result || [];
+}).catch(err => {
+  console.log('查询系统字体失败:', err);
+})
 
 const homeModeOpsCc = ref(JSON.parse(JSON.stringify(homeModeOpsC.value)))
 const activeHomeModeOps = ref(toRaw(homeModeOpsCc.value[0]))
