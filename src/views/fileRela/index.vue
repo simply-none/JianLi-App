@@ -82,7 +82,7 @@
         </el-radio-group>
       </el-form-item>
       <el-form-item label="后缀包含" v-if="copyTypeSuffix == 'include'">
-        <el-input v-model="copyIncludeSuffix" placeholder="请输入" style="width: 100%"
+        <el-input v-model="copyIncludeSuffix" placeholder="请输入：.png、.jpeg、.mp4、.doc" style="width: 100%"
           @keyup.enter="selectCopyIncludeSuffix">
           <template #append>
             <el-button @click="selectCopyIncludeSuffix">
@@ -125,47 +125,9 @@
 
     <!-- 分割线 -->
     <el-divider></el-divider>
-    <el-form-item>
-      <template #label>
-        <div class="setting-title">文件扫描</div>
-      </template>
-    </el-form-item>
-    <!-- 文件夹复制测试 -->
-    <el-form-item label="扫描位置" class="mode-wrapper file-move">
-      <el-input v-model="scanPath" placeholder="请选择" style="width: 100%" disabled :title="scanPath">
-        <template #append>
-          <el-button @click="selectScanPath">
-            选择目录
-          </el-button>
-        </template>
-      </el-input>
-    </el-form-item>
-    <!-- 扫描后缀 -->
-    <el-form-item label="扫描后缀包含" class="mode-wrapper file-move">
-      <el-input v-model="scanSuffix" placeholder="请输入" style="width: 100%" @keyup.enter="selectScanSuffix">
-        <template #append>
-          <el-button @click="selectScanSuffix">
-            添加
-          </el-button>
-        </template>
-      </el-input>
-      <!-- 后缀包含的列表 -->
-      <div class="copy-include-list">
-        <el-tag v-for="(item, index) in scanSuffixList" :key="index" closable @close="removeScanSuffix(item)">
-          {{ item }}
-        </el-tag>
-      </div>
-    </el-form-item>
-    <el-form-item>
-      <el-button @click="startScan" type="primary">
-        开始扫描
-      </el-button>
-      <el-button @click="stopScan" type="danger">
-        停止扫描
-      </el-button>
-    </el-form-item>
+    <!-- 文件扫描 -->
+    <FileScanVue></FileScanVue>
   </el-form>
-
 </template>
 
 <script setup lang="ts">
@@ -173,6 +135,7 @@ import { ref, reactive, watch, computed, toRaw, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import UploadVue from '@/components/upload.vue';
+import FileScanVue from './fileScan.vue';
 import useCacheSetStore from '@/store/useCacheSet'
 import { send, sendSync } from '@/utils/common';
 import { ElMessage } from 'element-plus';

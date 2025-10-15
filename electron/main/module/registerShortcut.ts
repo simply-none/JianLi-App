@@ -1,7 +1,7 @@
 import { createTable, queryByConditions, upsertData } from "../utils/sql.ts";
 import { win, hideApp, focusAppToTop } from "./mainWindow.ts";
 import moment from "moment";
-import { db } from "./sql.ts";
+import { myDb } from "./sql.ts";
 import { clipboard, ipcMain, globalShortcut } from "electron";
 import colors from "colors";
 
@@ -26,7 +26,7 @@ function showApp() {
 
 export function initRegisterShortcut() {
   createTable({
-    db,
+    db: myDb.db,
     tableName: tableName,
     config: {
       primaryKey: "key",
@@ -34,7 +34,7 @@ export function initRegisterShortcut() {
     callback: async (err, res) => {
       if (!err) {
         await queryByConditions({
-          db,
+          db: myDb.db,
           tableName,
           conditions: {},
           callback: (err, res) => {

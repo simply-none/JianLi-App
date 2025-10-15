@@ -2,7 +2,7 @@ import { ipcMain } from "electron";
 import crypto from "node:crypto";
 import { queryByConditions, upsertData } from "../utils/sql.ts";
 import { tableName } from "./store.ts";
-import { db } from "./sql.ts";
+import { myDb } from "./sql.ts";
 import colors from "colors";
 
 // 使用nodejs原生crypto模块进行加密，解密
@@ -27,7 +27,7 @@ export function generateRSAKeyPair(passphrase: string = originPassPhrase): {
     },
   });
   upsertData({
-    db,
+    db: myDb.db,
     tableName,
     data: {
       key: "RSAKey",
@@ -82,7 +82,7 @@ export function initCrypto() {
     const { text } = arg;
     let RSAKey: any = null;
     queryByConditions({
-      db,
+      db: myDb.db,
       tableName,
       conditions: {
         key: "RSAKey",
@@ -106,7 +106,7 @@ export function initCrypto() {
     const { text, passphrase } = arg;
     let RSAKey: any = null;
     queryByConditions({
-      db,
+      db: myDb.db,
       tableName,
       conditions: {
         key: "RSAKey",
@@ -141,7 +141,7 @@ export function initCrypto() {
 
       let RSAKey: any = null;
       queryByConditions({
-        db,
+        db: myDb.db,
         tableName,
         conditions: {
           key: "RSAKey",

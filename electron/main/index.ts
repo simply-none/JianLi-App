@@ -10,11 +10,13 @@ import { initMainWindow, win } from "./module/mainWindow.ts";
 import { initNewWindow } from "./module/newWindow.ts";
 import { initApiTest } from "./module/apiTest.ts";
 import { initClipboard } from "./module/clipboard.ts";
-import { registerJlocalProtocol } from "./module/protocol.ts";
+import { registerJlocalProtocol, registerJlocalProtocolBefore } from "./module/protocol.ts";
 import { initSqlite } from "./module/sql.ts";
 import { appName } from "./variables.ts";
 import { initRegisterShortcut } from "./module/registerShortcut.ts";
 import { initSys } from "./module/sys.ts";
+
+registerJlocalProtocolBefore()
 
 
 app.setName(appName);
@@ -36,7 +38,7 @@ async function createWindow() {
   // 主窗口
   initMainWindow();
   // 数据库
-  initSqlite();
+  await initSqlite();
   // 诗词数据
   initPoetData();
   // 定时任务（番茄钟）

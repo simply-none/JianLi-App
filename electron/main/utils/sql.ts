@@ -91,6 +91,7 @@ async function ensureTableColumns({ db, tableName, data, config }) {
             [],
             (err) => {
               if (err) {
+                console.log(err, 1)
                 return reject(err);
               }
             }
@@ -124,7 +125,8 @@ async function ensureTableColumns({ db, tableName, data, config }) {
           })
           .filter(Boolean);
 
-        const newColumns = getObjectKeys(data).filter(
+        let getColomn = Array.isArray(data) ? data[0] : data
+        const newColumns = getObjectKeys(getColomn).filter(
           (key) => !existingColumns.includes(key)
         );
 
@@ -201,7 +203,11 @@ export async function upsertData({
   // 开启事务，先检查表是否存在，不存在则创建
   db.serialize(async () => {
     // 创建/更新表
-    await ensureTableColumns({ db, tableName, data: newData, config });
+    try {
+      await ensureTableColumns({ db, tableName, data: newData, config });
+    } catch (err) {
+      console.log(err, '创建/更新表失败')
+    }
 
     // 构建UPSERT语句(SQLite特有语法)
     const sql = `

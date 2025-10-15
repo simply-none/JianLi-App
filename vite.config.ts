@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import vueJsx from '@vitejs/plugin-vue-jsx'
 import electron from 'vite-plugin-electron/simple'
 import pkg from './package.json'
 import { jsonX } from 'vite-plugin-jsonx';
@@ -34,6 +35,7 @@ export default defineConfig(({ command }) => {
     },
     plugins: [
       vue(),
+      vueJsx(),
       jsonX(),
       electron({
         main: {

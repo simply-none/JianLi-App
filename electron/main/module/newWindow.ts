@@ -1,7 +1,7 @@
 import { BrowserWindow, ipcMain, screen } from "electron";
 import colors from "colors";
 import { getAllStore, tableName } from "./store.ts";
-import { db } from "./sql.ts";
+import { myDb } from "./sql.ts";
 import {
   appLogoIco,
   indexHtml,
@@ -69,7 +69,7 @@ function createOtherWindow(arg: string, ops?: ObjectType) {
   childWindow[arg]?.setSkipTaskbar(true);
 
   queryByConditions({
-    db,
+    db: myDb.db,
     tableName: tableName,
     conditions: {},
     callback: (err, data) => {

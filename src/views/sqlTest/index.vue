@@ -26,7 +26,7 @@ const setSqlData = () => {
   const curTime = moment().format('YYYY-MM-DD HH:mm:ss')
 
   window.ipcRenderer.handlePromise('set-data', {
-    tableName: 'user_info',
+    tableName: 'user_info_test',
     data: {
       // key: Math.random().toString(36).substring(2),
       value: curTime,
@@ -44,7 +44,7 @@ const setSqlData = () => {
 
 const getSqlData = () => {
   window.ipcRenderer.handlePromise('query-data', {
-    tableName: 'user_info',
+    tableName: 'user_info_test',
     conditions: {
       mode: 'development',
     }
@@ -59,7 +59,7 @@ const getSqlData = () => {
 
 const deleteSqlData = () => {
   window.ipcRenderer.handlePromise('delete-data', {
-    tableName: 'user_info',
+    tableName: 'user_info_test',
     condition: {
       key: 'test',
     }
@@ -73,6 +73,7 @@ const deleteSqlData = () => {
 }
 
 onMounted(() => {
+  getSqlData()
 })
 </script>
 

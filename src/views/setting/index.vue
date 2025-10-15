@@ -90,8 +90,15 @@
           <el-button type="primary" @click="clearStore">清空数据</el-button>
         </el-form-item>
         <el-form-item label="全局字体设置">
-          <el-select v-model="globalFontCc" style="width: 300px" @change="setGlobalFontC">
+          <el-select v-model="globalFontCc" filterable style="width: 300px" @change="setGlobalFontC" popper-class="font-select-popper">
             <el-option v-for="value in [...globalFontOpsC, ...sysFonts]" :key="value.value" :value="value.value" :label="value.label">
+              <!-- {{ value.label + 'fjalfwjs' }} -->
+              <span class="font-box" :style="{ fontFamily: value.value }">
+                <span class="font-name">{{ value.label }}</span>
+                <span class="font-preview">
+                  预览字体: 中文English123456
+                </span>
+              </span>
             </el-option>
           </el-select>
         </el-form-item>
@@ -108,7 +115,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, computed, toRaw } from 'vue';
+import { ref, reactive, watch, computed, toRaw, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 
 import LayoutVue from '@/components/layout.vue';
@@ -227,6 +234,24 @@ function setGlobalFontC() {
 }
 
 </script>
+
+<style lang="scss">
+.font-select-popper {
+  //下拉框的背景色
+  .el-select-dropdown__item {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    height: fit-content;
+    .font-box {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      height: 72px;
+    }
+  }
+}
+</style>
 
 <style scoped lang="scss">
 .setting-title {

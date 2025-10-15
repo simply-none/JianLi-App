@@ -1,5 +1,6 @@
 import { ipcMain, app } from "electron";
-import defaultSqlite3, { Database } from "sqlite3";
+import defaultSqlite3 from "sqlite3";
+import type { Database } from "sqlite3";
 import path from "node:path";
 import fs from "node:fs";
 import { win } from "./mainWindow.ts";
@@ -10,9 +11,18 @@ import colors from 'colors'
 
 const verbose = defaultSqlite3.verbose;
 
-export let db: Database;
+export let myDb: Record<string, Database> = {
+  db: null,
+  userDb: null,
+}
 
-export function initSqlite() {
+export async function initSqlite() {
+  await createDBFile()
+  initSqliteFn('db', true)
+  initSqliteFn('userDb')
+}
+
+async function createDBFile() {
   // dbPath 为public文件下的db.sqlite
   // electron获取用户目录
   const userDataPath = app.getPath("documents");
@@ -25,25 +35,32 @@ export function initSqlite() {
     fs.mkdirSync(cachePath);
   }
   // 不存在db.sqlite文件则创建一个新的db.sqlite文件，创建文件，不是复制文件，因为复制文件会占用空间
-  if (!fs.existsSync(path.resolve(cachePath, "db.sqlite"))) {
-    fs.writeFileSync(path.resolve(cachePath, "db.sqlite"), "");
-  }
+  Object.keys(myDb).forEach(dbName => {
+    let dbFullName = dbName + '.sqlite'
+    if (!fs.existsSync(path.resolve(cachePath, dbFullName))) {
+      fs.writeFileSync(path.resolve(cachePath, dbFullName), "");
+    }
 
-  let dbPath = path.resolve(cachePath, "db.sqlite");
+    let dbPath = path.resolve(cachePath, dbFullName);
 
-  const sqlite3 = verbose();
+    const sqlite3 = verbose();
 
-  db = new sqlite3.Database(dbPath);
-  db.exec('PRAGMA foreign_keys = ON;');
+    myDb[dbName] = new sqlite3.Database(dbPath);
+    myDb[dbName].exec('PRAGMA foreign_keys = ON;');
+    // console.log('dblist', Object.keys(db), Object.keys(userDb))
+  })
+}
 
+export function initSqliteFn(dbName, isDefault = false) {
   // 初始化表结构，不然打不开
-  initTable()
+  isDefault && initTable(dbName)
 
   // 获取表数据，参数为表名，以及查询条件
-  ipcMain.handle("query-data", async (event, { tableName, conditions }) => {
+  ipcMain.handle(isDefault ? "query-data" : `${dbName}:query-data`, async (event, { tableName, conditions }) => {
     return new Promise((resolve) => {
+      console.log(myDb[dbName], dbName, 'name111')
       queryByConditions({
-        db,
+        db: myDb[dbName],
         tableName,
         conditions,
         callback: (err, data) => {
@@ -57,10 +74,11 @@ export function initSqlite() {
     });
   });
 
-  ipcMain.handle("set-data", async (event, { tableName, data, config }) => {
+  ipcMain.handle(isDefault ? "set-data" : `${dbName}:set-data`, async (event, { tableName, data, config }) => {
     return new Promise((resolve) => {
+      console.log(myDb[dbName], dbName, 'name222')
       upsertData({
-        db,
+        db: myDb[dbName],
         tableName,
         data,
         config,
@@ -75,10 +93,10 @@ export function initSqlite() {
     });
   });
 
-  ipcMain.handle('delete-data', async (event, { tableName, condition }) => {
+  ipcMain.handle(isDefault ? 'delete-data' : `${dbName}:delete-data`, async (event, { tableName, condition }) => {
     return new Promise((resolve) => {
       deleteData({
-        db,
+        db: myDb[dbName],
         tableName,
         condition,
         callback: (err, data) => {
@@ -93,11 +111,12 @@ export function initSqlite() {
   })
 }
 
-function initTable() {
+function initTable(dbName) {
   // 表结构basicInfoTableName: key 主键
   // 表结构clipboardTableName: 默认id主键
+  console.log(Object.keys(myDb[dbName]), dbName, 'name333')
   createTable({
-    db,
+    db: myDb[dbName],
     tableName: basicInfoTableName,
     config: {
       primaryKey: 'key',
@@ -111,7 +130,7 @@ function initTable() {
     }
   })
   createTable({
-    db,
+    db: myDb[dbName],
     tableName: clipboardTableName,
     config: {
     },

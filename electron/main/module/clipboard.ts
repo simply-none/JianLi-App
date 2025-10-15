@@ -1,7 +1,7 @@
 import { createTable, queryByConditions, upsertData } from "../utils/sql.ts";
 import { win, hideApp, focusAppToTop } from "./mainWindow.ts";
 import moment from 'moment';
-import { db } from "./sql.ts";
+import { myDb } from "./sql.ts";
 import { clipboard, ipcMain } from "electron";
 import colors from "colors";
 
@@ -9,7 +9,7 @@ export const tableName = "clipboard_history";
 
 export function initClipboard() {
   createTable({
-    db,
+    db: myDb.db,
     tableName: tableName,
     callback: (err, res) => {
       if (!err) {
@@ -25,7 +25,7 @@ export function initClipboard() {
           let lastClipboardData: ObjectType = {};
 
           await queryByConditions({
-            db,
+            db: myDb.db,
             tableName,
             conditions: {
               orderBy: "create_time",
@@ -45,7 +45,7 @@ export function initClipboard() {
               }
 
               upsertData({
-                db,
+                db: myDb.db,
                 tableName,
                 data: {
                   text,

@@ -6,6 +6,10 @@ import { win } from "./mainWindow.ts";
 import path from "path";
 import { Worker } from "worker_threads";
 import { scanWorkerPath } from "../variables.ts";
+import { globby } from 'globby'
+import fastGlob from 'fast-glob'
+import { execSync } from "child_process";
+import colors from 'colors';
 // 扫描进程worker
 let scanWorker;
 
@@ -298,40 +302,11 @@ export function initFile() {
   });
 
   // 资源扫描
-  ipcMain.handle("start-scan", async (event, { startPath, extensions }) => {
+  ipcMain.on("start-scan", async (event, { startPath, extensions, options }) => {
     console.log(startPath, "startPath, extensions");
     console.log(extensions, "startPath, extensions");
-    return new Promise((resolve, reject) => {
-      if (scanWorker) {
-        scanWorker.terminate();
-      }
-
-      scanWorker = new Worker(scanWorkerPath);
-
-      scanWorker.on("message", (message) => {
-        if (message.type === "progress") {
-          win.webContents.send("scan-progress", message.data);
-        } else if (message.type === "complete") {
-          win.webContents.send("scan-complete", message.data);
-        } else if (message.type === "error") {
-          reject(new Error(message.data));
-        }
-      });
-
-      scanWorker.on("error", (error) => {
-        reject(error);
-      });
-
-      scanWorker.on("exit", (code) => {
-        if (code !== 0) {
-          reject(new Error(`Worker stopped with exit code ${code}`));
-        }
-      });
-
-      scanWorker.postMessage({
-        type: "start-scan",
-        data: { startPath, extensions },
-      });
+    searchAllDrives(startPath, extensions, options).then((files) => {
+      win.webContents.send("start-scan", files);
     });
   });
 
@@ -343,4 +318,42 @@ export function initFile() {
     }
     return false;
 });
+}
+
+async function searchAllDrives(startPatha: string, extensions: string[], ops: ObjectType) {
+  // 改成promise
+  return new Promise(async (resolve, reject) => {
+    let startPath = startPatha.replace(/\\/g, '/');
+    console.log(startPath, extensions, "startPath, extensions");
+    const results = fastGlob.sync([
+      ...extensions.map(ext => fastGlob.convertPathToPattern(startPath) + `/**/*.${ext}`),
+      // 过滤掉一些特定目录
+      '!**/node_modules/**',
+      '!**/bower_components/**',
+      '!**/.git/**',
+      '!**/.svn/**',
+      '!**/.hg/**',
+      '!**/CVS/**',
+      '!**/dist/**',
+      // 所有点开头的目录
+      '!**/.*',
+      // 过滤掉wiindows系统目录
+      '!**/Windows/**',
+
+
+    ], {
+      unique: true,
+      // absolute: true,
+      // 大小写不敏感
+      caseSensitiveMatch: !!ops?.caseSensitiveMatch,
+      deep: Number(ops?.deep || 0) || Infinity,
+      onlyDirectories: !!ops?.onlyDirectories || false,
+      onlyFiles: !!ops?.onlyFiles,
+      objectMode: true,
+      // 目录标记：后缀/
+      markDirectories: true,
+    })
+
+    resolve(results.flat());
+  });
 }

@@ -1,7 +1,7 @@
 import { ipcMain } from "electron";
 import ElectronStore from "electron-store";
 import { queryByConditions, upsertData } from "../utils/sql.ts";
-import { db } from "./sql.ts";
+import { myDb } from "./sql.ts";
 import colors from "colors";
 
 // 使用nodejs原生crypto模块进行加密，解密
@@ -43,7 +43,7 @@ export function initStore() {
 
     // 查询插入成功的数据
     queryByConditions({
-      db,
+      db: myDb.db,
       tableName: tableName,
       conditions: {},
       callback: (err, data) => {
@@ -62,7 +62,7 @@ export function initStore() {
 
     // 查询插入成功的数据
     queryByConditions({
-      db,
+      db: myDb.db,
       tableName: tableName,
       conditions: {
         key: key,
@@ -88,7 +88,7 @@ export function initStore() {
     // 插入数据
     console.log(colors.bgYellow(key), colors.red(value))
     await upsertData({
-      db,
+      db: myDb.db,
       tableName: tableName,
       data: key === "multi-field" ? value : { key, value: JSON.stringify(value) },
       config: {
@@ -105,7 +105,7 @@ export function initStore() {
           }
           // 查询插入成功的数据
           await queryByConditions({
-            db,
+            db: myDb.db,
             tableName: tableName,
             conditions: {
               key: key,
@@ -152,7 +152,7 @@ export function initStore() {
     }));
     // 插入数据
     upsertData({
-      db,
+      db: myDb.db,
       tableName: tableName,
       data: newStoreDataArray,
       config: {
