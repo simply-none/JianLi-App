@@ -1,4 +1,19 @@
 变更日志
+## [1.0.0-rc.8](https://github.com/simply-none/JianLi-App/compare/v1.0.0-rc.7...v1.0.0-rc.8) (2025-10-15)
+
+
+### ♻️ Code Refactoring | 代码重构
+
+* 依赖包移位 ([7e38c50](https://github.com/simply-none/JianLi-App/commit/7e38c505031d5690cf5e4be08d8e48df89134cab))
+
+
+### ✨ Features | 新功能
+
+* 新增获取系统字体功能 ([84d6697](https://github.com/simply-none/JianLi-App/commit/84d6697b74de44c699537cc6c4a90459a0373a26))
+* 新增文件扫描和预览功能 ([217e698](https://github.com/simply-none/JianLi-App/commit/217e698b7c6b57241a517f5f2daba40398235601))
+* 优化快捷键注册功能，添加展示隐藏应用快捷键 ([3c4c202](https://github.com/simply-none/JianLi-App/commit/3c4c20237f8b6dd7ac6a476ad66fb66eaf48e4bd))
+* 增加目录扫描功能，用于查找特定后缀文件 ([35629fe](https://github.com/simply-none/JianLi-App/commit/35629fe0b7f3003c7b85089f2c4355926d112f84))
+
 ## [1.0.0-rc.7](https://github.com/simply-none/JianLi-App/compare/v1.0.0-rc.4...v1.0.0-rc.7) (2025-09-02)
 
 
