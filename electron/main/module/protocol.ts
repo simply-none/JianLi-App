@@ -25,19 +25,19 @@ export function registerJlocalProtocol() {
     const reqUrl = decodeURIComponent(request.url);
     const filePath = reqUrl.slice("jlocal:///".length);
     console.log(colors.bgBlack(filePath), 'filePath')
-    if (filePath.includes('.mp4')) {
-      const stats = fs.statSync(filePath)
-      console.log(colors.bgBlack(filePath), 'filePath')
+    // if (filePath.includes('.mp4')) {
+    //   const stats = fs.statSync(filePath)
+    //   console.log(colors.bgBlack(filePath), 'filePath')
       
-      return new Response(fs.createReadStream(filePath) as unknown as BodyInit, {
-        headers: {
-          'Content-Type': 'video/mp4',
-          'Content-Length': stats.size.toString(),
-          'Accept-Ranges': 'bytes',
-        }
-      })
-    }
-    const res = await net.fetch("file:///" + filePath);
+    //   return new Response(fs.createReadStream(filePath) as unknown as BodyInit, {
+    //     headers: {
+    //       'Content-Type': 'video/mp4',
+    //       'Content-Length': stats.size.toString(),
+    //       'Accept-Ranges': 'bytes',
+    //     }
+    //   })
+    // }
+    const res = await net.fetch("file:///" + filePath, { bypassCustomProtocolHandlers: true });
     console.log(res, 'registerJlocalProtocol')
     return res
   });

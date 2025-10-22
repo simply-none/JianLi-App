@@ -132,6 +132,9 @@ export default defineStore("global-setting", () => {
   const appBgColorC = computed(() => appBgColor.value);
   const globalFontC = computed(() => globalFont.value);
   const globalFontOpsC = computed(() => globalFontOps.value);
+  // 应用全局字体-英文
+  const globalFontEN = ref();
+  const globalFontENC = computed(() => globalFontEN.value);
 
   function setAppInnerColor(value: string) {
     appInnerColor.value = value;
@@ -147,6 +150,12 @@ export default defineStore("global-setting", () => {
     globalFont.value = value;
     setStore("globalFont", value);
     document.documentElement.style.setProperty("--jianli-global-font", value);
+  }
+
+  function setGlobalFontEN(value: string) {
+    globalFontEN.value = value;
+    setStore("globalFontEN", value);
+    document.documentElement.style.setProperty("--jianli-global-font-EN", value);
   }
 
   function setGlobalFontOps(value: CommonOps[]) {
@@ -193,7 +202,10 @@ export default defineStore("global-setting", () => {
       { field: "appBgColor", default: "#d4d4d4", map: appBgColor },
     ];
     // 字体值变量
-    const fontVars = [{ field: "globalFont", default: "", map: globalFont }];
+    const fontVars = [
+      { field: "globalFont", default: "", map: globalFont },
+      { field: "globalFontEN", default: "", map: globalFontEN },
+    ];
 
     const originHomeModeOps: HomeModeOps[] = [
       {
@@ -342,6 +354,7 @@ export default defineStore("global-setting", () => {
     appInnerColor,
     appBgColor,
     globalFont,
+    globalFontEN,
     globalFontOps,
     homeMode,
     homeModeOps,
@@ -353,6 +366,7 @@ export default defineStore("global-setting", () => {
     setAppInnerColor,
     setAppBgColor,
     setGlobalFont,
+    setGlobalFontEN,
     setGlobalFontOps,
     setHomeMode,
     setHomeModeOps,
@@ -364,6 +378,7 @@ export default defineStore("global-setting", () => {
     appInnerColorC,
     appBgColorC,
     globalFontC,
+    globalFontENC,
     globalFontOpsC,
     homeModeC,
     homeModeOpsC,

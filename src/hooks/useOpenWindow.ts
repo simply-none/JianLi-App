@@ -14,13 +14,14 @@ export default function useOpenWindow() {
   // 是否是番茄钟窗口
   const isPomodoro = href.includes('isSecondWindow=true');
 
-  const { globalFontC } = storeToRefs(useGlobalSetting());
+  const { globalFontC, globalFontENC } = storeToRefs(useGlobalSetting());
   const { startApp, registerGlobalListener, unregisterGlobalListener } = useWorkOrRest();
 
   // 主窗口的打开
   function openMainWindow () {
     send('open-new-window', 'second')
     document.documentElement.style.setProperty('--jianli-global-font', globalFontC.value)
+    document.documentElement.style.setProperty('--jianli-global-font-EN', globalFontENC.value)
     startApp();
     registerGlobalListener();
   }

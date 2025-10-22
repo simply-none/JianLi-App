@@ -126,7 +126,12 @@
     <!-- 分割线 -->
     <el-divider></el-divider>
     <!-- 文件扫描 -->
-    <FileScanVue></FileScanVue>
+    <FileScanVue :defaultAppPaths="defaultAppPaths"></FileScanVue>
+
+    <!-- 分割线 -->
+    <el-divider></el-divider>
+    <!-- 默认应用 -->
+    <DefaultApp @updateDefaultAppPaths="updateDefaultAppPaths"></DefaultApp>
   </el-form>
 </template>
 
@@ -136,6 +141,7 @@ import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import UploadVue from '@/components/upload.vue';
 import FileScanVue from './fileScan.vue';
+import DefaultApp from './defaultApp.vue';
 import useCacheSetStore from '@/store/useCacheSet'
 import { send, sendSync } from '@/utils/common';
 import { ElMessage } from 'element-plus';
@@ -148,6 +154,11 @@ const fileCachePathCc = ref(fileCachePathC.value);
 watch(() => fileCachePathC.value, (newVal) => {
   fileCachePathCc.value = newVal;
 })
+
+const defaultAppPaths = ref<Record<string, ObjectType>>({});
+const updateDefaultAppPaths = (list: Record<string, ObjectType>) => {
+  defaultAppPaths.value = list;
+}
 
 const copyOrigin = ref('');
 function selectFileDir() {

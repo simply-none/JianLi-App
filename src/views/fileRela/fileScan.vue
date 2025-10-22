@@ -99,12 +99,24 @@
           <div>{{ curRes.name }}</div>
         </template>
       </el-image>
-      <!-- 视频 -->
+      <!-- 视频
       <video v-else-if="curType(curRes) == 'video'" :src="fileProtocol + encodeURIComponent(curRes.path)" controls width="100%">
         您的浏览器不支持video标签
       </video>
       <div class="show-res-arrow show-res-next" @click="lookResNext">
         <el-icon><ArrowRightBold /></el-icon>
+      </div> -->
+      <div v-else>
+        <div>
+          {{ JSON.stringify(props.defaultAppPaths, null, 2) }}
+        </div>
+        <div>文件类型暂不支持展示</div>
+        <div>文件名：{{ curRes.name }}</div>
+        <div>文件类型：{{ curRes.ext }}</div>
+        <div>文件路径：{{ curRes.path }}</div>
+        <div>
+          <el-button type="primary" @click="openFile(curRes)">打开文件</el-button>
+        </div>
       </div>
     </div>
   </el-dialog>
@@ -122,6 +134,13 @@ import { ElButton, ElTag, ElMessage, ElRow } from 'element-plus';
 import type { Column, RowClassNameGetter } from 'element-plus'
 import { ArrowLeftBold, ArrowRightBold, Check, Close } from '@element-plus/icons-vue'
 import { fileProtocol } from '@/var';
+
+const props = defineProps({
+  defaultAppPaths: {
+    type: Object,
+    default: () => {},
+  }
+})
 
 const { fileCachePathC } = storeToRefs(useCacheSetStore());
 
@@ -309,6 +328,16 @@ const lookResNext = () => {
 
 const beforeCloseShowRes = () => {
   showResVisible.value = false
+}
+
+const openFile = (obj: ObjectType) => {
+  const ext = obj.name.split('.').pop() || ''
+  window.ipcRenderer.handlePromise('open-file-by-default-app', {
+    filePath: obj.path,
+    defaultAppPath: props.defaultAppPaths[`.${ext}`]?.path || '',
+  }).then(res => {
+    console.log(res, `打开文件${obj.path}`)
+  })
 }
 
 </script>

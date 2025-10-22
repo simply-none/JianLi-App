@@ -89,18 +89,49 @@
         <el-form-item label="清空系统数据">
           <el-button type="primary" @click="clearStore">清空数据</el-button>
         </el-form-item>
-        <el-form-item label="全局字体设置">
-          <el-select v-model="globalFontCc" filterable style="width: 300px" @change="setGlobalFontC" popper-class="font-select-popper">
-            <el-option v-for="value in [...globalFontOpsC, ...sysFonts]" :key="value.value" :value="value.value" :label="value.label">
-              <!-- {{ value.label + 'fjalfwjs' }} -->
-              <span class="font-box" :style="{ fontFamily: value.value }">
-                <span class="font-name">{{ value.label }}</span>
-                <span class="font-preview">
-                  预览字体: 中文English123456
+        <el-form-item label="全局字体设置" class="mode-wrapper">
+          <el-form-item label="中文" class="mode-wrapper gap">
+            <el-select-v2
+              v-model="globalFontCc"
+              @change="setGlobalFontC"
+              filterable
+              :options="[...globalFontOpsC, ...sysFonts]"
+              popper-class="font-select-popper"
+              item-height="72"
+              style="width: 300px"
+            >
+              <template #default="{ item }">
+                <span class="font-box" :style="{ fontFamily: item.value }">
+                  <span class="font-name">{{ item.label }}</span>
+                  <span class="font-preview">
+                    预览字体: 中文English123456
+                  </span>
                 </span>
-              </span>
-            </el-option>
-          </el-select>
+              </template>
+            </el-select-v2>
+          </el-form-item>
+
+          <el-form-item label="英文" class="mode-wrapper">
+            <el-select-v2
+              v-model="globalFontENCc"
+              @change="setGlobalFontENC"
+              filterable
+              :options="[...globalFontOpsC, ...sysFonts]"
+              popper-class="font-select-popper"
+              item-height="72"
+              style="width: 300px"
+            >
+              <template #default="{ item }">
+                <span class="font-box" :style="{ fontFamily: item.value }">
+                  <span class="font-name">{{ item.label }}</span>
+                  <span class="font-preview">
+                    预览字体: 中文English123456
+                  </span>
+                </span>
+              </template>
+            </el-select-v2>
+          </el-form-item>
+
         </el-form-item>
         <el-form-item label="开机自启动">
           <el-switch v-model="isStartupCc" inline-prompt active-text="是" inactive-text="否" @change="changeIsStartup" />
@@ -154,8 +185,8 @@ const {
   nextRestTime,
   nextWorkTime,
 } = storeToRefs(useWorkOrResetStore());
-const { setForceWorkTimes, setAppBgColor, setAppInnerColor, setIsStartup, setHomeMode, setGlobalFont, setHomeModeOps } = useGlobalSetting();
-const { isStartupC, forceWorkTimesC, todayForceWorkTimesC, appBgColorC, appInnerColorC, globalFontC, globalFontOpsC, homeModeOpsC, curStatusC } = storeToRefs(useGlobalSetting());
+const { setForceWorkTimes, setAppBgColor, setAppInnerColor, setIsStartup, setHomeMode, setGlobalFont,setGlobalFontEN, setHomeModeOps } = useGlobalSetting();
+const { isStartupC, forceWorkTimesC, todayForceWorkTimesC, appBgColorC, appInnerColorC, globalFontC, globalFontENC, globalFontOpsC, homeModeOpsC, curStatusC } = storeToRefs(useGlobalSetting());
 
 const sysFonts = ref([])
 const workTimeGapCc = ref(JSON.parse(JSON.stringify(workTimeGap.value)))
@@ -225,13 +256,22 @@ function changeIsStartup(value: boolean) {
 }
 
 const globalFontCc = ref(JSON.parse(JSON.stringify(globalFontC.value)))
+const globalFontENCc = ref(JSON.parse(JSON.stringify(globalFontENC.value)))
 
 watch(() => globalFontC.value, (n) => {
   globalFontCc.value = JSON.parse(JSON.stringify(n));
 })
+watch(() => globalFontENC.value, (n) => {
+  globalFontENCc.value = JSON.parse(JSON.stringify(n));
+})
 function setGlobalFontC() {
   setGlobalFont(globalFontCc.value);
 }
+function setGlobalFontENC() {
+  setGlobalFontEN(globalFontENCc.value);
+}
+
+
 
 </script>
 
@@ -312,5 +352,9 @@ function setGlobalFontC() {
   .mode-label {
     width: 150px;
   }
+}
+
+.gap {
+  margin-bottom: 12px;
 }
 </style>

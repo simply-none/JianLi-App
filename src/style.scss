@@ -20,6 +20,7 @@
 
 :root {
   --jianli-global-font: "";
+  --jianli-global-font-EN: "";
 }
 
 html,
@@ -34,7 +35,7 @@ html,
 body,
 button,
 input {
-  font-family: var(--jianli-global-font);
+  font-family: var(--jianli-global-font-EN), var(--jianli-global-font);
 }
 
 * {
