@@ -29,11 +29,15 @@ import { throttle } from '@/utils/index';
 const curStatusC = ref({})
 const nextTime = ref()
 const nextDiffTime = ref()
+const sysData = ref({})
 
 window.ipcRenderer.on('sync-data-to-other-window', (event, arg) => {
   console.log(arg, 'MY PomodoroMiniWindow')
 
   if (Object.prototype.toString.call(arg) === '[object Object]') {
+    sysData.value = arg || {}
+    document.documentElement.style.setProperty('--jianli-global-font', sysData.value.globalFont)
+    document.documentElement.style.setProperty('--jianli-global-font-EN', sysData.value.globalFontEN)
     curStatusC.value = arg.curStatus
     // 判断是否是work还是rest
     if (arg.curStatus && arg.curStatus.value === 'work') {
@@ -86,6 +90,20 @@ const disableMouseClickThroughFn = () => {
 onMounted(() => {
 })
 </script>
+
+<style lang="scss">
+:root {
+  --jianli-global-font: "";
+  --jianli-global-font-EN: "";
+}
+
+html,
+body,
+button,
+input {
+  font-family: var(--jianli-global-font-EN), var(--jianli-global-font);
+}
+</style>
 
 <style lang="scss" scoped>
 .pomodoroMiniWindow {

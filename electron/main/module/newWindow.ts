@@ -38,7 +38,7 @@ function createOtherWindow(arg: string, ops?: ObjectType) {
     resizable: ops?.resizable || false,
     frame: ops?.frame || false,
     fullscreenable: ops?.fullscreenable || false,
-    width: ops?.width || 99,
+    width: ops?.width || 108,
     height: ops?.height || 81,
     x: ops?.x || screenWidth - 120,
     y: ops?.y || screenHeight - 219,
