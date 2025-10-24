@@ -14,7 +14,7 @@
     </el-form-item>
     <!-- 校验密码是否相同 -->
     <el-form-item label="密码校验" style="width: 100%;" v-if="passwordC">
-      <el-input v-model="verifyPassword" type="password" placeholder="请输入" style="width: 100%">
+      <el-input spellcheck="false" v-model="verifyPassword" type="password" placeholder="请输入" style="width: 100%">
         <template #append>
           <el-button @click="checkPassword">
             校验
@@ -29,7 +29,7 @@
     <el-form-item label="设置密码" style="width: 100%;" v-if="ischeckPassword">
       <!-- 新密码 -->
       <!-- 需要一边输入一边进行密码强度校验，改写上述注释内容 -->
-      <el-input v-model="newPassword" type="password" placeholder="请输入" style="width: 100%" @keyup.enter="updatePwd">
+      <el-input spellcheck="false" v-model="newPassword" type="password" placeholder="请输入" style="width: 100%" @keyup.enter="updatePwd">
         <template #append>
           <el-button @click="updatePwd">
             确定
@@ -41,7 +41,7 @@
     </el-form-item>
     <!-- 确认密码 -->
     <el-form-item label="确认密码" style="width: 100%;" v-if="ischeckPassword">
-      <el-input v-model="confirmPassword" type="password" placeholder="请输入" style="width: 100%"
+      <el-input spellcheck="false" v-model="confirmPassword" type="password" placeholder="请输入" style="width: 100%"
         @keyup.enter="updatePwd">
         <template #append>
           <el-button @click="updatePwd">
@@ -61,11 +61,11 @@
           <div>问题{{ index + 1 }}: </div>
           <div class="problem">
             <div class="label">问题：</div>
-            <el-input v-model="item.question" placeholder="请输入问题" :disabled="!item.isAdd"></el-input>
+            <el-input spellcheck="false" v-model="item.question" placeholder="请输入问题" :disabled="!item.isAdd"></el-input>
           </div>
           <div class="answer">
             <div class="label">答案：</div>
-            <el-input type="textarea" rows="3" v-model="item.answerValid" placeholder="请输入答案"></el-input>
+            <el-input spellcheck="false" type="textarea" rows="3" v-model="item.answerValid" placeholder="请输入答案"></el-input>
           </div>
         </template>
 
@@ -97,11 +97,11 @@
           <div>问题{{ index + 1 }}: </div>
           <div class="problem">
             <div class="label">问题：</div>
-            <el-input v-model="item.question" placeholder="请输入问题" :disabled="!item.isAdd"></el-input>
+            <el-input spellcheck="false" v-model="item.question" placeholder="请输入问题" :disabled="!item.isAdd"></el-input>
           </div>
           <div class="answer">
             <div class="label">答案：</div>
-            <el-input type="textarea" rows="3" v-model="item.answer" placeholder="请输入答案"
+            <el-input spellcheck="false" type="textarea" rows="3" v-model="item.answer" placeholder="请输入答案"
               :disabled="!item.isAdd"></el-input>
           </div>
         </div>

@@ -25,7 +25,7 @@
           </div>
         </el-form-item>
         <el-form-item label="工作时间">
-          <el-input v-model="workTimeGapCc" placeholder="Please input" @change="changeWorkTimeGapCc">
+          <el-input spellcheck="false" v-model="workTimeGapCc" placeholder="Please input" @change="changeWorkTimeGapCc">
             <template #append>
               <el-select v-model="workTimeGapUnitCc" placeholder="Select" style="width: 115px"
                 @change="changeWorkTimeGapUnitCc">
@@ -35,7 +35,7 @@
           </el-input>
         </el-form-item>
         <el-form-item label="休息时间">
-          <el-input v-model="restTimeGapCc" placeholder="Please input" @change="changeRestTimeGapCc">
+          <el-input spellcheck="false" v-model="restTimeGapCc" placeholder="Please input" @change="changeRestTimeGapCc">
             <template #append>
               <el-select v-model="restTimeGapUnitCc" placeholder="Select" style="width: 115px"
                 @change="changeRestTimeGapUnitCc">

@@ -7,7 +7,7 @@
     </el-form-item>
     <!-- 文件夹复制测试 -->
     <el-form-item label="扫描位置" class="mode-wrapper file-move">
-      <el-input v-model="scanPath" placeholder="请选择" style="width: 100%" disabled :title="scanPath">
+      <el-input spellcheck="false" v-model="scanPath" placeholder="请选择" style="width: 100%" disabled :title="scanPath">
         <template #append>
           <el-button @click="selectScanPath">
             选择目录
@@ -17,7 +17,7 @@
     </el-form-item>
     <!-- 扫描后缀 -->
     <el-form-item label="扫描后缀包含" class="mode-wrapper file-move">
-      <el-input v-model="scanSuffix" placeholder="请输入: png、jpeg、mp4、doc..." style="width: 100%"
+      <el-input spellcheck="false" v-model="scanSuffix" placeholder="请输入: png、jpeg、mp4、doc..." style="width: 100%"
         @keyup.enter="selectScanSuffix">
         <template #append>
           <el-button @click="selectScanSuffix">
@@ -36,7 +36,7 @@
     <!-- 扫描选项 -->
     <el-form-item label="扫描选项" class="mode-wrapper file-move">
       <el-form-item label="扫描深度" class="mode-wrapper file-move">
-        <el-input v-model="scanOptions.deep" type="number" placeholder="0表示无限层级" />
+        <el-input spellcheck="false" v-model="scanOptions.deep" type="number" placeholder="0表示无限层级" />
       </el-form-item>
       <el-form-item label="大小写敏感" class="mode-wrapper file-move">
         <el-switch

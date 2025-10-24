@@ -4,14 +4,22 @@
   </el-button>
   <!-- 接口测试 -->
   <div>
-    <div>接口路径：<el-input v-model="url" /></div>
+    <div>接口路径：</div>
     <div>请求方式：<el-radio-group v-model="method" size="small">
       <el-radio label="get">get</el-radio>
       <el-radio label="post">post</el-radio>
     </el-radio-group></div>
-    <div>请求头：<el-input v-model="header" /></div>
-    <div>请求体：<el-input v-model="body" /></div>
-    <div>返回结果：<el-input type='textarea' :rows='20' v-model="result" /></div>
+    <div>请求头：<el-input spellcheck="false" v-model="header" /></div>
+    <div>请求体：<el-input spellcheck="false" v-model="body" /></div>
+    <div>返回结果：<el-input spellcheck="false" type='textarea' :rows='20' v-model="result" /></div>
+    <el-tabs v-model="activeName" class="demo-tabs" @tab-click="handleClick">
+      <el-tab-pane label="原始数据" name="original">
+        <el-input spellcheck="false" type='textarea' :rows='20' v-model="result" />
+      </el-tab-pane>
+      <el-tab-pane label="格式化数据" name="formatted">
+        <div v-html="result"></div>
+      </el-tab-pane>
+    </el-tabs>
     <div>
       <el-button @click="sendRequest">发送</el-button>
     </div>
@@ -104,7 +112,7 @@ function sendRequest() {
   if (!url.value) {
     return ElMessage.warning('请输入接口路径');
   }  
-  window.ipcRenderer.sendSync("api-test", {
+  window.ipcRenderer.send("api-test", {
     url: url.value,
     method: method.value,
     header: header.value, 

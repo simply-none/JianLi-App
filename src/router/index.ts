@@ -106,11 +106,11 @@ export const layoutRouters: RouteRecordRaw[] = [
     }
   },
   {
-    path: "/test",
-    name: "test",
-    component: () => import("@/views/test.vue"),
+    path: "/netRequest",
+    name: "netRequest",
+    component: () => import("@/views/netRequest/index.vue"),
     meta: {
-      title: "测试",
+      title: "网络请求",
     },
   },
   {

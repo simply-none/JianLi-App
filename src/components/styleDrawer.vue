@@ -40,10 +40,10 @@
           <!-- 如果type类型为color，则使用 -->
           <el-color-picker v-else-if="cssProperties[key].type == 'color'" v-model="data[key]" show-alpha />
           <!-- 如果type类型为number，则使用 -->
-          <el-input v-else-if="cssProperties[key].type == 'number'" v-model="data[key]" placeholder="请输入" />
+          <el-input spellcheck="false" v-else-if="cssProperties[key].type == 'number'" v-model="data[key]" placeholder="请输入" />
           <!-- 如果type类型为length，则表示可以使用数值+单位 复合值的形式，单位有px,em,rem,%等，使用输入框和选择框 -->
           <template v-else-if="cssProperties[key].type == 'length'">
-            <el-input v-model="data[key]" placeholder="请输入" />
+            <el-input spellcheck="false" v-model="data[key]" placeholder="请输入" />
           </template>
           <!-- 如果type类型为time，则使用 数值 加 时间单位的形式 -->
           <template v-else-if="cssProperties[key].type == 'time'">
@@ -54,10 +54,10 @@
               </template>
               <span style="color: red;">*</span>
             </el-tooltip>
-            <el-input v-model="data[key]" placeholder="请输入" />
+            <el-input spellcheck="false" v-model="data[key]" placeholder="请输入" />
           </template>
           <!-- 否则使用输入框 -->
-          <el-input v-else v-model="data[key]" placeholder="请输入" />
+          <el-input spellcheck="false" v-else v-model="data[key]" placeholder="请输入" />
         </el-form-item>
       </el-form>
     </template>

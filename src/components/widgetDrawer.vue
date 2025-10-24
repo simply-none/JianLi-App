@@ -26,7 +26,7 @@
           <template #label>
             背景色
           </template>
-          <el-input v-model="data.backgroundColor" disabled />
+          <el-input spellcheck="false" v-model="data.backgroundColor" disabled />
           <el-color-picker v-model="data.backgroundColor" :show-alpha="true" size="small" :predefine="['#ffffff']"></el-color-picker>
         </el-form-item>
 
@@ -34,7 +34,7 @@
           <template #label>
             背景
           </template>
-          <el-input v-model="data.backgroundImage" disabled />
+          <el-input spellcheck="false" v-model="data.backgroundImage" disabled />
           <uploadVue :limit="1" :autoSave="true" @getFilePath="path => getFilePath(path, 'backgroundImage')">
           </uploadVue>
         </el-form-item>

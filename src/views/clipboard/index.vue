@@ -12,7 +12,7 @@
           placement="top">
           <el-card class="clipboard-item" shadow="hover">
             <div class="item-content">
-              <el-input v-model="item.text" type="textarea" :autosize="{ minRows: 1, maxRows: 30 }" />
+              <el-input spellcheck="false" v-model="item.text" type="textarea" :autosize="{ minRows: 1, maxRows: 30 }" />
 
             </div>
             <div class="item-actions">

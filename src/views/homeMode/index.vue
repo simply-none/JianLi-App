@@ -31,7 +31,7 @@
           <!-- <span class="mode-label">{{ key }}</span> -->
           <el-color-picker v-if="(key as unknown as string).endsWith('Color')" v-model="activeHomeModeOps[key]"
             show-alpha @change="changeModeOps" />
-          <el-input v-else v-model="activeHomeModeOps[key]" placeholder="请输入"
+          <el-input spellcheck="false" v-else v-model="activeHomeModeOps[key]" placeholder="请输入"
             :disabled="['label', 'value'].includes(key as unknown as string)" @change="changeModeOps" />
         </el-form-item>
       </div>
@@ -42,7 +42,7 @@
           <!-- <span class="mode-label">{{ key }}</span> -->
           <el-color-picker v-if="(key as unknown as string).endsWith('Color')" v-model="activeHomeModeOps[key]"
             show-alpha @change="changeModeOps" />
-          <el-input v-else v-model="activeHomeModeOps[key]" placeholder="请输入"
+          <el-input spellcheck="false" v-else v-model="activeHomeModeOps[key]" placeholder="请输入"
             :disabled="['label', 'value'].includes(key as unknown as string)" @change="changeModeOps" />
         </el-form-item>
       </div>

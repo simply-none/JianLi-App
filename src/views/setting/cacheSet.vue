@@ -6,7 +6,7 @@
       </template>
     </el-form-item>
     <el-form-item label="文件存放目录" class="mode-wrapper">
-      <el-input v-model="fileCachePathCc" placeholder="请选择" style="width: 100%" disabled :title="fileCachePathCc">
+      <el-input spellcheck="false" v-model="fileCachePathCc" placeholder="请选择" style="width: 100%" disabled :title="fileCachePathCc">
         <template #append>
           <el-button @click="selectFileDir">
             选择目录

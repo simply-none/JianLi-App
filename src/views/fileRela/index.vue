@@ -20,7 +20,7 @@
     <!-- 文件夹复制测试 -->
     <el-form-item label="文件转移" class="mode-wrapper file-move">
       <el-form-item label="原位置" style="width: 100%;">
-        <el-input v-model="copyOrigin" placeholder="请选择" style="width: 100%" disabled :title="copyOrigin">
+        <el-input spellcheck="false" v-model="copyOrigin" placeholder="请选择" style="width: 100%" disabled :title="copyOrigin">
           <template #append>
             <el-button @click="selectCopyPath">
               选择目录
@@ -29,7 +29,7 @@
         </el-input>
       </el-form-item>
       <el-form-item label="目标位置" style="width: 100%;">
-        <el-input v-model="copyTarget" placeholder="请选择" style="width: 100%" disabled :title="copyTarget">
+        <el-input spellcheck="false" v-model="copyTarget" placeholder="请选择" style="width: 100%" disabled :title="copyTarget">
           <template #append>
             <el-button @click="selectCopyTarget">
               选择目录
@@ -45,7 +45,7 @@
         </el-radio-group>
       </el-form-item>
       <el-form-item label="名称包含" v-if="copyType == 'include'">
-        <el-input v-model="copyInclude" placeholder="请输入" style="width: 100%" @keyup.enter="selectCopyInclude">
+        <el-input spellcheck="false" v-model="copyInclude" placeholder="请输入" style="width: 100%" @keyup.enter="selectCopyInclude">
           <template #append>
             <el-button @click="selectCopyInclude">
               添加
@@ -60,7 +60,7 @@
         </div>
       </el-form-item>
       <el-form-item label="名称排除" v-else>
-        <el-input v-model="copyExclude" placeholder="请输入" style="width: 100%" @keyup.enter="selectCopyExclude">
+        <el-input spellcheck="false" v-model="copyExclude" placeholder="请输入" style="width: 100%" @keyup.enter="selectCopyExclude">
           <template #append>
             <el-button @click="selectCopyExclude">
               添加
@@ -82,7 +82,7 @@
         </el-radio-group>
       </el-form-item>
       <el-form-item label="后缀包含" v-if="copyTypeSuffix == 'include'">
-        <el-input v-model="copyIncludeSuffix" placeholder="请输入：.png、.jpeg、.mp4、.doc" style="width: 100%"
+        <el-input spellcheck="false" v-model="copyIncludeSuffix" placeholder="请输入：.png、.jpeg、.mp4、.doc" style="width: 100%"
           @keyup.enter="selectCopyIncludeSuffix">
           <template #append>
             <el-button @click="selectCopyIncludeSuffix">
@@ -99,7 +99,7 @@
         </div>
       </el-form-item>
       <el-form-item label="后缀排除" v-else>
-        <el-input v-model="copyExcludeSuffix" placeholder="请输入" style="width: 100%"
+        <el-input spellcheck="false" v-model="copyExcludeSuffix" placeholder="请输入" style="width: 100%"
           @keyup.enter="selectCopyExcludeSuffix">
           <template #append>
             <el-button @click="selectCopyExcludeSuffix">
