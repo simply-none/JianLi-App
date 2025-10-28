@@ -1,6 +1,6 @@
 <template>
   <!-- 写一个功能：请求头表格输入，表格有两列，一列是key，一列是value，可以自增表格行 -->
-  <el-button type="primary" size="mini" @click="addColumn">添加</el-button>
+  <el-button type="primary" size="small" @click="addColumn">添加</el-button>
   <el-table :data="column" style="width: 100%">
     <el-table-column prop="key" label="名称">
       <template #default="scope">
@@ -16,7 +16,7 @@
     </el-table-column>
     <el-table-column label="操作" width="180">
       <template #default="scope">
-        <el-button type="danger" size="mini" @click="removeColumn(scope.$index)">删除</el-button>
+        <el-button type="danger" size="small" @click="removeColumn(scope.$index)">删除</el-button>
       </template>
     </el-table-column>
   </el-table>

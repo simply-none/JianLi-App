@@ -35,14 +35,58 @@ export type CopyFolderType = {
   recursive?: boolean;
 };
 
+function getSelectType(type: String | String[]) {
+  let filters = []
+  // 选择文件的类型
+  // 如果是图片
+  if (type.includes("image")) {
+    filters.push(
+      { name: "图片", extensions: ["jpg", "png", "gif", "webp", "svg", "jpeg"] },
+    )
+  }
+  // 如果是视频
+  if (type.includes("video")) {
+    filters.push(
+      { name: "视频", extensions: ["mkv", "avi", "mp4"] },
+    )
+  }
+  // 如果是音频
+  if (type.includes("audio")) {
+    filters.push(
+      { name: "音频", extensions: ["mp3", "wav", "aac"] },
+    )
+  }
+  // 如果是可执行文件
+  if (type.includes("executable")) {
+    filters.push(
+      { name: "可执行文件", extensions: ["exe"] },
+    )
+  }
+  // 如果是压缩文件
+  if (type.includes("zip")) {
+    filters.push(
+      { name: "压缩文件", extensions: ["zip", "rar", "7z", "tar", "gz", "bz2", "xz"] },
+    )
+  }
+  // 如果是文件
+  if (type.includes("file")) {
+    filters.push(
+      { name: "所有文件", extensions: ["*"] },
+    )
+  }
+  return filters
+}
+
 export function getFilePath({
   openFile,
   openDirectory,
   multiSelections,
+  type,
 }: {
   openFile?: boolean;
   openDirectory?: boolean;
   multiSelections?: boolean;
+  type?: String | String[];
 }) {
   const properties = [];
   if (openFile) {
@@ -54,15 +98,12 @@ export function getFilePath({
   if (multiSelections) {
     properties.push("multiSelections");
   }
+  const filters = getSelectType(type || "file");
+
   const result = dialog.showOpenDialogSync({
-    title: "Select a file",
-    properties: ["openFile", "openDirectory", "multiSelections"],
-    filters: [
-      { name: "Images", extensions: ["jpg", "png", "gif"] },
-      { name: "Movies", extensions: ["mkv", "avi", "mp4"] },
-      { name: "Custom File Type", extensions: ["as"] },
-      { name: "All Files", extensions: ["*"] },
-    ],
+    title: openDirectory ? "选择文件夹" : "选择文件",
+    properties: properties,
+    filters: filters,
   });
   return result;
 }
@@ -272,12 +313,21 @@ export function openFileInAssetsManager(path: string) {
 
 export function initFile() {
   // 监听获取文件路径
-  ipcMain.on("get-file-list", (e, value: string) => {
-    console.log(value, "e");
-    let result = getFilePath({
-      openDirectory: true,
-    });
-    e.returnValue = result;
+  ipcMain.on("get-file-list", (e, params: string | ObjectType) => {
+    console.log(params, "e");
+    if (typeof params === 'string') {
+      let result = getFilePath({
+        openDirectory: true,
+      });
+      e.returnValue = result;
+    } else {
+      let result = getFilePath({
+        openDirectory: params.openDirectory,
+        openFile: params.openFile,
+        type: params.type,
+      });
+      e.returnValue = result;
+    }
   });
 
   // 监听文件保存

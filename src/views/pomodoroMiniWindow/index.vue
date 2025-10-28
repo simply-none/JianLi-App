@@ -36,8 +36,8 @@ window.ipcRenderer.on('sync-data-to-other-window', (event, arg) => {
 
   if (Object.prototype.toString.call(arg) === '[object Object]') {
     sysData.value = arg || {}
-    document.documentElement.style.setProperty('--jianli-global-font', sysData.value.globalFont)
-    document.documentElement.style.setProperty('--jianli-global-font-EN', sysData.value.globalFontEN)
+    sysData.value.globalFont && document.documentElement.style.setProperty('--jianli-global-font', sysData.value.globalFont)
+     sysData.value.globalFontEN && document.documentElement.style.setProperty('--jianli-global-font-EN', sysData.value.globalFontEN)
     curStatusC.value = arg.curStatus
     // 判断是否是work还是rest
     if (arg.curStatus && arg.curStatus.value === 'work') {

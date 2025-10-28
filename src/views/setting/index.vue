@@ -97,7 +97,7 @@
               filterable
               :options="[...globalFontOpsC, ...sysFonts]"
               popper-class="font-select-popper"
-              item-height="72"
+              :item-height="72"
               style="width: 300px"
             >
               <template #default="{ item }">
@@ -118,7 +118,7 @@
               filterable
               :options="[...globalFontOpsC, ...sysFonts]"
               popper-class="font-select-popper"
-              item-height="72"
+              :item-height="72"
               style="width: 300px"
             >
               <template #default="{ item }">

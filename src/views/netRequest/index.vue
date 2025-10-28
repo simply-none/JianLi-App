@@ -43,10 +43,14 @@
     <el-form-item  class="mode-wrapper">
       <el-button @click="sendRequest">发送</el-button>
     </el-form-item>
+
+    <!-- 浏览器请求：puppeteer -->
+    <browser></browser>
   </el-form>
 </template>
 
 <script setup lang="ts">
+import browser from './browser.vue';
 import columns from './columns.vue';
 import { h, ref, reactive, watch, computed, toRaw, onMounted, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
@@ -85,9 +89,19 @@ function sendRequest() {
   })
 }
 
+function sendRequestNightmare() {
+  window.ipcRenderer.send("spider-test", {
+  })
+}
+
 window.ipcRenderer.on("api-test", (event, arg) => {
   console.warn(arg, 't');
   result.value = JSON.stringify(arg, null, 2);
+});
+
+window.ipcRenderer.on("spider-test", (event, arg) => {
+  console.warn(arg, 't spider-test');
+  result.value = arg.mainContent;
 });
 </script>
 

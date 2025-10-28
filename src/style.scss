@@ -58,3 +58,12 @@ input {
     background: #ffffff;
   }
 }
+
+.mode-wrapper {
+  width: 100%;
+  box-sizing: border-box;
+  & + & {
+  margin-top: 12px;
+  }
+}
+
