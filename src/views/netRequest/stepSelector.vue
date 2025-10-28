@@ -23,26 +23,9 @@
       </el-input>
     </el-form-item>
   </el-form-item>
-  <el-form-item label="步骤选择器" class="mode-wrapper">
-    <stepSelector></stepSelector>
-  </el-form-item>
-  <el-form-item label="返回结果" class="mode-wrapper">
-    <el-tabs v-model="activeName" class="result-tabs">
-      <el-tab-pane label="原始数据" name="original">
-        <el-input spellcheck="false" type='textarea' :rows='20' v-model="result" />
-      </el-tab-pane>
-      <el-tab-pane label="格式化数据" name="formatted">
-        <div v-html="result"></div>
-      </el-tab-pane>
-    </el-tabs>
-  </el-form-item>
-  <el-form-item class="mode-wrapper">
-    <el-button @click="sendRequestNightmare">发送</el-button>
-  </el-form-item>
 </template>
 
 <script setup lang="ts">
-import columns from './columns.vue';
 import { h, ref, reactive, watch, computed, toRaw, onMounted, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
 import { send, sendSync } from '@/utils/common';

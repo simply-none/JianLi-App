@@ -56,7 +56,7 @@ const currentSmallComps = computed(() => {
   return smallComps.map(item => {
     return {
       name: item.name,
-      comp: smallComponentsC.value[item.name]?.comp || 'div',
+      comp: toRaw(smallComponentsC.value[item.name]?.comp) || 'div',
     }
   })
 })

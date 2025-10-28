@@ -26,7 +26,7 @@
           <columns label="请求头" @update="val => header = val"/>
         </el-tab-pane>
         <el-tab-pane label="请求体" name="body">
-          <el-input spellcheck="false" v-model="body" type="textarea" rows="10" />
+          <el-input spellcheck="false" v-model="body" type="textarea" :rows="10" />
         </el-tab-pane>
       </el-tabs>
     </el-form-item>
