@@ -100,6 +100,20 @@ const originShortcuts = ref([
     key: 'clipboardShortcut',
     shortcut: ['', '', ''],
   },
+  {
+    type: 'open_match_page',
+    url: 'netRequest',
+    name: '打开网络请求',
+    key: 'netRequestShortcut',
+    shortcut: ['', '', ''],
+  },
+  {
+    type: 'open_match_page',
+    url: 'systemInfo',
+    name: '打开系统信息',
+    key: 'systemInfoShortcut',
+    shortcut: ['', '', ''],
+  },
 ])
 
 // 获取所有的快捷键

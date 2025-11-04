@@ -3,6 +3,8 @@ import axios from "axios";
 import puppeteer, { Locator, LocatorEvent } from 'puppeteer';
 import colors from "colors";
 import { win } from "./mainWindow.ts";
+import { Worker } from "worker_threads";
+import { systemInfoWorkerPath } from "../variables.ts";
 
 export function initApiTest() {
   ipcMain.on("api-test", (e, obj: any) => {
@@ -45,28 +47,16 @@ export function initApiTest() {
     await page.setViewport({ width: obj.width || 1080, height: obj.height || 1024 });
 
     // Type into search box using accessible input name.
-    await page.locator(obj.searchBoxSelector || '.sb_form_q').fill( obj.searchText || '天气');
-    // await page.keyboard.press('Enter');
-    // const el = await page.$('.sb_form_q')
-    // await el?.click()
+    await page.locator(obj.searchBoxSelector || '.sb_form_q').fill(obj.searchText || '天气');
 
     // 获取到元素点击不生效一直在等待，需要通过js语句进行点击，而不是通过puppeteer的click方法
     await page.evaluate((selector) => {
       (document.querySelector(selector) as HTMLElement).click();
     }, obj.searchButtonSelector || '.search');
 
-
-    // Wait and click on first result.
-
-    // Locate the full title with a unique string.
-    // await page.waitForNavigation({ 
-    //   waitUntil: 'networkidle2',
-    //   timeout: 30000 
-    // });
-
     await page.waitForSelector(obj.searchResultSelector || '.b_respl')
 
-     // 获取搜索结果页面内容
+    // 获取搜索结果页面内容
     const searchResults = await page.evaluate(() => {
       return {
         // 获取页面标题
@@ -84,4 +74,100 @@ export function initApiTest() {
 
     await browser.close();
   });
+
+  // system-info
+  let trafficWorker;
+
+  ipcMain.on('system-info', async (e, userConfig: ObjectType = { type: 'start' }) => {
+    console.log(userConfig.type, '系统信息监控配置');
+    win.webContents.send('system-info', { type: 'start-pre', data: systemInfoWorkerPath });
+
+    if (trafficWorker) {
+      trafficWorker.terminate();
+    }
+
+    const defaultConfig = {
+      samplingInterval: 1000,
+      burstDuration: 10000,
+      quietSamplingInterval: 5000
+    };
+
+    const finalConfig = { ...defaultConfig, ...userConfig };
+
+    // credentials?: RequestCredentials;
+    // name?: string;
+    // type?: WorkerType;
+    trafficWorker = new Worker(systemInfoWorkerPath, {
+      workerData: { config: finalConfig }
+    });
+
+    // 发送消息给Worker
+    trafficWorker.postMessage({ type: userConfig.type || 'start' });
+    
+    // 处理Worker消息
+    trafficWorker.on('message', (data) => {
+      if (win && !win.isDestroyed()) {
+        console.log(Date.now(), data.type)
+        win.webContents.send('system-info', data);
+      }
+    });
+
+    trafficWorker.on('error', (error) => {
+      console.error('Worker error:', error);
+    });
+
+    trafficWorker.on('exit', (code) => {
+      if (code !== 0) {
+        console.log('Worker stopped with exit code:', code);
+      }
+    });
+  })
+
+  // system-info static
+  let trafficWorkerStatic;
+
+  ipcMain.on('system-info-static', async (e, userConfig: ObjectType = { type: 'start' }) => {
+    console.log(userConfig.type, '系统信息监控配置static');
+    win.webContents.send('system-info-static', { type: 'start-pre', data: systemInfoWorkerPath });
+
+    if (trafficWorkerStatic) {
+      trafficWorkerStatic.terminate();
+    }
+
+    const defaultConfig = {
+      samplingInterval: 1000,
+      burstDuration: 10000,
+      quietSamplingInterval: 5000
+    };
+
+    const finalConfig = { ...defaultConfig, ...userConfig };
+
+    // credentials?: RequestCredentials;
+    // name?: string;
+    // type?: WorkerType;
+    trafficWorkerStatic = new Worker(systemInfoWorkerPath, {
+      workerData: { config: finalConfig }
+    });
+
+    // 发送消息给Worker
+    trafficWorkerStatic.postMessage({ type: userConfig.type || 'start' });
+    
+    // 处理Worker消息
+    trafficWorkerStatic.on('message', (data) => {
+      if (win && !win.isDestroyed()) {
+        console.log(colors.bgBlue(data.type), data.type)
+        win.webContents.send('system-info-static', data);
+      }
+    });
+
+    trafficWorkerStatic.on('error', (error) => {
+      console.error('Worker error:', error);
+    });
+
+    trafficWorkerStatic.on('exit', (code) => {
+      if (code !== 0) {
+        console.log('Worker stopped with exit code:', code);
+      }
+    });
+  })
 }

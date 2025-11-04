@@ -89,19 +89,9 @@ function sendRequest() {
   })
 }
 
-function sendRequestNightmare() {
-  window.ipcRenderer.send("spider-test", {
-  })
-}
-
 window.ipcRenderer.on("api-test", (event, arg) => {
   console.warn(arg, 't');
   result.value = JSON.stringify(arg, null, 2);
-});
-
-window.ipcRenderer.on("spider-test", (event, arg) => {
-  console.warn(arg, 't spider-test');
-  result.value = arg.mainContent;
 });
 </script>
 

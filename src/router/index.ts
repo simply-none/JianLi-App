@@ -16,6 +16,14 @@ export const layoutRouters: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/systemInfo',
+    name: 'systemInfo',
+    component: () => import("@/views/systemInfo/index.vue"),
+    meta: {
+      title: "系统信息", 
+    }
+  },
+  {
     path: '/homeMode',
     name: 'homeMode',
     component: () => import("@/views/homeMode/index.vue"),

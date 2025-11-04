@@ -4,6 +4,7 @@ import {
   preload,
   VITE_DEV_SERVER_URL,
   indexHtml,
+  appName,
 } from "../variables.ts";
 import { destroyTray } from "./tray.ts";
 import AutoLaunch from 'auto-launch'
@@ -11,7 +12,7 @@ import AutoLaunch from 'auto-launch'
 export let win: BrowserWindow | null;
 
 let autoLauncher = new AutoLaunch({
-  name: "渐离App",
+  name: appName,
 });
 
 function startupWithAutoLauncher(flag = 'enable') {

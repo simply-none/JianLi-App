@@ -29,10 +29,18 @@
 
 ## 待处理事项
 
+[x] 系统信息采集查看
+[x] 自定义的sprider页面/接口获取
+[x] 获取系统已经安装的应用列表及其可执行文件路径（通过注册表？）
 [x] 多次切换强制切换当前状态会导致小窗口和主窗口的时间（倒计时）不一致
-[x] 第一次番茄钟主页不进入休息状态，需要手动进入设置再返回，才会进入休息，实际上后台已经开始计时休息了
 
 ## 开发回顾
+
+### 2025-11-04
+
+引入worker线程，采集系统信息。这个意义在于，不会阻塞主线程，导致页面卡顿。
+
+注意事项在于：主线程引入worker时，需要确保开发环境和打包环境下的workerjs文件路径可访问，例如`export const systemInfoWorkerPath = path.join(appRoot, VITE_DEV_SERVER_URL ? "./public/worker/systemInfo.cjs" : "./dist/worker/systemInfo.cjs");`。
 
 ### 2025-04-24
 

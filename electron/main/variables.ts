@@ -38,6 +38,9 @@ export let appLogoIco = path.join(process.env.VITE_PUBLIC, "favicon.ico");
 // 预加载文件
 export const preload = path.join(__dirname, "../preload/index.mjs");
 
+// worker.js文件路径：将其放在public目录下
+export const systemInfoWorkerPath = path.join(appRoot, VITE_DEV_SERVER_URL ? "./public/worker/systemInfo.cjs" : "./dist/worker/systemInfo.cjs");
+
 // 扫描进程worker
 export const scanWorkerPath = path.join(vitePublic, "worker.mjs");
 
