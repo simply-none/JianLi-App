@@ -66,7 +66,7 @@ onMounted(() => {
 
   .content {
     flex: 1;
-    overflow: auto;
+    overflow: hidden;
     display: flex;
 
     .left,

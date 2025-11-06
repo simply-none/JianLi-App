@@ -26,7 +26,7 @@
     <el-form-item label="属性修改" class="mode-wrapper">
       <div class="mode-ops">
         <div>修改前：</div>
-        <el-form-item class="mode-item" v-for="(item, key, index) in (homeModeCc[activeHomeMode] as unknown as object)"
+        <el-form-item class="mode-item" v-for="(item, key, index) in homeModeCc[activeHomeMode]"
           :label="key">
           <!-- <span class="mode-label">{{ key }}</span> -->
           <el-color-picker v-if="(key as unknown as string).endsWith('Color')" v-model="activeHomeModeOps[key]"
@@ -37,7 +37,7 @@
       </div>
       <div>修改后：</div>
       <div class="mode-ops">
-        <el-form-item class="mode-item" v-for="(item, key, index) in (activeHomeModeOps as unknown as object)"
+        <el-form-item class="mode-item" v-for="(item, key, index) in activeHomeModeOps"
           :label="key">
           <!-- <span class="mode-label">{{ key }}</span> -->
           <el-color-picker v-if="(key as unknown as string).endsWith('Color')" v-model="activeHomeModeOps[key]"

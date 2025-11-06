@@ -82,6 +82,7 @@ function createWindow() {
     webPreferences: {
       preload,
       devTools: true,
+      nodeIntegration: true,
       // 加载扩展必须启动该配置
       plugins: true,
     },

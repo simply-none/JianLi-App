@@ -117,6 +117,16 @@ window.ipcRenderer.on("api-test", (event, arg) => {
   result.value = JSON.stringify(arg, null, 2);
 });
 
+window.ipcRenderer.on("spider-test:request", (event, arg) => {
+  console.warn(arg, 't spider-test:request');
+});
+
+window.ipcRenderer.on("spider-test:response", (event, arg) => {
+  console.warn(arg, 't spider-test:response');
+});
+
+
+
 window.ipcRenderer.on("spider-test", (event, arg) => {
   console.warn(arg, 't spider-test');
   result.value = arg.mainContent;
