@@ -262,10 +262,6 @@ export default defineStore("global-setting", () => {
       {
         field: "globalFontOps",
         default: [
-          { label: "Basteleur Bold", value: "Basteleur Bold" },
-          { label: "Chill Pixels Mono", value: "Chill Pixels Mono" },
-          { label: "鼎猎珠海体", value: "鼎猎珠海体" },
-          { label: "Norican", value: "Norican" },
           { label: "系统字体", value: "initial" },
         ],
         map: globalFontOps,

@@ -37,7 +37,7 @@
       </div>
       <div>修改后：</div>
       <div class="mode-ops">
-        <el-form-item class="mode-item" v-for="(item, key, index) in activeHomeModeOps"
+        <el-form-item class="mode-item" v-for="(item, key) in activeHomeModeOps"
           :label="key">
           <!-- <span class="mode-label">{{ key }}</span> -->
           <el-color-picker v-if="(key as unknown as string).endsWith('Color')" v-model="activeHomeModeOps[key]"

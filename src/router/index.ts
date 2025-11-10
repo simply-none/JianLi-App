@@ -129,6 +129,14 @@ export const layoutRouters: RouteRecordRaw[] = [
       title: "数据库测试",
     },
   },
+  {
+    path: "/流程图",
+    name: "flow",
+    component: () => import("@/views/flow/index.vue"),
+    meta: {
+      title: "流程图",
+    }
+  },
 ];
 
 const routers: RouteRecordRaw[] = [

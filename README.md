@@ -36,6 +36,20 @@
 
 ## 开发回顾
 
+### 2025-11-07
+
+vite打包报错：`Ineffective mark-compacts near heap limit Allocation failed - JavaScript heap out of memory`
+
+解决方式：扩大内存，在默认情况下，Node.js 进程的内存限制是比较低的，通常为 1.5GB 到 2GB，这可能会导致在处理大型数据或执行内存密集型任务时出现内存不足的问题。可使用increase-memory-limit ，它是一个用于增加 Node.js 进程内存限制的工具。
+
+用法如下：
+
+```bash
+cnpm i increase-memory-limit
+
+buildMy: increase-memory-limit -m 4GB && npm run build
+```
+
 ### 2025-11-04
 
 引入worker线程，采集系统信息。这个意义在于，不会阻塞主线程，导致页面卡顿。

@@ -114,6 +114,14 @@ const originShortcuts = ref([
     key: 'systemInfoShortcut',
     shortcut: ['', '', ''],
   },
+  // 流程图
+  {
+    type: 'open_match_page',
+    url: 'flow',
+    name: '打开流程图',
+    key: 'flowShortcut',
+    shortcut: ['', '', ''],
+  },
 ])
 
 // 获取所有的快捷键
