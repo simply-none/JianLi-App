@@ -21,6 +21,46 @@ async function hasActiveTransaction(db) {
   });
 }
 
+function queryByConditions1({ db, tableName, conditions, callback }) {
+  // 构建WHERE子句和参数
+  const whereClauses = [];
+  const params = [];
+  for (const [key, value] of Object.entries(conditions)) {
+    // 忽略数据库关键字：ORDER BY, LIMIT, DESC, ASC
+    if (["orderBy", "orderByDesc", "limit"].includes(key)) {
+      continue;
+    }
+    whereClauses.push(`${key} = ?`);
+    params.push(value);
+  }
+  // 其他条件参数：比如ORDER BY, LIMIT，desc/asc等
+  const orderByStr = conditions.orderBy
+    ? `ORDER BY ${conditions.orderBy} ${
+        conditions.orderByDesc ? "DESC" : "ASC"
+      }`
+    : "";
+
+  const limitStr = conditions.limit ? `LIMIT ${conditions.limit}` : "";
+
+  const whereStr =
+    whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+
+  // 构建完整的SQL查询语句并执行
+
+  const sql = `SELECT * FROM ${tableName} ${whereStr} ${orderByStr} ${limitStr}`;
+
+  db.all(sql, params, (err, rows) => {
+    if (err) {
+      console.log(err, '2')
+      upsertData({ db, tableName, data: conditions, callback: () => {
+        return callback(null, []);
+      } })
+      return;
+    }
+    callback(null, rows);
+  });
+}
+
 export function queryByConditions({ db, tableName, conditions, callback }) {
   db.serialize(async () => {
     // 判断是否有where语句
@@ -28,47 +68,17 @@ export function queryByConditions({ db, tableName, conditions, callback }) {
       const sql = `SELECT * FROM ${tableName} WHERE ${conditions.whereStr}`;
       db.all(sql, (err, rows) => {
         if (err) {
-          console.log(colors.red(err), "ceshushuju");
-          return callback(null, []);
+          console.log(err, '1')
+          upsertData({ db, tableName, data: conditions, callback: () => {
+            return callback(null, []);
+          } })
         }
         callback(null, rows);
       });
       return;
     }
     // 构建WHERE子句和参数
-    const whereClauses = [];
-    const params = [];
-    for (const [key, value] of Object.entries(conditions)) {
-      // 忽略数据库关键字：ORDER BY, LIMIT, DESC, ASC
-      if (["orderBy", "orderByDesc", "limit"].includes(key)) {
-        continue;
-      }
-      whereClauses.push(`${key} = ?`);
-      params.push(value);
-    }
-    // 其他条件参数：比如ORDER BY, LIMIT，desc/asc等
-    const orderByStr = conditions.orderBy
-      ? `ORDER BY ${conditions.orderBy} ${
-          conditions.orderByDesc ? "DESC" : "ASC"
-        }`
-      : "";
-
-    const limitStr = conditions.limit ? `LIMIT ${conditions.limit}` : "";
-
-    const whereStr =
-      whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
-
-    // 构建完整的SQL查询语句并执行
-
-    const sql = `SELECT * FROM ${tableName} ${whereStr} ${orderByStr} ${limitStr}`;
-
-    db.all(sql, params, (err, rows) => {
-      if (err) {
-        console.log(colors.red(err), "ceshushuju");
-        return callback(null, []);
-      }
-      callback(null, rows);
-    });
+    queryByConditions1({ db, tableName, conditions, callback })
   });
 }
 

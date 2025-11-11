@@ -11,8 +11,8 @@
     </el-form-item>
     <el-form-item label="请求方式" class="mode-wrapper">
       <el-radio-group v-model="method" size="small">
-        <el-radio label="get">get</el-radio>
-        <el-radio label="post">post</el-radio>
+        <el-radio value="get">get</el-radio>
+        <el-radio value="post">post</el-radio>
       </el-radio-group>
     </el-form-item>
     <el-form-item label="选项参数" class="mode-wrapper">

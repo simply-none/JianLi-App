@@ -6,8 +6,8 @@
   <div>
     <div>接口路径：</div>
     <div>请求方式：<el-radio-group v-model="method" size="small">
-      <el-radio label="get">get</el-radio>
-      <el-radio label="post">post</el-radio>
+      <el-radio value="get">get</el-radio>
+      <el-radio value="post">post</el-radio>
     </el-radio-group></div>
     <div>请求头：<el-input spellcheck="false" v-model="header" /></div>
     <div>请求体：<el-input spellcheck="false" v-model="body" /></div>

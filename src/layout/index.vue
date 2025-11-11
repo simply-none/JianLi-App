@@ -42,6 +42,12 @@ const title = ref(route.meta?.title || '占位');
 const { activeRouteName } = storeToRefs(useRuntimeVariables())
 const { updateActiveRouteName } = useRuntimeVariables()
 
+router.beforeEach((to, from, next) => {
+  activeIndex.value = to.name || 'setting';
+  console.log('activeIndex', activeIndex.value);
+  next()
+})
+
 const activeIndex = ref<RouteRecordNameGeneric>(route.name || 'setting');
 
 watch(activeRouteName, (newVal: string) => {

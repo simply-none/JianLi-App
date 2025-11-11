@@ -1,6 +1,6 @@
 <script setup lang="ts">
 
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, onMounted } from 'vue'
 import { VueFlow, Position, Handle, useVueFlow, MarkerType } from '@vue-flow/core'
 import type { NodeMouseEvent, EdgeMouseEvent, Connection, EdgeUpdateEvent, GraphNode, GraphEdge } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
@@ -14,10 +14,11 @@ import Controls from './Controls.vue'
 import { presets, colors } from './preset.ts'
 import { useLayout } from './useLayout.ts'
 
-const emit = defineEmits(['click'])
+const emit = defineEmits(['click', 'pane-click'])
 
-const { updateEdge, addEdges, addNodes, getEdges, getNodes, fitView } = useVueFlow()
+const { updateEdge, addEdges, addNodes, removeNodes, getEdges, getNodes, fitView, fromObject } = useVueFlow()
 const { graph, layout } = useLayout()
+const currentFlow = ref<any>({})
 
 // these are our nodes
 const nodes = ref<any>([
@@ -28,36 +29,7 @@ const nodes = ref<any>([
     position: { x: 250, y: 5 },
     // all nodes can have a data object containing any data you want to pass to the node
     // a label can property can be used for default nodes
-    data: { label: 'Node 1' },
-  },
-
-  // default node, you can omit `type: 'default'` as it's the fallback type
-  {
-    id: '2',
-    type: 'special',
-    position: { x: 100, y: 100 },
-    data: { label: 'Node 2' },
-  },
-
-  // An output node, specified by using `type: 'output'`
-  {
-    id: '3',
-    type: 'special',
-    position: { x: 400, y: 200 },
-    data: { label: 'Node 3' },
-  },
-
-  // this is a custom node
-  // we set it by using a custom type name we choose, in this example `special`
-  // the name can be freely chosen, there are no restrictions as long as it's a string
-  {
-    id: '4',
-    type: 'special', // <-- this is the custom node type name
-    position: { x: 400, y: 300 },
-    data: {
-      label: 'Node 4',
-      hello: 'world',
-    },
+    data: { id: '操作名称' },
   },
 ])
 
@@ -65,47 +37,47 @@ const nodes = ref<any>([
 const edges = ref([
   // default bezier edge
   // consists of an edge id, source node id and target node id
-  {
-    id: 'e1->2',
-    source: '1',
-    sourceHandle: 'right',
-    targetHandle: 'left',
-    type: 'step',
-    target: '2',
-    updatable: true,
-    style: {
-      stroke: presets.ayame,
-    },
-  },
+  // {
+  //   id: 'e1->2',
+  //   source: '1',
+  //   sourceHandle: 'right',
+  //   targetHandle: 'left',
+  //   type: 'step',
+  //   target: '2',
+  //   updatable: true,
+  //   style: {
+  //     stroke: presets.ayame,
+  //   },
+  // },
 
-  // set `animated: true` to create an animated edge path
-  {
-    id: 'e2->3',
-    source: '2',
-    target: '3',
-    sourceHandle: 'right',
-    targetHandle: 'left',
-    type: 'step',
-    animated: true,
-    updatable: true,
-  },
+  // // set `animated: true` to create an animated edge path
+  // {
+  //   id: 'e2->3',
+  //   source: '2',
+  //   target: '3',
+  //   sourceHandle: 'right',
+  //   targetHandle: 'left',
+  //   type: 'step',
+  //   animated: true,
+  //   updatable: true,
+  // },
 
-  // a custom edge, specified by using a custom type name
-  // we choose `type: 'special'` for this example
-  {
-    id: 'e3->4',
-    source: '3',
-    target: '4',
-    // 边的连线，对应源头和目标节点的id
-    sourceHandle: 'right',
-    targetHandle: 'left',
-    type: 'step',
+  // // a custom edge, specified by using a custom type name
+  // // we choose `type: 'special'` for this example
+  // {
+  //   id: 'e3->4',
+  //   source: '3',
+  //   target: '4',
+  //   // 边的连线，对应源头和目标节点的id
+  //   sourceHandle: 'right',
+  //   targetHandle: 'left',
+  //   type: 'step',
 
-    // all edges can have a data object containing any data you want to pass to the edge
-    data: {
-      hello: 'world',
-    }
-  },
+  //   // all edges can have a data object containing any data you want to pass to the edge
+  //   data: {
+  //     hello: 'world',
+  //   }
+  // },
 ])
 
 
@@ -146,7 +118,8 @@ const addNode = ({ position = { x: 0, y: 0 }, parentId }: ObjectType) => {
     type: 'special',
     position: newPosition,
     data: {
-      label: `Node ${nodes.value.length + 1}`,
+      id: `操作名称${getNodes.value.length + 1}`,
+      parentId,
     },
   }
   addNodes(obj)
@@ -165,12 +138,24 @@ const addNode = ({ position = { x: 0, y: 0 }, parentId }: ObjectType) => {
 
 }
 
+// 移除节点
+const removeNode = ({ id }: ObjectType) => {
+  removeNodes([id], true, true)
+}
+
+
 
 // 连接事件
 const onConnect = (...args: Connection[]) => {
-  console.log('connect', ...args)
+  console.log('connect', args)
   // edges.value.push(args)
-  addEdges(args)
+  addEdges({
+    id: `e${args[0].source}->${args[0].target}`,
+    animated: true,
+    type: 'step',
+    markerEnd: MarkerType.ArrowClosed,
+    ...args[0],
+  })
 }
 
 // 开始更新事件
@@ -190,6 +175,22 @@ const onEdgeUpdate = ({ edge, connection }: EdgeUpdateEvent) => {
   updateEdge(edge, connection)
 }
 
+// 面板点击事件
+const onPaneClick = (event: MouseEvent) => {
+  console.log('pane clicked', event)
+  // 关闭右侧面板
+  emit('pane-click', event)
+}
+
+// 面板右键点击事件
+const onPaneContextMenu = (event: MouseEvent) => {
+  console.log('pane context menu clicked', event)
+  // 保存数据，
+  
+}
+
+
+
 async function layoutGraph(direction: string = 'LR') {
   console.log(getNodes.value, 'getNodes.value')
   nodes.value = layout(getNodes.value || nodes.value, edges.value, direction)
@@ -198,6 +199,37 @@ async function layoutGraph(direction: string = 'LR') {
     fitView()
   })
 }
+
+const updateFlow = (flow: ObjectType) => {
+  currentFlow.value = flow
+}
+
+const updateNodes = (nodes: ObjectType[]) => {
+  console.log(nodes, 'nodes in updateNodes')
+}
+
+onMounted(() => {
+  window.ipcRenderer.handlePromise('query-data', {
+    tableName: 'flow',
+    conditions: {
+      limit: 1,
+      orderBy: 'id',
+      orderByDesc: true
+    }
+  }).then(result => {
+    if (result.success) {
+      console.log(result.data, 'result.data')
+      if (Array.isArray(result.data) && result.data.length > 0) {
+        currentFlow.value = result.data[0]
+
+        fromObject(JSON.parse(result.data[0].data))
+      }
+      // fromObject(JSON.parse(result.data.data))
+    } else {
+      console.log('查询失败')
+    }
+  })
+})
 </script>
 
 <template>
@@ -205,18 +237,23 @@ async function layoutGraph(direction: string = 'LR') {
     <VueFlow 
       :nodes="nodes" 
       :edges="edges" 
+      :max-zoom="10"
+      :min-zoom="0.8"
+      @update:nodes="updateNodes"
+      @pane-click="onPaneClick"
+      @pane-context-menu="onPaneContextMenu"
       @node-click="onNodeClick" 
       @edge-click="onEdgeClick"
       @edge-update="onEdgeUpdate" 
       @connect="onConnect" 
       @edge-update-start="onEdgeUpdateStart"
       @edge-update-end="onEdgeUpdateEnd">
-      <Controls @layoutGraph="layoutGraph" />
+      <Controls @layoutGraph="layoutGraph" @update="updateFlow" :currentFlow="currentFlow" />
       <Background />
       <!-- bind your custom node type to a component by using slots, slot names are always `node-<type>` -->
       <template #node-special="specialNodeProps">
         <SpecialNode :position="specialNodeProps.position" :data="specialNodeProps.data" :id="specialNodeProps.id"
-          @add="addNode" />
+          @add="addNode" @remove="removeNode" />
       </template>
 
       <!-- bind your custom edge type to a component by using slots, slot names are always `edge-<type>` -->

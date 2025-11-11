@@ -1,27 +1,23 @@
 <template>
-  <el-form-item label="公有参数" class="mode-wrapper">
-    <!-- 是否打开浏览器: 使用el-switch -->
-    <el-form-item label="是否打开浏览器" class="mode-wrapper">
-      <el-switch v-model="commonParams.headless" active-value="true" inactive-value="false" active-text="打开" inactive-text="关闭" />
-    </el-form-item>
-    <!-- 操作延迟 -->
-    <el-form-item label="操作延迟" class="mode-wrapper">
-      <el-input v-model="commonParams.slowMo" type="number" placeholder="请输入操作延迟（毫秒）" />
-    </el-form-item>
-    <!-- 超时时间 -->
-    <el-form-item label="超时时间" class="mode-wrapper">
-      <el-input v-model="commonParams.timeout" type="number" placeholder="请输入超时时间（毫秒）" />
-    </el-form-item>
-    <!-- 浏览器执行路径 -->
-    <el-form-item label="浏览器执行路径" class="mode-wrapper">
-      <el-input spellcheck="false" v-model="commonParams.executablePath" placeholder="请选择" style="width: 100%" disabled :title="commonParams.executablePath">
-        <template #append>
-          <el-button @click="selectExecutablePath">
-            选择路径
-          </el-button>
-        </template>
-      </el-input>
-    </el-form-item>
+  <!-- 选择步骤 -->
+  <el-form-item v-if="stepSelectorList.length > 0" label="流程名称" class="mode-wrapper">
+    <el-select v-model="currentFlow" placeholder="请选择步骤" value-key="id" @change="currentFlowChange">
+      <el-option v-for="item in stepSelectorList"  :key="item.id" :label="item.name" :value="item" />
+    </el-select>
+  </el-form-item>
+  <div @click="toFlowManage" v-else>
+    请到流程管理中添加流程步骤，再进行测试。
+  </div>
+  <el-form-item label="步骤" class="mode-wrapper" v-for="(value, index) in nodes">
+    <template #label>
+      {{ '步骤' + (index + 1) + ': ' }}
+    </template>
+    <el-tooltip effect="light">
+      <template #content>
+        <div style="width: 200px;" v-for="(item, key, index) in value" :key="index">{{key}}: {{ item }}</div>
+      </template>
+      {{ (value.data ? value.data.id : '') }}
+    </el-tooltip>
   </el-form-item>
 </template>
 
@@ -29,6 +25,10 @@
 import { h, ref, reactive, watch, computed, toRaw, onMounted, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
 import { send, sendSync } from '@/utils/common';
+import { TreeLinkedListSorter } from "@/utils/treeTrans"
+import { useRouter } from 'vue-router';
+
+const router = useRouter();
 
 // ------接口测试 start------
 const url = ref('');
@@ -37,65 +37,11 @@ const header = ref<ObjectType>([{ key: '', value: '' }]);
 const params = ref<ObjectType>([{ key: '', value: '' }]);
 const body = ref('');
 const result = ref('');
-const tabActiveName = ref('params');
-const activeName = ref('original');
+const currentFlow = ref();
+const nodes = ref<ObjectType[]>([]);
 
 // 步骤选择器列表
-const stepSelectorList = ref<ObjectType>([
-  {
-    label: '打开网址',
-    value: 'openUrl',
-    params: [
-      {
-        label: '网址',
-        value: 'url',
-        type: 'input',
-        placeholder: '请输入网址',
-      },
-    ],
-  },
-  // 获取选择器
-  {
-    label: '获取选择器',
-    value: 'getSelector',
-    params: [
-      {
-        label: '选择器',
-        value: 'selector',
-        type: 'input',
-        placeholder: '请输入选择器',
-      },
-    ],
-  },
-  // 选择器操作
-  {
-    label: '选择器操作',
-    value: 'selectorAction',
-    params: [
-      {
-        label: '操作',
-        value: 'action',
-        type: 'select',
-        placeholder: '请选择操作',
-        options: [
-          {
-            label: '点击',
-            value: 'click',
-          },
-          {
-            label: '输入',
-            value: 'input',
-          },
-          // 加载等待
-          {
-            label: '加载等待',
-            value: 'wait',
-          },
-        ],
-      },
-    ],
-  },
-]);
+const stepSelectorList = ref<ObjectType>([]);
 
 const commonParams = ref<ObjectType>({
   headless: 'false',
@@ -103,6 +49,19 @@ const commonParams = ref<ObjectType>({
   timeout: 300000,
   executablePath: '',
 });
+
+function currentFlowChange(val: ObjectType) {
+  console.log(val, 'val')
+  if (val && val.data) {
+    let n = (JSON.parse(val.data) || {}).nodes || [];
+    n = TreeLinkedListSorter.sortByHierarchy(n, 'data', null);
+    nodes.value = n.map((item: ObjectType) => {
+      return item.data
+    })
+
+    console.log(nodes, 'nodes')
+  }
+}
 
 function selectExecutablePath() {
   const res = sendSync('get-file-list', {
@@ -145,15 +104,34 @@ function sendRequestNightmare() {
   })
 }
 
-window.ipcRenderer.on("api-test", (event, arg) => {
-  console.warn(arg, 't');
-  result.value = JSON.stringify(arg, null, 2);
-});
+function toFlowManage() {
+  router.push({ name: 'flow' })
+}
 
-window.ipcRenderer.on("spider-test", (event, arg) => {
-  console.warn(arg, 't spider-test');
-  result.value = arg.mainContent;
-});
+
+window.ipcRenderer.handlePromise('query-data', {
+  tableName: 'flow',
+  conditions: {
+    orderBy: 'id',
+    orderByDesc: true
+  }
+}).then(result => {
+  if (result.success) {
+    console.log(result.data, 'result.data')
+    if (Array.isArray(result.data) && result.data.length > 0) {
+      stepSelectorList.value = result.data
+    }
+    // fromObject(JSON.parse(result.data.data))
+  } else {
+    console.log('查询失败')
+  }
+})
+
+defineExpose({
+  currentFlow,
+  nodes,
+})
+
 </script>
 
 <style scoped lang="scss">

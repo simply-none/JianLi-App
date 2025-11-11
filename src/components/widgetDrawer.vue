@@ -18,8 +18,8 @@
             背景优先级
           </template>
           <el-radio-group v-model="data.backgroundPriority">
-            <el-radio label="1">背景色优先</el-radio>
-            <el-radio label="2">背景图优先</el-radio>
+            <el-radio value="1">背景色优先</el-radio>
+            <el-radio value="2">背景图优先</el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item prop="backgroundColor">

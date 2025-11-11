@@ -20,9 +20,9 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['add'])
+const emit = defineEmits(['add', 'remove'])
 
-const actions = ['👎', '✋', '👍', '➕']
+const actions = ['👎', '✋', '👍', '➕', '➖']
 
 const { updateNodeData } = useVueFlow()
 
@@ -34,6 +34,13 @@ function add(id, { action }) {
     emit('add', {
       position: props.position,
       parentId: id,
+    })
+    return
+  }
+  if (action == '➖') {
+    emit('remove', {
+      position: props.position,
+      id: props.id,
     })
     return
   }
@@ -61,7 +68,7 @@ function add(id, { action }) {
   <div class="vue-flow__node-default special-node">
 
     <div>
-      {{ x }} {{ y }} {{ data.label }}
+      {{ data.id }} {{ data.handleType }}
     </div>
     <Handle id="right" type="source" :position="Position.Right" />
     <Handle id="bottom" type="source" :position="Position.Bottom" />
