@@ -55,200 +55,209 @@ export function initApiTest() {
    * 5. 监听网络请求：page.on('request', request => {}),page.on('response', response => {})
    */
   ipcMain.on("spider-test", async (e, obj: ObjectType) => {
-    let data: string[] = ['']
-    console.log(colors.bgMagenta(JSON.stringify(obj)));
-    const { steps, commonParams } = obj;
-    console.log(colors.bgCyan(JSON.stringify(steps)))
-    console.log(colors.bgCyan(JSON.stringify(commonParams)))
-    // 接口测试，发送接口请求
+    try {
+      let data: string[] = ['']
+      console.log(colors.bgMagenta(JSON.stringify(obj)));
+      const { steps, commonParams } = obj;
+      console.log(colors.bgCyan(JSON.stringify(steps)))
+      console.log(colors.bgCyan(JSON.stringify(commonParams)))
+      // 接口测试，发送接口请求
 
-    let browser: puppeteer.Browser;
-    // 使用当前打开的浏览器，需要通过快捷方式打开，同时快捷方式需要配置：
-    // edge: "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" --remote-debugging-port=10853    --user-data-dir="C:\Users\风起\AppData\Local\Microsoft\Edge\User Data"
-    // chorme: "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=10853
-
-    if (commonParams.useCurrentBrowser || !commonParams.executablePath) {
-      let browserCfg = await axios.get(commonParams.browserURL + '/json/version');
-      console.log(colors.bgMagenta(JSON.stringify(browserCfg.data)));
-
-      browser = await puppeteer.connect({
-        browserWSEndpoint: browserCfg.data.webSocketDebuggerUrl,
-      });
-    } else {
-      browser = await puppeteer.launch({
-        headless: commonParams.headless || false,
-        slowMo: commonParams.slowMo || 50,
-        timeout: commonParams.timeout || 300000,
-        executablePath: commonParams.executablePath,
-      });
-    }
-
-    let page: puppeteer.Page;
+      let browser: puppeteer.Browser;
+      // 使用当前打开的浏览器，需要通过快捷方式打开，同时快捷方式需要配置：
+      // edge: "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" --remote-debugging-port=10853    --user-data-dir="C:\Users\风起\AppData\Local\Microsoft\Edge\User Data"
+      // chorme: "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=10853
+      // 打开浏览器：chrome://inspect，在【Discover network targets】配置上述端口号`localhost:10853`，然后就可以通过puppeteer.connect连接了。同时确保Enable port forwarding选项为勾选状态。关闭浏览器后，需要重新打开。
+      // 杀死进程：netstat -ano | findstr 10853，然后>taskkill /pid 28220 -f
 
 
+      if (commonParams.useCurrentBrowser || !commonParams.executablePath) {
+        let browserCfg = await axios.get(commonParams.browserURL + '/json/version');
+        console.log(colors.bgMagenta(JSON.stringify(browserCfg.data)));
 
-    // 监听网络请求
-    // page.on('request', request => {
-    //   // console.log('Request:', request.url());
-    //   // win.webContents.send("spider-test:request", request.url());
-    // });
-    // // 监听网络响应
-    // page.on('response', async (response: puppeteer.HTTPResponse) => {
-    //   let headers = response.headers();
-    //   if (!headers['content-type']?.includes('application/json')) {
-    //     return;
-    //   }
+        browser = await puppeteer.connect({
+          browserWSEndpoint: browserCfg.data.webSocketDebuggerUrl,
+        });
+      } else {
+        browser = await puppeteer.launch({
+          headless: commonParams.headless || false,
+          slowMo: commonParams.slowMo || 50,
+          timeout: commonParams.timeout || 300000,
+          executablePath: commonParams.executablePath,
+        });
+      }
 
-    //   console.log('Response:', response.url(), colors.bgGreen(response.headers()['content-type'] || ''));
-    //   // 判断类型是否是json
-
-
-    //   let res = {
-    //     url: response.url(),
-    //     status: response.status(),
-    //     headers: headers,
-    //     body: await response.json(),
-    //   }
+      let page: puppeteer.Page;
 
 
-    //   // win.webContents.send("spider-test:response", JSON.stringify(res, null, 2));
-    //   // 异步写入文件
-    //   // try {
-    //   //   // 文件名取末尾20个字符作为文件名，如果不是数字则替换为下划线
-    //   //   let filename = response.url().substring(response.url().length - 20).replace(/[^\w]/g, '_');
-    //   //   fs.writeFileSync('./spider-test/' + filename + '.json', JSON.stringify(res, null, 2));
-    //   // } catch (error) {
-    //   //   console.error(colors.bgRed('写入文件失败：'), error);
-    //   // }
 
-    // });
+      // 监听网络请求
+      // page.on('request', request => {
+      //   // console.log('Request:', request.url());
+      //   // win.webContents.send("spider-test:request", request.url());
+      // });
+      // // 监听网络响应
+      // page.on('response', async (response: puppeteer.HTTPResponse) => {
+      //   let headers = response.headers();
+      //   if (!headers['content-type']?.includes('application/json')) {
+      //     return;
+      //   }
+
+      //   console.log('Response:', response.url(), colors.bgGreen(response.headers()['content-type'] || ''));
+      //   // 判断类型是否是json
 
 
-    // steps: 步骤
-    if (data.length > 0) {
-      for (let item of data) {
-        console.log(item)
-        if (Array.isArray(steps) && steps.length > 0) {
-          for (let stepa of steps) {
-            console.log(stepa)
-            let step = stepa.data || stepa;
+      //   let res = {
+      //     url: response.url(),
+      //     status: response.status(),
+      //     headers: headers,
+      //     body: await response.json(),
+      //   }
 
-            let handleType = step.handleType
-            // SWITCH CASE 语句
-            switch (handleType) {
-              case 'newPage':
-                console.log('newPage')
-                page = await browser.newPage();
-                await page.setViewport({ width: commonParams.width || 1080, height: commonParams.height || 1024 });
-                break;
-              case 'closePage':
-                await page.close();
-                break;
-              case 'close':
-                if (commonParams.useCurrentBrowser) {
-                  await browser.disconnect();
-                  await browser.newPage();
-                } else {
-                  await browser.close();
-                }
-                break;
-              case 'goto':
-                await page.goto(step.url);
-                if (data.length > 1) {
-                  await delay(3000)
-                }
-                break;
-              case 'locator':
-                await locatorStep(step, page, item);
-                break;
-              case 'request':
-                page.on('request', request => {
-                  console.log('Request:', request.url());
-                });
-                break;
-              case 'response':
-                page.on('response', response => {
-                  console.log('Response:', response.url());
-                });
-                break;
-              case 'wait':
-                await delay(step.waitTime || 1000);
-                break;
-              case 'evaluate':
-                await page.evaluate(selector => {
-                  eval(step.js)
-                }, step.selector);
-                break;
-              case 'getData':
-                let searchResults;
-                if (step.dataKey) {
-                  let nodes = await page.$$(step.dataKey);
-                  let nodeTexts = await Promise.all(nodes.map(async node => {
-                    return await node.evaluate(node => node.textContent)
-                  }));
-                  console.log(nodeTexts);
-                  // 存入便于循环
-                  data = nodeTexts;
-                  console.log(data, 'data')
-                  searchResults = await page.evaluate((nodeTexts) => {
-                    return {
-                      // 获取页面标题
-                      title: document.title,
-                      // 获取主要搜索结果区域
-                      mainContent: nodeTexts,
-                      // 获取当前URL
-                      url: window.location.href,
-                    };
-                  }, nodeTexts);
-                } else {
-                  searchResults = await page.evaluate(() => {
-                    return {
-                      // 获取页面标题
-                      title: document.title,
-                      // 获取主要搜索结果区域
-                      mainContent: document.body.innerHTML,
-                      // 获取当前URL
-                      url: window.location.href,
-                    };
+
+      //   // win.webContents.send("spider-test:response", JSON.stringify(res, null, 2));
+      //   // 异步写入文件
+      //   // try {
+      //   //   // 文件名取末尾20个字符作为文件名，如果不是数字则替换为下划线
+      //   //   let filename = response.url().substring(response.url().length - 20).replace(/[^\w]/g, '_');
+      //   //   fs.writeFileSync('./spider-test/' + filename + '.json', JSON.stringify(res, null, 2));
+      //   // } catch (error) {
+      //   //   console.error(colors.bgRed('写入文件失败：'), error);
+      //   // }
+
+      // });
+
+
+      // steps: 步骤
+      if (data.length > 0) {
+        for (let item of data) {
+          console.log(item)
+          if (Array.isArray(steps) && steps.length > 0) {
+            for (let stepa of steps) {
+              console.log(stepa)
+              let step = stepa.data || stepa;
+
+              let handleType = step.handleType
+              // SWITCH CASE 语句
+              switch (handleType) {
+                case 'newPage':
+                  console.log('newPage')
+                  page = await browser.newPage();
+                  await page.setViewport({ width: commonParams.width || 1080, height: commonParams.height || 1024 });
+                  break;
+                case 'closePage':
+                  await page.close();
+                  break;
+                case 'close':
+                  if (commonParams.useCurrentBrowser) {
+                    await browser.disconnect();
+                    await browser.newPage();
+                  } else {
+                    await browser.close();
+                  }
+                  break;
+                case 'goto':
+                  await page.goto(step.url);
+                  if (data.length > 1) {
+                    await delay(3000)
+                  }
+                  break;
+                case 'locator':
+                  await locatorStep(step, page, item);
+                  break;
+                case 'request':
+                  page.on('request', request => {
+                    console.log('Request:', request.url());
                   });
-                }
+                  break;
+                case 'response':
+                  page.on('response', response => {
+                    console.log('Response:', response.url());
+                  });
+                  break;
+                case 'wait':
+                  await delay(step.waitTime || 1000);
+                  break;
+                case 'evaluate':
+                  await page.evaluate(selector => {
+                    eval(step.js)
+                  }, step.selector);
+                  break;
+                case 'getData':
+                  let searchResults;
+                  if (step.dataKey) {
+                    let nodes = await page.$$(step.dataKey);
+                    let nodeTexts = await Promise.all(nodes.map(async node => {
+                      return await node.evaluate(node => node.textContent)
+                    }));
+                    console.log(nodeTexts);
+                    // 存入便于循环
+                    data = nodeTexts;
+                    console.log(data, 'data')
+                    searchResults = await page.evaluate((nodeTexts) => {
+                      return {
+                        // 获取页面标题
+                        title: document.title,
+                        // 获取主要搜索结果区域
+                        mainContent: nodeTexts,
+                        // 获取当前URL
+                        url: window.location.href,
+                      };
+                    }, nodeTexts);
+                  } else {
+                    searchResults = await page.evaluate(() => {
+                      return {
+                        // 获取页面标题
+                        title: document.title,
+                        // 获取主要搜索结果区域
+                        mainContent: document.body.innerHTML,
+                        // 获取当前URL
+                        url: window.location.href,
+                      };
+                    });
+                  }
 
-                win.webContents.send("spider-test:getData", searchResults);
-                break;
-              default:
-                console.log(colors.bgRed('未处理的操作类型：'), step.handleType);
-                break;
+                  win.webContents.send("spider-test:getData", searchResults);
+                  break;
+                default:
+                  console.log(colors.bgRed('未处理的操作类型：'), step.handleType);
+                  win.webContents.send("spider-test:getData", { error: '未处理的操作类型：' + step.handleType, step });
+                  break;
+              }
             }
           }
         }
       }
+
+
+      // // 截图和PDF生成
+      // await queryByConditions({
+      //   db: myDb.db,
+      //   tableName,
+      //   conditions: {
+      //     key: "fileCachePath",
+      //   },
+      //   callback: async (err, data) => {
+      //     if (err) {
+      //       console.log(err, "------err");
+      //     } else {
+      //       let path  =
+      //         data.length > 0 ? data[0].value : '';
+      //       path = path.replace(/\\/g, '/');
+
+      //       await page.screenshot({
+      //         path: `${path}/hn-${Date.now()}.png`
+      //       });
+      //       await page.pdf({
+      //         path: path + '/hn-' + Date.now() + '.pdf',
+      //       });
+      //     }
+      //   },
+      // });
+    } catch (error) {
+      console.log(error, 'spider-test error');
+      win.webContents.send("spider-test:getData", { error: error.message, stack: error.stack });
     }
-
-
-    // // 截图和PDF生成
-    // await queryByConditions({
-    //   db: myDb.db,
-    //   tableName,
-    //   conditions: {
-    //     key: "fileCachePath",
-    //   },
-    //   callback: async (err, data) => {
-    //     if (err) {
-    //       console.log(err, "------err");
-    //     } else {
-    //       let path  =
-    //         data.length > 0 ? data[0].value : '';
-    //       path = path.replace(/\\/g, '/');
-
-    //       await page.screenshot({
-    //         path: `${path}/hn-${Date.now()}.png`
-    //       });
-    //       await page.pdf({
-    //         path: path + '/hn-' + Date.now() + '.pdf',
-    //       });
-    //     }
-    //   },
-    // });
   });
 
   // system-info

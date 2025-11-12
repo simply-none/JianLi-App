@@ -43,9 +43,6 @@
   </el-form-item>
   <el-form-item label="返回结果" class="mode-wrapper">
     <el-tabs v-model="activeName" class="result-tabs">
-      <el-tab-pane label="原始数据" name="original">
-        <el-input spellcheck="false" type='textarea' :rows='20' v-model="result" />
-      </el-tab-pane>
       <el-tab-pane label="格式化数据" name="formatted">
         <div v-if="resultType == 'String'" v-html="result"></div>
         <div v-else-if="resultType == 'Array'">
@@ -58,6 +55,9 @@
             {{ key }}: {{ item }}
           </div>
         </div>
+      </el-tab-pane>
+      <el-tab-pane label="原始数据" name="original">
+        <el-input spellcheck="false" type='textarea' :rows='20' v-model="result" />
       </el-tab-pane>
     </el-tabs>
   </el-form-item>
@@ -81,7 +81,7 @@ const params = ref<ObjectType>([{ key: '', value: '' }]);
 const body = ref('');
 const result = ref('');
 const tabActiveName = ref('params');
-const activeName = ref('original');
+const activeName = ref('formatted');
 const stepSelectorRef = ref();
 
 function getType (value: string) {
@@ -160,6 +160,11 @@ function sendRequestNightmare() {
 
 window.ipcRenderer.on("spider-test:getData", (event, arg) => {
   console.warn(arg, 't');
+  activeName.value = 'formatted'
+  if (arg.error) {
+    result.value = arg
+    return ;
+  }
   result.value = arg.mainContent;
 });
 
