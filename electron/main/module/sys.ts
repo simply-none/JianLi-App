@@ -3,6 +3,9 @@ import colors from 'colors'
 import { getFonts2 } from 'font-list'
 import { exec } from "node:child_process";
 import path from 'path'
+import { Worker } from "worker_threads";
+import { defaultAppWorkerPath } from "../variables.ts";
+import { win } from "./mainWindow.ts";
 
 export async function initSys() {
   let fonts: ObjectType = await getFonts2()
@@ -21,26 +24,39 @@ export async function initSys() {
   });
 
   // 获取扩展对应的默认文件位置
-  ipcMain.handle("get-default-file-path", async (event, { ext }: ObjectType) => {
+  let defaultAppWorker;
+  ipcMain.on("get-default-file-path", async (event, { ext }: ObjectType) => {
     return new Promise((resolve) => {
-      // 改进的注册表查询命令（兼容Win10/Win11）
-      const cmd = `reg query "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\FileExts\\${ext}\\UserChoiceLatest\\ProgId" /v ProgId`
-      exec(cmd, (err, stdout) => {
-        console.log(err, 'err')
-        if (err) return resolve(null)
 
-        const progId = stdout.match(/ProgId\s+REG_SZ\s+(.+)/)?.[1]
-        console.log(colors.bgBlack(progId), 'progId')
-        if (!progId) return resolve(null)
+      if (defaultAppWorker) {
+        defaultAppWorker.postMessage({ type: 'start', ext });
+        return;
+      }
 
-        // 二次查询获取执行命令
-        exec(`reg query "HKEY_CLASSES_ROOT\\${progId}\\shell\\open\\command"`, (err, cmdStdout) => {
-          console.log(cmdStdout, 'cmdStdout')
-          const exePath = extractAppPath(cmdStdout)
-          console.log(colors.bgBlue(exePath), 'exePath')
-          resolve(exePath ? path.normalize(exePath.replace(/"/g, '')) : null)
-        })
-      })
+      defaultAppWorker = new Worker(defaultAppWorkerPath, {
+        workerData: { config: {
+          ext,
+        } }
+      });
+  
+      // 发送消息给Worker
+      defaultAppWorker.postMessage({ type: 'start', ext });
+  
+      // 处理Worker消息
+      defaultAppWorker.on('message', (data) => {
+        win.webContents.send('get-default-file-path', data)
+      });
+  
+      defaultAppWorker.on('error', (error) => {
+        console.error('Worker error:', error);
+      });
+  
+      defaultAppWorker.on('exit', (code) => {
+        if (code !== 0) {
+          console.log('Worker stopped with exit code:', code);
+        }
+      });
+      
     })
   });
 
@@ -134,14 +150,4 @@ $result | Where-Object { $_.Name -and -not $_.IsSystemComponent } | ConvertTo-Js
 
 }
 
-function extractAppPath(registryString) {
-  // 匹配双引号内的完整路径
-  const pathMatch = registryString.match(/"([^"]+\.exe)"/i);
-  if (pathMatch && pathMatch[1]) {
-    return pathMatch[1].replace(/\\/g, '/'); // 统一路径分隔符
-  }
 
-  // 备用匹配：非贪婪匹配直到.exe
-  const fallbackMatch = registryString.match(/([a-z]:[^"]+?\.exe)/i);
-  return fallbackMatch ? fallbackMatch[1] : null;
-}

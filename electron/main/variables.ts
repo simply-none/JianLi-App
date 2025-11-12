@@ -40,6 +40,7 @@ export const preload = path.join(__dirname, "../preload/index.mjs");
 
 // worker.js文件路径：将其放在public目录下
 export const systemInfoWorkerPath = path.join(appRoot, VITE_DEV_SERVER_URL ? "./public/worker/systemInfo.cjs" : "./dist/worker/systemInfo.cjs");
+export const defaultAppWorkerPath = path.join(appRoot, VITE_DEV_SERVER_URL ? "./public/worker/defaultApp.cjs" : "./dist/worker/defaultApp.cjs");
 
 // 扫描进程worker
 export const scanWorkerPath = path.join(vitePublic, "worker.mjs");

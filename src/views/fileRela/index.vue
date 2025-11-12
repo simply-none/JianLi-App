@@ -325,10 +325,9 @@ function changeCopyTypeSuffix(val: string) {
 let errFlag = ref(false);
 function copyDir() {
   const pathArr = copyOrigin.value.split(/\/+|\\+/);
-  console.log(pathArr, 'pathArr');
   const copyArgs = {
     source: copyOrigin.value,
-    target: fileCachePathCc.value + '/' +
+    target: (copyTarget.value ||fileCachePathCc.value) + '/' +
       pathArr[pathArr.length - 1],
     ignore: toRaw(copyExcludeList.value),
     include: toRaw(copyIncludeList.value),

@@ -5,6 +5,13 @@
         <div class="setting-title">默认应用</div>
       </template>
     </el-form-item>
+    <el-form-item label="默认应用"  class="mode-wrapper">
+      <div v-for="(item, ext) in defaultAppPaths" :key="ext">
+        <el-form-item :label="ext" :key="ext" class="mode-wrapper">
+          {{ item.path }}
+        </el-form-item>
+      </div>
+    </el-form-item>
   </el-form>
 </template>
 
@@ -38,17 +45,19 @@ const commonExts = [
 const defaultAppPaths: Record<string, ObjectType> = reactive({})
 
 function getDefaultFilePath (ext: string) {
-  window.ipcRenderer.handlePromise('get-default-file-path', {ext}).then(res => {
-    console.log(res, `默认应用${ext}应用路径`)
-    if (Object.prototype.toString.call(res) === '[object String]' && res !== '') {
+  window.ipcRenderer.send('get-default-file-path', {ext})
+}
+
+window.ipcRenderer.on('get-default-file-path', (event, { ext, path }) => {
+  console.log(path, `默认应用${ext}应用路径`)
+    if (Object.prototype.toString.call(path) === '[object String]' && path !== '') {
       defaultAppPaths[ext] = {
         ext,
-        path: res
+        path: path
       }
       emit('updateDefaultAppPaths', defaultAppPaths)
     }
-  })
-}
+})
 
 // 获取所有安装的应用列表
 window.ipcRenderer.handlePromise('get-installed-apps', {}).then(res => {
