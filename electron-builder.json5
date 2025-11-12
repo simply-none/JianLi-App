@@ -11,6 +11,7 @@
     "dist",
     "dist-electron"
   ],
+  "afterPack": "build/afterPack.cjs",
   "mac": {
     "target": [
       "dmg"

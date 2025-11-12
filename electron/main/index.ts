@@ -20,6 +20,7 @@ registerJlocalProtocolBefore()
 
 
 app.setName(appName);
+app.commandLine.appendSwitch("lang", "zh-CN");
 
 crashReporter.start({ submitURL: "", uploadToServer: false });
 
