@@ -1,4 +1,24 @@
 变更日志
+## [1.0.0-rc.9](https://github.com/simply-none/JianLi-App/compare/v1.0.0-rc.8...v1.0.0-rc.9) (2025-11-12)
+
+
+### ♻️ Code Refactoring | 代码重构
+
+* 控制台警告清除 ([d855011](https://github.com/simply-none/JianLi-App/commit/d855011f9ec0072fa027fc79abacafbe8d92259c))
+* 内容优化，自动脚本流程构想加上流程图设计 ([46a5c56](https://github.com/simply-none/JianLi-App/commit/46a5c564f664781dd1f54b39a1b0f302c8b0b899))
+
+
+### ✨ Features | 新功能
+
+* 部分细节优化，解决进程资源占用导致的页面卡顿问题 ([9542401](https://github.com/simply-none/JianLi-App/commit/954240124a8d1a72812217730869d2f455ef43ad))
+* 加入流程编排器功能 ([9e22ccf](https://github.com/simply-none/JianLi-App/commit/9e22ccfddf45faf0a0778faa998c238abb332d20))
+* 输入组件拼写检查功能关闭 ([0d057b1](https://github.com/simply-none/JianLi-App/commit/0d057b1aeb68d10dc39e94b6e63aa79be097020c))
+* 新增获取系统信息功能 ([dd09ccd](https://github.com/simply-none/JianLi-App/commit/dd09ccdd87b69b2e4bcc9e27f7654d867ff912c7))
+* 新增自动化脚本，让浏览器任务自动化 ([0c173cc](https://github.com/simply-none/JianLi-App/commit/0c173cc09d1f891c352102a5888f81be06f02dfb))
+* 修改字体 ([8791798](https://github.com/simply-none/JianLi-App/commit/87917985574d0495c9b5b9f001c38d82c6757e59))
+* 增加简易流程功能 ([7cfe978](https://github.com/simply-none/JianLi-App/commit/7cfe9785c3c7384906d5da0e8c45ab16f938e872))
+* 字体同步到小窗口 ([06c1c3b](https://github.com/simply-none/JianLi-App/commit/06c1c3bd653f9bd831c4924cae0b8cbab25d6d39))
+
 ## [1.0.0-rc.8](https://github.com/simply-none/JianLi-App/compare/v1.0.0-rc.7...v1.0.0-rc.8) (2025-10-15)
 
 
