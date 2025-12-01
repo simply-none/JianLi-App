@@ -37,7 +37,7 @@
     "@originjs/vite-plugin-commonjs": "^1.0.3",
     "@umoteam/editor": "^8.0.0",
     "@umoteam/viewer": "^0.1.8",
-    "@vitejs/plugin-vue": "^5.0.4",
+    "@vitejs/plugin-vue": "^6.0.2",
     "@vitejs/plugin-vue-jsx": "^5.1.1",
     "@vue/devtools": "^7.7.2",
     "auto-launch": "^5.0.6",
