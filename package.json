@@ -39,7 +39,7 @@
     "@umoteam/viewer": "^0.1.8",
     "@vitejs/plugin-vue": "^5.0.4",
     "@vitejs/plugin-vue-jsx": "^5.1.1",
-    "@vue/devtools": "^7.7.2",
+    "@vue/devtools": "^8.0.5",
     "auto-launch": "^5.0.6",
     "axios": "^1.8.1",
     "clipboard-event": "^1.6.0",
