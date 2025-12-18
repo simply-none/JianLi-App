@@ -1,10 +1,18 @@
-const { ipcRenderer, contextBridge } = require('electron')
+const { ipcRenderer, contextBridge, clipboard } = require('electron')
 
 // --------- Expose some API to the Renderer process ---------
 contextBridge.exposeInMainWorld('ipcRenderer', {
   // 新增handle方法
   handlePromise(onName: string, args: ObjectType) {
     return ipcRenderer.invoke(onName, args)
+  },
+  clipboard: {
+    readText() {
+      return clipboard.readText()
+    },
+    writeText(text: string) {
+      clipboard.writeText(text)
+    },
   },
   on(...args: Parameters<typeof ipcRenderer.on>) {
     const [channel, listener] = args

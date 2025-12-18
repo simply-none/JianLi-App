@@ -70,7 +70,7 @@ function clearClipboard() {
 
 // 复制到剪切板
 function copyToClipboard(text) {
-  window.electron.clipboard.writeText(text)
+  window.ipcRenderer.clipboard.writeText(text)
   ElMessage.success('已复制到剪切板')
 }
 

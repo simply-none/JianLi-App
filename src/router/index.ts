@@ -137,6 +137,14 @@ export const layoutRouters: RouteRecordRaw[] = [
       title: "流程图",
     }
   },
+  {
+    path: "/小工具",
+    name: "function",
+    component: () => import("@/views/function/index.vue"),
+    meta: {
+      title: "小工具",
+    }
+  },
   // 关于
   {
     path: "/about",

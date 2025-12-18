@@ -65,7 +65,7 @@
           </div>
           <div class="answer">
             <div class="label">答案：</div>
-            <el-input spellcheck="false" type="textarea" rows="3" v-model="item.answerValid" placeholder="请输入答案"></el-input>
+            <el-input spellcheck="false" type="textarea" :rows="3" v-model="item.answerValid" placeholder="请输入答案"></el-input>
           </div>
         </template>
 
@@ -101,7 +101,7 @@
           </div>
           <div class="answer">
             <div class="label">答案：</div>
-            <el-input spellcheck="false" type="textarea" rows="3" v-model="item.answer" placeholder="请输入答案"
+            <el-input spellcheck="false" type="textarea" :rows="3" v-model="item.answer" placeholder="请输入答案"
               :disabled="!item.isAdd"></el-input>
           </div>
         </div>
