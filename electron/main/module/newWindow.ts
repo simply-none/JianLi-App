@@ -23,25 +23,30 @@ function getScreenInfo() {
   screenHeight = primaryDisplay.size.height;
 }
 
-function createOtherWindow(arg: string, ops?: ObjectType) {
+export function createOtherWindow(arg: string, ops?: ObjectType, recreate = false) {
   getScreenInfo();
-  if (childWindow[arg]) {
-    childWindow[arg]?.show();
-    childWindow[arg]?.focus();
-    return;
+  if (childWindow[arg] && !recreate) {
+    try {
+      childWindow[arg]?.show();
+      childWindow[arg]?.focus();
+      getAllData(arg, true)
+      return;
+    } catch (e) {
+      createOtherWindow(arg, ops, true)
+    }
   }
   childWindow[arg] = new BrowserWindow({
     title: "second window",
     icon: appLogoIco,
     transparent: ops?.transparent || true,
-
+    center: ops?.center || false,
     resizable: ops?.resizable || false,
     frame: ops?.frame || false,
     fullscreenable: ops?.fullscreenable || false,
     width: ops?.width || 108,
     height: ops?.height || 81,
-    x: ops?.x || screenWidth - 120,
-    y: ops?.y || screenHeight - 219,
+    x: ops?.center ? null : ops?.x === 0 ? ops?.x : (ops?.x || screenWidth - 120),
+    y: ops?.center ? null : ops?.y === 0 ? ops?.y : (ops?.y || screenHeight - 219),
     webPreferences: {
       preload,
       devTools: true,
@@ -51,7 +56,11 @@ function createOtherWindow(arg: string, ops?: ObjectType) {
   });
 
   childWindow[arg]?.setAlwaysOnTop(true, "screen-saver");
-  childWindow[arg]?.setIgnoreMouseEvents(true, { forward: true });
+  if (!ops || !ops.mouseEvents) {
+    childWindow[arg]?.setIgnoreMouseEvents(true, { forward: true });
+  } else {
+    childWindow[arg]?.setIgnoreMouseEvents(false);
+  }
   childWindow[arg]?.show();
   childWindow[arg]?.focus();
 
@@ -68,6 +77,15 @@ function createOtherWindow(arg: string, ops?: ObjectType) {
   // 不在任务栏显示
   childWindow[arg]?.setSkipTaskbar(true);
 
+  childWindow[arg]?.on("close", (e) => {
+    e.preventDefault(); //先阻止一下默认行为，不然直接关了，提示框只会闪一下
+    hideOtherWindow(arg);
+  });
+
+  getAllData(arg)
+}
+
+function getAllData(arg, immediately = false) {
   queryByConditions({
     db: myDb.db,
     tableName: tableName,
@@ -80,21 +98,43 @@ function createOtherWindow(arg: string, ops?: ObjectType) {
       } else {
         res = objectArrayToObject(data);
       }
-      setTimeout(() => {
+      if (immediately) {
         childWindow[arg].webContents.send("sync-data-to-other-window", {
           ...res,
         });
-      }, 2000);
+      } else {
+        setTimeout(() => {
+          childWindow[arg].webContents.send("sync-data-to-other-window", {
+            ...res,
+          });
+        }, 2000);
+      }
     },
   });
-  
 }
 
-function closeOtherWindow(arg) {
+export function closeOtherWindow(arg) {
   if (childWindow) {
-    childWindow[arg]?.close();
-    childWindow[arg]?.destroy();
-    childWindow[arg] = null;
+    try {
+      childWindow[arg]?.close();
+      childWindow[arg]?.destroy();
+      childWindow[arg] = null;
+    } catch (e) {
+      // console.log(e, "closeOtherWindow")
+    }
+  }
+}
+
+export function hideOtherWindow(arg) {
+  if (childWindow) {
+    childWindow[arg]?.hide();
+  }
+}
+
+export function showOtherWindow(arg) {
+  if (childWindow) {
+    childWindow[arg]?.show();
+    childWindow[arg]?.focus();
   }
 }
 
@@ -111,9 +151,13 @@ export function initNewWindow() {
   ipcMain.on("close-new-window", (_, newWindowName) => {
     closeOtherWindow(newWindowName);
   });
+  // 隐藏新窗口
+  ipcMain.on("hide-new-window", (_, newWindowName) => {
+    hideOtherWindow(newWindowName);
+  });
 
   ipcMain.on("sync-data-to-other-window", (event, arg) => {
-    console.log(colors.bgGreen(arg), 'in sync-data-to-other-window');
+    // console.log(colors.bgGreen(arg), 'in sync-data-to-other-window');
 
     // 遍历window
     const allWindows = BrowserWindow.getAllWindows();

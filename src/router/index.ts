@@ -184,6 +184,11 @@ const routers: RouteRecordRaw[] = [
     component: () => import("@/views/pomodoroMiniWindow/index.vue"),
   },
   {
+    path: "/jobTipWindow",
+    name: "jobTipWindow",
+    component: () => import("@/views/jobTipWindow/index.vue"),
+  },
+  {
     path: "/miniNotebook",
     name: "miniNotebook",
     component: () => import("@/views/miniNotebook/index.vue"),

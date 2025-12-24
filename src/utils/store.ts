@@ -54,7 +54,7 @@ function assignDefaultValue<T>(
   const isArrayType = isArray(storeValue)
   if (isObjType) {
     const { obj: newData, isSame } = getCompositeObj(defaultValue, storeValue)
-    console.log(newData, isSame, 'newData isSame assignDefaultValue isObjType', defaultValue, storeValue);
+    console.log(key, newData, isSame, 'newData isSame assignDefaultValue isObjType', defaultValue, storeValue);
     map.value = newData || defaultValue;
     if (!isSame) {
       setStore(key, newData)

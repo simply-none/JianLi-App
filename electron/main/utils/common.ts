@@ -52,7 +52,17 @@ export function getObjectKeys(objArr: ObjectType[] | ObjectType) {
 export function objectArrayToObject(objArr: ObjectType[]) {
   const obj = {}
   objArr.forEach(item => {
-    obj[item.key] = JSON.parse(item.value)
+    try {
+      // 判断是否是字符串
+      if (typeof item.value === 'string') {
+        obj[item.key] = JSON.parse(item.value)
+      } else {
+        obj[item.key] = item.value
+      }
+    } catch (e) {
+      console.error(e, 'e', item.value)
+      obj[item.key] = item.value
+    }
   })
   return obj
 }

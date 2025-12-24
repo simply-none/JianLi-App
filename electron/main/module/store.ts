@@ -72,7 +72,7 @@ export function initStore() {
           console.log(err, "err");
           e.returnValue = null;
         } else {
-          console.log(colors.bgGreen(data), "data");
+          // console.log(colors.bgGreen(data), "data");
           e.returnValue = data.length > 0 ? JSON.parse(data[0].value) : null;
         }
       },
@@ -111,7 +111,7 @@ export function initStore() {
               key: key,
             },
             callback: (err, data) => {
-              console.log(colors.bgGreen(data), "data");
+              // console.log(colors.bgGreen(data), "data");
 
               if (err) {
                 console.log(err, "err");

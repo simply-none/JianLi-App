@@ -2,18 +2,30 @@ import { ipcMain } from "electron";
 import { CronJob } from "cron";
 import momemt from "moment";
 import { win, hideApp, focusAppToTop } from "./mainWindow.ts";
+import { createOtherWindow, closeOtherWindow, hideOtherWindow, showOtherWindow } from "./newWindow.ts";
+import { queryByConditions, upsertData } from "../utils/sql.ts";
+import { myDb } from "./sql.ts";
+import { tableName } from "./store.ts";
 
-let job;
+let job = {
+  // 工作/休息定时器
+  workOrRest: null,
+};
+// 停止job
+let sJob = {
+
+}
 
 export function createJob({
   win,
   time = 5 * 60 * 1000,
   onTick = () => {},
+  isTick = true,
   msgName = "tip-job",
+  type = 'workOrRest',
 }) {
-  if (job) {
-    job.stop();
-    job = null;
+  if (job[type]) {
+    stopJob(type);
   }
   let jobTime = time;
   if (jobTime < 5 * 60 * 60) jobTime = 5 * 60 * 60;
@@ -23,10 +35,11 @@ export function createJob({
   console.log(currentSecondTime, jobTime);
   const nextRunTime = momemt().add(jobTime, "milliseconds").toDate();
 
-  job = new CronJob(
+  job[type] = new CronJob(
     nextRunTime, // cronTime
     function () {
       onTick();
+      if (!isTick) return;
       win?.webContents.send(msgName, Date.now());
     }, // onTick
     null, // onComplete
@@ -35,9 +48,19 @@ export function createJob({
   );
 }
 
-export function stopJob() {
-  job.stop();
-  job = null;
+export function stopJob(type?: string) {
+  if (!type) {
+    // 清除所有的job
+    for (const key in job) {
+      if (Object.prototype.hasOwnProperty.call(job, key)) {
+        stopJob(key);
+      }
+    }
+  } else {
+    job[type]?.stop();
+    job[type] = null;
+    delete job[type];
+  }
 }
 
 export function initJob() {
@@ -80,6 +103,78 @@ export function initJob() {
       },
     });
   });
+
+  // 开启job
+  ipcMain.on("start-job", (e, { type, gap, auto }: { type: 'string', gap: number | string, auto: boolean }) => {
+    startJobFn({ type, gap, auto });
+  });
+
+  // 停止job
+  ipcMain.on("stop-job", (e, {type}: { type?: string }) => {
+    sJob[type] = Date.now()
+    stopJob(type);
+  });
+}
+
+export function startJobFn({ type, gap, auto }: { type: 'string', gap: number | string, auto: boolean }) {
+  if (!auto) {
+    sJob[type] = Date.now()
+  }
+  let sJobType = sJob[type]
+  let isNaN = Number.isNaN(Number(gap));
+    createJob({
+      win,
+      type,
+      msgName: "start-" + type,
+      time: isNaN ? 1000 * 60 * 60 : Number(gap),
+      isTick: false,
+      onTick: async () => {
+        if (sJobType != sJob[type]) {
+          return;
+        }
+        // 插入数据
+        await upsertData({
+          db: myDb.db,
+          tableName: tableName,
+          data: {
+            key: 'job-tip:' + type,
+            value: JSON.stringify({
+              type,
+              time: Date.now(),
+              gap: isNaN ? 1000 * 60 * 60 : Number(gap),
+              endTipTime: Date.now() + (isNaN ? 1000 * 60 * 60 : Number(gap)),
+            })
+          },
+          config: {
+            primaryKey: "key",
+          },
+          callback: async (err, result) => {
+            if (err) {
+              console.log(err, "err");
+            }
+          },
+        });
+        // 发送提醒
+        createOtherWindow("jobTipWindow", {
+          resizable: true,
+          frame: false,
+          width: 200,
+          height: 100,
+          center: true,
+          transparent: true,
+          mouseEvents: true,
+          x: 100,
+          y: 100,
+        })
+        win?.webContents.send("job-end-tip", {
+          type,
+          time: Date.now(),
+          gap: isNaN ? 1000 * 60 * 60 : Number(gap),
+        });
+        // 新一轮计时
+        startJobFn({ type, gap, auto: true });
+      },
+    });
 }
 
 export default {

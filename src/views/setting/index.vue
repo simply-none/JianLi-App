@@ -6,7 +6,7 @@
       }">
         <el-form-item>
           <template #label>
-            <div class="setting-title">基础数据</div>
+            <div class="setting-title">工作番茄钟</div>
           </template>
         </el-form-item>
         <el-form-item label="当前状态">
@@ -48,6 +48,10 @@
         <el-form-item label="">
           <el-button type="primary" @click="() => changeEffectFn()">立即生效</el-button>
         </el-form-item>
+
+        <!-- 分割线 -->
+        <el-divider></el-divider>
+        <Pomodoro />
 
         <!-- 分割线 -->
         <el-divider></el-divider>
@@ -158,6 +162,7 @@ import { storeToRefs } from 'pinia';
 import { timeUnit } from '@/utils/time';
 import confirmDialog from '@/utils/confirmDialog';
 import CacheSet from '@/views/setting/cacheSet.vue';
+import Pomodoro from '@/views/setting/pomodoro.vue';
 
 const router = useRouter();
 

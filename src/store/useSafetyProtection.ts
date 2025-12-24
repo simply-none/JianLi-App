@@ -41,10 +41,10 @@ export default defineStore("safety-protection", () => {
           answer: answer, 
         }
       });
-      console.log(JSON.stringify(newValue), 'newValue')
+      // console.log(JSON.stringify(newValue), 'newValue')
       pwdQuestionList.value = [...toRaw(pwdQuestionList.value), ...newValue];
-      console.log(JSON.stringify(pwdQuestionList.value));
-      console.log(toRaw(pwdQuestionList.value), 'toRaw(pwdQuestionList.value)')
+      // console.log(JSON.stringify(pwdQuestionList.value));
+      // console.log(toRaw(pwdQuestionList.value), 'toRaw(pwdQuestionList.value)')
       setStore("pwdQuestionList", pwdQuestionList);
     } catch (error) {
       ElMessage.error(error + '');
