@@ -1,4 +1,23 @@
 变更日志
+## [1.0.0-rc.10](https://github.com/simply-none/JianLi-App/compare/v1.0.0-rc.9...v1.0.0-rc.10) (2025-12-25)
+
+
+### ♻️ Code Refactoring | 代码重构
+
+* 删除中文以外的语言包 ([8438357](https://github.com/simply-none/JianLi-App/commit/84383578e458f21c0e85218f7661faf97beb5f53))
+
+
+### 🐛 Bug Fixes | Bug 修复
+
+* 剪切板复制不了的问题 ([0cfd345](https://github.com/simply-none/JianLi-App/commit/0cfd3451384b8f3afbff1cdfd4ce7a9ec8783e14))
+* 流程执行报错优化; ([4d53150](https://github.com/simply-none/JianLi-App/commit/4d53150665e2aa8dc63f4dc11c6858bf16bc95c2))
+
+
+### ✨ Features | 新功能
+
+* 任务提醒优化 ([dd3bec8](https://github.com/simply-none/JianLi-App/commit/dd3bec893686a5d0ade6743e038c08cbebb898b6))
+* 新增任务提醒功能，用于提醒各类事项 ([5868251](https://github.com/simply-none/JianLi-App/commit/58682513c2789c76f156d0836b9bac42f7a191c0))
+
 ## [1.0.0-rc.9](https://github.com/simply-none/JianLi-App/compare/v1.0.0-rc.8...v1.0.0-rc.9) (2025-11-12)
 
 
