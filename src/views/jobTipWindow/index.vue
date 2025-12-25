@@ -19,11 +19,12 @@
         </div>
 
         <div class="tip-name">{{ jobItem.label }}</div>
-        <div class="tip-next-time">{{ nextTime(jobItem.endTipTime) }}</div>
+        <div class="tip-next-time">{{ nextTime(jobItem.time) }}</div>
       </div>
     </div>
-    <div class="tip">
-      <!-- <pre>{{ JSON.stringify(sysData, null, 2) }}</pre> -->
+    <div class="tip-move">
+      <div class="tip-move-left" @mousemove="disableMouseClickThroughFn"></div>
+      <div class="tip-move-right" @mousemove="enableMouseClickThroughFn"></div>
     </div>
   </div>
 </template>
@@ -45,10 +46,6 @@ const getJobTips = () => {
   for (const key in sysData.value) {
     if (key.startsWith('job-tip:')) {
       let find = sysData.value['tipTypeOps'].find(i => i.value == sysData.value[key].type)
-      // 找到allTips中，是否有未完成的任务
-      let isUnFinish = allTips.value.some(i => i.type == sysData.value[key].type && !i.done)
-      console.log(isUnFinish, allTips.value, allTips.value.filter(i => i.type == sysData.value[key].type), 'isUnFinish')
-      if (!isUnFinish && allTips.value.length > 0) continue
       tips.push({
         ...sysData.value[key],
         icon: find?.icon,
@@ -81,14 +78,14 @@ const jobDone = (jobItem, index) => {
     duration: 2000,
   })
   // 查看alltips中，是否全部的都已经完成
-  let findAllDone = allTips.value.every(i => i.done)
+  let findAllDone = jobTips.value.length == 0
   if (findAllDone) {
     hideWindow()
   }
 }
 
 const nextTime = (time) => {
-  return moment(time).format('HH:mm')
+  return moment(time).format('HH:mm:ss')
 }
 
 window.ipcRenderer.on('sync-data-to-other-window', (event, arg) => {
@@ -115,6 +112,19 @@ window.ipcRenderer.on('sync-data-to-other-window', (event, arg) => {
 // 隐藏窗口
 const hideWindow = () => {
   window.ipcRenderer.send('hide-new-window', 'jobTipWindow')
+}
+
+// 鼠标移入移出
+const enableMouseClickThroughFn = () => {
+  // throttle(() => {
+  window.ipcRenderer.send('enable-mouse-click-through', 'jobTipWindow')
+  // }, 100)
+
+}
+const disableMouseClickThroughFn = () => {
+  // throttle(() => {
+  window.ipcRenderer.send('disable-mouse-click-through', 'jobTipWindow')
+  // }, 100)
 }
 
 onMounted(() => {
@@ -233,6 +243,31 @@ input {
   &-next-time {
     color: #8f8f8f;
     font-size: 0.8em;
+  }
+  &-move {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 20px;
+    display: flex;
+    flex-direction: row;
+    &-left {
+      flex: 1;
+      &:hover {
+        background: #ffbcbc;
+        -webkit-app-region: drag;
+        cursor: pointer;
+      }
+    }
+    &-right {
+      flex: 1;
+      &:hover {
+        background: #c6fcff;
+        cursor: pointer;
+      }
+    }
+    
   }
 
   .work,

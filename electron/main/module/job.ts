@@ -160,9 +160,10 @@ export function startJobFn({ type, gap, auto }: { type: 'string', gap: number | 
           frame: false,
           width: 200,
           height: 100,
-          center: true,
+          // center: true,
           transparent: true,
           mouseEvents: true,
+          fullscreenable: false,
           x: 100,
           y: 100,
         })

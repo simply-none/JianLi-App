@@ -43,8 +43,8 @@ export function createOtherWindow(arg: string, ops?: ObjectType, recreate = fals
     resizable: ops?.resizable || false,
     frame: ops?.frame || false,
     fullscreenable: ops?.fullscreenable || false,
-    width: ops?.width || 108,
-    height: ops?.height || 81,
+    width: ops?.fullscreenable ? null : ops?.width || 108,
+    height: ops?.fullscreenable ? null : ops?.height || 81,
     x: ops?.center ? null : ops?.x === 0 ? ops?.x : (ops?.x || screenWidth - 120),
     y: ops?.center ? null : ops?.y === 0 ? ops?.y : (ops?.y || screenHeight - 219),
     webPreferences: {
