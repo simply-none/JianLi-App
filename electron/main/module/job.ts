@@ -111,14 +111,44 @@ export function initJob() {
 
   // 停止job
   ipcMain.on("stop-job", (e, {type}: { type?: string }) => {
+    console.log(type, 'stop-job');
     sJob[type] = Date.now()
     stopJob(type);
   });
 }
 
-export function startJobFn({ type, gap, auto }: { type: 'string', gap: number | string, auto: boolean }) {
+export async function startJobFn({ type, gap, auto }: { type: 'string', gap: number | string, auto: boolean }) {
   if (!auto) {
     sJob[type] = Date.now()
+    let isNaN = Number.isNaN(Number(gap));
+    // 插入数据
+    await upsertData({
+      db: myDb.db,
+      tableName: tableName,
+      data: {
+        key: 'job-tip:' + type,
+        value: JSON.stringify({
+          type,
+          time: Date.now(),
+          gap: isNaN ? 1000 * 60 * 60 : Number(gap),
+          endTipTime: Date.now() + (isNaN ? 1000 * 60 * 60 : Number(gap)),
+        })
+      },
+      config: {
+        primaryKey: "key",
+      },
+      callback: async (err, result) => {
+        if (err) {
+          console.log(err, "err");
+        } else {
+          win?.webContents.send("job-start-tip", {
+            type,
+            time: Date.now(),
+            gap: isNaN ? 1000 * 60 * 60 : Number(gap),
+          });
+        }
+      },
+    });
   }
   let sJobType = sJob[type]
   let isNaN = Number.isNaN(Number(gap));
@@ -132,28 +162,7 @@ export function startJobFn({ type, gap, auto }: { type: 'string', gap: number | 
         if (sJobType != sJob[type]) {
           return;
         }
-        // 插入数据
-        await upsertData({
-          db: myDb.db,
-          tableName: tableName,
-          data: {
-            key: 'job-tip:' + type,
-            value: JSON.stringify({
-              type,
-              time: Date.now(),
-              gap: isNaN ? 1000 * 60 * 60 : Number(gap),
-              endTipTime: Date.now() + (isNaN ? 1000 * 60 * 60 : Number(gap)),
-            })
-          },
-          config: {
-            primaryKey: "key",
-          },
-          callback: async (err, result) => {
-            if (err) {
-              console.log(err, "err");
-            }
-          },
-        });
+        
         // 发送提醒
         createOtherWindow("jobTipWindow", {
           resizable: true,

@@ -5,6 +5,7 @@ import bigDateTime from '@/smallComponents/bigDateTime.vue'
 import currentStatus from '@/smallComponents/currentStatus.vue';
 import distanceToNextStatus from '@/smallComponents/distanceToNextStatus.vue';
 import poet from '@/smallComponents/poet.vue';
+import tips from '@/smallComponents/tips.vue'
 
 import { getStore, sendSync, setStore, send } from "../utils/common";
 import { initPiniaStatus, type defaultField } from "@/utils/store";
@@ -32,6 +33,11 @@ export default defineStore("small-components-ops", () => {
       name: 'poet',
       comp: poet,
       label: '古诗',
+    },
+    tips: {
+      name: 'tips',
+      comp: tips,
+      label: '事件提醒'
     }
   })
   const smallComponentsC = computed(() => smallComponents.value);
@@ -44,6 +50,7 @@ export default defineStore("small-components-ops", () => {
       { name: 'bigDateTime' },
     ],
     translucentPoemDisplay: [
+      { name: 'tips' },
       { name: 'poet' },
       { name: 'currentStatus' },
       { name: 'distanceToNextStatus' }, 

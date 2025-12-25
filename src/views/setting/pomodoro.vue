@@ -30,6 +30,14 @@
             </div>
           </template>
         </el-table-column>
+        <!-- 下一次提醒时间 -->
+        <el-table-column label="下一次提醒时间" width="180">
+          <template #default="scope">
+            <div style="display: flex; align-items: center">
+              {{ (nextTime[scope.row.type] || {}).nextTime || '--' }}
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="300">
           <template #default="scope">
             <!-- 编辑 -->
@@ -198,6 +206,7 @@ const tipAll = () => {
   })
 }
 const stopAllTip = () => {
+  nextTime.value = {}
   tipTypeCc.value.forEach(item => {
     send('stop-job', {
       type: item.type,
@@ -213,6 +222,7 @@ const tip = (item: ObjectType) => {
 }
 // 终止提醒
 const stopTip = (item: ObjectType) => {
+  nextTime.value[item.type] = {}
   send('stop-job', {
     type: item.type,
   })
@@ -270,6 +280,16 @@ const curUnit = (unit: number) => {
 const getType = (type: string) => {
   return tipTypeOpsCc.value.find(i => i.value == type)?.label
 }
+
+let nextTime = ref<ObjectType>({})
+window.ipcRenderer.on('job-start-tip', (event, arg) => {
+  console.log(arg, 'job-end-tip')
+  let nt = arg.time + arg.gap
+  nextTime.value[arg.type] = {
+    type: arg.type,
+    nextTime: new Date(nt).toLocaleString(),
+  }
+})
 
 window.ipcRenderer.on('job-end-tip', (event, arg) => {
   console.log(arg, 'job-end-tip')
