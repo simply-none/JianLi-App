@@ -14,7 +14,7 @@
         <div class="author">{{ showContent.name }}</div>
         <div class="content">
           <div>
-            {{ showContent.description }}
+            {{ showContent.description || showContent.long_desc || '' }}
           </div>
         </div>
       </div>

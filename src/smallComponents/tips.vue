@@ -15,9 +15,9 @@
           <div class="tip-type">{{ getType(tipItem.type) }}</div>
           <div class="tip-type" :title="'下一次提醒时间: ' + ((nextTime[tipItem.type] || {}).nextTime || '--')">{{ (nextTime[tipItem.type] || {}).nextTime || '--' }}</div>
           <div class="tip-handle">
-            <el-button size="small" plain color="#3883fa" dark @click="tip(tipItem)">提醒</el-button>
+            <el-button size="small" plain color="#3883fa" dark @click="() => tip(tipItem)">提醒</el-button>
             <!-- 终止提醒 -->
-            <el-button size="small" plain color="#c9b967" dark @click="stopTip(tipItem)">终止提醒</el-button>
+            <el-button size="small" plain color="#c9b967" dark @click="() => stopTip(tipItem)">终止提醒</el-button>
           </div>
         </div>
       </div>
@@ -41,8 +41,8 @@ import { ElMessage } from 'element-plus';
 import useTips from '@/store/useTips';
 import { sysNotify, appNotify } from "@/utils/notify";
 
-const { tipType, tipTypeC, tipTypeOps, tipTypeOpsC } = storeToRefs(useTips());
-const { setTipType, setTipTypeOps } = useTips();
+const { tipType, tipTypeC, tipTypeOps, tipTypeOpsC, nextTime } = storeToRefs(useTips());
+const { setTipType, setTipTypeOps, setNextTime } = useTips();
 
 const tipTypeCc = ref(tipTypeC.value)
 watch(() => tipTypeC.value, (newVal) => {
@@ -100,17 +100,9 @@ const tipAll = () => {
     })
   })
 }
-let nextTime = ref<ObjectType>({})
-window.ipcRenderer.on('job-start-tip', (event, arg) => {
-  console.log(arg, 'job-end-tip')
-  let nt = arg.time + arg.gap
-  nextTime.value[arg.type] = {
-    type: arg.type,
-    nextTime: new Date(nt).toLocaleString(),
-  }
-})
+
 const stopAllTip = () => {
-  nextTime.value = {}
+  setNextTime()
   tipTypeCc.value.forEach(item => {
     send('stop-job', {
       type: item.type,
@@ -125,7 +117,7 @@ const tip = (item: ObjectType) => {
 }
 // 终止提醒
 const stopTip = (item: ObjectType) => {
-  nextTime.value[item.type] = {}
+  setNextTime(item.type, {})
   send('stop-job', {
     type: item.type,
   })

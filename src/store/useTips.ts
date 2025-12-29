@@ -1,7 +1,9 @@
-import { computed, onMounted, ref, toRaw, unref } from "vue";
+import { computed, onMounted, onUnmounted, ref, toRaw, unref } from "vue";
 import { defineStore, storeToRefs } from "pinia";
 import { getStore, sendSync, setStore } from "../utils/common";
 import { initPiniaStatus, type defaultField } from "@/utils/store";
+import { ElMessage } from "element-plus";
+import { sysNotify, appNotify } from "@/utils/notify";
 
 export default defineStore("tips", () => {
   // 提醒类型: 喝水、走动、闭眼、上厕所以及自定义提醒类型，属性包括：提醒时间间隔、提醒类型等
@@ -23,9 +25,9 @@ export default defineStore("tips", () => {
     }
     let newValue = toRaw(unref(tipType))
     console.log(newValue, 'newValue setTipType')
-    setStore("tipType", newValue); 
+    setStore("tipType", newValue);
   }
-  
+
   // 提醒类型选项
   const tipTypeOps = ref<ObjectType[]>([])
   const tipTypeOpsC = computed(() => tipTypeOps.value)
@@ -43,7 +45,7 @@ export default defineStore("tips", () => {
       }
     }
     let newValue = toRaw(unref(tipTypeOps))
-    setStore("tipTypeOps", newValue); 
+    setStore("tipTypeOps", newValue);
   }
 
   // pinia状态初始化
@@ -99,12 +101,49 @@ export default defineStore("tips", () => {
     initPiniaStatus(allVars);
   }
 
+  let nextTime = ref<ObjectType>({})
+  const setNextTime = (type?: string, val?: ObjectType) => {
+    if (!type) {
+      nextTime.value = {}
+      return;
+    }
+    nextTime.value[type] = val
+  }
+  const getType = (type: string) => {
+    return tipTypeOpsC.value.find(i => i.value == type)?.label
+  }
+  const jobStartTipFn = (event: Electron.IpcRendererEvent, arg: any) => {
+    console.log(arg, 'job-end-tip')
+    let nt = arg.time + arg.gap
+    nextTime.value[arg.type] = {
+      type: arg.type,
+      nextTime: new Date(nt).toLocaleString(),
+    }
+  }
+  const jobEndTipFn = (event: Electron.IpcRendererEvent, arg: any) => {
+    console.log(arg, 'job-end-tip')
+    let nextTime = arg.time + arg.gap
+    ElMessage({
+      message: `【${getType(arg.type)}】提醒，下次将在 ${new Date(nextTime).toLocaleString()} 执行`,
+      type: 'success',
+      duration: 1000 * 60,
+    })
+    sysNotify(getType(arg.type) + '提醒', `【${getType(arg.type)}】提醒，下次将在 ${new Date(nextTime).toLocaleString()} 执行`, '')
+  }
+
   function $reset() {
     init()
   }
 
   onMounted(() => {
     init()
+    window.ipcRenderer.on('job-start-tip', jobStartTipFn)
+    window.ipcRenderer.on('job-end-tip', jobEndTipFn)
+  })
+
+  onUnmounted(() => {
+    window.ipcRenderer.off('job-start-tip', jobStartTipFn)
+    window.ipcRenderer.off('job-end-tip', jobEndTipFn)
   })
 
   return {
@@ -113,9 +152,11 @@ export default defineStore("tips", () => {
     tipTypeC,
     tipTypeOps,
     tipTypeOpsC,
+    nextTime,
     // 方法
     setTipType,
     setTipTypeOps,
+    setNextTime,
     // 其他 
     $reset,
   };

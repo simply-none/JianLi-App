@@ -45,9 +45,9 @@
             <!-- 删除 -->
             <el-button size="small" type="danger" @click="delTip(scope.row)">删除</el-button>
             <!-- 提醒 -->
-            <el-button size="small" type="primary" @click="tip(scope.row)">提醒</el-button>
+            <el-button size="small" type="primary" @click="() => tip(scope.row)">提醒</el-button>
             <!-- 终止提醒 -->
-            <el-button size="small" type="warning" @click="stopTip(scope.row)">终止提醒</el-button>
+            <el-button size="small" type="warning" @click="() => stopTip(scope.row)">终止提醒</el-button>
           </template>
         </el-table-column>
 
@@ -154,8 +154,8 @@ import { ElMessage } from 'element-plus';
 import useTips from '@/store/useTips';
 import { sysNotify, appNotify } from "@/utils/notify";
 
-const { tipType, tipTypeC, tipTypeOps, tipTypeOpsC } = storeToRefs(useTips());
-const { setTipType, setTipTypeOps } = useTips();
+const { tipType, tipTypeC, tipTypeOps, tipTypeOpsC, nextTime } = storeToRefs(useTips());
+const { setTipType, setTipTypeOps, setNextTime } = useTips();
 
 const tipTypeCc = ref(tipTypeC.value)
 watch(() => tipTypeC.value, (newVal) => {
@@ -206,7 +206,7 @@ const tipAll = () => {
   })
 }
 const stopAllTip = () => {
-  nextTime.value = {}
+  setNextTime()
   tipTypeCc.value.forEach(item => {
     send('stop-job', {
       type: item.type,
@@ -222,7 +222,7 @@ const tip = (item: ObjectType) => {
 }
 // 终止提醒
 const stopTip = (item: ObjectType) => {
-  nextTime.value[item.type] = {}
+  setNextTime(item.type, {})
   send('stop-job', {
     type: item.type,
   })
@@ -280,27 +280,6 @@ const curUnit = (unit: number) => {
 const getType = (type: string) => {
   return tipTypeOpsCc.value.find(i => i.value == type)?.label
 }
-
-let nextTime = ref<ObjectType>({})
-window.ipcRenderer.on('job-start-tip', (event, arg) => {
-  console.log(arg, 'job-end-tip')
-  let nt = arg.time + arg.gap
-  nextTime.value[arg.type] = {
-    type: arg.type,
-    nextTime: new Date(nt).toLocaleString(),
-  }
-})
-
-window.ipcRenderer.on('job-end-tip', (event, arg) => {
-  console.log(arg, 'job-end-tip')
-  let nextTime = arg.time + arg.gap
-  ElMessage({
-    message: `【${getType(arg.type)}】提醒，下次将在 ${new Date(nextTime).toLocaleString()} 执行`,
-    type: 'success',
-    duration: 1000 * 60,
-  })
-  sysNotify(getType(arg.type) + '提醒', `【${getType(arg.type)}】提醒，下次将在 ${new Date(nextTime).toLocaleString()} 执行`, '')
-})
 
 onMounted(() => {
   console.log(tipTypeC.value)

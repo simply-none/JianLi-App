@@ -8,18 +8,21 @@ import { store, tableName as basicInfoTableName } from "./store.ts";
 import { tableName as clipboardTableName } from "./clipboard.ts";
 import { deleteData, queryByConditions, upsertData, createTable } from "../utils/sql.ts";
 import colors from 'colors'
+import { vitePublic } from "../variables.ts";
 
 const verbose = defaultSqlite3.verbose;
 
 export let myDb: Record<string, Database> = {
   db: null,
   userDb: null,
+  shiciDb: null,
 }
 
 export async function initSqlite() {
   await createDBFile()
   initSqliteFn('db', true)
   initSqliteFn('userDb')
+  initSqliteFn('shiciDb')
 }
 
 async function createDBFile() {
@@ -27,7 +30,7 @@ async function createDBFile() {
   // electron获取用户目录
   const userDataPath = app.getPath("documents");
   // 获取程序设置的用户缓存路径
-  const cachePath: string = (store.get("fileCachePath") ||
+  let cachePath: string = (store.get("fileCachePath") ||
     userDataPath) as string;
   // 判断缓存路径下是否存在，且是否包含db.sqlite文件
   // 不存在则创建缓存目录
@@ -44,8 +47,14 @@ async function createDBFile() {
     let dbPath = path.resolve(cachePath, dbFullName);
 
     const sqlite3 = verbose();
+    if (dbName == 'shiciDb') {
+      let shiciDbPath = path.resolve(vitePublic, '宋词/ci.db');
+      console.log('shiciDbPath', shiciDbPath)
+      myDb[dbName] = new sqlite3.Database(shiciDbPath);
+    } else {
+      myDb[dbName] = new sqlite3.Database(dbPath);
+    }
 
-    myDb[dbName] = new sqlite3.Database(dbPath);
     myDb[dbName].exec('PRAGMA foreign_keys = ON;');
     // console.log('dblist', Object.keys(db), Object.keys(userDb))
   })

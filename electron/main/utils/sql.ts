@@ -63,6 +63,20 @@ function queryByConditions1({ db, tableName, conditions, callback }) {
 
 export function queryByConditions({ db, tableName, conditions, callback }) {
   db.serialize(async () => {
+    // 判断是否有SQL语句
+    if (conditions && conditions.SqlStr) {
+      const sql = conditions.SqlStr;
+      db.all(sql, (err, rows) => {
+        if (err) {
+          console.log(err, '1')
+          upsertData({ db, tableName, data: conditions, callback: () => {
+            return callback(null, []);
+          } })
+        }
+        callback(null, rows);
+      });
+      return;
+    }
     // 判断是否有where语句
     if (conditions && conditions.whereStr) {
       const sql = `SELECT * FROM ${tableName} WHERE ${conditions.whereStr}`;
