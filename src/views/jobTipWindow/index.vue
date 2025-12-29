@@ -19,7 +19,7 @@
         </div>
 
         <div class="tip-name">{{ jobItem.label }}</div>
-        <div class="tip-next-time">{{ nextTime(jobItem.time) }}</div>
+        <div class="tip-next-time">{{ nextTime(jobItem.endTipTime) }}</div>
       </div>
     </div>
     <div class="tip-move">

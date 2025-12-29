@@ -163,23 +163,46 @@ export async function startJobFn({ type, gap, auto }: { type: 'string', gap: num
           return;
         }
         
-        // 发送提醒
-        createOtherWindow("jobTipWindow", {
-          resizable: true,
-          frame: false,
-          width: 200,
-          height: 100,
-          // center: true,
-          transparent: true,
-          mouseEvents: true,
-          fullscreenable: false,
-          x: 100,
-          y: 100,
-        })
-        win?.webContents.send("job-end-tip", {
-          type,
-          time: Date.now(),
-          gap: isNaN ? 1000 * 60 * 60 : Number(gap),
+        // 插入数据
+        await upsertData({
+          db: myDb.db,
+          tableName: tableName,
+          data: {
+            key: 'job-tip:' + type,
+            value: JSON.stringify({
+              type,
+              time: Date.now(),
+              gap: isNaN ? 1000 * 60 * 60 : Number(gap),
+              endTipTime: Date.now() + (isNaN ? 1000 * 60 * 60 : Number(gap)),
+            })
+          },
+          config: {
+            primaryKey: "key",
+          },
+          callback: async (err, result) => {
+            if (err) {
+              console.log(err, "err");
+            } else {
+              // 发送提醒
+              createOtherWindow("jobTipWindow", {
+                resizable: true,
+                frame: false,
+                width: 200,
+                height: 100,
+                // center: true,
+                transparent: true,
+                mouseEvents: true,
+                fullscreenable: false,
+                x: 100,
+                y: 100,
+              })
+              win?.webContents.send("job-end-tip", {
+                type,
+                time: Date.now(),
+                gap: isNaN ? 1000 * 60 * 60 : Number(gap),
+              });
+            }
+          },
         });
         // 新一轮计时
         startJobFn({ type, gap, auto: true });
