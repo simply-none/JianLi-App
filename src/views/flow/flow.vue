@@ -271,15 +271,6 @@ onMounted(() => {
 /* import the default theme, this is optional but generally recommended */
 @import '@vue-flow/core/dist/theme-default.css';
 
-html,
-body,
-#app {
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  padding: 0;
-}
-
 .flow {
   width: 100%;
   height: 100%;

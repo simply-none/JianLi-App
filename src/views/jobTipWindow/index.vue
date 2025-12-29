@@ -153,7 +153,7 @@ input {
   height: 100%;
   box-sizing: border-box;
   padding: 0 12px 12px 12px;
-  background: #e6e6e68e;
+  background: #ffffff00;
 }
 
 .close {
@@ -255,7 +255,7 @@ input {
     &-left {
       flex: 1;
       &:hover {
-        background: #ffbcbc;
+        background: #ff0000;
         -webkit-app-region: drag;
         cursor: pointer;
       }
@@ -263,7 +263,7 @@ input {
     &-right {
       flex: 1;
       &:hover {
-        background: #c6fcff;
+        background: #00a6ff;
         cursor: pointer;
       }
     }
