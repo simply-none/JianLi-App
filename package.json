@@ -52,7 +52,7 @@
     "electron-store": "^10.0.0",
     "element-plus": "^2.9.8",
     "fast-glob": "^3.3.3",
-    "globby": "^15.0.0",
+    "globby": "^16.1.0",
     "json-editor-vue": "^0.18.1",
     "moment": "^2.30.1",
     "pinia": "^3.0.2",
