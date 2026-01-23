@@ -1,4 +1,38 @@
 变更日志
+### [1.0.1](https://github.com/simply-none/JianLi-App/compare/v1.0.0-rc.10...v1.0.1) (2026-01-23)
+
+
+### ✨ Features | 新功能
+
+* 词数据保留一种类型获取方式，删除json ([43ccfe0](https://github.com/simply-none/JianLi-App/commit/43ccfe01929f1cae0b980dc2006bd439494657f4))
+* 首屏增加小组件类型【任务提醒】 ([8d4f513](https://github.com/simply-none/JianLi-App/commit/8d4f5132736061161f8bc444620747d7cd3e8ab0))
+
+
+### 🐛 Bug Fixes | Bug 修复
+
+* 将小窗口改为透明色，减少频繁重绘刷新导致的眩晕感 ([07b1faa](https://github.com/simply-none/JianLi-App/commit/07b1faa4baf997daab8d8e8cdfef631f80e2b8a3))
+* 任务提醒事件多次加载的问题 ([44c60ba](https://github.com/simply-none/JianLi-App/commit/44c60bab2143491b2701834e92adbefc9f186b39))
+* 任务提醒小窗口的时间取下一次时间 ([6b183c1](https://github.com/simply-none/JianLi-App/commit/6b183c105f8867c022c863bc35e5da39941697a4))
+* 小窗口模式下出现标题的问题修复 ([2c4b667](https://github.com/simply-none/JianLi-App/commit/2c4b66740af584242497b2ed2d2dd551efaefa6f))
+* 优化数据读写操作，让程序不会频繁弹窗报错 ([7178b65](https://github.com/simply-none/JianLi-App/commit/7178b65a0e65a3de471e03bad273be8a67d79243))
+
+## [1.0.0](https://github.com/simply-none/JianLi-App/compare/v1.0.0-rc.10...v1.0.0) (2026-01-23)
+
+
+### ✨ Features | 新功能
+
+* 词数据保留一种类型获取方式，删除json ([43ccfe0](https://github.com/simply-none/JianLi-App/commit/43ccfe01929f1cae0b980dc2006bd439494657f4))
+* 首屏增加小组件类型【任务提醒】 ([8d4f513](https://github.com/simply-none/JianLi-App/commit/8d4f5132736061161f8bc444620747d7cd3e8ab0))
+
+
+### 🐛 Bug Fixes | Bug 修复
+
+* 将小窗口改为透明色，减少频繁重绘刷新导致的眩晕感 ([07b1faa](https://github.com/simply-none/JianLi-App/commit/07b1faa4baf997daab8d8e8cdfef631f80e2b8a3))
+* 任务提醒事件多次加载的问题 ([44c60ba](https://github.com/simply-none/JianLi-App/commit/44c60bab2143491b2701834e92adbefc9f186b39))
+* 任务提醒小窗口的时间取下一次时间 ([6b183c1](https://github.com/simply-none/JianLi-App/commit/6b183c105f8867c022c863bc35e5da39941697a4))
+* 小窗口模式下出现标题的问题修复 ([2c4b667](https://github.com/simply-none/JianLi-App/commit/2c4b66740af584242497b2ed2d2dd551efaefa6f))
+* 优化数据读写操作，让程序不会频繁弹窗报错 ([7178b65](https://github.com/simply-none/JianLi-App/commit/7178b65a0e65a3de471e03bad273be8a67d79243))
+
 ## [1.0.0-rc.10](https://github.com/simply-none/JianLi-App/compare/v1.0.0-rc.9...v1.0.0-rc.10) (2025-12-25)
 
 
