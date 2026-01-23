@@ -37,7 +37,8 @@ export default function useOpenWindow() {
 
   onMounted(() => {
     // 通用的内容
-    document.title = electronConfig.productName;
+    // 原来首页出现标题的bug在这？额
+    // document.title = electronConfig.productName;
     // 如果是番茄钟窗口
     if (isPomodoro) {
       openPomodoroWindow();
