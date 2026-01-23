@@ -8,16 +8,46 @@
 import { Database } from "sqlite3";
 import colors from "colors";
 import { getObjectKeys } from "./common.ts";
+import defaultSqlite3 from "sqlite3";
 
 // 事务状态跟踪变量
 let transactionCount = 0;
 
-// 检查当前是否有活动事务
-async function hasActiveTransaction(db) {
-  return new Promise((resolve) => {
-    db.get("SELECT 1", (err) => {
-      resolve(err && err.message.includes("within a transaction"));
-    });
+// 简单的互斥锁实现
+const dbLocks = new Map();
+
+function getDbLock(db) {
+  if (!dbLocks.has(db)) {
+    dbLocks.set(db, { locked: false, queue: [] });
+  }
+  return dbLocks.get(db);
+}
+
+async function withDbLock(db, operation) {
+  const lock = getDbLock(db);
+  
+  return new Promise((resolve, reject) => {
+    const executeOperation = async () => {
+      lock.locked = true;
+      try {
+        const result = await operation();
+        resolve(result);
+      } catch (error) {
+        reject(error);
+      } finally {
+        lock.locked = false;
+        if (lock.queue.length > 0) {
+          const next = lock.queue.shift();
+          next();
+        }
+      }
+    };
+    
+    if (lock.locked) {
+      lock.queue.push(executeOperation);
+    } else {
+      executeOperation();
+    }
   });
 }
 
@@ -216,57 +246,67 @@ export async function upsertData({
   };
   callback: (err: Error | null, result: any) => void;
 }): Promise<void> {
-  // const columns = Object.keys(data);
-  // console.log(colors.bgYellow(JSON.stringify(data)), "data");
-  // console.log("----------------------------------------");
   const newData = Array.isArray(data) ? data : [data];
-  const columns = getObjectKeys(data);
+  const columns = getObjectKeys(newData[0] || {});
+  
+  if (columns.length === 0) {
+    return callback(new Error("No data fields provided"), null);
+  }
+
   let placeholders = columns.map(() => "?").join(",");
-  const values = columns.map((col) => data[col]);
+  
+  const sql = `
+    INSERT INTO ${tableName} (${columns.join(",")}) 
+    VALUES (${placeholders})
+    ON CONFLICT(${config?.primaryKey || "id"}) DO UPDATE SET 
+    ${columns.map((col) => `${col}=excluded.${col}`).join(",")}
+  `;
 
-  // 开启事务，先检查表是否存在，不存在则创建
-  db.serialize(async () => {
-    // 创建/更新表
+  // 使用互斥锁确保同一时间只有一个操作使用数据库连接
+  withDbLock(db, async () => {
     try {
-      await ensureTableColumns({ db, tableName, data: newData, config });
-    } catch (err) {
-      console.log(err, '创建/更新表失败')
-    }
+      // 确保表结构存在
+      try {
+        await ensureTableColumns({ db, tableName, data: newData, config });
+      } catch (err) {
+        console.error('创建/更新表失败:', err);
+        // 继续执行，表可能已经存在
+      }
 
-    // 构建UPSERT语句(SQLite特有语法)
-    const sql = `
-        INSERT INTO ${tableName} (${columns.join(",")}) 
-        VALUES (${placeholders})
-        ON CONFLICT(${config?.primaryKey || "id"}) DO UPDATE SET 
-        ${columns.map((col) => `${col}=excluded.${col}`).join(",")}
-      `;
-
-    // 检查事务状态
-    const hasTransaction = await hasActiveTransaction(db);
-
-    // 如果没有事务则开始新事务：防止报错，cannot start transaction within a transaction
-    if (!hasTransaction) {
-      // 执行批量插入/更新操作
-      db.run("BEGIN TRANSACTION");
-    }
-
-    const stmt = db.prepare(sql);
-    newData.forEach((item) => {
-      stmt.run(Object.values(item));
-    });
-    stmt.finalize();
-
-    // 提交事务
-    db.run("COMMIT", (err) => {
-      if (err) return callback(err, null);
+      // 准备语句
+      const stmt = db.prepare(sql);
+      
+      // 执行批量操作
+      for (const item of newData) {
+        await new Promise((resolve, reject) => {
+          const values = columns.map(col => item[col]);
+          stmt.run(values, function(err) {
+            if (err) {
+              // SQLITE_BUSY 错误重试
+              if (err.code === 'SQLITE_BUSY') {
+                setTimeout(() => {
+                  stmt.run(values, function(retryErr) {
+                    retryErr ? reject(retryErr) : resolve(this);
+                  });
+                }, 100);
+              } else {
+                reject(err);
+              }
+            } else {
+              resolve(this);
+            }
+          });
+        });
+      }
+      
+      stmt.finalize();
       callback(null, "success");
-    });
-
-    // db.run(sql, values, function (err, result) {
-    //   console.log(err, result, 'err, result')
-    //   if (err) return callback(err, null);
-    //   callback(null, result);
-    // });
+      
+    } catch (err) {
+      callback(err, null);
+    }
+  }).catch(error => {
+    callback(error, null);
   });
 }
 
