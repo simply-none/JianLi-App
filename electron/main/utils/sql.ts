@@ -57,7 +57,7 @@ function queryByConditions1({ db, tableName, conditions, callback }) {
   const params = [];
   for (const [key, value] of Object.entries(conditions)) {
     // 忽略数据库关键字：ORDER BY, LIMIT, DESC, ASC
-    if (["orderBy", "orderByDesc", "limit"].includes(key)) {
+    if (["orderBy", "orderByDesc", "limit", 'offset'].includes(key)) {
       continue;
     }
     whereClauses.push(`${key} = ?`);
@@ -71,13 +71,14 @@ function queryByConditions1({ db, tableName, conditions, callback }) {
     : "";
 
   const limitStr = conditions.limit ? `LIMIT ${conditions.limit}` : "";
+  const offsetStr = conditions.offset ? `OFFSET ${conditions.offset}` : "";
 
   const whereStr =
     whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
 
   // 构建完整的SQL查询语句并执行
 
-  const sql = `SELECT * FROM ${tableName} ${whereStr} ${orderByStr} ${limitStr}`;
+  const sql = `SELECT * FROM ${tableName} ${whereStr} ${orderByStr} ${limitStr} ${offsetStr}`;
 
   db.all(sql, params, (err, rows) => {
     if (err) {

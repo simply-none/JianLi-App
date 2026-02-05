@@ -6,8 +6,16 @@
       </template>
     </el-form-item>
 
+    <el-form-item label="关键字查询" class="mode-wrapper fixed">
+      <div class="fileRela-form-search">
+        <el-input v-model="searchKey" placeholder="请输入关键字查询剪切板历史"></el-input>
+        <el-button type="primary"  @click="search">查询</el-button>
+        <el-button  @click="refresh">重置</el-button>
+      </div>
+    </el-form-item>
+
     <el-form-item label="剪切板历史" class="mode-wrapper">
-      <el-timeline>
+      <el-timeline v-infinite-scroll="load" :infinite-scroll-distance="100">
         <el-timeline-item v-for="(item, index) in clipboardItems" :key="index" :timestamp="item.create_time"
           placement="top">
           <el-card class="clipboard-item" shadow="hover">
@@ -32,34 +40,48 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { useRoute, useRouter } from 'vue-router'
-
-// 判断路由变更
-const route = useRoute()
-watch(() => route.path, (newPath) => {
-  if (newPath !== '/clipboard') return
-  getClipboardHistory()
-})
-
 
 const clipboardItems = ref([])
 
+let pageSize = ref(50)
+let currentPage = ref(1)
+let searchKey = ref('')
+
+function search() {
+  currentPage.value = 1
+  clipboardItems.value = []
+  getClipboardHistory(searchKey.value).then(data => {
+    clipboardItems.value = data
+  })
+}
+
+function refresh() {
+  searchKey.value = ''
+  currentPage.value = 1
+  clipboardItems.value = []
+  getClipboardHistory().then(data => {
+    clipboardItems.value = data
+  })
+}
+
 // 获取剪切板历史
 function getClipboardHistory() {
-  window.ipcRenderer.handlePromise('query-data', {
+  const offset = (currentPage.value - 1) * pageSize.value;
+
+  return window.ipcRenderer.handlePromise('query-data', {
     tableName: 'clipboard_history',
     conditions: {
-      orderBy: 'create_time',
-      orderByDesc: true,
-      limit: 100
+      whereStr: `text LIKE '%${searchKey.value}%' ORDER BY create_time DESC LIMIT ${pageSize.value} OFFSET ${offset}`,
     }
   }).then(result => {
     if (result.success) {
-      clipboardItems.value = result.data
+      return result.data || [];
     }
+    return [];
   }).catch(err => {
     console.log('查询失败:', err);
-  })
+    return [];
+  });
 }
 
 // 清空剪切板
@@ -76,28 +98,29 @@ function copyToClipboard(text) {
 
 // 删除剪切板历史
 function deleteClipboardItem(item) {
-  console.log(item)
   window.ipcRenderer.handlePromise('delete-data', {
     tableName: 'clipboard_history',
     condition: {
       id: item.id,
     }
   }).then(result => {
-    console.log(result, '删除剪切板历史')
-
     if (result.success) {
       ElMessage.success('删除成功')
-      getClipboardHistory()
+      clipboardItems.value = clipboardItems.value.filter(i => i.id !== item.id)
     }
   }).catch(err => {
-    console.log('删除失败:', err);
+    ElMessage.error('删除失败')
   })
 
 }
 
-onMounted(() => {
-  getClipboardHistory()
-})
+function load() {
+  getClipboardHistory().then(res => {
+    clipboardItems.value.push(...res);
+    currentPage.value++
+  })
+}
+
 </script>
 
 <style scoped lang="scss">
@@ -106,6 +129,17 @@ onMounted(() => {
   box-sizing: border-box;
   height: 100%;
   overflow: auto;
+  position: relative;
+  &-search {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    gap: 12px;
+    .el-button + .el-button {
+      margin-left: 0 !important;
+    }
+  }
 }
 
 .setting-title {
@@ -137,5 +171,14 @@ onMounted(() => {
   align-items: center;
   padding-top: 10px;
 
+}
+
+.fixed {
+  position: sticky;
+  background-color: #fff;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 999;
 }
 </style>

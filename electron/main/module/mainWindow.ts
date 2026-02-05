@@ -12,7 +12,8 @@ import AutoLaunch from 'auto-launch'
 export let win: BrowserWindow | null;
 
 let autoLauncher = new AutoLaunch({
-  name: appName,
+  name: app.getName(),
+  path: app.getPath('exe'),
 });
 
 function startupWithAutoLauncher(flag = 'enable') {

@@ -1,4 +1,4 @@
-import { computed, onMounted, ref, toRaw } from "vue";
+import { computed, onMounted, ref, toRaw, unref } from "vue";
 import { defineStore, storeToRefs } from "pinia";
 import { getStore, sendSync, setStore } from "../utils/common";
 import { initPiniaStatus, type defaultField } from "@/utils/store";
@@ -13,10 +13,14 @@ export default defineStore("resource-manage", () => {
 
   function setImageResource(value: ObjectType) {
     // 新增资源，并更新到本地存储
-    imageResource.value.push(value);
+    imageResource.value.push(toRaw(value));
     // 去除 value为空的
     imageResource.value = imageResource.value.filter((item: any) => item.val);
-    setStore("imageResource", imageResource.value);
+    // 循环遍历获取原生数据
+    let imageResourceArr = imageResource.value.map((item: any) => {
+      return toRaw(item)
+    })
+    setStore("imageResource", imageResourceArr);
   }
   
   // pinia状态初始化

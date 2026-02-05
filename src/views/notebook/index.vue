@@ -7,31 +7,50 @@
       </template>
     </el-form-item>
 
+    <div class="notebook-panel"  v-if="showNotebookHistory">
+      <div class="notebook-date">
+          <el-date-picker-panel v-model="curDate" :border="true" @panel-change="panelChange">
+            <template #default="scope">
+              <div class="notebook-date-item">
+                <div class="notebook-date-label">
+                  {{  formatDate(scope.date).day }}
+                </div>
+                <div class="notebook-date-note" :class="[getCurDateNoteCount(scope.date) ? 'notebook-date-note-is' : '']">
+                </div>
+              </div>
+            </template>
+          </el-date-picker-panel>
+      </div>
+      <div class="notebook-list">
+        <el-table :data="noteBookData" max-height="360">
+          <el-table-column prop="excerpt" label="摘要">
+            <template #default="scope">
+              {{ scope.row.excerpt }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="createTime" label="时间">
+            <template #default="scope">
+              {{ scope.row.createTime }}
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="150" fixed="right">
+
+            <template #default="scope">
+              <el-button type="primary" size="small" @click="showContent(scope.row)">显示</el-button>
+              <el-button type="danger" size="small" @click="deleteContent(scope.row)">删除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </div>
+
     <el-form-item label="笔记数据" class="mode-wrapper">
-      <el-button type="primary" @click="showNotebookHistoryFn">显示笔记</el-button>
-    </el-form-item>
-
-    <el-form-item label="笔记数据" class="mode-wrapper" v-if="showNotebookHistory">
-
-      <el-table :data="noteBookData" max-height="360">
-        <el-table-column prop="excerpt" label="摘要">
-          <template #default="scope">
-            {{ scope.row.excerpt }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="createTime" label="时间">
-          <template #default="scope">
-            {{ scope.row.createTime }}
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="150" fixed="right">
-
-          <template #default="scope">
-            <el-button type="primary" size="small" @click="showContent(scope.row)">显示</el-button>
-            <el-button type="danger" size="small" @click="deleteContent(scope.row)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <el-button type="primary" @click="showNotebookHistoryFn">
+        {{ showNotebookHistory ? '隐藏' : '显示' }}
+      </el-button>
+      <el-button type="primary" @click="getNoteBookData">
+        展示所有笔记
+      </el-button>
     </el-form-item>
 
     <el-divider></el-divider>
@@ -41,7 +60,8 @@
         <div class="setting-title">{{ curstatusLabel }}</div>
       </template>
       <div class="setting-handle">
-        <el-button type="primary" @click="addContent">新增内容</el-button>
+        <el-button type="warning" @click="addContent">清空数据新建内容</el-button>
+        <el-button type="primary" @click="saveNoteBook">保存笔记</el-button>
       </div>
     </el-form-item>
 
@@ -59,6 +79,8 @@ import { UmoEditor } from '@umoteam/editor';
 import '@umoteam/editor/style'
 import moment from 'moment';
 import { v4 as uuidv4 } from 'uuid';
+import { formatDate, getMonthRange, groupByDate } from '@/utils/time';
+import { ElMessage } from 'element-plus';
 
 const showEditor = ref(false);
 const key = ref(uuidv4());
@@ -84,49 +106,134 @@ const options = ref({
         }
       })
       if (result.success) {
-        console.log('保存成功:', result.data);
-        getNoteBookData();
+        ElMessage.success('保存成功');
+        panelChange(new Date());
         return true;
 
       } else {
-        console.log('保存失败:', result.error);
+        ElMessage.error('保存失败:' + result.error);
         return false;
       }
     } catch (error) {
-      console.error('保存失败:', error);
+      ElMessage.error('保存失败:' + error);
       return false;
     }
   }
 });
 
+async function saveNoteBook () {
+  try {
+    let content = editorRef.value.getContent('html');
+    let result = await window.ipcRenderer.handlePromise('set-data', {
+      tableName: 'note_book',
+      data: {
+        key: key.value,
+        excerpt: editorRef.value.getContentExcerpt(),
+        html: content,
+        createTime: moment().format('YYYY-MM-DD HH:mm:ss'),
+      },
+      config: {
+        primaryKey: 'key',
+      }
+    })
+    if (result.success) {
+      panelChange(new Date());
+      ElMessage.success('保存成功');
+      return true;
+
+    } else {
+      ElMessage.error('保存失败:' + result.error);
+      return false;
+    }
+  } catch (error) {
+    ElMessage.error('保存失败:' + error);
+    return false;
+  }
+}
+
 const noteBookData = ref([]);
 
 onMounted(() => {
-  getNoteBookData();
+  panelChange(new Date());
   showEditor.value = true;
 })
 
-async function getNoteBookData() {
-  if (!showNotebookHistory.value) return;
-  window.ipcRenderer.handlePromise('query-data', {
+const curDate = ref();
+const curMonthGroupNote = ref({})
+watch(curDate, (newV) => {
+  noteBookData.value = curMonthGroupNote.value[formatDate(newV).dateStr] || []
+})
+
+function getCurDateNoteCount(date) {
+  let dateStr = formatDate(date).dateStr;
+  return curMonthGroupNote.value[dateStr]?.length || 0;
+}
+
+function panelChange(date, mode, view) {
+  let { firstDay, lastDay } = getMonthRange(date || new Date())
+  fetchNoteData({
+    startDate: firstDay,
+    endDate: lastDay,
+  }).then(data => {
+    let newData = groupByDate(data)
+    curMonthGroupNote.value = newData;
+    noteBookData.value = data || []
+  })
+}
+
+function fetchNoteData(options = {}) {
+  const {
+    days = 90,
+    specificDate = null,
+    startDate = null,
+    endDate = null
+  } = options;
+  
+  let whereStr;
+  
+  if (specificDate) {
+    // 查询指定日期的数据
+    whereStr = `createTime BETWEEN '${specificDate}' AND datetime('${specificDate}', '+1 day')`;
+  } else if (startDate && endDate) {
+    // 查询指定日期范围的数据
+    whereStr = `createTime BETWEEN '${startDate}' AND '${endDate}'`;
+  } else {
+    // 查询最近指定天数的数据
+    whereStr = `createTime >= DATE('now', '-${days} days')`;
+  }
+  
+  return window.ipcRenderer.handlePromise('query-data', {
     tableName: 'note_book',
     conditions: {
-      whereStr: "createTime >= DATE('now', '-90 days')",
+      whereStr: whereStr,
       limit: 100,
-      orderByDesc: true,
+      orderByDesc: false,
       orderBy: 'createTime'
     }
   }).then(result => {
     if (result.success) {
-      console.log('查询结果:', result.data);
-      noteBookData.value = result.data;
+      ElMessage.success('查询成功');
+      return result.data;
     }
+    return [];
   }).catch(err => {
-    console.log('查询失败:', err);
+    ElMessage.error('查询失败:' + err);
+    return [];
+  });
+}
+
+async function getNoteBookData() {
+  if (!showNotebookHistory.value) return;
+  fetchNoteData({
+    days: 360,
+    startDate: formatDate(new Date()).dateStr
+  }).then(data => {
+    noteBookData.value = data;
+    curMonthGroupNote.value = groupByDate(data);
   })
 }
 
-const showNotebookHistory = ref(false);
+const showNotebookHistory = ref(true);
 const showNotebookHistoryFn = () => {
   if (showNotebookHistory.value) {
     showNotebookHistory.value = false;
@@ -134,7 +241,7 @@ const showNotebookHistoryFn = () => {
     return;
   }
   showNotebookHistory.value = true;
-  getNoteBookData();
+  panelChange(new Date());
 }
 
 
@@ -153,7 +260,6 @@ function showContent(row) {
 }
 
 function deleteContent(row) {
-  console.log('删除内容:', row);
   window.ipcRenderer.handlePromise('delete-data', {
     tableName: 'note_book',
     condition: {
@@ -161,10 +267,10 @@ function deleteContent(row) {
     }
   }).then(result => {
     if (result.success) {
-      console.log('删除成功:', result.data);
-      getNoteBookData();
+      ElMessage.success('删除成功');
+      panelChange(new Date());
     } else {
-      console.log('删除失败:', result.error);
+      ElMessage.error('删除失败');
     }
   })
 }
@@ -203,46 +309,30 @@ function deleteContent(row) {
   word-break: break-all;
 }
 
-.cache-item-wrapper {
+:deep(.today) {
+  color: #409eff;
+  font-weight: 900;
+}
+.notebook-panel {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 24px;
+  padding-bottom: 24px;
 
-  &+& {
-    padding-top: 12px;
-    padding-bottom: 12px;
-    border-top: 2px solid #e8e8e8
-  }
-
-  .cache-key {
-    width: 120px;
-    font-weight: 600;
-    line-height: 1;
-    word-break: break-all;
-  }
-
-  .cache-item {
-    color: #828282;
+  .notebook-list {
     flex: 1;
-
+    width: 0;
   }
-
-  .level-2 {
-    word-break: break-all;
-  }
-
-  .level-3 {
-    display: flex;
-    align-items: center;
-
-    .cache-key {
-      width: unset;
-      padding-right: 24px;
-    }
-  }
-
-  .level-4 {
-    word-break: break-all;
+  .notebook-date-note-is {
+    height: 5px;
+    width: 5px;
+    position: absolute;
+    left: 50%;
+    text-align: center;
+    transform: translate(-50%, -6px);
+    border-radius: 50%;
+    background: #409eff;
   }
 }
 </style>
