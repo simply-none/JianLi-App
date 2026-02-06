@@ -79,6 +79,7 @@
     "@vue-flow/core": "^1.47.0",
     "@vue-flow/node-resizer": "^1.5.0",
     "@vue-flow/node-toolbar": "^1.1.1",
+    "electron-log": "^5.4.3",
     "font-list": "^2.0.1",
     "increase-memory-limit": "^1.0.7",
     "puppeteer": "^24.26.1",

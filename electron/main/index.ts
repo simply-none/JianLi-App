@@ -15,6 +15,7 @@ import { initSqlite } from "./module/sql.ts";
 import { appName } from "./variables.ts";
 import { initRegisterShortcut } from "./module/registerShortcut.ts";
 import { initSys } from "./module/sys.ts";
+import { initLog } from "./module/log.ts";
 
 registerJlocalProtocolBefore()
 
@@ -38,6 +39,8 @@ if (!app.requestSingleInstanceLock()) {
 async function createWindow() {
   // 主窗口
   initMainWindow();
+  // 日志
+  initLog();
   // 数据库
   await initSqlite();
   // 诗词数据
