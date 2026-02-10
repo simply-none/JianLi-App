@@ -6,6 +6,7 @@ import currentStatus from '@/smallComponents/currentStatus.vue';
 import distanceToNextStatus from '@/smallComponents/distanceToNextStatus.vue';
 import poet from '@/smallComponents/poet.vue';
 import tips from '@/smallComponents/tips.vue'
+import mdEditor from '@/smallComponents/mdEditor.vue'
 
 import { getStore, sendSync, setStore, send } from "../utils/common";
 import { initPiniaStatus, type defaultField } from "@/utils/store";
@@ -38,7 +39,12 @@ export default defineStore("small-components-ops", () => {
       name: 'tips',
       comp: tips,
       label: '事件提醒'
-    }
+    },
+    mdEditor: {
+      name: 'mdEditor',
+      comp: mdEditor,
+      label: 'Markdown编辑器'
+    },
   })
   const smallComponentsC = computed(() => smallComponents.value);
 
@@ -53,7 +59,7 @@ export default defineStore("small-components-ops", () => {
       { name: 'tips' },
       { name: 'poet' },
       { name: 'currentStatus' },
-      { name: 'distanceToNextStatus' }, 
+      { name: 'distanceToNextStatus' },
     ],
     custom: [],
   });

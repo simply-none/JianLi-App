@@ -30,7 +30,12 @@
           </el-table-column>
           <el-table-column prop="createTime" label="时间">
             <template #default="scope">
-              {{ scope.row.createTime }}
+              {{ scope.row.createTime || '--' }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="updateTime" label="更新时间">
+            <template #default="scope">
+              {{ scope.row.updateTime || '--' }}
             </template>
           </el-table-column>
           <el-table-column label="操作" width="150" fixed="right">
@@ -66,7 +71,7 @@
     </el-form-item>
 
     <el-form-item :label="curstatusLabel" class="mode-wrapper" v-if="showEditor">
-      <umo-editor ref="editorRef" v-bind="options" />
+      <umo-editor ref="editorRef" :options="options" />
     </el-form-item>
   </el-form>
 
@@ -81,9 +86,11 @@ import moment from 'moment';
 import { v4 as uuidv4 } from 'uuid';
 import { formatDate, getMonthRange, groupByDate } from '@/utils/time';
 import { ElMessage } from 'element-plus';
+import umoEditor from './umoEditor.vue';
 
 const showEditor = ref(false);
 const key = ref(uuidv4());
+const curNote = ref({})
 const editorRef = ref(null);
 const curstatusLabel = ref('新内容')
 
@@ -96,10 +103,12 @@ const options = ref({
       let result = await window.ipcRenderer.handlePromise('set-data', {
         tableName: 'note_book',
         data: {
-          key: key.value,
+          ...curNote.value,
+          key: curNote.value.key || key.value,
           excerpt: editorRef.value.getContentExcerpt(),
           html: content.html,
-          createTime: moment().format('YYYY-MM-DD HH:mm:ss'),
+          createTime: curNote.value.createTime || moment().format('YYYY-MM-DD HH:mm:ss'),
+          updateTime: moment().format('YYYY-MM-DD HH:mm:ss'),
         },
         config: {
           primaryKey: 'key',
@@ -107,6 +116,7 @@ const options = ref({
       })
       if (result.success) {
         ElMessage.success('保存成功');
+        curNote.value = {}
         panelChange(new Date());
         return true;
 
@@ -127,10 +137,12 @@ async function saveNoteBook () {
     let result = await window.ipcRenderer.handlePromise('set-data', {
       tableName: 'note_book',
       data: {
-        key: key.value,
+        ...curNote.value,
+        key: curNote.value.key || key.value,
         excerpt: editorRef.value.getContentExcerpt(),
         html: content,
-        createTime: moment().format('YYYY-MM-DD HH:mm:ss'),
+        createTime: curNote.value.createTime || moment().format('YYYY-MM-DD HH:mm:ss'),
+        updateTime: moment().format('YYYY-MM-DD HH:mm:ss'),
       },
       config: {
         primaryKey: 'key',
@@ -139,6 +151,7 @@ async function saveNoteBook () {
     if (result.success) {
       panelChange(new Date());
       ElMessage.success('保存成功');
+      curNote.value = {}
       return true;
 
     } else {
@@ -248,6 +261,7 @@ const showNotebookHistoryFn = () => {
 function addContent() {
   console.log('新增内容:');
   key.value = uuidv4();
+  curNote.value = {}
   editorRef.value.setContent('');
   curstatusLabel.value = '新内容'
 }
@@ -255,6 +269,7 @@ function addContent() {
 function showContent(row) {
   console.log('显示内容:', row);
   key.value = row.key;
+  curNote.value = row;
   editorRef.value.setContent(row.html);
   curstatusLabel.value = '查看内容'
 }
@@ -323,6 +338,13 @@ function deleteContent(row) {
   .notebook-list {
     flex: 1;
     width: 0;
+  }
+  .notebook-date-item {
+    &:hover {
+      background: #57c5ff;
+      color: #fff;
+      border-radius: 6px;
+    }
   }
   .notebook-date-note-is {
     height: 5px;
