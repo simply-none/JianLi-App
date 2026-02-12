@@ -1,4 +1,18 @@
 变更日志
+### [26.2.12-rc.1](https://github.com/simply-none/JianLi-App/compare/v1.0.1...v26.2.12-rc.1) (2026-02-12)
+
+
+### ✨ Features | 新功能
+
+* 新增主进程错误日志记录功能 ([a03237f](https://github.com/simply-none/JianLi-App/commit/a03237f6f9021f48ef85c2e0faebfc461d2993c0))
+* 主窗口新增笔记组件 ([5b27850](https://github.com/simply-none/JianLi-App/commit/5b278509d5db25cebc8e819c192d05f9648a951b))
+
+
+### 🐛 Bug Fixes | Bug 修复
+
+* 修复定时任务过时的问题 ([79d05a7](https://github.com/simply-none/JianLi-App/commit/79d05a75aae7546fd176e9fec28a5f59233cf153))
+* 修复诸多问题，包括资源管理，笔记本，剪切板，自启动 ([591a40d](https://github.com/simply-none/JianLi-App/commit/591a40def792cfc46d54fcf807078db9023826cf))
+
 ### [1.0.1](https://github.com/simply-none/JianLi-App/compare/v1.0.0-rc.10...v1.0.1) (2026-01-23)
 
 
