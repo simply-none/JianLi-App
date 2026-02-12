@@ -28,24 +28,36 @@ export function createJob({
     stopJob(type);
   }
   let jobTime = time;
-  if (jobTime < 5 * 60 * 60) jobTime = 5 * 60 * 60;
+  if (jobTime < 5 * 1000) jobTime = 5 * 1000;
 
   const currentSecondTime = new Date().getSeconds();
   const currentMinuteTime = new Date().getMinutes();
   console.log(currentSecondTime, jobTime);
   const nextRunTime = momemt().add(jobTime, "milliseconds").toDate();
 
-  job[type] = new CronJob(
-    nextRunTime, // cronTime
-    function () {
+  try {
+    job[type] = new CronJob(
+      nextRunTime, // cronTime
+      function () {
+        onTick();
+        if (!isTick) return;
+        win?.webContents.send(msgName, Date.now());
+      }, // onTick
+      null, // onComplete
+      true, // start
+      'Asia/Shanghai' // timeZone
+    );
+  } catch (error) {
+    let truthMsg = error.message || error.toString();
+    if (truthMsg.includes("Date in past")) {
+      // 如果是过去的时间，则直接执行
       onTick();
       if (!isTick) return;
       win?.webContents.send(msgName, Date.now());
-    }, // onTick
-    null, // onComplete
-    true, // start
-    "America/Los_Angeles" // timeZone
-  );
+    } else {
+      throw error;
+    }
+  }
 }
 
 export function stopJob(type?: string) {
