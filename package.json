@@ -26,6 +26,7 @@
   "scripts": {
     "prestart": "node check-node-version.js",
     "release": "npm run prestart && standard-version",
+    "rn": "node generate-version.js",
     "q": "npm run prestart && npm run debug && npm run dev",
     "dev": "chcp 65001 && npm run prestart && vite",
     "debug": "npm run prestart && bash ./node_modules/.bin/vue-devtools",
