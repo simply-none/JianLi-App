@@ -284,6 +284,7 @@ async function saveNoteBook(v, h) {
 </style>
 <style lang="scss" scoped>
 .my-editor {
+  overflow: hidden;
   width: 100%;
   height: 100%;
   position: absolute;
@@ -296,6 +297,10 @@ async function saveNoteBook(v, h) {
   flex-direction: column;
   gap: 6px;
   backdrop-filter: blur(6px);
+  .my-editor-split {
+    flex: 1;
+    overflow: auto;
+}
 }
 
 .my-editor-ops {
