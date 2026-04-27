@@ -5,12 +5,12 @@
         <div class="meo-item" data-el="1" :style="{
           ...(props.data[1] || {}),
         }">
-          <div class="meo-item-title">主题</div>
-          <el-select class="meo-item-content" v-model="theme" placeholder="请选择主题" @change="changeTheme">
+          <div class="meo-item-title" @click="showMornFn">主题</div>
+          <el-select class="meo-item-content"  v-show="showMore" v-model="theme" placeholder="请选择主题" @change="changeTheme">
             <el-option v-for="item in themeOps" :key="item" :label="item" :value="item" />
           </el-select>
         </div>
-        <div class="meo-item" data-el="1" :style="{
+        <div class="meo-item"  v-show="showMore" data-el="1" :style="{
           ...(props.data[1] || {}),
         }">
           <div class="meo-item-title">代码主题</div>
@@ -58,7 +58,7 @@
       <div data-el="2" class="my-editor-split" :style="{
         ...(props.data[2] || {}),
       }">
-        <MdEditor ref="editorRef" v-model="text" :theme="theme" :previewTheme="previewTheme" @on-save="onSave" />
+        <MdEditor ref="editorRef" v-model="text" :theme="theme" :previewTheme="previewTheme" :preview="false" @on-save="onSave" />
       </div>
     </div>
   </draggableContainer>
@@ -139,6 +139,11 @@ function contextmenuFn(event) {
     el: data.el,
     data: style,
   })
+}
+
+const showMore = ref(false)
+const showMornFn = () => {
+  showMore.value = !showMore.value
 }
 
 const previewTheme = ref('default')
@@ -279,6 +284,8 @@ async function saveNoteBook(v, h) {
 </style>
 <style lang="scss" scoped>
 .my-editor {
+  width: 100%;
+  height: 100%;
   position: absolute;
   top: 50%;
   left: 50%;
@@ -296,6 +303,7 @@ async function saveNoteBook(v, h) {
   flex-direction: row;
   align-items: center;
   gap: 1em;
+  flex-wrap: wrap;
 
   .meo-item {
     flex: 1;

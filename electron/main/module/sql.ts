@@ -83,9 +83,9 @@ export function initSqliteFn(dbName, isDefault = false) {
     });
   });
 
-  ipcMain.handle(isDefault ? "set-data" : `${dbName}:set-data`, async (event, { tableName, data, config }) => {
+  // 插入数据函数
+  async function setData(event, { tableName, data, config }) {
     return new Promise((resolve) => {
-      console.log(myDb[dbName], dbName, 'name222')
       upsertData({
         db: myDb[dbName],
         tableName,
@@ -100,7 +100,9 @@ export function initSqliteFn(dbName, isDefault = false) {
         },
       });
     });
-  });
+  }
+
+  ipcMain.handle(isDefault ? "set-data" : `${dbName}:set-data`, setData);
 
   ipcMain.handle(isDefault ? 'delete-data' : `${dbName}:delete-data`, async (event, { tableName, condition }) => {
     return new Promise((resolve) => {
