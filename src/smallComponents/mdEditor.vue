@@ -362,6 +362,10 @@ async function saveNoteBook(v, h) {
   }
 }
 
+.md-editor {
+  height: 100%;
+}
+
 .md-editor-dark,
 .md-editor-modal-container {
   --md-color: #909090;
