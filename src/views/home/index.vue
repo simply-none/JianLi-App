@@ -126,6 +126,13 @@ function toSetting() {
 </script>
 
 <style lang="scss" scoped>
+.layout {
+  :deep(.content) {
+    .main {
+      overflow: hidden;
+    }
+  }
+}
 .setting .el-image {
   position: fixed;
   width: 24px;

@@ -26,9 +26,7 @@ window.ipcRenderer.on('open-match-page', (event, url) => {
 <template>
   <router-view v-slot="{ Component }">
     <el-config-provider :locale="zhCn">
-      <transition :name="route.name === 'home' ? '' : 'page-fade'" mode="out-in">
         <component :is="Component" />
-      </transition>
     </el-config-provider>
   </router-view>
 </template>
@@ -43,23 +41,6 @@ body,
   height: 100%;
 }
 
-/* ========== 路由切换动画 ========== */
-.page-fade-enter-active,
-.page-fade-leave-active {
-  transition: opacity 0.22s ease, transform 0.22s ease;
-}
-
-.page-fade-enter-from {
-  opacity: 0;
-  transform: translateY(6px);
-}
-
-.page-fade-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
-}
-
-/* ========== 通用工具类 ========== */
 .page {
   width: 100%;
   height: 100%;
