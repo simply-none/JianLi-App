@@ -47,7 +47,7 @@ function updateVersion() {
     console.log(`生成新版本号: ${newVersion}`);
     
     // 使用 standard-version 更新版本
-    execSync(`npx standard-version --release-as ${newVersion}`, {
+    execSync(`npx standard-version --release-as ${newVersion}  --skip.changelog=true`, {
       stdio: 'inherit'
     });
     
