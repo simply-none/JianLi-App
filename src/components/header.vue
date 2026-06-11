@@ -26,7 +26,7 @@
     <!-- 右侧：应用信息 -->
     <div class="header-right">
       <div class="app-badge">
-        <span class="app-logo">渐</span>
+        <img class="app-logo" src="/logo.svg" alt="logo" />
         <div class="app-info">
           <span class="app-name">渐离 App</span>
           <span class="version-tag">v{{ pkg.version }}</span>
@@ -134,27 +134,24 @@ function back () {
   gap: 9px;
   padding: 4px 12px 4px 4px;
   border-radius: 20px;
-  background: var(--bg-hover);
-  transition: background 0.2s;
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--logo-gradient-from) 12%, transparent),
+    color-mix(in srgb, var(--logo-gradient-to) 10%, transparent));
+  transition: background 0.2s, opacity 0.2s;
 
   &:hover {
-    background: var(--bg-active-btn);
+    background: linear-gradient(135deg,
+      color-mix(in srgb, var(--logo-gradient-from) 18%, transparent),
+      color-mix(in srgb, var(--logo-gradient-to) 15%, transparent));
   }
 }
 
 .app-logo {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--logo-gradient-from) 0%, var(--logo-gradient-to) 100%);
-  color: #fff;
-  font-size: 0.85rem;
-  font-weight: 700;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
   flex-shrink: 0;
-  box-shadow: 0 2px 6px var(--logo-shadow);
+  object-fit: contain;
 }
 
 .app-info {
@@ -165,9 +162,12 @@ function back () {
 
 .app-name {
   font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--text-secondary);
+  font-weight: 700;
   line-height: 1.2;
+  background: linear-gradient(135deg, var(--logo-gradient-from), var(--logo-gradient-to));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .version-tag {
