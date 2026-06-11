@@ -4,7 +4,7 @@
     :class="{ 'is-padded': props.isPadding }"
     :style="{
       padding: props.isPadding ? '16px' : '0px',
-      backgroundColor: props.isPadding ? (props.paddingColor || '#f5f6fa') : 'unset',
+      backgroundColor: props.isPadding ? (props.paddingColor || 'var(--bg-base)') : 'unset',
     }"
   >
     <div class="top" v-if="$slots.top" ref="top">
@@ -44,7 +44,7 @@ const props = defineProps({
   },
   paddingColor: {
     type: String,
-    default: '#f5f6fa',
+    default: '',
   }
 });
 const top = ref<HTMLElement>();
@@ -67,9 +67,8 @@ onMounted(() => {
   .top {
     flex-shrink: 0;
     padding: 0 4px 14px 4px;
-    // 使用细线 + 微妙阴影替代粗边框
-    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+    border-bottom: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow-top);
     margin-bottom: 14px;
   }
 
@@ -86,6 +85,8 @@ onMounted(() => {
     .left {
       flex: 0 0 210px;
       overflow: hidden;
+      display: flex;
+      flex-direction: column;
     }
 
     .main {
@@ -105,10 +106,10 @@ onMounted(() => {
         transition: background 0.2s;
       }
       &:hover::-webkit-scrollbar-thumb {
-        background: rgba(0, 0, 0, 0.15);
+        background: var(--scrollbar-thumb);
       }
       &:hover::-webkit-scrollbar-thumb:hover {
-        background: rgba(0, 0, 0, 0.3);
+        background: var(--scrollbar-thumb-hover);
       }
     }
   }
@@ -119,15 +120,15 @@ onMounted(() => {
       gap: 16px;
 
       .left {
-        background: #ffffff;
-        border-radius: 12px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.03);
+        background: var(--bg-sidebar);
+        border-radius: var(--radius-card);
+        box-shadow: var(--shadow-card);
       }
 
       .main {
-        background: #ffffff;
-        border-radius: 12px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.03);
+        background: var(--bg-card);
+        border-radius: var(--radius-card);
+        box-shadow: var(--shadow-card);
         padding: 20px 24px;
       }
     }
@@ -136,7 +137,7 @@ onMounted(() => {
   .bottom {
     flex-shrink: 0;
     padding-top: 12px;
-    border-top: 1px solid rgba(0, 0, 0, 0.06);
+    border-top: 1px solid var(--border-subtle);
   }
 }
 </style>

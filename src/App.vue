@@ -2,13 +2,34 @@
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import { useRouter, useRoute } from 'vue-router';
 import { storeToRefs } from 'pinia';
+import { watch, ref } from 'vue';
 import useOpenWindow from '@/hooks/useOpenWindow';
 import useRuntimeVariables from '@/store/useRuntimeVariables';
+import useTheme from '@/store/useTheme';
+import { layoutRouters } from '@/router';
 
 const router = useRouter()
 const route = useRoute()
 const { activeRouteName } = storeToRefs(useRuntimeVariables())
 const { updateActiveRouteName } = useRuntimeVariables()
+
+// 主题切换 — 将 data-theme 设置到 html 根元素
+const { currentTheme } = storeToRefs(useTheme())
+watch(currentTheme, (theme) => {
+  document.documentElement.setAttribute('data-theme', theme)
+}, { immediate: true })
+
+// 路由过渡动画控制
+const layoutRouteNames = new Set(layoutRouters.map(r => r.name))
+const transitionName = ref(route.name === 'home' ? '' : 'page-fade')
+router.beforeEach((to, from, next) => {
+  const fromIsHome = from.name === 'home'
+  const fromIsLayout = layoutRouteNames.has(from.name)
+  const toIsLayout = layoutRouteNames.has(to.name)
+  // 从 home 出发、或从设置页离开到其他页面，无动画
+  transitionName.value = fromIsHome || (fromIsLayout && !toIsLayout) ? '' : 'page-fade'
+  next()
+})
 
 // 使用不同窗口打开时分别处理的hook
 useOpenWindow()
@@ -26,7 +47,9 @@ window.ipcRenderer.on('open-match-page', (event, url) => {
 <template>
   <router-view v-slot="{ Component }">
     <el-config-provider :locale="zhCn">
+      <transition :name="transitionName" mode="out-in">
         <component :is="Component" />
+      </transition>
     </el-config-provider>
   </router-view>
 </template>
@@ -41,6 +64,23 @@ body,
   height: 100%;
 }
 
+/* ========== 路由切换动画 ========== */
+.page-fade-enter-active,
+.page-fade-leave-active {
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.page-fade-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.page-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+/* ========== 通用工具类 ========== */
 .page {
   width: 100%;
   height: 100%;

@@ -77,24 +77,4 @@ const tableRowClassName = ({
   height: 100%;
   overflow: auto;
 }
-
-.setting-title {
-  padding-left: 3px;
-  border-bottom: 6px solid #6d6d6d;
-  width: 100%;
-  font-weight: 600;
-}
-
-:deep(.el-table .table-work) {
-  --el-table-tr-bg-color: #f0f9eb;
-
-}
-
-:deep(.el-table .table-rest) {
-  --el-table-tr-bg-color: #fff5f5;
-}
-
-:deep(.el-table .table-screen) {
-  --el-table-tr-bg-color: #e6fffb;
-}
 </style>

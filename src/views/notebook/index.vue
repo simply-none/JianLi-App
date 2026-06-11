@@ -311,7 +311,7 @@ function deleteContent(row) {
 .setting-form {
   width: 100%;
   box-sizing: border-box;
-  padding: 12px;
+  // padding: 12px;
   background-color: #ffffff;
 }
 
