@@ -81,9 +81,9 @@ function back () {
   height: 30px;
   padding: 0;
   border: none;
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.05);
-  color: #555;
+  border-radius: var(--radius-btn);
+  background: var(--bg-active-btn);
+  color: var(--text-secondary);
   cursor: pointer;
   transition: background 0.2s, color 0.2s, transform 0.15s;
   flex-shrink: 0;
@@ -95,8 +95,8 @@ function back () {
   }
 
   &:hover {
-    background: rgba(0, 0, 0, 0.10);
-    color: #222;
+    background: var(--bg-active-btn-hover);
+    color: var(--text-primary);
 
     .back-icon {
       transform: translateX(-2px);
@@ -104,7 +104,7 @@ function back () {
   }
 
   &:active {
-    background: rgba(0, 0, 0, 0.16);
+    background: var(--bg-hover);
     transform: scale(0.95);
   }
 
@@ -117,7 +117,7 @@ function back () {
 .page-title {
   font-size: 1.18rem;
   font-weight: 650;
-  color: #1a1a1a;
+  color: var(--text-primary);
   letter-spacing: 0.01em;
   line-height: 1.3;
 }
@@ -134,11 +134,11 @@ function back () {
   gap: 9px;
   padding: 4px 12px 4px 4px;
   border-radius: 20px;
-  background: rgba(0, 0, 0, 0.04);
+  background: var(--bg-hover);
   transition: background 0.2s;
 
   &:hover {
-    background: rgba(0, 0, 0, 0.07);
+    background: var(--bg-active-btn);
   }
 }
 
@@ -149,12 +149,12 @@ function back () {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #6366f1 0%, #818cf8 100%);
+  background: linear-gradient(135deg, var(--logo-gradient-from) 0%, var(--logo-gradient-to) 100%);
   color: #fff;
   font-size: 0.85rem;
   font-weight: 700;
   flex-shrink: 0;
-  box-shadow: 0 2px 6px rgba(99, 102, 241, 0.3);
+  box-shadow: 0 2px 6px var(--logo-shadow);
 }
 
 .app-info {
@@ -166,14 +166,14 @@ function back () {
 .app-name {
   font-size: 0.82rem;
   font-weight: 600;
-  color: #374151;
+  color: var(--text-secondary);
   line-height: 1.2;
 }
 
 .version-tag {
   font-size: 0.7rem;
   font-weight: 500;
-  color: #9ca3af;
+  color: var(--text-muted);
   line-height: 1.2;
   font-variant-numeric: tabular-nums;
 }

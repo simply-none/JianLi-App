@@ -1,5 +1,5 @@
 <template>
-  <layout-vue isPadding>
+  <layout-vue>
     <template #main>
       <el-form class="setting-form" label-width="108" label-position="left" :style="{
         // backgroundColor: appInnerColorCc,
@@ -57,7 +57,7 @@ function changeAppInnerColor(value: string) {
 .setting-form {
   width: 100%;
   box-sizing: border-box;
-  padding: 12px;
+  // padding: 12px;
   background-color: #ffffff;
 }
 
