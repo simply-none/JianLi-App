@@ -2,6 +2,14 @@
 
 变更日志
 
+## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.6.11-rc.4...HEAD) (2026-06-15)
+
+### 🔧 Chores | 其他杂项
+
+* 添加命令行提示，用于推送到远程 ([4b011da](https://github.com/simply-none/JianLi-App/commit/4b011daa145a369f3817dc27bb8e2a49d38e8c76))
+* 版本生成时，包含最新的changelog ([3db4f68](https://github.com/simply-none/JianLi-App/commit/3db4f68aac170b2d41850754385c5ca524ba984c))
+* 功能日志包含最新提交，同时不包含版本提交 ([2068e73](https://github.com/simply-none/JianLi-App/commit/2068e73f44d072ecc54a25ca20d1742ea627a1e2))
+
 ## [v26.6.11-rc.4](https://github.com/simply-none/JianLi-App/compare/v26.6.11-rc.3...v26.6.11-rc.4) (2026-06-11)
 
 ### ✨ Features | 新功能
