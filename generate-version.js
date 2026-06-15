@@ -38,6 +38,23 @@ function getLatestRCVersion(baseVersion) {
   }
 }
 
+/**
+ * 手动创建提交并打标签
+ * 将 npm run release 过程中所有修改的文件（CHANGELOG.md、package.json 等）一起提交
+ */
+function createCommitAndTag(newVersion) {
+  // 暂存所有已修改的文件
+  execSync('git add -A', { stdio: 'inherit' });
+  
+  // 创建版本提交
+  execSync(`git commit -m "chore(release): ${newVersion}"`, { stdio: 'inherit' });
+  
+  // 创建版本标签
+  execSync(`git tag v${newVersion}`, { stdio: 'inherit' });
+  
+  console.log(`✅ 已创建提交和标签: v${newVersion}`);
+}
+
 function updateVersion() {
   try {
     const baseVersion = getCurrentVersion();
@@ -46,12 +63,16 @@ function updateVersion() {
     console.log(`基础版本号: ${baseVersion}`);
     console.log(`生成新版本号: ${newVersion}`);
     
-    // 使用 standard-version 更新版本
-    execSync(`npx standard-version --release-as ${newVersion}  --skip.changelog=true`, {
+    // 使用 standard-version 仅更新版本号（跳过提交、标签、changelog）
+    execSync(`npx standard-version --release-as ${newVersion} --skip.commit=true --skip.tag=true --skip.changelog=true`, {
       stdio: 'inherit'
     });
     
-    console.log('版本更新完成');
+    console.log('版本号已更新');
+    
+    // 手动提交所有变更并打标签
+    createCommitAndTag(newVersion);
+    
     return newVersion;
   } catch (error) {
     console.error('版本更新失败:', error.message);
