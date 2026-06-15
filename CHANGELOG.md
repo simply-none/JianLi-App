@@ -2,18 +2,32 @@
 
 变更日志
 
+## [v26.6.11-rc.4](https://github.com/simply-none/JianLi-App/compare/v26.6.11-rc.3...v26.6.11-rc.4) (2026-06-11)
+
+### ✨ Features | 新功能
+
+* 番茄钟记录优化，新增图表形式 ([1fb8031](https://github.com/simply-none/JianLi-App/commit/1fb803110ddcaa340cec596954039f18a2cb91e2))
+* 新增系统主题 ([3ce3c67](https://github.com/simply-none/JianLi-App/commit/3ce3c67a77fca6ee18eb0f60e6524d9f97c4aa9f))
+* 优化ai提交 ([e9162b0](https://github.com/simply-none/JianLi-App/commit/e9162b08f35bda0c25a1980fcc4f9bfe1c65c7a3))
+* Layout页面现代化改造 ([e9f7f97](https://github.com/simply-none/JianLi-App/commit/e9f7f9789a0725c03c8aa4942e63218758bc6c50))
+* 优化编辑器样式 ([8aa0b78](https://github.com/simply-none/JianLi-App/commit/8aa0b785b841b5b94701f4eb59ce7a5c7e1370a7))
+* 首页编辑器样式更新 ([612d5d2](https://github.com/simply-none/JianLi-App/commit/612d5d263b9ada007af538d16ccdf7bff8f2165d))
+
+### 🔧 Chores | 其他杂项
+
+* 优化功能日志生成 ([a9d458e](https://github.com/simply-none/JianLi-App/commit/a9d458e1b0986e6e7c24199aef4e5f361d15fa71))
+* 版本更新必须生成日志 ([921c200](https://github.com/simply-none/JianLi-App/commit/921c200a7270b60c43632270f955a78640f36ef6))
+
 ## [v26.6.11-rc.3](https://github.com/simply-none/JianLi-App/compare/v26.6.11-rc.2...v26.6.11-rc.3) (2026-06-11)
 
 ### 🔧 Chores | 其他杂项
 
-* 26.6.11-rc.3 ([7fdd13d](https://github.com/simply-none/JianLi-App/commit/7fdd13db1834d635c196e205508d799c2a776ebc))
 * 番茄钟记录优化，新增图表形式 ([e59215b](https://github.com/simply-none/JianLi-App/commit/e59215b3752c062be48c7414394479ded3260eb2))
 
 ## [v26.6.11-rc.2](https://github.com/simply-none/JianLi-App/compare/v26.6.11-rc.1...v26.6.11-rc.2) (2026-06-11)
 
 ### 🔧 Chores | 其他杂项
 
-* 26.6.11-rc.2 ([2ed6902](https://github.com/simply-none/JianLi-App/commit/2ed690293f0b96bf4c60b50a69d7bc32f6b27e57))
 * 新增系统主题 ([39c273a](https://github.com/simply-none/JianLi-App/commit/39c273a4eac3ca00d2295171a3a756ac6b7424a9))
 
 ## [v26.6.11-rc.1](https://github.com/simply-none/JianLi-App/compare/v26.6.10-rc.1...v26.6.11-rc.1) (2026-06-11)
@@ -24,21 +38,18 @@
 
 ### 🔧 Chores | 其他杂项
 
-* 26.6.11-rc.1 ([0c64425](https://github.com/simply-none/JianLi-App/commit/0c64425f88155757d5f41e3d8ee58ac6718a9105))
 * 优化ai提交 ([942becc](https://github.com/simply-none/JianLi-App/commit/942becc051cc870d4e87c68701bdf40be06e4cd4))
 
 ## [v26.6.10-rc.1](https://github.com/simply-none/JianLi-App/compare/v26.4.27-rc.2...v26.6.10-rc.1) (2026-06-10)
 
 ### 🔧 Chores | 其他杂项
 
-* 26.6.10-rc.1 ([3f5fdec](https://github.com/simply-none/JianLi-App/commit/3f5fdec3a81bc132a001d4806ca717abc03c8cf8))
 * 优化编辑器样式 ([02a9f17](https://github.com/simply-none/JianLi-App/commit/02a9f171777d1116a554e9176ae3f2c0acf795dc))
 
 ## [v26.4.27-rc.2](https://github.com/simply-none/JianLi-App/compare/v26.4.27-rc.1...v26.4.27-rc.2) (2026-04-27)
 
 ### 🔧 Chores | 其他杂项
 
-* 26.4.27-rc.2 ([b3fd4d7](https://github.com/simply-none/JianLi-App/commit/b3fd4d7ad37e94f0262851a0562ae7df5c9de076))
 * 首页编辑器样式更新 ([c38b6fe](https://github.com/simply-none/JianLi-App/commit/c38b6fea41d968a4f9a38ac8a1ddfd92cb1bc644))
 
 ## [v26.4.27-rc.1](https://github.com/simply-none/JianLi-App/compare/v26.2.12-rc.2...v26.4.27-rc.1) (2026-04-27)
@@ -48,15 +59,10 @@
 * 首页编辑器显示优化 ([ebdaf9c](https://github.com/simply-none/JianLi-App/commit/ebdaf9c1a201e6a24fb0d7cf4b1a5c88e5e36edf))
 * 新增版本号增强标识 ([aa8a287](https://github.com/simply-none/JianLi-App/commit/aa8a28795ee7ad0c39e0c7d8e5c455403f2dfb55))
 
-### 🔧 Chores | 其他杂项
-
-* 26.4.27-rc.1 ([402338a](https://github.com/simply-none/JianLi-App/commit/402338aa0a20e7eb3ee6b270113c35fe312f40ee))
-
 ## [v26.2.12-rc.2](https://github.com/simply-none/JianLi-App/compare/v26.2.12-rc.1...v26.2.12-rc.2) (2026-02-12)
 
 ### 🔧 Chores | 其他杂项
 
-* 26.2.12-rc.2 ([16f2678](https://github.com/simply-none/JianLi-App/commit/16f2678f35ec25c0d49c4e3e74b6b986af102ab1))
 * 优化版本生成方式，使用日期的方式生成版本 ([70ef8a9](https://github.com/simply-none/JianLi-App/commit/70ef8a9613da6e7eee8339c4e810347966de08e8))
 
 ## [v26.2.12-rc.1](https://github.com/simply-none/JianLi-App/compare/v1.0.1...v26.2.12-rc.1) (2026-02-12)
@@ -70,10 +76,6 @@
 
 * 修复定时任务过时的问题 ([79d05a7](https://github.com/simply-none/JianLi-App/commit/79d05a75aae7546fd176e9fec28a5f59233cf153))
 * 修复诸多问题，包括资源管理，笔记本，剪切板，自启动 ([591a40d](https://github.com/simply-none/JianLi-App/commit/591a40def792cfc46d54fcf807078db9023826cf))
-
-### 🔧 Chores | 其他杂项
-
-* 26.2.12-rc.1 ([993c5c0](https://github.com/simply-none/JianLi-App/commit/993c5c01ae60b52badd8b23e461d1c651a969be3))
 
 ## [v1.0.1](https://github.com/simply-none/JianLi-App/compare/v1.0.0...v1.0.1) (2026-01-23)
 
@@ -108,18 +110,7 @@
 * 内容优化，自动脚本流程构想加上流程图设计 ([46a5c56](https://github.com/simply-none/JianLi-App/commit/46a5c564f664781dd1f54b39a1b0f302c8b0b899))
 * 控制台警告清除 ([d855011](https://github.com/simply-none/JianLi-App/commit/d855011f9ec0072fa027fc79abacafbe8d92259c))
 
-### 🔧 Chores | 其他杂项
-
-* 1.0.1 ([2b5d136](https://github.com/simply-none/JianLi-App/commit/2b5d13698c6b8ad4d3d4e75ca99f8473d034d88a))
-* 1.0.0-rc.10 ([483f036](https://github.com/simply-none/JianLi-App/commit/483f03639f4c69b719fae557ed88526f1c47a074))
-* 1.0.0-rc.9 ([439b600](https://github.com/simply-none/JianLi-App/commit/439b6009d5db04e9e9d3bc7465a1a3b20e7c7146))
-* 1.0.0-rc.8 ([70dffbb](https://github.com/simply-none/JianLi-App/commit/70dffbb0f61cbe53ea170ad9e8a7b0000210c9ea))
-
 ## [v1.0.0](https://github.com/simply-none/JianLi-App/compare/v1.0.0-rc.10...v1.0.0) (2025-10-15)
-
-### 🔧 Chores | 其他杂项
-
-* 1.0.0 ([bd44b76](https://github.com/simply-none/JianLi-App/commit/bd44b76913d52b4357306ba8f81043308b9d7b64))
 
 ## [v1.0.0-rc.10](https://github.com/simply-none/JianLi-App/compare/v1.0.0-rc.9...v1.0.0-rc.10) (2025-12-25)
 
@@ -136,10 +127,6 @@
 ### ♻️ Code Refactoring | 代码重构
 
 * 删除中文以外的语言包 ([8438357](https://github.com/simply-none/JianLi-App/commit/84383578e458f21c0e85218f7661faf97beb5f53))
-
-### 🔧 Chores | 其他杂项
-
-* 1.0.0-rc.10 ([483f036](https://github.com/simply-none/JianLi-App/commit/483f03639f4c69b719fae557ed88526f1c47a074))
 
 ## [v1.0.0-rc.9](https://github.com/simply-none/JianLi-App/compare/v1.0.0-rc.8...v1.0.0-rc.9) (2025-11-12)
 
@@ -159,10 +146,6 @@
 * 内容优化，自动脚本流程构想加上流程图设计 ([46a5c56](https://github.com/simply-none/JianLi-App/commit/46a5c564f664781dd1f54b39a1b0f302c8b0b899))
 * 控制台警告清除 ([d855011](https://github.com/simply-none/JianLi-App/commit/d855011f9ec0072fa027fc79abacafbe8d92259c))
 
-### 🔧 Chores | 其他杂项
-
-* 1.0.0-rc.9 ([439b600](https://github.com/simply-none/JianLi-App/commit/439b6009d5db04e9e9d3bc7465a1a3b20e7c7146))
-
 ## [v1.0.0-rc.8](https://github.com/simply-none/JianLi-App/compare/v1.0.0-rc.7...v1.0.0-rc.8) (2025-10-15)
 
 ### ✨ Features | 新功能
@@ -176,10 +159,6 @@
 
 * 依赖包移位 ([7e38c50](https://github.com/simply-none/JianLi-App/commit/7e38c505031d5690cf5e4be08d8e48df89134cab))
 
-### 🔧 Chores | 其他杂项
-
-* 1.0.0-rc.8 ([70dffbb](https://github.com/simply-none/JianLi-App/commit/70dffbb0f61cbe53ea170ad9e8a7b0000210c9ea))
-
 ## [v1.0.0-rc.7](https://github.com/simply-none/JianLi-App/compare/v1.0.0-rc.4...v1.0.0-rc.7) (2025-09-02)
 
 ### ✨ Features | 新功能
@@ -192,10 +171,6 @@
 * 添加本地数据库splite3 ([77ba0e0](https://github.com/simply-none/JianLi-App/commit/77ba0e0bbb9f296ad36eaed1ecb89cf83db4585d))
 * 番茄钟记录优化 ([52a5185](https://github.com/simply-none/JianLi-App/commit/52a5185e19b19999d31fb8816d784cb6a83d9e29))
 * 添加番茄钟记录 ([453c8d1](https://github.com/simply-none/JianLi-App/commit/453c8d155231aa9737c33d4f49808e7b8cb32eb2))
-
-### 🔧 Chores | 其他杂项
-
-* 1.0.0-rc.7 ([09f6fb1](https://github.com/simply-none/JianLi-App/commit/09f6fb125ab15b3ecfbae21917dc3984c0fd21d5))
 
 ## [v1.0.0-rc.4](https://github.com/simply-none/JianLi-App/compare/v1.0.0-rc.3...v1.0.0-rc.4) (2025-05-13)
 
@@ -213,10 +188,6 @@
 * 小组件功能完善，可根据模式和内置选项自定义不同的状态，同时存储所有已经设置过的选项数据 ([7df3f25](https://github.com/simply-none/JianLi-App/commit/7df3f25ba5dac870cc9f840acdc8ea3d642b8091))
 * 首页锁屏按钮展示位置修改，改成右键设置显示 ([b0eccc7](https://github.com/simply-none/JianLi-App/commit/b0eccc716edc187ee5500ab76f7f7c22f7176b79))
 
-### 🔧 Chores | 其他杂项
-
-* 1.0.0-rc.4 ([238e2cb](https://github.com/simply-none/JianLi-App/commit/238e2cb53271bc51e10eb8e0c14144c2bdd1df74))
-
 ## [v1.0.0-rc.3](https://github.com/simply-none/JianLi-App/compare/v1.0.0-rc.2...v1.0.0-rc.3) (2025-04-22)
 
 ### ✨ Features | 新功能
@@ -227,19 +198,11 @@
 
 * 开发环境不进行开机自启动 ([6cedd02](https://github.com/simply-none/JianLi-App/commit/6cedd020c44239e02cdf13278daab0126d3f11e5))
 
-### 🔧 Chores | 其他杂项
-
-* 1.0.0-rc.3 ([b75232d](https://github.com/simply-none/JianLi-App/commit/b75232dae335f18b59e8b8ad3d413984bfe3ca53))
-
 ## [v1.0.0-rc.2](https://github.com/simply-none/JianLi-App/compare/v1.0.0-rc.1...v1.0.0-rc.2) (2025-04-19)
 
 ### 🐛 Bug Fixes | Bug 修复
 
 * 项目依赖必须装在devDependencies上，不然打包报错 ([cc46fa9](https://github.com/simply-none/JianLi-App/commit/cc46fa9854a2f5d4b9b5f4d41214284eedd907fa))
-
-### 🔧 Chores | 其他杂项
-
-* 1.0.0-rc.2 ([be9a75c](https://github.com/simply-none/JianLi-App/commit/be9a75c511b816943ac8dc44db9582c229d65227))
 
 ## [v1.0.0-rc.1](https://github.com/simply-none/JianLi-App/compare/v1.0.0-rc.0...v1.0.0-rc.1) (2025-04-19)
 
@@ -247,10 +210,6 @@
 
 * 优化开机启动事件；首页模式hook封装；番茄钟小窗口封装； ([3ab0bba](https://github.com/simply-none/JianLi-App/commit/3ab0bba32ad053aeb0aa3b1fbabd4a9249135260))
 * 番茄钟小窗优化，新增开闭小窗功能；任务栏图标默认隐藏 ([166c3cc](https://github.com/simply-none/JianLi-App/commit/166c3cc8219806025ad7f0daa76491f9260b3687))
-
-### 🔧 Chores | 其他杂项
-
-* 1.0.0-rc.1 ([b77f0bf](https://github.com/simply-none/JianLi-App/commit/b77f0bf742e9b5fb451e98f0e7c6c7f2d4aa4cb6))
 
 ## [v1.0.0-rc.0](https://github.com/simply-none/JianLi-App/compare/v1.0.0-beta.3...v1.0.0-rc.0) (2025-03-08)
 
@@ -263,10 +222,6 @@
 * 内容优化 ([b9f3b5a](https://github.com/simply-none/JianLi-App/commit/b9f3b5af78efaf0fa2c9d86eb1760982bc93e654))
 * 增加文件复制转移功能 ([a5bea74](https://github.com/simply-none/JianLi-App/commit/a5bea74e545644136bd6130c41d71b37f6aa693d))
 
-### 🔧 Chores | 其他杂项
-
-* 1.0.0-rc.0 ([897e7af](https://github.com/simply-none/JianLi-App/commit/897e7af8af3876e85e444cd7c97d8e4fd5363217))
-
 ## [v1.0.0-beta.3](https://github.com/simply-none/JianLi-App/compare/v1.0.0-beta.2...v1.0.0-beta.3) (2025-02-28)
 
 ### ✨ Features | 新功能
@@ -278,11 +233,6 @@
 ### 🐛 Bug Fixes | Bug 修复
 
 * 优化休息后功能失效的问题 ([e65dd4b](https://github.com/simply-none/JianLi-App/commit/e65dd4b65a1094715f4cde52c96e53463f07fd17))
-
-### 🔧 Chores | 其他杂项
-
-* 1.0.0-beta.3 ([f706d79](https://github.com/simply-none/JianLi-App/commit/f706d7933aa5bc9b99246f713eef401ae1a14444))
-* v1.0.0-beta.2 ([356e4fb](https://github.com/simply-none/JianLi-App/commit/356e4fb8908067767c23fe522f6a3e2fd9aa57db))
 
 ## [v1.0.0-beta.2](https://github.com/simply-none/JianLi-App/compare/v1.0.0-beta.1...v1.0.0-beta.2) (2025-02-20)
 
