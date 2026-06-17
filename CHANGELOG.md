@@ -2,7 +2,13 @@
 
 变更日志
 
-## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.6.11-rc.4...HEAD) (2026-06-15)
+## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.6.15-rc.1...HEAD) (2026-06-17)
+
+### ✨ Features | 新功能
+
+* 新增自动更新功能 ([288e080](https://github.com/simply-none/JianLi-App/commit/288e08054ac7ecc5fe5094e0cf1a8fd4b13e63a5))
+
+## [v26.6.15-rc.1](https://github.com/simply-none/JianLi-App/compare/v26.6.11-rc.4...v26.6.15-rc.1) (2026-06-15)
 
 ### 🔧 Chores | 其他杂项
 
