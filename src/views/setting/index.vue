@@ -137,6 +137,7 @@
           </el-form-item>
 
         </el-form-item>
+
         <el-form-item label="开机自启动">
           <el-switch v-model="isStartupCc" inline-prompt active-text="是" inactive-text="否" @change="changeIsStartup" />
         </el-form-item>

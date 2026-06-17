@@ -1,5 +1,10 @@
 <template>
   <el-form class="setting-form" label-width="108" label-position="left">
+    <AutoUpdate />
+
+    <!-- 分割线 -->
+    <el-divider></el-divider>
+
     <el-form-item>
       <template #label>
         <div class="setting-title">关于</div>
@@ -34,6 +39,7 @@
 import { ref, reactive, watch, computed, toRaw } from 'vue';
 import { useRouter } from 'vue-router';
 import packageJson from '../../../package.json';
+import AutoUpdate from './autoUpdate.vue';
 
 console.log(packageJson, 'version')
 

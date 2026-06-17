@@ -16,6 +16,7 @@ import { appName } from "./variables.ts";
 import { initRegisterShortcut } from "./module/registerShortcut.ts";
 import { initSys } from "./module/sys.ts";
 import { initLog } from "./module/log.ts";
+import { initAutoUpdate } from "./module/autoUpdate.ts";
 
 registerJlocalProtocolBefore()
 
@@ -67,6 +68,8 @@ async function createWindow() {
   initRegisterShortcut();
   // 系统相关
   initSys();
+  // 自动更新
+  initAutoUpdate();
 }
 
 app.whenReady().then(async () => {
