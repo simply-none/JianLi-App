@@ -2,7 +2,13 @@
 
 变更日志
 
-## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.6.15-rc.1...HEAD) (2026-06-17)
+## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.6.17-rc.1...HEAD) (2026-06-23)
+
+### ✨ Features | 新功能
+
+* 新增主题，资源管理主题优化 ([21833a2](https://github.com/simply-none/JianLi-App/commit/21833a20262d9c589854e488789e0e312988a91d))
+
+## [v26.6.17-rc.1](https://github.com/simply-none/JianLi-App/compare/v26.6.15-rc.1...v26.6.17-rc.1) (2026-06-17)
 
 ### ✨ Features | 新功能
 
