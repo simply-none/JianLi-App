@@ -2,7 +2,13 @@
 
 变更日志
 
-## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.6.17-rc.1...HEAD) (2026-06-23)
+## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.6.23-rc.1...HEAD) (2026-06-23)
+
+### 🐛 Bug Fixes | Bug 修复
+
+* 修复主题新增时的打包报错 ([09723a2](https://github.com/simply-none/JianLi-App/commit/09723a25f92281c47554aca9f3b2fc3f044a4b14))
+
+## [v26.6.23-rc.1](https://github.com/simply-none/JianLi-App/compare/v26.6.17-rc.1...v26.6.23-rc.1) (2026-06-23)
 
 ### ✨ Features | 新功能
 
