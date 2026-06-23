@@ -88,6 +88,7 @@ function main() {
     const branch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf-8' }).trim();
     console.log(`最终版本号: ${version}`);
     console.log(`Run \`git push --follow-tags origin ${branch}\` to publish`);
+    console.log(`Run \`git push origin --tags\` to publish`);
   } catch (error) {
     process.exit(1);
   }

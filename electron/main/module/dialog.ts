@@ -8,7 +8,7 @@ import { Worker } from "worker_threads";
 import { scanWorkerPath } from "../variables.ts";
 import { globby } from 'globby'
 import fastGlob from 'fast-glob'
-import { execSync } from "child_process";
+import { execSync, exec } from "child_process";
 import colors from 'colors';
 // 扫描进程worker
 let scanWorker;
@@ -306,9 +306,26 @@ export function exportDataToJson(data: any, path: string) {
   }
 }
 
-// 打开资源管理器文件
-export function openFileInAssetsManager(path: string) {
-  shell.openPath(path);
+export function openFileInAssetsManager(filePath: string) {
+  const fullPath = filePath.replace(/\//g, '\\');
+  if (process.platform === 'win32') {
+    try {
+      exec(`explorer.exe /select,"${fullPath}"`);
+    } catch {
+      const dirPath = fullPath.substring(0, fullPath.lastIndexOf('\\'));
+      shell.openPath(dirPath);
+    }
+  } else if (process.platform === 'darwin') {
+    try {
+      exec(`open -R "${fullPath}"`);
+    } catch {
+      const dirPath = fullPath.substring(0, fullPath.lastIndexOf('/'));
+      shell.openPath(dirPath);
+    }
+  } else {
+    const dirPath = fullPath.substring(0, fullPath.lastIndexOf('/'));
+    shell.openPath(dirPath);
+  }
 }
 
 export function initFile() {

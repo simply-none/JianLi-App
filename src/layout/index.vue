@@ -23,11 +23,11 @@
           </div>
         </nav>
         <!-- 主题切换器 -->
-        <div class="theme-switcher">
+        <div class="theme-switcher" ref="themeSwitcherRef">
           <div class="theme-label">主题</div>
           <div class="theme-options">
             <button
-              v-for="t in themeOptions"
+              v-for="t in displayedThemes"
               :key="t.name"
               class="theme-dot"
               :class="{ 'is-active': currentTheme === t.name }"
@@ -37,7 +37,29 @@
             >
               <span class="dot-inner" />
             </button>
+            <button
+              class="theme-more"
+              :class="{ 'is-open': showThemeDropdown }"
+              @click="toggleThemeDropdown"
+            >
+              <span class="more-icon">⋮</span>
+            </button>
           </div>
+          <!-- 主题下拉面板 -->
+          <Transition name="dropdown">
+            <div v-if="showThemeDropdown" class="theme-dropdown" ref="themeDropdownRef">
+              <div
+                v-for="t in dropdownThemes"
+                :key="t.name"
+                class="dropdown-item"
+                :class="{ 'is-active': currentTheme === t.name }"
+                @click="handleDropdownThemeClick(t.name)"
+              >
+                <span class="dropdown-dot" :style="{ '--dot-bg': t.preview[0], '--dot-card': t.preview[1], '--dot-primary': t.preview[2] }" />
+                <span class="dropdown-label">{{ t.label }}</span>
+              </div>
+            </div>
+          </Transition>
         </div>
       </template>
       <template #main>
@@ -50,12 +72,12 @@
 <script setup lang="ts">
 import Layout from '@/components/layout.vue';
 import Header from '@/components/header.vue';
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter, type RouteRecordNameGeneric, type RouteRecordRaw } from 'vue-router';
 import { layoutRouters } from '@/router';
 import { storeToRefs } from 'pinia';
 import useRuntimeVariables from '@/store/useRuntimeVariables';
-import useTheme, { themeOptions } from '@/store/useTheme';
+import useTheme, { themeOptions, type ThemeName } from '@/store/useTheme';
 import { watch } from 'vue';
 import {
   Setting, Monitor, House, Grid, Timer,
@@ -157,6 +179,49 @@ const toHome = () => {
 const themeStore = useTheme();
 const { currentTheme } = storeToRefs(themeStore);
 const { setTheme } = themeStore;
+
+const themeSwitcherRef = ref<HTMLElement>();
+const themeDropdownRef = ref<HTMLElement>();
+const showThemeDropdown = ref(false);
+
+const displayedThemes = computed(() => {
+  const current = themeOptions.find(t => t.name === currentTheme.value);
+  const others = themeOptions.filter(t => t.name !== currentTheme.value);
+  const recommended = others[0] || null;
+  const result: typeof themeOptions = [];
+  if (current) result.push(current);
+  if (recommended) result.push(recommended);
+  return result;
+});
+
+const dropdownThemes = computed(() => {
+  const displayedNames = displayedThemes.value.map(t => t.name);
+  return themeOptions.filter(t => !displayedNames.includes(t.name));
+});
+
+function toggleThemeDropdown() {
+  showThemeDropdown.value = !showThemeDropdown.value;
+}
+
+function handleDropdownThemeClick(name: string) {
+  setTheme(name as ThemeName);
+  showThemeDropdown.value = false;
+}
+
+function handleClickOutside(event: MouseEvent) {
+  const target = event.target as HTMLElement;
+  if (themeSwitcherRef.value && !themeSwitcherRef.value.contains(target)) {
+    showThemeDropdown.value = false;
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside);
+});
 </script>
 
 <style scoped lang="scss">
@@ -285,6 +350,7 @@ const { setTheme } = themeStore;
   padding: 10px 14px;
   border-top: 1px solid var(--border-subtle);
   user-select: none;
+  position: relative;
 }
 
 .theme-label {
@@ -334,5 +400,121 @@ const { setTheme } = themeStore;
       transform: scale(1.1);
     }
   }
+}
+
+.theme-more {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, transform 0.15s;
+
+  .more-icon {
+    font-size: 12px;
+    color: var(--text-muted);
+    transition: color 0.2s;
+    line-height: 1;
+  }
+
+  &:hover {
+    background: var(--bg-hover);
+
+    .more-icon {
+      color: var(--text-primary);
+    }
+  }
+
+  &.is-open {
+    background: var(--bg-active-btn);
+
+    .more-icon {
+      color: var(--color-primary);
+    }
+  }
+}
+
+.theme-dropdown {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 8px;
+  width: 160px;
+  max-height: 280px;
+  overflow-y: auto;
+  background: var(--bg-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border-subtle);
+  padding: 4px;
+  z-index: 100;
+
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 2px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-btn);
+  cursor: pointer;
+  transition: background 0.2s;
+
+  &:hover {
+    background: var(--bg-hover);
+  }
+
+  &.is-active {
+    background: var(--color-primary-light);
+  }
+}
+
+.dropdown-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-block;
+  border: 2px solid var(--dot-bg);
+  background: linear-gradient(135deg, var(--dot-card) 50%, var(--dot-primary) 50%);
+}
+
+.dropdown-label {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  .dropdown-item.is-active & {
+    color: var(--color-primary-solid);
+    font-weight: 600;
+  }
+}
+
+.dropdown-enter-active,
+.dropdown-leave-active {
+  transition: all 0.2s ease;
+}
+
+.dropdown-enter-from,
+.dropdown-leave-to {
+  opacity: 0;
+  transform: translateY(8px) scale(0.98);
 }
 </style>
