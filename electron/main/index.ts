@@ -17,6 +17,8 @@ import { initRegisterShortcut } from "./module/registerShortcut.ts";
 import { initSys } from "./module/sys.ts";
 import { initLog } from "./module/log.ts";
 import { initAutoUpdate } from "./module/autoUpdate.ts";
+import { initWeather } from "./module/weather.ts";
+import { initLocation } from "./module/location.ts";
 
 registerJlocalProtocolBefore()
 
@@ -70,6 +72,10 @@ async function createWindow() {
   initSys();
   // 自动更新
   initAutoUpdate();
+  // 天气模块
+  initWeather();
+  // 定位模块
+  initLocation();
 }
 
 app.whenReady().then(async () => {

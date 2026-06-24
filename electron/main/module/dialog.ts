@@ -368,6 +368,22 @@ export function initFile() {
     openFileInAssetsManager(path);
   });
 
+  ipcMain.handle("save-debug-data", (e, { data, fileName }) => {
+    try {
+      const userDataPath = app.getPath('userData');
+      const debugDir = path.join(userDataPath, 'debug');
+      if (!fs.existsSync(debugDir)) {
+        fs.mkdirSync(debugDir, { recursive: true });
+      }
+      const filePath = path.join(debugDir, `${fileName}_${moment().format('YYYY-MM-DD_HH-mm-ss')}.json`);
+      const jsonData = JSON.stringify(data, null, 2);
+      fs.writeFileSync(filePath, jsonData);
+      return { success: true, filePath };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
+  });
+
   // 资源扫描
   ipcMain.on("start-scan", async (event, { startPath, extensions, options }) => {
     console.log(startPath, "startPath, extensions");

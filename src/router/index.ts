@@ -6,42 +6,74 @@ declare module "vue-router" {
   }
 }
 
+export const RouteNames = {
+  SETTING: "setting",
+  SYSTEM_INFO: "systemInfo",
+  HOME_MODE: "homeMode",
+  WINDOW_MODE: "windowMode",
+  POMODORO_RECORD: "pomodoroRecord",
+  APP_CACHE: "appCache",
+  FILE_RELA: "fileRela",
+  RESOURCE_MANAGE: "resourceManage",
+  CLIPBOARD: "clipboard",
+  NOTEBOOK: "notebook",
+  REGISTER_SHORTCUT: "registerShortcut",
+  SAFETY_PROTECTION: "safetyProtection",
+  STYLE_BEAUTY: "styleBeauty",
+  NET_REQUEST: "netRequest",
+  SQL_TEST: "sqlTest",
+  FLOW: "flow",
+  FUNCTION: "function",
+  WEATHER: "weather",
+  ABOUT: "about",
+  HOME: "home",
+  LAYOUT: "layout",
+  SMALL: "small",
+  SECOND: "second",
+  JOB_TIP_WINDOW: "jobTipWindow",
+  MINI_NOTEBOOK: "miniNotebook",
+} as const;
+
+export type RouteNameType = typeof RouteNames[keyof typeof RouteNames];
+
+export const DEFAULT_REDIRECT_ROUTE: RouteNameType = RouteNames.HOME;
+
 export const layoutRouters: RouteRecordRaw[] = [
   {
     path: "/setting",
-    name: "setting",
+    name: RouteNames.SETTING,
     component: () => import("@/views/setting/index.vue"),
     meta: {
-      title: "设置", 
-    }
+      title: "设置",
+    },
   },
   {
-    path: '/systemInfo',
-    name: 'systemInfo',
+    path: "/systemInfo",
+    name: RouteNames.SYSTEM_INFO,
     component: () => import("@/views/systemInfo/index.vue"),
     meta: {
-      title: "系统信息", 
-    }
+      title: "系统信息",
+    },
   },
   {
-    path: '/homeMode',
-    name: 'homeMode',
+    path: "/homeMode",
+    name: RouteNames.HOME_MODE,
     component: () => import("@/views/homeMode/index.vue"),
     meta: {
-      title: "主页模式", 
-    }
+      title: "主页模式",
+    },
   },
   {
-    path: '/windowMode',
-    name: 'windowMode',
+    path: "/windowMode",
+    name: RouteNames.WINDOW_MODE,
     component: () => import("@/views/windowMode/index.vue"),
     meta: {
       title: "窗口模式",
-    }
+    },
   },
   {
     path: "/pomodoroRecord",
-    name: "pomodoroRecord",
+    name: RouteNames.POMODORO_RECORD,
     component: () => import("@/views/pomodoroRecord/index.vue"),
     meta: {
       title: "番茄钟记录",
@@ -49,7 +81,7 @@ export const layoutRouters: RouteRecordRaw[] = [
   },
   {
     path: "/appCache",
-    name: "appCache",
+    name: RouteNames.APP_CACHE,
     component: () => import("@/views/appCache/index.vue"),
     meta: {
       title: "应用缓存",
@@ -57,65 +89,63 @@ export const layoutRouters: RouteRecordRaw[] = [
   },
   {
     path: "/fileRela",
-    name: "fileRela",
-    component: () => import("@/views/fileRela/index.vue"), 
+    name: RouteNames.FILE_RELA,
+    component: () => import("@/views/fileRela/index.vue"),
     meta: {
-      title: "文件关联", 
-    }
+      title: "文件关联",
+    },
   },
   {
-    path: '/resourceManage',
-    name:'resourceManage',
+    path: "/resourceManage",
+    name: RouteNames.RESOURCE_MANAGE,
     component: () => import("@/views/resourceManage/index.vue"),
     meta: {
-      title: "资源管理", 
-    }
+      title: "资源管理",
+    },
   },
   {
-    path: '/clipboard',
-    name:'clipboard',
+    path: "/clipboard",
+    name: RouteNames.CLIPBOARD,
     component: () => import("@/views/clipboard/index.vue"),
     meta: {
       title: "剪贴板",
-    }
+    },
   },
-  // 笔记本
   {
-    path: '/notebook',
-    name:'notebook',
+    path: "/notebook",
+    name: RouteNames.NOTEBOOK,
     component: () => import("@/views/notebook/index.vue"),
     meta: {
-      title: "笔记本", 
-    }
+      title: "笔记本",
+    },
   },
-  // 快捷键注册
   {
-    path: '/registerShortcut',
-    name:'registerShortcut',
+    path: "/registerShortcut",
+    name: RouteNames.REGISTER_SHORTCUT,
     component: () => import("@/views/registerShortcut/index.vue"),
     meta: {
-      title: "快捷键注册", 
-    }
+      title: "快捷键注册",
+    },
   },
   {
-    path: '/safetyProtection',
-    name:'safetyProtection',
+    path: "/safetyProtection",
+    name: RouteNames.SAFETY_PROTECTION,
     component: () => import("@/views/safetyProtection/index.vue"),
     meta: {
-      title: "安全防护", 
-    }
+      title: "安全防护",
+    },
   },
   {
     path: "/styleBeauty",
-    name: "styleBeauty",
+    name: RouteNames.STYLE_BEAUTY,
     component: () => import("@/views/styleBeauty/index.vue"),
     meta: {
-      title: "样式美化", 
-    }
+      title: "样式美化",
+    },
   },
   {
     path: "/netRequest",
-    name: "netRequest",
+    name: RouteNames.NET_REQUEST,
     component: () => import("@/views/netRequest/index.vue"),
     meta: {
       title: "网络请求",
@@ -123,7 +153,7 @@ export const layoutRouters: RouteRecordRaw[] = [
   },
   {
     path: "/sqlTest",
-    name: "sqlTest",
+    name: RouteNames.SQL_TEST,
     component: () => import("@/views/sqlTest/index.vue"),
     meta: {
       title: "数据库测试",
@@ -131,68 +161,74 @@ export const layoutRouters: RouteRecordRaw[] = [
   },
   {
     path: "/流程图",
-    name: "flow",
+    name: RouteNames.FLOW,
     component: () => import("@/views/flow/index.vue"),
     meta: {
       title: "流程图",
-    }
+    },
   },
   {
     path: "/小工具",
-    name: "function",
+    name: RouteNames.FUNCTION,
     component: () => import("@/views/function/index.vue"),
     meta: {
       title: "小工具",
-    }
+    },
   },
-  // 关于
+  {
+    path: "/weather",
+    name: RouteNames.WEATHER,
+    component: () => import("@/views/weather/index.vue"),
+    meta: {
+      title: "天气",
+    },
+  },
   {
     path: "/about",
-    name: "about",
+    name: RouteNames.ABOUT,
     component: () => import("@/views/about/index.vue"),
     meta: {
-      title: "关于", 
-    }
+      title: "关于",
+    },
   },
 ];
 
 const routers: RouteRecordRaw[] = [
   {
     path: "/",
-    redirect: "/home",
+    redirect: `/${DEFAULT_REDIRECT_ROUTE}`,
   },
   {
     path: "/home",
-    name: "home",
+    name: RouteNames.HOME,
     component: () => import("@/views/home/index.vue"),
   },
-  // 所有路由都引用Layout组件
   {
     path: "/",
-    name: "layout",
+    name: RouteNames.LAYOUT,
     component: () => import("@/layout/index.vue"),
     children: layoutRouters,
   },
   {
     path: "/small",
-    name: "small",
+    name: RouteNames.SMALL,
     component: () => import("@/views/smallWindow.vue"),
   },
   {
     path: "/second",
-    name: "second",
+    name: RouteNames.SECOND,
     component: () => import("@/views/pomodoroMiniWindow/index.vue"),
   },
   {
     path: "/jobTipWindow",
-    name: "jobTipWindow",
+    name: RouteNames.JOB_TIP_WINDOW,
     component: () => import("@/views/jobTipWindow/index.vue"),
   },
   {
     path: "/miniNotebook",
-    name: "miniNotebook",
+    name: RouteNames.MINI_NOTEBOOK,
     component: () => import("@/views/miniNotebook/index.vue"),
-  }
+  },
 ];
 
 export default createRouter({

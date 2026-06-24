@@ -36,6 +36,85 @@ function getDisabledShowKeysData(): ObjectType {
   return newStoreData;
 }
 
+export interface PomodoroStatus {
+  isResting: boolean
+  startWorkTime: number
+  closeWorkTime: number
+}
+
+export async function getPomodoroStatus(): Promise<PomodoroStatus> {
+  return new Promise((resolve) => {
+    queryByConditions({
+      db: myDb.db,
+      tableName: tableName,
+      conditions: { key: 'startWorkTime' },
+      callback: (err, startData) => {
+        if (err) {
+          resolve({ isResting: false, startWorkTime: Date.now(), closeWorkTime: Date.now() })
+          return
+        }
+
+        const startWorkTime = startData.length > 0 ? JSON.parse(startData[0].value) : Date.now()
+
+        queryByConditions({
+          db: myDb.db,
+          tableName: tableName,
+          conditions: { key: 'closeWorkTime' },
+          callback: (err, closeData) => {
+            if (err) {
+              resolve({ isResting: false, startWorkTime, closeWorkTime: Date.now() })
+              return
+            }
+
+            const closeWorkTime = closeData.length > 0 ? JSON.parse(closeData[0].value) : Date.now()
+            const isResting = startWorkTime < closeWorkTime
+
+            resolve({ isResting, startWorkTime, closeWorkTime })
+          },
+        })
+      },
+    })
+  })
+}
+
+export async function setPomodoroToWork(force: boolean = true): Promise<void> {
+  const now = Date.now()
+
+  await upsertData({
+    db: myDb.db,
+    tableName: tableName,
+    data: { key: 'startWorkTime', value: JSON.stringify(now) },
+    config: { primaryKey: 'key' },
+    callback: () => {},
+  })
+
+  await upsertData({
+    db: myDb.db,
+    tableName: tableName,
+    data: { key: 'closeWorkTime', value: JSON.stringify(now) },
+    config: { primaryKey: 'key' },
+    callback: () => {},
+  })
+
+  if (force) {
+    await upsertData({
+      db: myDb.db,
+      tableName: tableName,
+      data: {
+        key: 'pomodoroForce',
+        value: JSON.stringify({
+          force: true,
+          time: now,
+          from: 'rest',
+          to: 'work',
+        }),
+      },
+      config: { primaryKey: 'key' },
+      callback: () => {},
+    })
+  }
+}
+
 export function initStore() {
   ipcMain.on("get-stort-all", (e) => {
     // const storeData = getAllStore();

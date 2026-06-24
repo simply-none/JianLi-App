@@ -105,6 +105,7 @@ const iconMap: Record<string, any> = {
   sqlTest: Coin,
   flow: Share,
   function: Tools,
+  weather: Document,
   about: InfoFilled,
 };
 
@@ -123,7 +124,7 @@ interface MenuGroup {
 const groupDefs: MenuGroup[] = [
   { label: '通用', names: ['setting', 'homeMode', 'windowMode', 'styleBeauty'] },
   { label: '系统与资源', names: ['systemInfo', 'appCache', 'fileRela', 'resourceManage', 'safetyProtection'] },
-  { label: '效率工具', names: ['pomodoroRecord', 'clipboard', 'notebook', 'registerShortcut', 'function'] },
+  { label: '效率工具', names: ['pomodoroRecord', 'clipboard', 'notebook', 'registerShortcut', 'function', 'weather'] },
   { label: '开发工具', names: ['netRequest', 'sqlTest', 'flow'] },
   { label: '关于', names: ['about'] },
 ];

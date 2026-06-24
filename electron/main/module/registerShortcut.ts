@@ -4,20 +4,26 @@ import moment from "moment";
 import { myDb } from "./sql.ts";
 import { clipboard, ipcMain, globalShortcut } from "electron";
 import colors from "colors";
+import { getPomodoroStatus, setPomodoroToWork } from "./store.ts";
 
 export const tableName = "register_shortcut";
 
-// 打开匹配页面
 function openMatchPage(url: string) {
-  // 显示window
   win.show();
-  // 聚焦到窗口
   win.webContents.send("open-match-page", url);
 }
-// 显示应用
-function showApp() {
-  // 如果当前是显示的，则隐藏，否则显示
+
+async function showApp() {
   if (win.isVisible()) {
+    const status = await getPomodoroStatus();
+    if (status.isResting) {
+      await setPomodoroToWork(true);
+      win.webContents.send("pomodoro-force-switch", {
+        from: "rest",
+        to: "work",
+        time: Date.now(),
+      });
+    }
     hideApp();
   } else {
     win.show();
