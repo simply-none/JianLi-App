@@ -7,29 +7,9 @@ import {
   appName,
 } from "../variables.ts";
 import { destroyTray } from "./tray.ts";
-import AutoLaunch from 'auto-launch'
+import { setAutoStartup, checkAutoStartupStatus } from "./autoStartup.ts";
 
 export let win: BrowserWindow | null;
-
-let autoLauncher = new AutoLaunch({
-  name: app.getName(),
-  path: app.getPath('exe'),
-});
-
-function startupWithAutoLauncher(flag = 'enable') {
-  autoLauncher
-    .isEnabled()
-    .then(function (isEnabled) {
-      if (isEnabled) {
-        flag == 'disable' && autoLauncher.disable();
-        return;
-      }
-      flag == 'enable' && autoLauncher.enable();
-    })
-    .catch(function (err) {
-      console.log('启动失败', err)
-    });
-}
 
 export function focusAppToTop() {
   win?.setAlwaysOnTop(true, "screen-saver");
@@ -38,15 +18,10 @@ export function focusAppToTop() {
   win?.focus();
 }
 
-export function isSetStartup(isStartup, hidden = false) {
-  // 系统自带
-  // app.setLoginItemSettings({
-  //   openAtLogin: isStartup,
-  //   // 如果应用以管理员身份运行，设置此选项为true可避免UAC（用户账户控制）对话框在Windows上弹出。
-  //   openAsHidden: hidden, // macOS特有的，当设置为true时，应用会隐藏式启动
-  // });
-  // 使用第三方库
-  startupWithAutoLauncher(isStartup ? 'enable' : 'disable')
+export function isSetStartup(isStartup: boolean, hidden = false) {
+  const result = setAutoStartup(isStartup)
+  console.log(`[isSetStartup] 设置结果: ${result.success} - ${result.message}`)
+  return result
 }
 
 export function hideApp() {
