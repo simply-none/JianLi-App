@@ -1,258 +1,162 @@
 <template>
-  <el-form class="fileRela-form" label-width="108" label-position="left">
-    <el-form-item>
-      <template #label>
-        <div class="setting-title">文件上传测试</div>
-      </template>
-    </el-form-item>
-    <!-- 文件上传测试 -->
-    <el-form-item label="文件上传测试" class="mode-wrapper">
-      <upload-vue :limit="1" @update-data="updateDataFn" />
-    </el-form-item>
+  <div class="file-rela-container">
+    <!-- <div class="page-header">
+      <h2 class="page-title">文件管理</h2>
+    </div> -->
 
-    <!-- 分割线 -->
-    <el-divider></el-divider>
-    <el-form-item>
-      <template #label>
-        <div class="setting-title">文件转移</div>
-      </template>
-    </el-form-item>
-    <!-- 文件夹复制测试 -->
-    <el-form-item label="文件转移" class="mode-wrapper file-move">
-      <el-form-item label="原位置" style="width: 100%;">
-        <el-input spellcheck="false" v-model="copyOrigin" placeholder="请选择" style="width: 100%" disabled :title="copyOrigin">
-          <template #append>
-            <el-button @click="selectCopyPath">
-              选择目录
-            </el-button>
-          </template>
-        </el-input>
-      </el-form-item>
-      <el-form-item label="目标位置" style="width: 100%;">
-        <el-input spellcheck="false" v-model="copyTarget" placeholder="请选择" style="width: 100%" disabled :title="copyTarget">
-          <template #append>
-            <el-button @click="selectCopyTarget">
-              选择目录
-            </el-button>
-          </template>
-        </el-input>
-      </el-form-item>
-      <!-- 包含还是排除 -->
-      <el-form-item label="包含还是排除">
-        <el-radio-group v-model="copyType" @change="changeCopyType">
-          <el-radio value="include">包含</el-radio>
-          <el-radio value="exclude">排除</el-radio>
-        </el-radio-group>
-      </el-form-item>
-      <el-form-item label="名称包含" v-if="copyType == 'include'">
-        <el-input spellcheck="false" v-model="copyInclude" placeholder="请输入" style="width: 100%" @keyup.enter="selectCopyInclude">
-          <template #append>
-            <el-button @click="selectCopyInclude">
-              添加
-            </el-button>
-          </template>
-        </el-input>
-        <!-- 名称包含的列表 -->
-        <div class="copy-include-list">
-          <el-tag v-for="(item, index) in copyIncludeList" :key="index" closable @close="removeCopyInclude(item)">
-            {{ item }}
-          </el-tag>
+    <div class="cards-grid">
+      <div class="file-card">
+        <div class="card-header">
+          <h3 class="card-title">
+            <el-icon><Upload /></el-icon>
+            文件上传测试
+          </h3>
         </div>
-      </el-form-item>
-      <el-form-item label="名称排除" v-else>
-        <el-input spellcheck="false" v-model="copyExclude" placeholder="请输入" style="width: 100%" @keyup.enter="selectCopyExclude">
-          <template #append>
-            <el-button @click="selectCopyExclude">
-              添加
-            </el-button>
-          </template>
-        </el-input>
-        <!-- 名称排除的列表 -->
-        <div class="copy-exclude-list">
-          <el-tag v-for="(item, index) in copyExcludeList" :key="index" closable @close="removeCopyExclude(item)">
-            {{ item }}
-          </el-tag>
+        <div class="card-body">
+          <upload-vue :limit="1" @update-data="updateDataFn" />
         </div>
-      </el-form-item>
-      <!-- 包含还是排除特定的文件后缀 -->
-      <el-form-item label="后缀包含还是排除">
-        <el-radio-group v-model="copyTypeSuffix" @change="changeCopyTypeSuffix">
-          <el-radio value="include">包含</el-radio>
-          <el-radio value="exclude">排除</el-radio>
-        </el-radio-group>
-      </el-form-item>
-      <el-form-item label="后缀包含" v-if="copyTypeSuffix == 'include'">
-        <el-input spellcheck="false" v-model="copyIncludeSuffix" placeholder="请输入：.png、.jpeg、.mp4、.doc" style="width: 100%"
-          @keyup.enter="selectCopyIncludeSuffix">
-          <template #append>
-            <el-button @click="selectCopyIncludeSuffix">
-              添加
-            </el-button>
-          </template>
-        </el-input>
-        <!-- 名称包含的列表 -->
-        <div class="copy-include-list">
-          <el-tag v-for="(item, index) in copyIncludeSuffixList" :key="index" closable
-            @close="removeCopyIncludeSuffix(item)">
-            {{ item }}
-          </el-tag>
-        </div>
-      </el-form-item>
-      <el-form-item label="后缀排除" v-else>
-        <el-input spellcheck="false" v-model="copyExcludeSuffix" placeholder="请输入" style="width: 100%"
-          @keyup.enter="selectCopyExcludeSuffix">
-          <template #append>
-            <el-button @click="selectCopyExcludeSuffix">
-              添加
-            </el-button>
-          </template>
-        </el-input>
-        <!-- 名称排除的列表 -->
-        <div class="copy-exclude-list">
-          <el-tag v-for="(item, index) in copyExcludeSuffixList" :key="index" closable
-            @close="removeCopyExcludeSuffix(item)">
-            {{ item }}
-          </el-tag>
-        </div>
-      </el-form-item>
+      </div>
 
-    </el-form-item>
-    <el-form-item>
-      <el-button @click="copyDir" type="primary">
-        复制转移
-      </el-button>
-    </el-form-item>
+      <div class="file-card">
+        <div class="card-header">
+          <h3 class="card-title">
+            <el-icon><Files /></el-icon>
+            文件转移
+          </h3>
+        </div>
+        <div class="card-body">
+          <div class="copy-section">
+            <div class="path-row">
+              <div class="path-item">
+                <span class="path-label">原位置</span>
+                <el-input v-model="copyOrigin" placeholder="请选择" disabled :title="copyOrigin">
+                  <template #append>
+                    <el-button @click="selectCopyPath" class="path-btn">
+                      <el-icon><Folder /></el-icon>
+                      选择目录
+                    </el-button>
+                  </template>
+                </el-input>
+              </div>
+              <div class="arrow-wrap">
+                <el-icon class="arrow-icon"><ArrowRight /></el-icon>
+              </div>
+              <div class="path-item">
+                <span class="path-label">目标位置</span>
+                <el-input v-model="copyTarget" placeholder="请选择" disabled :title="copyTarget">
+                  <template #append>
+                    <el-button @click="selectCopyTarget" class="path-btn">
+                      <el-icon><Folder /></el-icon>
+                      选择目录
+                    </el-button>
+                  </template>
+                </el-input>
+              </div>
+            </div>
 
-    <!-- 分割线 -->
-    <el-divider></el-divider>
-    <!-- 文件扫描 -->
-    <FileScanVue :defaultAppPaths="defaultAppPaths"></FileScanVue>
+            <div class="filter-section">
+              <div class="filter-row">
+                <span class="filter-label">名称</span>
+                <el-radio-group v-model="copyType" @change="changeCopyType" class="radio-group">
+                  <el-radio value="include">包含</el-radio>
+                  <el-radio value="exclude">排除</el-radio>
+                </el-radio-group>
+                <el-input v-model="copyInclude" placeholder="输入关键词" @keyup.enter="selectCopyInclude" class="filter-input">
+                  <template #append>
+                    <el-button @click="selectCopyInclude">添加</el-button>
+                  </template>
+                </el-input>
+              </div>
+              <div class="tag-list">
+                <el-tag v-for="(item, index) in copyIncludeList" :key="index" closable @close="removeCopyInclude(item)">
+                  {{ item }}
+                </el-tag>
+                <el-tag v-for="(item, index) in copyExcludeList" :key="index" closable @close="removeCopyExclude(item)" type="danger">
+                  {{ item }}
+                </el-tag>
+              </div>
+            </div>
 
-    <!-- 分割线 -->
-    <el-divider></el-divider>
-    <!-- 默认应用 -->
-    <DefaultApp @updateDefaultAppPaths="updateDefaultAppPaths"></DefaultApp>
-  </el-form>
+            <div class="filter-section">
+              <div class="filter-row">
+                <span class="filter-label">后缀</span>
+                <el-radio-group v-model="copyTypeSuffix" @change="changeCopyTypeSuffix" class="radio-group">
+                  <el-radio value="include">包含</el-radio>
+                  <el-radio value="exclude">排除</el-radio>
+                </el-radio-group>
+                <el-input v-model="copyIncludeSuffix" placeholder="如: .png、.jpeg" @keyup.enter="selectCopyIncludeSuffix" class="filter-input">
+                  <template #append>
+                    <el-button @click="selectCopyIncludeSuffix">添加</el-button>
+                  </template>
+                </el-input>
+              </div>
+              <div class="tag-list">
+                <el-tag v-for="(item, index) in copyIncludeSuffixList" :key="index" closable @close="removeCopyIncludeSuffix(item)">
+                  {{ item }}
+                </el-tag>
+                <el-tag v-for="(item, index) in copyExcludeSuffixList" :key="index" closable @close="removeCopyExcludeSuffix(item)" type="danger">
+                  {{ item }}
+                </el-tag>
+              </div>
+            </div>
+
+            <div class="copy-btn-wrap">
+              <el-button type="primary" @click="copyDir" class="copy-btn">
+                <el-icon><Files /></el-icon>
+                复制转移
+              </el-button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <FileScanVue :defaultAppPaths="defaultAppPaths"></FileScanVue>
+
+      <div class="file-card">
+        <div class="card-header">
+          <h3 class="card-title">
+            <el-icon><SetUp /></el-icon>
+            默认应用
+          </h3>
+        </div>
+        <div class="card-body">
+          <DefaultApp @updateDefaultAppPaths="updateDefaultAppPaths"></DefaultApp>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, computed, toRaw, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { storeToRefs } from 'pinia';
+import { ref, onMounted } from 'vue';
+import { Upload, Files, Folder, ArrowRight, SetUp } from '@element-plus/icons-vue';
 import UploadVue from '@/components/upload.vue';
 import FileScanVue from './fileScan.vue';
 import DefaultApp from './defaultApp.vue';
-import useCacheSetStore from '@/store/useCacheSet'
 import { send, sendSync } from '@/utils/common';
 import { ElMessage } from 'element-plus';
-
-const { fileCachePathC } = storeToRefs(useCacheSetStore());
-const { setFileCachePath } = useCacheSetStore();
-
-const fileCachePathCc = ref(fileCachePathC.value);
-
-watch(() => fileCachePathC.value, (newVal) => {
-  fileCachePathCc.value = newVal;
-})
 
 const defaultAppPaths = ref<Record<string, ObjectType>>({});
 const updateDefaultAppPaths = (list: Record<string, ObjectType>) => {
   defaultAppPaths.value = list;
-}
+};
 
 const copyOrigin = ref('');
-function selectFileDir() {
-  const res = sendSync('get-file-list', 'select-dir');
-  console.log(res);
-  if (Array.isArray(res)) {
-    fileCachePathCc.value = res[0];
-    setFileCachePath(fileCachePathCc.value);
-  }
-}
 function selectCopyPath() {
   const res = sendSync('get-file-list', 'select-dir');
   copyOrigin.value = res[0];
-  console.log(res);
 }
 
 const copyTarget = ref('');
 function selectCopyTarget() {
   const res = sendSync('get-file-list', 'select-dir');
   copyTarget.value = res[0];
-  console.log(res);
-}
-
-const scanPath = ref('');
-function selectScanPath() {
-  const res = sendSync('get-file-list', 'select-dir');
-  scanPath.value = res[0];
-  console.log(res);
-}
-
-const scanSuffix = ref('');
-const scanSuffixList = ref<string[]>([]);
-function selectScanSuffix() {
-  // 去除首尾空格
-  scanSuffix.value = scanSuffix.value.trim();
-  if (scanSuffix.value) {
-    scanSuffixList.value.push(scanSuffix.value);
-    scanSuffix.value = '';
-  }
-}
-
-function removeScanSuffix(item: string) {
-  scanSuffixList.value = scanSuffixList.value.filter((val) => val !== item);
-}
-
-const startScan = async () => {
-  const startDefaultPath = 'C:\\'
-  const startPath = scanPath.value || startDefaultPath;
-
-  // 如果后缀为空，则不进行扫描
-  if (scanSuffixList.value.length === 0) {
-    ElMessage.error('请添加扫描后缀');
-    return;
-  }
-
-  try {
-    // 设置进度监听
-    window.ipcRenderer.on('scan-progress', (e, progress) => {
-      console.log(`扫描中: ${progress.currentDir}, 已找到: ${progress.totalFound}`);
-    });
-
-    // 扫描完成
-    window.ipcRenderer.on('scan-complete', (e, progress) => {
-      console.log(`扫描完成: ${progress.currentDir}, 已找到: ${progress.totalFound}`);
-    });
-
-    // 开始扫描
-    console.log('后缀', toRaw(scanSuffixList.value))
-    const musicFiles = await window.ipcRenderer.handlePromise('start-scan', {
-      startPath,
-      extensions: toRaw(scanSuffixList.value),
-    });
-    console.log('扫描完成，找到音乐文件:', musicFiles.length);
-
-    // 移除监听
-    // removeProgressListener();
-  } catch (error) {
-    console.error('扫描失败:', error);
-  }
-}
-
-const stopScan = () => {
-  window.ipcRenderer.handlePromise('cancel-scan', {}).then(res => {
-    console.log('取消扫描:', res);
-  }).catch(err => {
-    console.log('取消扫描失败:', err);
-  })
 }
 
 const copyType = ref('include');
 const copyInclude = ref('');
 const copyIncludeList = ref<string[]>([]);
 function selectCopyInclude() {
-  // 去除首尾空格
   copyInclude.value = copyInclude.value.trim();
   if (copyInclude.value) {
     copyIncludeList.value.push(copyInclude.value);
@@ -260,12 +164,12 @@ function selectCopyInclude() {
   }
 }
 function removeCopyInclude(item: string) {
-  copyIncludeList.value = copyIncludeList.value.filter((val) => val !== item);
+  copyIncludeList.value = copyIncludeList.value.filter(val => val !== item);
 }
+
 const copyExclude = ref('');
 const copyExcludeList = ref<string[]>([]);
 function selectCopyExclude() {
-  // 去除首尾空格
   copyExclude.value = copyExclude.value.trim();
   if (copyExclude.value) {
     copyExcludeList.value.push(copyExclude.value);
@@ -273,15 +177,13 @@ function selectCopyExclude() {
   }
 }
 function removeCopyExclude(item: string) {
-  copyExcludeList.value = copyExcludeList.value.filter((val) => val !== item);
+  copyExcludeList.value = copyExcludeList.value.filter(val => val !== item);
 }
 
-const copyTypeSuffix = ref('include')
+const copyTypeSuffix = ref('include');
 const copyIncludeSuffix = ref('');
 const copyIncludeSuffixList = ref<string[]>([]);
-
 function selectCopyIncludeSuffix() {
-  // 去除首尾空格
   copyIncludeSuffix.value = copyIncludeSuffix.value.trim();
   if (copyIncludeSuffix.value) {
     copyIncludeSuffixList.value.push(copyIncludeSuffix.value);
@@ -289,13 +191,12 @@ function selectCopyIncludeSuffix() {
   }
 }
 function removeCopyIncludeSuffix(item: string) {
-  copyIncludeSuffixList.value = copyIncludeSuffixList.value.filter((val) => val !== item);
+  copyIncludeSuffixList.value = copyIncludeSuffixList.value.filter(val => val !== item);
 }
 
 const copyExcludeSuffix = ref('');
 const copyExcludeSuffixList = ref<string[]>([]);
 function selectCopyExcludeSuffix() {
-  // 去除首尾空格
   copyExcludeSuffix.value = copyExcludeSuffix.value.trim();
   if (copyExcludeSuffix.value) {
     copyExcludeSuffixList.value.push(copyExcludeSuffix.value);
@@ -303,7 +204,7 @@ function selectCopyExcludeSuffix() {
   }
 }
 function removeCopyExcludeSuffix(item: string) {
-  copyExcludeSuffixList.value = copyExcludeSuffixList.value.filter((val) => val !== item);
+  copyExcludeSuffixList.value = copyExcludeSuffixList.value.filter(val => val !== item);
 }
 
 function changeCopyType(val: string) {
@@ -327,27 +228,24 @@ function copyDir() {
   const pathArr = copyOrigin.value.split(/\/+|\\+/);
   const copyArgs = {
     source: copyOrigin.value,
-    target: (copyTarget.value ||fileCachePathCc.value) + '/' +
-      pathArr[pathArr.length - 1],
-    ignore: toRaw(copyExcludeList.value),
-    include: toRaw(copyIncludeList.value),
-    includeSuffix: toRaw(copyIncludeSuffixList.value),
-    ignoreSuffix: toRaw(copyExcludeSuffixList.value),
-  }
-  console.log(copyArgs, 'copyArgs');
+    target: (copyTarget.value || fileCachePathCc.value) + '/' + pathArr[pathArr.length - 1],
+    ignore: copyExcludeList.value,
+    include: copyIncludeList.value,
+    includeSuffix: copyIncludeSuffixList.value,
+    ignoreSuffix: copyExcludeSuffixList.value
+  };
   errFlag.value = true;
   send('copy-folder', copyArgs);
 }
 
 function updateDataFn(data: any, data2: any) {
-  console.log(data, data2, 'data');
+  console.log(data, data2);
 }
+
+const fileCachePathCc = ref('');
 onMounted(() => {
-  window.ipcRenderer.on('copy-folder', (event: any, res: any) => {
-    console.log(res, 'res');
-    if (!errFlag.value) {
-      return;
-    }
+  window.ipcRenderer.on('copy-folder', (_event: any, res: any) => {
+    if (!errFlag.value) return;
     errFlag.value = false;
     if (res == null) {
       ElMessage.success('复制成功');
@@ -358,82 +256,147 @@ onMounted(() => {
         duration: 5000
       });
     }
-  })
-})
-
+  });
+});
 </script>
 
 <style scoped lang="scss">
-.fileRela-form {
-  padding: 24px;
+.file-rela-container {
+  // padding: 24px;
   box-sizing: border-box;
-  height: 100%;
-  overflow: auto;
+  min-height: 100%;
 }
 
-.setting-title {
-  padding-left: 3px;
-  border-bottom: 6px solid #6d6d6d;
-  width: 100%;
+.page-header {
+  margin-bottom: 24px;
+}
+
+.page-title {
+  font-size: 24px;
   font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
 }
 
-.cur-status {
-  &-work {
-    &::before {
-      content: '•';
-      color: #00ffbf;
-      display: inline-block;
-    }
-
-    &::rest {
-      content: '•';
-      color: #ff0303;
-      display: inline-block;
-    }
-  }
+.cards-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
 }
 
-.setting-form {
-  width: 100%;
-  box-sizing: border-box;
-  // padding: 12px;
-  background-color: #ffffff;
+.file-card {
+  background: var(--bg-card);
+  border-radius: 12px;
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
 }
 
-// 主页模式
-:deep(.mode-wrapper) {
-  .el-form-item__content {
+.card-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.card-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.card-body {
+  padding: 20px;
+}
+
+.copy-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.path-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+
+  @media (max-width: 768px) {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
   }
 }
 
-.mode-ops {
-  width: 100%;
-
-  .mode-item {
-    display: flex;
-    margin-bottom: 10px;
-  }
-
-  .mode-label {
-    width: 150px;
-  }
+.path-item {
+  flex: 1;
 }
 
-:deep(.file-move) {
-  .el-form-item__content {
-    .el-form-item {
-      margin-top: 10px;
+.path-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
 
-      .el-form-item__label {
-        height: unset;
-        line-height: 1.2em;
-        display: flex;
-        align-items: center;
-      }
-    }
-  }
+.path-btn {
+  padding: 0 12px;
+}
+
+.arrow-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+}
+
+.arrow-icon {
+  font-size: 20px;
+  color: var(--text-muted);
+}
+
+.filter-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.filter-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  width: 40px;
+}
+
+.radio-group {
+  display: flex;
+  gap: 16px;
+}
+
+.filter-input {
+  flex: 1;
+  max-width: 280px;
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.copy-btn-wrap {
+  display: flex;
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.copy-btn {
+  padding: 10px 40px;
 }
 </style>

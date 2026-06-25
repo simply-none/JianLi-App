@@ -1,221 +1,183 @@
 <template>
-  <el-form class="home-mode-form" label-width="108" label-position="left">
-    <el-form-item>
-      <template #label>
-        <div class="setting-title">主页模式</div>
-      </template>
-    </el-form-item>
-    <el-form-item label="日常模式" class="mode-wrapper">
-      <el-select v-model="homeModeCc.work.value" value-key="value" placeholder="Select" style="width: 226px"
-        @change="changeHomeMode('work')">
-        <el-option v-for="item in homeModeOpsCc" :key="item.value" :label="item.label" :value="item.value" />
-      </el-select>
-    </el-form-item>
-    <el-form-item label="锁定模式" class="mode-wrapper">
-      <el-select v-model="homeModeCc.rest.value" value-key="value" placeholder="Select" style="width: 226px"
-        @change="changeHomeMode('rest')">
-        <el-option v-for="item in homeModeOpsCc" :key="item.value" :label="item.label" :value="item.value" />
-      </el-select>
-    </el-form-item>
-    <el-form-item label="屏保模式" class="mode-wrapper">
-      <el-select v-model="homeModeCc.screen.value" value-key="value" placeholder="Select" style="width: 226px"
-        @change="changeHomeMode('screen')">
-        <el-option v-for="item in homeModeOpsCc" :key="item.value" :label="item.label" :value="item.value" />
-      </el-select>
-    </el-form-item>
-    <el-form-item label="属性修改" class="mode-wrapper">
-      <div class="mode-ops">
-        <div>修改前：</div>
-        <el-form-item class="mode-item" v-for="(item, key, index) in homeModeCc[activeHomeMode]"
-          :label="key">
-          <!-- <span class="mode-label">{{ key }}</span> -->
-          <el-color-picker v-if="(key as unknown as string).endsWith('Color')" v-model="activeHomeModeOps[key]"
-            show-alpha @change="changeModeOps" />
-          <el-input spellcheck="false" v-else v-model="activeHomeModeOps[key]" placeholder="请输入"
-            :disabled="['label', 'value'].includes(key as unknown as string)" @change="changeModeOps" />
-        </el-form-item>
-      </div>
-      <div>修改后：</div>
-      <div class="mode-ops">
-        <el-form-item class="mode-item" v-for="(item, key) in activeHomeModeOps"
-          :label="key">
-          <!-- <span class="mode-label">{{ key }}</span> -->
-          <el-color-picker v-if="(key as unknown as string).endsWith('Color')" v-model="activeHomeModeOps[key]"
-            show-alpha @change="changeModeOps" />
-          <el-input spellcheck="false" v-else v-model="activeHomeModeOps[key]" placeholder="请输入"
-            :disabled="['label', 'value'].includes(key as unknown as string)" @change="changeModeOps" />
-        </el-form-item>
+  <div class="home-mode">
+    <div class="section-header">
+      <h3 class="section-title">
+        <el-icon><Grid /></el-icon>
+        主页模式
+      </h3>
+    </div>
+
+    <div class="mode-cards">
+      <div class="mode-card work-card">
+        <div class="mode-card-icon">
+          <el-icon :size="28"><Sunny /></el-icon>
+        </div>
+        <div class="mode-card-content">
+          <div class="mode-card-title">日常模式</div>
+          <el-select v-model="homeModeCc.work.value" value-key="value" placeholder="请选择" class="mode-select"
+            @change="changeHomeMode('work')">
+            <el-option v-for="item in homeModeOpsCc" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
+        </div>
       </div>
 
-    </el-form-item>
+      <div class="mode-card rest-card">
+        <div class="mode-card-icon">
+          <el-icon :size="28"><Lock /></el-icon>
+        </div>
+        <div class="mode-card-content">
+          <div class="mode-card-title">锁定模式</div>
+          <el-select v-model="homeModeCc.rest.value" value-key="value" placeholder="请选择" class="mode-select"
+            @change="changeHomeMode('rest')">
+            <el-option v-for="item in homeModeOpsCc" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
+        </div>
+      </div>
 
-  </el-form>
-
+      <div class="mode-card screen-card">
+        <div class="mode-card-icon">
+          <el-icon :size="28"><Monitor /></el-icon>
+        </div>
+        <div class="mode-card-content">
+          <div class="mode-card-title">屏保模式</div>
+          <el-select v-model="homeModeCc.screen.value" value-key="value" placeholder="请选择" class="mode-select"
+            @change="changeHomeMode('screen')">
+            <el-option v-for="item in homeModeOpsCc" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, computed, toRaw } from 'vue';
-import { useRouter } from 'vue-router';
-
-import HeaderNav from '@/components/header.vue';
-import useWorkOrResetStore from '@/store/useWorkOrReset'
-import { useWorkOrRest } from '@/hooks/useWorkOrReset';
-import useClearStore from '@/hooks/useClearStore';
-import useGlobalSetting from '@/store/useGlobalSetting';
+import { ref, watch, toRaw } from 'vue';
 import { storeToRefs } from 'pinia';
-import { timeUnit } from '@/utils/time';
-import confirmDialog from '@/utils/confirmDialog';
-import LayoutVue from '@/components/layout.vue';
-import type { StatusMode } from '@/store/useGlobalSetting'
-import { getCompositeObj } from '@/utils';
+import { Sunny, Lock, Monitor, Grid } from '@element-plus/icons-vue';
+import useGlobalSetting from '@/store/useGlobalSetting';
+import type { StatusMode } from '@/store/useGlobalSetting';
 
-const router = useRouter();
+const { setHomeMode } = useGlobalSetting();
+const { homeModeOpsC, homeModeC } = storeToRefs(useGlobalSetting());
 
-const { clearStore } = useClearStore();
-const {
-  startWorkFn,
-  startRestFn,
-  changeEffectFn,
-  forceWorkWithTimes,
-} = useWorkOrRest();
-const {
-  workTimeGap,
-  restTimeGap,
-  workTimeGapUnit,
-  restTimeGapUnit,
-  startWorkTime,
-  closeWorkTime,
-  nextRestTime,
-  nextWorkTime,
-} = storeToRefs(useWorkOrResetStore());
-const { setForceWorkTimes, setAppBgColor, setAppInnerColor, setIsStartup, setHomeMode, setGlobalFont, setHomeModeOps } = useGlobalSetting();
-const { isStartupC, forceWorkTimesC, todayForceWorkTimesC, appBgColorC, appInnerColorC, globalFontC, globalFontOpsC, homeModeOpsC, curStatusC, homeModeC } = storeToRefs(useGlobalSetting());
+const homeModeCc = ref<Record<StatusMode, ObjectType>>(JSON.parse(JSON.stringify(homeModeC.value)));
+const homeModeOpsCc = ref(JSON.parse(JSON.stringify(homeModeOpsC.value)));
 
-const appBgColorCc = ref(JSON.parse(JSON.stringify(appBgColorC.value)))
-const appInnerColorCc = ref(JSON.parse(JSON.stringify(appInnerColorC.value)))
-const homeModeCc = ref<Record<StatusMode, ObjectType>>(JSON.parse(JSON.stringify(homeModeC.value)))
-const homeModeOpsCc = ref(JSON.parse(JSON.stringify(homeModeOpsC.value)))
-const activeHomeModeOps = ref(toRaw(homeModeOpsCc.value[0]))
-const activeHomeMode = ref<StatusMode>('work');
 watch(() => homeModeOpsC.value, (n) => {
   homeModeOpsCc.value = JSON.parse(JSON.stringify(n));
 }, {
   immediate: true,
   deep: true,
-})
+});
+
 watch(() => homeModeC.value, (n) => {
   homeModeCc.value = JSON.parse(JSON.stringify(n));
-}, { deep: true })
-
-function changeModeOps() {
-  changeHomeMode(activeHomeMode.value);
-}
+}, { deep: true });
 
 function changeHomeMode(key: StatusMode) {
   const find = homeModeOpsCc.value.find((item: any) => item.value === homeModeCc.value[key].value);
-  if (!find) { return }
-  // homeModeCc.value[key] = find;
+  if (!find) { return; }
   homeModeCc.value[key] = {
     ...homeModeCc.value[key],
     ...find,
     mode: {
       ...toRaw(homeModeCc.value[key].mode || {}),
       [homeModeCc.value[key].value]: toRaw(homeModeCc.value[key].mode[homeModeCc.value[key].value] || {}),
-    }
-  }
-  delete homeModeCc.value[key].mode.undefined;
-  activeHomeModeOps.value = find;
-  setHomeMode(homeModeCc.value);
-  activeHomeMode.value = key;
-}
-
-function quitApp() {
-  confirmDialog.open('确定要退出应用吗？', 3, () => {
-    window.ipcRenderer.send('quit-app');
-  });
-}
-
-function changeForceWorkTimes(value: number) {
-  setForceWorkTimes(Number(value));
-}
-
-function changeAppBgColor(value: string) {
-  setAppBgColor(value);
-}
-
-function changeIsStartup(value: boolean) {
-  setIsStartup(value);
-}
-
-function changeAppInnerColor(value: string) {
-  setAppInnerColor(value);
-}
-
-
-function toHome() {
-  router.push({
-    path: '/',
-    query: {
-      from: 'setting',
     },
-  });
+  };
+  delete homeModeCc.value[key].mode.undefined;
+  setHomeMode(homeModeCc.value);
 }
-
 </script>
 
 <style scoped lang="scss">
-.home-mode-form {
-  padding: 24px;
-}
-
-.setting-title {
-  padding-left: 3px;
-  border-bottom: 6px solid #6d6d6d;
+.home-mode {
   width: 100%;
-  font-weight: 600;
 }
 
-.cur-status {
-  &-work {
-    &::before {
-      content: '•';
-      color: #00ffbf;
-      display: inline-block;
-    }
+.section-header {
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--color-primary);
 
-    &::rest {
-      content: '•';
-      color: #ff0303;
-      display: inline-block;
-    }
-  }
-}
-
-.setting-form {
-  width: 100%;
-  box-sizing: border-box;
-  // padding: 12px;
-  background-color: #ffffff;
-}
-
-// 主页模式
-:deep(.mode-wrapper) {
-  .el-form-item__content {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-}
-
-.mode-ops {
-  width: 100%;
-
-  .mode-item {
+  .section-title {
     display: flex;
-    margin-bottom: 10px;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+
+    .el-icon {
+      color: var(--color-primary);
+    }
+  }
+}
+
+.mode-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.mode-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  padding: 20px;
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-card);
+    transform: translateY(-2px);
   }
 
-  .mode-label {
-    width: 150px;
+  .mode-card-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  &.work-card .mode-card-icon {
+    background: linear-gradient(135deg, rgba(64, 158, 255, 0.15), rgba(102, 126, 234, 0.15));
+    color: #409eff;
+  }
+
+  &.rest-card .mode-card-icon {
+    background: linear-gradient(135deg, rgba(118, 75, 162, 0.15), rgba(155, 89, 182, 0.15));
+    color: #764ba2;
+  }
+
+  &.screen-card .mode-card-icon {
+    background: linear-gradient(135deg, rgba(103, 194, 58, 0.15), rgba(82, 190, 128, 0.15));
+    color: #67c23a;
+  }
+
+  .mode-card-content {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    .mode-card-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .mode-select {
+      width: 100%;
+    }
   }
 }
 </style>

@@ -32,6 +32,8 @@ export const RouteNames = {
   SECOND: "second",
   JOB_TIP_WINDOW: "jobTipWindow",
   MINI_NOTEBOOK: "miniNotebook",
+  CATEGORIZABLE_NOTES: "categorizableNotes",
+  ROUTE_SETTING: "routeSetting",
 } as const;
 
 export type RouteNameType = typeof RouteNames[keyof typeof RouteNames];
@@ -53,6 +55,14 @@ export const layoutRouters: RouteRecordRaw[] = [
     component: () => import("@/views/systemInfo/index.vue"),
     meta: {
       title: "系统信息",
+    },
+  },
+  {
+    path: "/routeSetting",
+    name: RouteNames.ROUTE_SETTING,
+    component: () => import("@/views/routeSetting/index.vue"),
+    meta: {
+      title: "路由配置",
     },
   },
   {
@@ -117,6 +127,14 @@ export const layoutRouters: RouteRecordRaw[] = [
     component: () => import("@/views/notebook/index.vue"),
     meta: {
       title: "笔记本",
+    },
+  },
+  {
+    path: "/categorizableNotes",
+    name: RouteNames.CATEGORIZABLE_NOTES,
+    component: () => import("@/views/categorizableNotes/index.vue"),
+    meta: {
+      title: "可归类的笔记",
     },
   },
   {

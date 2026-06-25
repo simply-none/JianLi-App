@@ -1,105 +1,97 @@
 <template>
-  <el-form class="fileRela-form" label-width="108" label-position="left">
-    <el-form-item>
-      <template #label>
-        <div class="setting-title">应用缓存</div>
-      </template>
-    </el-form-item>
+  <div class="app-cache">
+    <div class="section-header">
+      <h3 class="section-title">
+        <el-icon><DataBoard /></el-icon>
+        应用缓存
+      </h3>
+    </div>
 
-    <el-form-item label="数据还原" class="mode-wrapper">
-      <UploadVue :limit="1" @updateData="handleChange">
-        <template #btnHandle>
-          <div></div>
-        </template>
-      </UploadVue>
-    </el-form-item>
-    <el-form-item v-if="Object.keys(uploadCacheData).length > 0" label="待还原数据" class="mode-wrapper">
-      <div class="cache-list" title="Vertical list with border" direction="vertical" :column="4" :size="''" border>
-        <div v-for="(item, key, index) in uploadCacheData" class="cache-item-wrapper">
-          <div class="cache-key">{{ key }}</div>
-          <!-- 如果是Array -->
-          <div class="cache-item level-2" v-if="Array.isArray(item)">
-            <div v-for="(item2, key2) in item" class="cache-item level-3">
-              <div class="cache-item level-4">{{ key2 + 1 }}: {{ item2 }}</div>
-            </div>
-          </div>
-          <!-- 如果是Object -->
-          <div v-else-if="typeof item === 'object'" class="cache-item level-2">
-            <div v-for="(item2, key2) in item" class="cache-item level-3">
-              <div class="cache-key">{{ key2 }}</div>
-              <div class="cache-item level-4">{{ item2 }}</div>
-            </div>
-          </div>
-          <!-- 如果是String -->
-          <div v-else class="cache-item  level-2">
-            <div class="cache-item level-3">{{ item }}</div>
-          </div>
-        </div>
-        <el-button type="primary" @click="restore">备份还原</el-button>
-
+    <div class="cache-card">
+      <div class="cache-card-header">
+        <el-icon :size="18"><Download /></el-icon>
+        <span>数据还原</span>
       </div>
-    </el-form-item>
-    <el-form-item label="数据备份" class="mode-wrapper">
-      <el-button type="primary" @click="generateRestore">开始备份</el-button>
-    </el-form-item>
-    <el-form-item label="当前缓存数据" class="mode-wrapper">
-      <div class="cache-list" title="Vertical list with border" direction="vertical" :column="4" :size="''" border>
-        <div v-for="(item, key, index) in cacheData" class="cache-item-wrapper">
-          <div class="cache-key">{{ key }}</div>
-          <!-- 如果是Array -->
-          <div class="cache-item level-2" v-if="Array.isArray(item)">
-            <div v-for="(item2, key2) in item" class="cache-item level-3">
-              <div class="cache-item level-4">{{ key2 + 1 }}: {{ item2 }}</div>
-            </div>
+      <div class="cache-card-body">
+        <UploadVue :limit="1" @updateData="handleChange">
+          <template #btnHandle>
+            <div></div>
+          </template>
+        </UploadVue>
+
+        <div v-if="Object.keys(uploadCacheData).length > 0" class="restore-preview">
+          <div class="preview-header">
+            <span class="preview-title">待还原数据预览</span>
+            <el-button type="primary" @click="restore" class="restore-btn">
+              <el-icon><RefreshLeft /></el-icon>
+              备份还原
+            </el-button>
           </div>
-          <!-- 如果是Object -->
-          <div v-else-if="typeof item === 'object'" class="cache-item level-2">
-            <div v-for="(item2, key2) in item" class="cache-item level-3">
-              <div class="cache-key">{{ key2 }}</div>
-              <div class="cache-item level-4">{{ item2 }}</div>
-            </div>
-          </div>
-          <!-- 如果是String -->
-          <div v-else class="cache-item  level-2">
-            <div class="cache-item level-3">{{ item }}</div>
+          <div class="preview-content">
+            <JsonTree :data="uploadCacheData" />
           </div>
         </div>
       </div>
-    </el-form-item>
-  </el-form>
+    </div>
 
+    <div class="cache-card">
+      <div class="cache-card-header">
+        <el-icon :size="18"><Box /></el-icon>
+          <span>当前缓存数据</span>
+      </div>
+      <div class="cache-card-body">
+        <div class="cache-data-content">
+          <JsonTree :data="cacheData" />
+        </div>
+      </div>
+    </div>
+
+    <div class="cache-card">
+      <div class="cache-card-header">
+        <el-icon :size="18"><Upload /></el-icon>
+        <span>数据备份</span>
+      </div>
+      <div class="cache-card-body">
+        <el-button type="primary" @click="generateRestore" class="backup-btn">
+          <el-icon><Download /></el-icon>
+          开始备份
+        </el-button>
+        <p class="backup-hint">备份文件将保存到设置的缓存目录中</p>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { h, ref, reactive, watch, computed, toRaw, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { h, ref, toRaw } from 'vue';
 import { storeToRefs } from 'pinia';
-import { ElMessage, ElMessageBox } from 'element-plus';
-import useCacheSetStore from '@/store/useCacheSet'
+import { ElMessage } from 'element-plus';
+import { DataBoard, Download, Upload, RefreshLeft, Box } from '@element-plus/icons-vue';
+import useCacheSetStore from '@/store/useCacheSet';
 import { send, sendSync } from '@/utils/common';
 import moment from 'moment';
 import UploadVue from '@/components/upload.vue';
-import { open } from '@/utils/confirmDialog'
+import JsonTree from '@/components/JsonTree.vue';
+import { open } from '@/utils/confirmDialog';
 
 const { fileCachePathC } = storeToRefs(useCacheSetStore());
-const cacheData = ref<ObjectType>({})
-const uploadCacheData = ref<ObjectType>({})
-getCacheData()
+const cacheData = ref<ObjectType>({});
+const uploadCacheData = ref<ObjectType>({});
+
+getCacheData();
 
 function getCacheData() {
-  const res = sendSync('get-stort-all', '')
-  console.log(res, 'res res');
-  cacheData.value = res
+  const res = sendSync('get-stort-all', '');
+  cacheData.value = res;
 }
 
 function generateRestore() {
-  const data = toRaw(cacheData.value)
-  const path = fileCachePathC.value + '/渐离App数据备份_' + moment().format('YYYY-MM-DD_HH-mm-ss') + '.json'
+  const data = toRaw(cacheData.value);
+  const path = fileCachePathC.value + '/渐离App数据备份_' + moment().format('YYYY-MM-DD_HH-mm-ss') + '.json';
   const res = sendSync('export-data-to-json', {
     path,
-    data
-  })
-  console.log(res, 'res res');
+    data,
+  });
   if (res == 'ok') {
     const msg = ElMessage({
       duration: 0,
@@ -111,35 +103,31 @@ function generateRestore() {
         h('div', {
           style: 'padding-top: 12px;',
         }, {
-          default: () => '备份路径:' + path
+          default: () => '备份路径:' + path,
         }),
         h('div', {
           style: 'color: #409eff;padding: 12px 0;cursor: pointer;',
           onClick: () => {
-            console.log('VNode clicked', msg);
             send('open-file-in-assets-manager', {
-              path: path
-            })
-            msg.close()
+              path,
+            });
+            msg.close();
           },
         }, '点击打开'),
       ]),
-    })
+    });
   } else {
-    ElMessage.error('备份失败')
+    ElMessage.error('备份失败');
   }
 }
 
 function handleChange(uploadRef: any, fileList: any) {
-  console.log(uploadRef, fileList, 'fileList fileList');
-  // 解析file，获取文件数据
-  const file = fileList[0].raw as unknown as any
+  const file = fileList[0].raw as unknown as any;
   const reader = new FileReader();
   reader.readAsText(file);
   reader.onload = function (e: any) {
-    const res = reader.result as string
-    console.log(res, 'res')
-    uploadCacheData.value = JSON.parse(res || '') || {}
+    const res = reader.result as string;
+    uploadCacheData.value = JSON.parse(res || '') || {};
   };
 }
 
@@ -148,89 +136,133 @@ function restore() {
     '确认还原数据吗？',
     15,
     restoreData,
-  )
+  );
 }
 
 function restoreData() {
-  console.log('restore');
-  const data = toRaw(uploadCacheData.value)
-  const length = Object.keys(data).length
+  const data = toRaw(uploadCacheData.value);
+  const length = Object.keys(data).length;
   if (length <= 0) {
-    ElMessage.error('请选择备份文件')
-    return
+    ElMessage.error('请选择备份文件');
+    return;
   }
-  console.log(data, 'data');
-  const res = sendSync('replace-store', data)
-  console.log(res, 'res')
-  ElMessage.success('还原成功')
+  const res = sendSync('replace-store', data);
+  ElMessage.success('还原成功');
 }
-
 </script>
 
 <style scoped lang="scss">
-.fileRela-form {
-  padding: 24px;
-  box-sizing: border-box;
-  height: 100%;
-  overflow: auto;
-}
-
-.setting-title {
-  padding-left: 3px;
-  border-bottom: 6px solid #6d6d6d;
+.app-cache {
   width: 100%;
-  font-weight: 600;
 }
 
-.setting-form {
-  width: 100%;
-  box-sizing: border-box;
-  // padding: 12px;
-  background-color: #ffffff;
-}
+.section-header {
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--color-primary);
 
-.cache-list {
-  word-break: break-all;
-}
-
-.cache-item-wrapper {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-
-  &+& {
-    padding-top: 12px;
-    padding-bottom: 12px;
-    border-top: 2px solid #e8e8e8
-  }
-
-  .cache-key {
-    width: 120px;
-    font-weight: 600;
-    line-height: 1;
-    word-break: break-all;
-  }
-
-  .cache-item {
-    color: #828282;
-    flex: 1;
-
-  }
-  .level-2 {
-    word-break: break-all;
-  }
-
-  .level-3 {
+  .section-title {
     display: flex;
     align-items: center;
+    gap: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
 
-    .cache-key {
-      width: unset;
-      padding-right: 24px;
+    .el-icon {
+      color: var(--color-primary);
     }
   }
-  .level-4 {
-    word-break: break-all;
+}
+
+.cache-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  margin-bottom: 16px;
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-card);
   }
+
+  .cache-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-subtle);
+
+    .el-icon {
+      color: var(--color-primary);
+    }
+  }
+
+  .cache-card-body {
+    padding: 20px;
+  }
+}
+
+.restore-preview {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-subtle);
+
+  .preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+
+    .preview-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    .restore-btn {
+      font-size: 13px;
+      padding: 6px 14px;
+    }
+  }
+
+  .preview-content {
+    background: var(--bg-hover);
+    border-radius: 8px;
+    padding: 12px;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+}
+
+.backup-btn {
+  font-size: 14px;
+  padding: 10px 20px;
+  font-weight: 500;
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+}
+
+.backup-hint {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 0;
+}
+
+.cache-data-content {
+  background: var(--bg-hover);
+  border-radius: 8px;
+  padding: 12px;
+  max-height: 400px;
+  overflow-y: auto;
 }
 </style>

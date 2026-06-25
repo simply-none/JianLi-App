@@ -1,369 +1,758 @@
 <template>
-  <el-form class="setting-home-mode-form" label-width="108" label-position="left">
-    <el-form-item>
-      <template #label>
-        <div class="setting-title">提醒设置</div>
-      </template>
-    </el-form-item>
-    <el-form-item label="一键提醒" class="mode-wrapper">
-      <div>
-        <el-button type="primary" @click="tipAll">一键提醒</el-button>
-        <!-- 停止提醒 -->
-        <el-button type="warning" @click="stopAllTip">停止所有提醒</el-button>
+  <div class="pomodoro-set">
+    <div class="action-bar">
+      <el-button type="primary" @click="tipAll" class="action-btn">
+        <el-icon><Bell /></el-icon>
+        一键提醒
+      </el-button>
+      <el-button type="warning" @click="stopAllTip" class="action-btn">
+        <el-icon><BellFilled /></el-icon>
+        停止所有提醒
+      </el-button>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <h3 class="section-title">
+          <el-icon><Notification /></el-icon>
+          当前提醒
+        </h3>
+        <el-button type="primary" size="small" @click="openTipDialog()" class="add-btn">
+          <el-icon><Plus /></el-icon>
+          新增提醒
+        </el-button>
       </div>
-    </el-form-item>
-    <el-form-item label="当前提醒" class="mode-wrapper">
-      <!-- 当前所有的提醒 -->
-      <el-table :data="tipTypeC" height="250" style="width: 100%">
-        <el-table-column label="类型" width="180">
-          <template #default="scope">
-            <div style="display: flex; align-items: center">
-              <span style="margin-left: 10px">{{ getType(scope.row.type) }}</span>
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column label="时间间隔" width="180">
-          <template #default="scope">
-            <div style="display: flex; align-items: center">
-              <span style="margin-left: 10px">{{ scope.row.gap }}</span>
-              <span style="margin-left: 10px">{{ curUnit(scope.row.unit) }}</span>
-            </div>
-          </template>
-        </el-table-column>
-        <!-- 下一次提醒时间 -->
-        <el-table-column label="下一次提醒时间" width="180">
-          <template #default="scope">
-            <div style="display: flex; align-items: center">
-              {{ (nextTime[scope.row.type] || {}).nextTime || '--' }}
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="300">
-          <template #default="scope">
-            <!-- 编辑 -->
-            <el-button size="small" @click="editTip(JSON.parse(JSON.stringify(scope.row)))">编辑</el-button>
-            <!-- 删除 -->
-            <el-button size="small" type="danger" @click="delTip(scope.row)">删除</el-button>
-            <!-- 提醒 -->
-            <el-button size="small" type="primary" @click="() => tip(scope.row)">提醒</el-button>
-            <!-- 终止提醒 -->
-            <el-button size="small" type="warning" @click="() => stopTip(scope.row)">终止提醒</el-button>
-          </template>
-        </el-table-column>
 
-      </el-table>
+      <div v-if="tipTypeCc.length > 0" class="tip-list">
+        <div v-for="item in tipTypeCc" :key="item.type + item.gap" class="tip-card">
+          <div class="tip-card-left">
+            <div class="tip-icon">
+              <el-icon :size="24"><Bell /></el-icon>
+            </div>
+            <div class="tip-info">
+              <div class="tip-type">{{ getType(item.type) }}</div>
+              <div class="tip-gap">
+                <span class="gap-value">{{ item.gap }}</span>
+                <span class="gap-unit">{{ curUnit(item.unit) }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="tip-card-right">
+            <div class="tip-next-time">
+              <el-icon :size="14"><Clock /></el-icon>
+              <span>{{ (nextTime[item.type] || {}).nextTime || '--' }}</span>
+            </div>
+            <div class="tip-actions">
+              <el-button size="small" @click="openTipDialog(item)" class="tip-btn edit">
+                <el-icon><Edit /></el-icon>
+              </el-button>
+              <el-button size="small" @click="() => tip(item)" class="tip-btn start">
+                <el-icon><VideoPlay /></el-icon>
+              </el-button>
+              <el-button size="small" @click="() => stopTip(item)" class="tip-btn stop">
+                <el-icon><VideoPause /></el-icon>
+              </el-button>
+              <el-button size="small" @click="delTip(item)" class="tip-btn delete">
+                <el-icon><Delete /></el-icon>
+              </el-button>
+            </div>
+          </div>
+        </div>
+      </div>
 
+      <div v-else class="empty-state">
+        <el-icon :size="48" class="empty-icon"><Bell /></el-icon>
+        <div class="empty-text">暂无提醒</div>
+      </div>
+    </div>
 
-    </el-form-item>
-    <el-form-item label="新增提醒" class="mode-wrapper">
-      <el-form-item label="提醒时间类型" class="mode-wrapper">
-        <el-select v-model="newTip.type" placeholder="请选择">
-          <el-option v-for="(item, index) in tipTypeOpsCc" :key="index" :label="item.label" :value="item.value" />
-        </el-select>
-      </el-form-item>
-      <el-form-item label="提醒时间间隔" class="mode-wrapper">
-        <el-input v-model="newTip.gap" type="number" placeholder="请输入提醒时间间隔">
-          <template #append>
-            <el-select v-model="newTip.unit" placeholder="请选择" style="width: 115px">
-              <!-- 选项：时间单位：时分秒 -->
+    <div class="section">
+      <div class="section-header">
+        <h3 class="section-title">
+          <el-icon><PriceTag /></el-icon>
+          提醒类型
+        </h3>
+        <el-button type="primary" size="small" @click="openTipOpsDialog()" class="add-btn">
+          <el-icon><Plus /></el-icon>
+          新增类型
+        </el-button>
+      </div>
+
+      <div v-if="tipTypeOpsCc.length > 0" class="tip-ops-grid">
+        <div v-for="item in tipTypeOpsCc" :key="item.value" class="tip-ops-card">
+          <div class="tip-ops-icon">
+            <div v-if="item.iconType == 'image'" class="icon-image">
+              <el-image :src="item.icon" fit="cover">
+                <template #error>
+                  <el-icon><Picture /></el-icon>
+                </template>
+              </el-image>
+            </div>
+            <div v-else class="icon-emoji" v-html="item.icon || '<el-icon><Picture /></el-icon>'"></div>
+          </div>
+          <div class="tip-ops-info">
+            <div class="tip-ops-label">{{ item.label }}</div>
+            <div class="tip-ops-value">{{ item.value }}</div>
+          </div>
+          <div class="tip-ops-actions">
+            <el-button size="small" @click="openTipOpsDialog(item)" class="ops-btn edit">
+              <el-icon><Edit /></el-icon>
+            </el-button>
+            <el-button size="small" @click="delTipOps(item)" class="ops-btn delete">
+              <el-icon><Delete /></el-icon>
+            </el-button>
+          </div>
+        </div>
+      </div>
+
+      <div v-else class="empty-state">
+        <el-icon :size="48" class="empty-icon"><PriceTag /></el-icon>
+        <div class="empty-text">暂无提醒类型</div>
+      </div>
+    </div>
+
+    <el-dialog v-model="tipDialogVisible" :title="isEditTip ? '编辑提醒' : '新增提醒'" width="480px" class="tip-dialog" @close="resetTipForm">
+      <div class="dialog-form">
+        <div class="form-item">
+          <span class="form-label">提醒类型</span>
+          <el-select v-model="tipForm.type" placeholder="请选择提醒类型" class="form-select">
+            <el-option v-for="(item, index) in tipTypeOpsCc" :key="index" :label="item.label" :value="item.value" />
+          </el-select>
+        </div>
+        <div class="form-item">
+          <span class="form-label">时间间隔</span>
+          <div class="gap-input-wrap">
+            <el-input v-model="tipForm.gap" type="number" placeholder="请输入间隔时间" class="gap-input">
+            </el-input>
+            <el-select v-model="tipForm.unit" placeholder="单位" class="gap-unit">
               <el-option label="分钟" :value="60 * 1000" />
               <el-option label="小时" :value="60 * 60 * 1000" />
               <el-option label="秒" :value="1000" />
             </el-select>
-          </template>
-        </el-input>
-      </el-form-item>
-      <el-form-item class="mode-wrapper">
-        <el-button type="primary" @click="addTip">新增</el-button>
-      </el-form-item>
-
-    </el-form-item>
-    <el-form-item label="当前提醒类型" class="mode-wrapper">
-      <!-- 当前所有的提醒类型 -->
-      <el-table :data="tipTypeOpsC" height="250" style="width: 100%">
-        <el-table-column prop="label" label="名称" width="180" />
-        <el-table-column prop="value" label="值" width="180" />
-        <el-table-column label="图标" width="180">
-          <template #default="scope">
-            <div v-if="scope.row.iconType == 'image'" class="show-icon">
-              <el-image :src="scope.row.icon">
-                <template #error>
-                  <div>图片加载失败</div>
-                  <div>{{ '图标' }}</div>
-                </template>
-              </el-image>
-            </div>
-            <div v-else class="show-icon" v-html="scope.row.icon || '--'"></div>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="180">
-          <template #default="scope">
-            <!-- 编辑 -->
-            <el-button size="small" @click="editTipOps(JSON.parse(JSON.stringify(scope.row)))">编辑</el-button>
-            <!-- 删除 -->
-            <el-button size="small" @click="delTipOps(scope.row)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-
-    </el-form-item>
-    <el-form-item label="新增提醒类型" class="mode-wrapper">
-      <!-- 当前所有的提醒类型 -->
-      <el-form-item label="名称" class="mode-wrapper">
-        <el-input v-model="newTipOps.label" placeholder="请输入">
-        </el-input>
-      </el-form-item>
-      <el-form-item label="值" class="mode-wrapper">
-        <el-input v-model="newTipOps.value" placeholder="请输入">
-        </el-input>
-      </el-form-item>
-      <el-form-item label="图标" class="mode-wrapper">
-        <el-input v-model="newTipOps.icon"  placeholder="请输入">
-          <!-- 后置选择文件夹 -->
-            <template #append>
-              <el-button icon="Upload" @click="uploadIcon">选择</el-button>
-            </template>
-        </el-input>
-        <div v-if="newTipOps.iconType == 'image'" class="show-icon">
-          <el-image :src="newTipOps.icon">
-            <template #error>
-              <div>图片加载失败</div>
-              <div>{{ '图标' }}</div>
-            </template>
-          </el-image>
+          </div>
         </div>
-        <div v-else class="show-icon" v-html="newTipOps.icon"></div>
-      </el-form-item>
-      <el-form-item class="mode-wrapper">
-        <el-button type="primary" @click="addTipOps">新增</el-button>
-      </el-form-item>
+      </div>
+      <template #footer>
+        <el-button @click="tipDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitTip">{{ isEditTip ? '保存' : '新增' }}</el-button>
+      </template>
+    </el-dialog>
 
-    </el-form-item>
-  </el-form>
-
+    <el-dialog v-model="tipOpsDialogVisible" :title="isEditTipOps ? '编辑提醒类型' : '新增提醒类型'" width="520px" class="tip-ops-dialog" @close="resetTipOpsForm">
+      <div class="dialog-form">
+        <div class="form-item">
+          <span class="form-label">名称</span>
+          <el-input v-model="tipOpsForm.label" placeholder="请输入提醒类型名称" class="form-input" />
+        </div>
+        <div class="form-item">
+          <span class="form-label">值</span>
+          <el-input v-model="tipOpsForm.value" placeholder="请输入提醒类型值" class="form-input" />
+        </div>
+        <div class="form-item">
+          <span class="form-label">图标</span>
+          <div class="icon-input-wrap">
+            <el-input v-model="tipOpsForm.icon" placeholder="请输入或选择图标" class="icon-input">
+              <template #append>
+                <el-button @click="uploadIcon">
+                  <el-icon><Upload /></el-icon>
+                </el-button>
+              </template>
+            </el-input>
+          </div>
+        </div>
+        <div v-if="tipOpsForm.icon" class="icon-preview">
+          <span class="preview-label">图标预览</span>
+          <div v-if="tipOpsForm.iconType == 'image'" class="preview-image">
+            <el-image :src="tipOpsForm.icon" fit="cover">
+              <template #error>
+                <div>图片加载失败</div>
+              </template>
+            </el-image>
+          </div>
+          <div v-else class="preview-emoji" v-html="tipOpsForm.icon"></div>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="tipOpsDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitTipOps">{{ isEditTipOps ? '保存' : '新增' }}</el-button>
+      </template>
+    </el-dialog>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, computed, toRaw, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
-import UploadVue from '@/components/upload.vue';
-import useCacheSetStore from '@/store/useCacheSet'
-import { send, sendSync } from '@/utils/common';
 import { ElMessage } from 'element-plus';
+import {
+  Bell, BellFilled, Notification, Clock, Edit, VideoPlay, VideoPause,
+  Delete, Plus, PriceTag, Picture, Upload
+} from '@element-plus/icons-vue';
 import useTips from '@/store/useTips';
-import { sysNotify, appNotify } from "@/utils/notify";
+import { send, sendSync } from '@/utils/common';
 
-const { tipType, tipTypeC, tipTypeOps, tipTypeOpsC, nextTime } = storeToRefs(useTips());
+const { tipTypeC, tipTypeOpsC, nextTime } = storeToRefs(useTips());
 const { setTipType, setTipTypeOps, setNextTime } = useTips();
 
-const tipTypeCc = ref(tipTypeC.value)
+const tipTypeCc = ref(tipTypeC.value);
 watch(() => tipTypeC.value, (newVal) => {
-  tipTypeCc.value = newVal
-  console.log(tipTypeCc.value)
-}, {
-  deep: true,
-})
-const tipTypeOpsCc = ref(tipTypeOpsC.value)
-watch(() => tipTypeOpsC.value, (newVal) => {
-  tipTypeOpsCc.value = newVal
-  console.log(tipTypeOpsCc.value)
-}, {
-  deep: true,
-})
+  tipTypeCc.value = newVal;
+}, { deep: true });
 
-// 新增
-const newTip = ref<ObjectType>({})
-const addTip = () => {
-  // 判空判断
-  if (!newTip.value.type || !newTip.value.gap || !newTip.value.unit) {
-    ElMessage({
-      message: '请填写完整信息',
-      type: 'warning',
-    })
+const tipTypeOpsCc = ref(tipTypeOpsC.value);
+watch(() => tipTypeOpsC.value, (newVal) => {
+  tipTypeOpsCc.value = newVal;
+}, { deep: true });
+
+const tipDialogVisible = ref(false);
+const isEditTip = ref(false);
+const tipForm = ref<ObjectType>({});
+const editingTipIndex = ref(-1);
+
+const openTipDialog = (item?: ObjectType) => {
+  if (item) {
+    isEditTip.value = true;
+    tipForm.value = JSON.parse(JSON.stringify(item));
+    editingTipIndex.value = tipTypeCc.value.findIndex(
+      i => item.type == i.type && item.gap == i.gap && item.unit == i.unit
+    );
+  } else {
+    isEditTip.value = false;
+    tipForm.value = {};
+    editingTipIndex.value = -1;
+  }
+  tipDialogVisible.value = true;
+};
+
+const resetTipForm = () => {
+  tipForm.value = {};
+  isEditTip.value = false;
+  editingTipIndex.value = -1;
+};
+
+const submitTip = () => {
+  if (!tipForm.value.type || !tipForm.value.gap || !tipForm.value.unit) {
+    ElMessage({ message: '请填写完整信息', type: 'warning' });
     return;
   }
-  setTipType(newTip)
-  newTip.value = {}
-}
-const editTip = (item: ObjectType) => {
-  newTip.value = item
-}
-// 删除
-const delTip = (item: ObjectType) => {
-  const index = tipTypeCc.value.findIndex(i => item.type == i.type && item.gap == i.gap && item.unit == i.unit)
-  if (index != -1) {
-    tipTypeCc.value.splice(index, 1)
-    setTipType(tipTypeCc.value)
+  if (isEditTip.value && editingTipIndex.value != -1) {
+    tipTypeCc.value.splice(editingTipIndex.value, 1, tipForm.value);
+    setTipType(tipTypeCc.value);
+    ElMessage({ message: '修改成功', type: 'success' });
+  } else {
+    setTipType(tipForm);
+    ElMessage({ message: '新增成功', type: 'success' });
   }
-}
+  tipDialogVisible.value = false;
+};
+
+const delTip = (item: ObjectType) => {
+  const index = tipTypeCc.value.findIndex(i => item.type == i.type && item.gap == i.gap && item.unit == i.unit);
+  if (index != -1) {
+    tipTypeCc.value.splice(index, 1);
+    setTipType(tipTypeCc.value);
+  }
+};
+
 const tipAll = () => {
   tipTypeCc.value.forEach(item => {
-    send('start-job', {
-      type: item.type,
-      gap: Number(item.gap) * Number(item.unit),
-    })
-  })
-}
-const stopAllTip = () => {
-  setNextTime()
-  tipTypeCc.value.forEach(item => {
-    send('stop-job', {
-      type: item.type,
-    })
-  })
-}
-// 提醒
-const tip = (item: ObjectType) => {
-  send('start-job', {
-    type: item.type,
-    gap: Number(item.gap) * Number(item.unit),
-  })
-}
-// 终止提醒
-const stopTip = (item: ObjectType) => {
-  setNextTime(item.type, {})
-  send('stop-job', {
-    type: item.type,
-  })
-}
+    send('start-job', { type: item.type, gap: Number(item.gap) * Number(item.unit) });
+  });
+};
 
-const newTipOps = ref<ObjectType>({})
-// 新增
-const addTipOps = () => {
-  // 判空判断
-  if (!newTipOps.value.label || !newTipOps.value.value) {
-    ElMessage({
-      message: '请填写完整信息',
-      type: 'warning',
-    })
+const stopAllTip = () => {
+  setNextTime();
+  tipTypeCc.value.forEach(item => {
+    send('stop-job', { type: item.type });
+  });
+};
+
+const tip = (item: ObjectType) => {
+  send('start-job', { type: item.type, gap: Number(item.gap) * Number(item.unit) });
+};
+
+const stopTip = (item: ObjectType) => {
+  setNextTime(item.type, {});
+  send('stop-job', { type: item.type });
+};
+
+const tipOpsDialogVisible = ref(false);
+const isEditTipOps = ref(false);
+const tipOpsForm = ref<ObjectType>({});
+const editingTipOpsIndex = ref(-1);
+
+const openTipOpsDialog = (item?: ObjectType) => {
+  if (item) {
+    isEditTipOps.value = true;
+    tipOpsForm.value = JSON.parse(JSON.stringify(item));
+    editingTipOpsIndex.value = tipTypeOpsCc.value.findIndex(
+      i => item.label == i.label && item.value == i.value
+    );
+  } else {
+    isEditTipOps.value = false;
+    tipOpsForm.value = {};
+    editingTipOpsIndex.value = -1;
+  }
+  tipOpsDialogVisible.value = true;
+};
+
+const resetTipOpsForm = () => {
+  tipOpsForm.value = {};
+  isEditTipOps.value = false;
+  editingTipOpsIndex.value = -1;
+};
+
+const submitTipOps = () => {
+  if (!tipOpsForm.value.label || !tipOpsForm.value.value) {
+    ElMessage({ message: '请填写完整信息', type: 'warning' });
     return;
   }
-  setTipTypeOps(newTipOps)
-  newTipOps.value = {}
-}
-const editTipOps = (item: ObjectType) => {
-  newTipOps.value = item
-}
-// 删除
-const delTipOps = (item: ObjectType) => {
-  const index = tipTypeOpsCc.value.findIndex(i => item.label == i.label && item.value == i.value)
-  if (index != -1) {
-    tipTypeOpsCc.value.splice(index, 1)
-    setTipTypeOps(tipTypeOpsCc.value)
+  if (isEditTipOps.value && editingTipOpsIndex.value != -1) {
+    tipTypeOpsCc.value.splice(editingTipOpsIndex.value, 1, tipOpsForm.value);
+    setTipTypeOps(tipTypeOpsCc.value);
+    ElMessage({ message: '修改成功', type: 'success' });
+  } else {
+    setTipTypeOps(tipOpsForm);
+    ElMessage({ message: '新增成功', type: 'success' });
   }
-}
+  tipOpsDialogVisible.value = false;
+};
+
+const delTipOps = (item: ObjectType) => {
+  const index = tipTypeOpsCc.value.findIndex(i => item.label == i.label && item.value == i.value);
+  if (index != -1) {
+    tipTypeOpsCc.value.splice(index, 1);
+    setTipTypeOps(tipTypeOpsCc.value);
+  }
+};
 
 const uploadIcon = () => {
-  const res = sendSync('get-file-list', {
-    openDirectory: false,
-    openFile: true,
-    type: 'image',
-  })
+  const res = sendSync('get-file-list', { openDirectory: false, openFile: true, type: 'image' });
   if (res) {
-    newTipOps.value.icon = 'jlocal:///' + encodeURIComponent(res[0])
-    newTipOps.value.iconType = 'image'
+    tipOpsForm.value.icon = 'jlocal:///' + encodeURIComponent(res[0]);
+    tipOpsForm.value.iconType = 'image';
   }
-  console.log(res);
-}
+};
 
 const curUnit = (unit: number) => {
-  console.log(unit, 'unit')
-  if (unit == 60 * 1000) {
-    return '分钟'
-  } else if (unit == 60 * 60 * 1000) {
-    return '小时'
-  } else if (unit == 1000) {
-    return '秒'
-  }
-}
+  if (unit == 60 * 1000) return '分钟';
+  else if (unit == 60 * 60 * 1000) return '小时';
+  else if (unit == 1000) return '秒';
+};
+
 const getType = (type: string) => {
-  return tipTypeOpsCc.value.find(i => i.value == type)?.label
-}
-
-onMounted(() => {
-  console.log(tipTypeC.value)
-})
-
-
+  return tipTypeOpsCc.value.find(i => i.value == type)?.label;
+};
 </script>
 
 <style scoped lang="scss">
-.setting-title {
-  padding-left: 3px;
-  border-bottom: 6px solid #6d6d6d;
+.pomodoro-set {
   width: 100%;
-  font-weight: 600;
 }
 
-.cur-status {
-  &-work {
-    &::before {
-      content: '•';
-      color: #00ffbf;
-      display: inline-block;
-    }
+.action-bar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
 
-    &::rest {
-      content: '•';
-      color: #ff0303;
-      display: inline-block;
+  .action-btn {
+    padding: 10px 24px;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+
+    &:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     }
   }
 }
 
-.setting-form {
-  width: 100%;
-  box-sizing: border-box;
-  // padding: 12px;
-  background-color: #ffffff;
-}
+.section {
+  margin-bottom: 24px;
 
-// 主页模式
-:deep(.mode-wrapper) {
-  .el-form-item__content {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-}
-
-.mode-ops {
-  width: 100%;
-
-  .mode-item {
+  .section-header {
     display: flex;
-    margin-bottom: 10px;
-  }
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--color-primary);
 
-  .mode-label {
-    width: 150px;
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 0;
+
+      .el-icon {
+        color: var(--color-primary);
+      }
+    }
+
+    .add-btn {
+      font-size: 13px;
+      font-weight: 500;
+      padding: 6px 14px;
+      border-radius: 6px;
+    }
   }
 }
 
-:deep(.file-move) {
-  .el-form-item__content {
-    .el-form-item {
-      margin-top: 10px;
+.tip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
 
-      .el-form-item__label {
-        height: unset;
-        line-height: 1.2em;
+.tip-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  padding: 16px 20px;
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-card);
+  }
+
+  .tip-card-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+
+    .tip-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #667eea;
+    }
+
+    .tip-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+
+      .tip-type {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--text-primary);
+      }
+
+      .tip-gap {
         display: flex;
         align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        color: var(--text-muted);
+
+        .gap-value {
+          font-size: 16px;
+          font-weight: 600;
+          color: var(--color-primary);
+        }
+      }
+    }
+  }
+
+  .tip-card-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+
+    .tip-next-time {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      padding: 6px 12px;
+      background: var(--bg-hover);
+      border-radius: 6px;
+
+      .el-icon {
+        color: var(--color-primary);
+      }
+    }
+
+    .tip-actions {
+      display: flex;
+      gap: 6px;
+
+      .tip-btn {
+        width: 34px;
+        height: 34px;
+        padding: 0;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        background: transparent;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        &:hover {
+          transform: translateY(-2px);
+        }
+
+        &:active {
+          transform: translateY(0);
+        }
+
+        &.edit {
+          color: #409eff;
+          &:hover {
+            background: rgba(64, 158, 255, 0.1);
+            border-color: rgba(64, 158, 255, 0.2);
+          }
+        }
+
+        &.start {
+          color: #67c23a;
+          &:hover {
+            background: rgba(103, 194, 58, 0.1);
+            border-color: rgba(103, 194, 58, 0.2);
+          }
+        }
+
+        &.stop {
+          color: #e6a23c;
+          &:hover {
+            background: rgba(230, 162, 60, 0.1);
+            border-color: rgba(230, 162, 60, 0.2);
+          }
+        }
+
+        &.delete {
+          color: #f56c6c;
+          &:hover {
+            background: rgba(245, 108, 108, 0.1);
+            border-color: rgba(245, 108, 108, 0.2);
+          }
+        }
+
+        .el-icon {
+          font-size: 16px;
+        }
       }
     }
   }
 }
 
-.show-icon {
-    width: 36px;
-    height: 36px;
-    overflow: hidden;
-    padding: 6px;
-    &>* {
-      width: 100%;
-      height: 100%;
-      display: inline-block;
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+
+  .empty-icon {
+    color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+
+  .empty-text {
+    font-size: 14px;
+    color: var(--text-muted);
+  }
+}
+
+.tip-ops-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.tip-ops-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-card);
+    transform: translateY(-2px);
+  }
+
+  .tip-ops-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(103, 194, 58, 0.1), rgba(133, 206, 97, 0.1));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    .icon-image,
+    .icon-emoji {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+
+      :deep(.el-image) {
+        width: 100%;
+        height: 100%;
+      }
     }
+  }
+
+  .tip-ops-info {
+    text-align: center;
+
+    .tip-ops-label {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .tip-ops-value {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+  }
+
+  .tip-ops-actions {
+    display: flex;
+    gap: 6px;
+
+    .ops-btn {
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: transparent;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      &:hover {
+        transform: translateY(-2px);
+      }
+
+      &:active {
+        transform: translateY(0);
+      }
+
+      &.edit {
+        color: #409eff;
+        &:hover {
+          background: rgba(64, 158, 255, 0.1);
+          border-color: rgba(64, 158, 255, 0.2);
+        }
+      }
+
+      &.delete {
+        color: #f56c6c;
+        &:hover {
+          background: rgba(245, 108, 108, 0.1);
+          border-color: rgba(245, 108, 108, 0.2);
+        }
+      }
+
+      .el-icon {
+        font-size: 14px;
+      }
+    }
+  }
+}
+
+.dialog-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  .form-item {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    .form-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    .form-input,
+    .form-select {
+      width: 100%;
+      font-size: 14px;
+    }
+
+    .gap-input-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+
+      .gap-input {
+        flex: 1;
+      }
+
+      .gap-unit {
+        width: 100px;
+        flex-shrink: 0;
+      }
+    }
+
+    .icon-input-wrap {
+      width: 100%;
+    }
+
+    .icon-preview {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 8px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border-subtle);
+
+      .preview-label {
+        font-size: 13px;
+        color: var(--text-secondary);
+      }
+
+      .preview-image,
+      .preview-emoji {
+        width: 48px;
+        height: 48px;
+        border-radius: 8px;
+        background: var(--bg-hover);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        :deep(.el-image) {
+          width: 100%;
+          height: 100%;
+        }
+      }
+    }
+  }
 }
 </style>

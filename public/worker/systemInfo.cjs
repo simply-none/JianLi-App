@@ -56,36 +56,172 @@ async function getSystemStaticData() {
   }
 }
 
+async function getSystemSummary() {
+  try {
+    const [os, cpu, mem, diskLayout, graphics, networkInterfaces] = await Promise.all([
+      si.osInfo(),
+      si.cpu(),
+      si.mem(),
+      si.diskLayout(),
+      si.graphics(),
+      si.networkInterfaces(),
+    ]);
+    
+    parentPort.postMessage({
+      type: 'summary',
+      data: {
+        os: {
+          platform: os.platform,
+          distro: os.distro,
+          release: os.release,
+          arch: os.arch,
+          hostname: os.hostname,
+        },
+        cpu: {
+          brand: cpu.brand,
+          cores: cpu.cores,
+          physicalCores: cpu.physicalCores,
+          speed: cpu.speed,
+          speedMax: cpu.speedMax,
+          manufacturer: cpu.manufacturer,
+        },
+        memory: {
+          total: mem.total,
+          used: mem.used,
+          free: mem.free,
+          swaptotal: mem.swaptotal,
+        },
+        disks: diskLayout.map(d => ({
+          device: d.device,
+          type: d.type,
+          name: d.name,
+          size: d.size,
+          vendor: d.vendor,
+        })),
+        graphics: {
+          controllers: (graphics.controllers || []).map(g => ({
+            model: g.model,
+            vram: g.vram,
+            vendor: g.vendor,
+          })),
+          displays: (graphics.displays || []).map(d => ({
+            model: d.model,
+            resolution: `${d.resolutionx}x${d.resolutiony}`,
+            refreshRate: d.refreshRate,
+          })),
+        },
+        network: networkInterfaces
+          .filter(n => n.ip4 && n.type !== 'virtual')
+          .map(n => ({
+            iface: n.iface,
+            ip4: n.ip4,
+            mac: n.mac,
+            type: n.type,
+          })),
+      },
+      time: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('获取系统摘要失败:', error);
+    parentPort.postMessage({
+      type: 'summary',
+      data: {},
+      time: new Date().toISOString(),
+    });
+  }
+}
+
+async function getExtendedInfo() {
+  try {
+    const tasks = [];
+    
+    if (typeof si.bios === 'function') tasks.push(si.bios());
+    else tasks.push(Promise.resolve({}));
+    
+    if (typeof si.baseboard === 'function') tasks.push(si.baseboard());
+    else tasks.push(Promise.resolve({}));
+    
+    if (typeof si.battery === 'function') tasks.push(si.battery());
+    else tasks.push(Promise.resolve([]));
+    
+    if (typeof si.audio === 'function') tasks.push(si.audio());
+    else tasks.push(Promise.resolve([]));
+    
+    if (typeof si.bluetoothDevices === 'function') tasks.push(si.bluetoothDevices());
+    else tasks.push(Promise.resolve([]));
+    
+    if (typeof si.usb === 'function') tasks.push(si.usb());
+    else tasks.push(Promise.resolve([]));
+    
+    if (typeof si.printer === 'function') tasks.push(si.printer());
+    else tasks.push(Promise.resolve([]));
+    
+    if (typeof si.dockerInfo === 'function') tasks.push(si.dockerInfo());
+    else tasks.push(Promise.resolve({}));
+    
+    if (typeof si.versions === 'function') tasks.push(si.versions());
+    else tasks.push(Promise.resolve({}));
+    
+    if (typeof si.users === 'function') tasks.push(si.users());
+    else tasks.push(Promise.resolve([]));
+
+    const results = await Promise.allSettled(tasks);
+
+    const [bios, baseboard, battery, audio, bluetooth, usb, printer, docker, versions, users] = results;
+
+    parentPort.postMessage({
+      type: 'extended',
+      data: {
+        bios: bios.status === 'fulfilled' ? bios.value : {},
+        baseboard: baseboard.status === 'fulfilled' ? baseboard.value : {},
+        battery: battery.status === 'fulfilled' ? battery.value : [],
+        audio: audio.status === 'fulfilled' ? audio.value : [],
+        bluetooth: bluetooth.status === 'fulfilled' ? bluetooth.value : [],
+        usb: usb.status === 'fulfilled' ? usb.value : [],
+        printer: printer.status === 'fulfilled' ? printer.value : [],
+        docker: docker.status === 'fulfilled' ? docker.value : {},
+        versions: versions.status === 'fulfilled' ? versions.value : {},
+        users: users.status === 'fulfilled' ? users.value : [],
+      },
+      time: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('获取扩展信息失败:', error);
+    parentPort.postMessage({
+      type: 'extended',
+      data: {},
+      time: new Date().toISOString(),
+    });
+  }
+}
+
 parentPort.on('message', async (message) => {
-  // console.log('收到消息:', message, workerData, monitor)
   switch (message.type) {
-    // 获取静态数据，不需要实时监控
+    case 'summary':
+      getSystemSummary();
+      break;
+    case 'extended':
+      getExtendedInfo();
+      break;
     case 'static':
       getSystemStaticData();
       break;
     case 'start':
       if (!isMonitoring) {
         isMonitoring = true;
-        // 立即开始第一次采集
         monitoringLoop1();
       }
-
       parentPort.postMessage({
         type: 'monitoring-started',
       });
       break;
-
     case 'stop':
-      // 停止监控
       isMonitoring = false;
-      // 停止监控循环
       monitoringLoop1Stop();
-
       parentPort.postMessage({
         type: 'monitoring-stopped'
       });
       break;
-
     case 'update-config':
       break;
   }

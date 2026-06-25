@@ -79,17 +79,20 @@ import { storeToRefs } from 'pinia';
 import useRuntimeVariables from '@/store/useRuntimeVariables';
 import useTheme, { themeOptions, type ThemeName } from '@/store/useTheme';
 import { watch } from 'vue';
+import { getStore } from '@/utils/common';
 import {
   Setting, Monitor, House, Grid, Timer,
   FolderOpened, Connection, Files, Document,
   Notebook, Opportunity, Lock, MagicStick,
   Position, Coin, Share, Tools, InfoFilled,
+  Collection,
 } from '@element-plus/icons-vue';
 
 // 路由名称 → 图标映射
 const iconMap: Record<string, any> = {
   setting: Setting,
   systemInfo: Monitor,
+  routeSetting: Setting,
   homeMode: House,
   windowMode: Grid,
   pomodoroRecord: Timer,
@@ -98,6 +101,7 @@ const iconMap: Record<string, any> = {
   resourceManage: Files,
   clipboard: Document,
   notebook: Notebook,
+  categorizableNotes: Collection,
   registerShortcut: Opportunity,
   safetyProtection: Lock,
   styleBeauty: MagicStick,
@@ -123,19 +127,52 @@ interface MenuGroup {
 
 const groupDefs: MenuGroup[] = [
   { label: '通用', names: ['setting', 'homeMode', 'windowMode', 'styleBeauty'] },
-  { label: '系统与资源', names: ['systemInfo', 'appCache', 'fileRela', 'resourceManage', 'safetyProtection'] },
-  { label: '效率工具', names: ['pomodoroRecord', 'clipboard', 'notebook', 'registerShortcut', 'function', 'weather'] },
+  { label: '系统与资源', names: ['systemInfo', 'routeSetting', 'appCache', 'fileRela', 'resourceManage', 'safetyProtection'] },
+  { label: '效率工具', names: ['pomodoroRecord', 'clipboard', 'notebook', 'categorizableNotes', 'registerShortcut', 'function', 'weather'] },
   { label: '开发工具', names: ['netRequest', 'sqlTest', 'flow'] },
   { label: '关于', names: ['about'] },
 ];
 
+// 不可配置的路由（始终显示）
+const lockedRoutes = ['setting', 'systemInfo', 'routeSetting'];
+
+// 响应式刷新 key，用于强制更新菜单
+const menuRefreshKey = ref(0);
+
 const menuGroups = computed(() => {
-  return groupDefs.map(g => ({
-    label: g.label,
-    items: g.names
-      .map(name => enrichedRouters.find(r => r.name === name))
-      .filter(Boolean) as RouteRecordRaw[],
-  }));
+  menuRefreshKey.value; // 依赖刷新 key，使 computed 响应式
+  const savedConfig = getStore('routeSetting') || {};
+  const visibleRoutes: Record<string, boolean> = savedConfig;
+
+  return groupDefs
+    .map(g => ({
+      label: g.label,
+      items: g.names
+        .filter(name => {
+          // 始终显示的路由（不可配置）
+          if (lockedRoutes.includes(name)) {
+            return true;
+          }
+          // 检查用户配置，未配置的默认显示
+          return visibleRoutes[name] !== false;
+        })
+        .map(name => enrichedRouters.find(r => r.name === name))
+        .filter(Boolean) as RouteRecordRaw[],
+    }))
+    .filter(g => g.items.length > 0); // 过滤空分组
+});
+
+// 监听路由配置变化事件
+function handleMenuRefresh() {
+  menuRefreshKey.value++;
+}
+
+onMounted(() => {
+  window.addEventListener('route-setting-changed', handleMenuRefresh);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('route-setting-changed', handleMenuRefresh);
 });
 
 const router = useRouter();
