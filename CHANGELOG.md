@@ -2,7 +2,18 @@
 
 变更日志
 
-## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.6.23-rc.1...HEAD) (2026-06-23)
+## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.6.23-rc.2...HEAD) (2026-06-25)
+
+### ✨ Features | 新功能
+
+* 新增天气页面 ([a21cd7e](https://github.com/simply-none/JianLi-App/commit/a21cd7ec6cab32838d78f128b280bc07a30cde2f))
+* 开机自启动优化，当安装时如果杀毒软件拦截了该权限的处理 ([7bd79d3](https://github.com/simply-none/JianLi-App/commit/7bd79d37dc46690b9b47374163cfaf02f7a30f02))
+
+### ♻️ Code Refactoring | 代码重构
+
+* 重构已有功能的样式排版 ([f07a582](https://github.com/simply-none/JianLi-App/commit/f07a582f40bafb7576139ae5b1cbf829db49b64f))
+
+## [v26.6.23-rc.2](https://github.com/simply-none/JianLi-App/compare/v26.6.23-rc.1...v26.6.23-rc.2) (2026-06-23)
 
 ### 🐛 Bug Fixes | Bug 修复
 
