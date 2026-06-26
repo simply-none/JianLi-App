@@ -1,91 +1,136 @@
 <template>
-  <el-form class="fileRela-form" label-width="108" label-position="left">
+  <div class="notebook-container">
+    <header class="notebook-header">
+      <div class="header-left">
+        <h1 class="page-title">笔记本</h1>
+      </div>
+      <div class="header-right">
+        <el-button type="primary" @click="addContent">
+          <el-icon>
+            <Plus />
+          </el-icon>
+          新建笔记
+        </el-button>
+        <el-button type="primary" @click="getNoteBookData">
+          <el-icon>
+            <Management />
+          </el-icon>
+          展示所有笔记
+        </el-button>
+      </div>
+    </header>
 
-    <el-form-item>
-      <template #label>
-        <div class="setting-title">笔记</div>
-      </template>
-    </el-form-item>
-
-    <div class="notebook-panel"  v-if="showNotebookHistory">
-      <div class="notebook-date">
-          <el-date-picker-panel v-model="curDate" :border="true" @panel-change="panelChange">
-            <template #default="scope">
-              <div class="notebook-date-item">
-                <div class="notebook-date-label">
-                  {{  formatDate(scope.date).day }}
-                </div>
-                <div class="notebook-date-note" :class="[getCurDateNoteCount(scope.date) ? 'notebook-date-note-is' : '']">
-                </div>
+    <div class="notebook-body">
+      <div class="sidebar-list">
+        <aside class="calendar-sidebar">
+          <div class="sidebar-section">
+            <div class="section-header">
+              <button @click="prevMonth" class="nav-btn">
+                <el-icon>
+                  <ArrowLeft />
+                </el-icon>
+              </button>
+              <span class="month-title">{{ currentMonthLabel }}</span>
+              <button @click="nextMonth" class="nav-btn">
+                <el-icon>
+                  <ArrowRight />
+                </el-icon>
+              </button>
+            </div>
+            <div class="weekdays">
+              <span v-for="day in weekdays" :key="day">{{ day }}</span>
+            </div>
+            <div class="calendar-grid">
+              <div v-for="(day, index) in calendarDays" :key="index" class="calendar-day" :class="{
+                'other-month': !day.currentMonth,
+                'today': day.isToday,
+                'selected': day.dateStr === selectedDate,
+                'has-note': day.noteCount > 0
+              }" @click="selectDate(day)">
+                <span class="day-number">{{ day.day }}</span>
+                <span v-if="day.noteCount > 0" class="note-dot"></span>
               </div>
-            </template>
-          </el-date-picker-panel>
-      </div>
-      <div class="notebook-list">
-        <el-table :data="noteBookData" max-height="360">
-          <el-table-column prop="excerpt" label="摘要">
-            <template #default="scope">
-              {{ scope.row.excerpt }}
-            </template>
-          </el-table-column>
-          <el-table-column prop="createTime" label="时间">
-            <template #default="scope">
-              {{ scope.row.createTime || '--' }}
-            </template>
-          </el-table-column>
-          <el-table-column prop="updateTime" label="更新时间">
-            <template #default="scope">
-              {{ scope.row.updateTime || '--' }}
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="150" fixed="right">
+            </div>
+          </div>
+        </aside>
 
-            <template #default="scope">
-              <el-button type="primary" size="small" @click="showContent(scope.row)">显示</el-button>
-              <el-button type="danger" size="small" @click="deleteContent(scope.row)">删除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
+        <section class="notes-list">
+          <div class="list-header">
+            <h2 class="list-title">笔记列表</h2>
+            <span class="note-count">{{ noteBookData.length }} 条</span>
+          </div>
+
+          <div class="notes-scroll">
+            <div v-for="(note, index) in noteBookData" :key="note.key || index" class="note-card"
+              :class="{ active: curNote.key && curNote.key === note.key }" @click="showContent(note)">
+              <div class="card-header">
+                <span class="note-time">{{ formatTime(note.updateTime) }}</span>
+                <button @click.stop="deleteContent(note)" class="delete-btn">
+                  <el-icon>
+                    <Delete />
+                  </el-icon>
+                </button>
+              </div>
+              <div class="card-body">
+                <p class="note-excerpt">{{ note.excerpt || '无摘要' }}</p>
+              </div>
+              <div class="card-footer">
+                <span class="note-date">{{ formatDateLabel(note.updateTime) }}</span>
+              </div>
+            </div>
+
+            <div v-if="noteBookData.length === 0" class="empty-notes">
+              <div class="empty-icon">
+                <el-icon>
+                  <Files />
+                </el-icon>
+              </div>
+              <p>暂无笔记</p>
+              <button @click="addContent">创建第一条笔记</button>
+            </div>
+          </div>
+        </section>
       </div>
+
+      <main class="editor-section">
+        <div class="editor-header">
+          <div class="editor-title">
+            <el-icon>
+              <EditPen />
+            </el-icon>
+            <span>{{ curstatusLabel }}</span>
+          </div>
+          <div class="editor-actions">
+            <el-button type="warning" @click="addContent">
+              <el-icon>
+                <Refresh />
+              </el-icon>
+              新建
+            </el-button>
+            <el-button type="primary" @click="saveNoteBook">
+              <el-icon>
+                <DocumentChecked />
+              </el-icon>
+              保存
+            </el-button>
+          </div>
+        </div>
+        <div class="editor-container">
+          <umo-editor v-if="showEditor" ref="editorRef" :options="options" />
+        </div>
+      </main>
     </div>
-
-    <el-form-item label="笔记数据" class="mode-wrapper">
-      <el-button type="primary" @click="showNotebookHistoryFn">
-        {{ showNotebookHistory ? '隐藏' : '显示' }}
-      </el-button>
-      <el-button type="primary" @click="getNoteBookData">
-        展示所有笔记
-      </el-button>
-    </el-form-item>
-
-    <el-divider></el-divider>
-
-    <el-form-item>
-      <template #label>
-        <div class="setting-title">{{ curstatusLabel }}</div>
-      </template>
-      <div class="setting-handle">
-        <el-button type="warning" @click="addContent">清空数据新建内容</el-button>
-        <el-button type="primary" @click="saveNoteBook">保存笔记</el-button>
-      </div>
-    </el-form-item>
-
-    <el-form-item :label="curstatusLabel" class="mode-wrapper" v-if="showEditor">
-      <umo-editor ref="editorRef" :options="options" />
-    </el-form-item>
-  </el-form>
-
+  </div>
 </template>
 
 <script setup>
-import { ref, reactive, watch, computed, toRaw, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { storeToRefs } from 'pinia';
-import { UmoEditor } from '@umoteam/editor';
-import '@umoteam/editor/style'
+import { ElMessage } from 'element-plus';
+import { Plus, ArrowLeft, ArrowRight, Delete, Files, EditPen, Refresh, DocumentChecked } from '@element-plus/icons-vue';
 import moment from 'moment';
 import { v4 as uuidv4 } from 'uuid';
 import { formatDate, getMonthRange, groupByDate } from '@/utils/time';
-import { ElMessage } from 'element-plus';
 import umoEditor from './umoEditor.vue';
 
 const showEditor = ref(false);
@@ -95,17 +140,14 @@ const editorRef = ref(null);
 const curstatusLabel = ref('新内容')
 
 const options = ref({
-  // 配置项
-  // ...
   onSave: async (content, page, document) => {
-    console.log(content, page, document);
     try {
       let result = await window.ipcRenderer.handlePromise('set-data', {
         tableName: 'note_book',
         data: {
           ...curNote.value,
           key: curNote.value.key || key.value,
-          excerpt: editorRef.value.getContentExcerpt(),
+          excerpt: editorRef.value?.getContentExcerpt?.() || '',
           html: content.html,
           createTime: curNote.value.createTime || moment().format('YYYY-MM-DD HH:mm:ss'),
           updateTime: moment().format('YYYY-MM-DD HH:mm:ss'),
@@ -119,7 +161,6 @@ const options = ref({
         curNote.value = {}
         panelChange(new Date());
         return true;
-
       } else {
         ElMessage.error('保存失败:' + result.error);
         return false;
@@ -131,8 +172,12 @@ const options = ref({
   }
 });
 
-async function saveNoteBook () {
+async function saveNoteBook() {
   try {
+    if (!editorRef.value) {
+      ElMessage.error('编辑器未初始化');
+      return false;
+    }
     let content = editorRef.value.getContent('html');
     let result = await window.ipcRenderer.handlePromise('set-data', {
       tableName: 'note_book',
@@ -153,7 +198,6 @@ async function saveNoteBook () {
       ElMessage.success('保存成功');
       curNote.value = {}
       return true;
-
     } else {
       ElMessage.error('保存失败:' + result.error);
       return false;
@@ -171,11 +215,92 @@ onMounted(() => {
   showEditor.value = true;
 })
 
-const curDate = ref();
-const curMonthGroupNote = ref({})
+const curDate = ref(new Date());
+const curMonthGroupNote = ref({});
+
+const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+
+const currentMonth = ref(moment());
+
+const currentMonthLabel = computed(() => {
+  return currentMonth.value.format('YYYY年M月');
+});
+
+const calendarDays = computed(() => {
+  const year = currentMonth.value.year();
+  const month = currentMonth.value.month();
+  const firstDay = moment({ year, month, day: 1 });
+  const lastDay = moment(firstDay).endOf('month');
+  const startDay = firstDay.day();
+  const totalDays = lastDay.date();
+
+  const days = [];
+  const today = moment();
+
+  for (let i = startDay - 1; i >= 0; i--) {
+    const day = moment(firstDay).subtract(i + 1, 'day');
+    days.push({
+      day: day.date(),
+      dateStr: day.format('YYYY-MM-DD'),
+      currentMonth: false,
+      isToday: day.isSame(today, 'day'),
+      noteCount: curMonthGroupNote.value[day.format('YYYY-MM-DD')]?.length || 0
+    });
+  }
+
+  for (let i = 1; i <= totalDays; i++) {
+    const day = moment({ year, month, day: i });
+    days.push({
+      day: i,
+      dateStr: day.format('YYYY-MM-DD'),
+      currentMonth: true,
+      isToday: day.isSame(today, 'day'),
+      noteCount: curMonthGroupNote.value[day.format('YYYY-MM-DD')]?.length || 0
+    });
+  }
+
+  const remainingDays = 42 - days.length;
+  for (let i = 1; i <= remainingDays; i++) {
+    const day = moment(lastDay).add(i, 'day');
+    days.push({
+      day: day.date(),
+      dateStr: day.format('YYYY-MM-DD'),
+      currentMonth: false,
+      isToday: day.isSame(today, 'day'),
+      noteCount: curMonthGroupNote.value[day.format('YYYY-MM-DD')]?.length || 0
+    });
+  }
+  console.log(days, 'days in calendarDays');
+  return days;
+});
+
+const selectedDate = ref(moment().format('YYYY-MM-DD'));
+
 watch(curDate, (newV) => {
   noteBookData.value = curMonthGroupNote.value[formatDate(newV).dateStr] || []
-})
+});
+
+watch(selectedDate, (newDate) => {
+  noteBookData.value = curMonthGroupNote.value[newDate] || [];
+});
+
+function prevMonth() {
+  currentMonth.value = moment(currentMonth.value).subtract(1, 'month');
+}
+
+function nextMonth() {
+  currentMonth.value = moment(currentMonth.value).add(1, 'month');
+}
+
+function selectDate(day) {
+  if (selectedDate.value !== day.dateStr) {
+    selectedDate.value = day.dateStr;
+  }
+  const newMonth = moment(day.dateStr);
+  if (!currentMonth.value.isSame(newMonth, 'month')) {
+    currentMonth.value = newMonth;
+  }
+}
 
 function getCurDateNoteCount(date) {
   let dateStr = formatDate(date).dateStr;
@@ -189,6 +314,7 @@ function panelChange(date, mode, view) {
     endDate: lastDay,
   }).then(data => {
     let newData = groupByDate(data)
+    console.log(newData, 'newData in panelChange')
     curMonthGroupNote.value = newData;
     noteBookData.value = data || []
   })
@@ -201,20 +327,17 @@ function fetchNoteData(options = {}) {
     startDate = null,
     endDate = null
   } = options;
-  
+
   let whereStr;
-  
+
   if (specificDate) {
-    // 查询指定日期的数据
     whereStr = `createTime BETWEEN '${specificDate}' AND datetime('${specificDate}', '+1 day')`;
   } else if (startDate && endDate) {
-    // 查询指定日期范围的数据
     whereStr = `createTime BETWEEN '${startDate}' AND '${endDate}'`;
   } else {
-    // 查询最近指定天数的数据
     whereStr = `createTime >= DATE('now', '-${days} days')`;
   }
-  
+
   return window.ipcRenderer.handlePromise('query-data', {
     tableName: 'note_book',
     conditions: {
@@ -225,7 +348,6 @@ function fetchNoteData(options = {}) {
     }
   }).then(result => {
     if (result.success) {
-      ElMessage.success('查询成功');
       return result.data;
     }
     return [];
@@ -235,42 +357,54 @@ function fetchNoteData(options = {}) {
   });
 }
 
+function formatTime(time) {
+  if (!time) return '--';
+  return moment(time).format('HH:mm');
+}
+
+function formatDateLabel(time) {
+  if (!time) return '--';
+  const date = moment(time);
+  const today = moment();
+  const yesterday = moment().subtract(1, 'day');
+
+  if (date.isSame(today, 'day')) return '今天';
+  if (date.isSame(yesterday, 'day')) return '昨天';
+  if (date.isSame(today, 'week')) return date.format('周ddd');
+  return date.format('M月D日');
+}
+
+const showNotebookHistory = ref(false);
 async function getNoteBookData() {
-  if (!showNotebookHistory.value) return;
-  fetchNoteData({
-    days: 360,
-    startDate: formatDate(new Date()).dateStr
-  }).then(data => {
-    noteBookData.value = data;
-    curMonthGroupNote.value = groupByDate(data);
-  })
-}
-
-const showNotebookHistory = ref(true);
-const showNotebookHistoryFn = () => {
-  if (showNotebookHistory.value) {
+  if (!showNotebookHistory.value) {
+    fetchNoteData({
+      days: 360,
+      startDate: formatDate(new Date()).dateStr
+    }).then(data => {
+      noteBookData.value = data;
+      curMonthGroupNote.value = groupByDate(data);
+    })
+    showNotebookHistory.value = true;
+  } else {
     showNotebookHistory.value = false;
-    noteBookData.value = [];
-    return;
   }
-  showNotebookHistory.value = true;
-  panelChange(new Date());
 }
-
 
 function addContent() {
-  console.log('新增内容:');
   key.value = uuidv4();
   curNote.value = {}
-  editorRef.value.setContent('');
+  if (editorRef.value) {
+    editorRef.value.setContent('');
+  }
   curstatusLabel.value = '新内容'
 }
 
 function showContent(row) {
-  console.log('显示内容:', row);
   key.value = row.key;
   curNote.value = row;
-  editorRef.value.setContent(row.html);
+  if (editorRef.value) {
+    editorRef.value.setContent(row.html || '');
+  }
   curstatusLabel.value = '查看内容'
 }
 
@@ -289,72 +423,378 @@ function deleteContent(row) {
     }
   })
 }
-
-
 </script>
 
 <style scoped lang="scss">
-.fileRela-form {
-  padding: 24px;
-  box-sizing: border-box;
-  height: 100%;
-  overflow: auto;
-}
-
-.setting-title {
-  padding-left: 3px;
-  border-bottom: 6px solid #6d6d6d;
-  width: 100%;
-  font-weight: 600;
-}
-
-.setting-form {
-  width: 100%;
-  box-sizing: border-box;
-  // padding: 12px;
-  background-color: #ffffff;
-}
-
-.setting-handle {
-  width: 100%;
-  text-align: right;
-}
-
-.cache-list {
-  word-break: break-all;
-}
-
-:deep(.today) {
-  color: #409eff;
-  font-weight: 900;
-}
-.notebook-panel {
+.notebook-container {
   display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-  gap: 24px;
-  padding-bottom: 24px;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-primary);
+}
 
-  .notebook-list {
-    flex: 1;
-    width: 0;
-  }
-  .notebook-date-item {
-    &:hover {
-      background: #57c5ff;
-      color: #fff;
-      border-radius: 6px;
+.notebook-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-subtle);
+
+  .header-left {
+    .page-title {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 0;
     }
   }
-  .notebook-date-note-is {
-    height: 5px;
-    width: 5px;
-    position: absolute;
-    left: 50%;
-    text-align: center;
-    transform: translate(-50%, -6px);
-    border-radius: 50%;
-    background: #409eff;
+
+  .header-right {
+    display: flex;
+    gap: 12px;
+  }
+}
+
+.notebook-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.sidebar-list {
+  flex: 1;
+  width: 0;
+}
+
+.calendar-sidebar {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg-card);
+  border-right: 1px solid var(--border-subtle);
+  padding: 16px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+
+
+  .sidebar-section {
+    flex: 1;
+    width: 50%;
+    max-width: 360px;
+    min-width: 220px;
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+
+      .nav-btn {
+        width: 32px;
+        height: 32px;
+        border: none;
+        background: transparent;
+        border-radius: 6px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text-secondary);
+        transition: all 0.2s ease;
+
+        &:hover {
+          background: var(--bg-hover);
+          color: var(--text-primary);
+        }
+
+        .el-icon {
+          font-size: 16px;
+        }
+      }
+
+      .month-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-primary);
+      }
+    }
+
+    .weekdays {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      text-align: center;
+      margin-bottom: 8px;
+
+      span {
+        font-size: 12px;
+        color: var(--text-muted);
+        font-weight: 500;
+      }
+    }
+
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+
+      .calendar-day {
+        aspect-ratio: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        position: relative;
+
+        .day-number {
+          font-size: 13px;
+          color: var(--text-primary);
+        }
+
+        .note-dot {
+          width: 4px;
+          height: 4px;
+          border-radius: 50%;
+          background: var(--color-primary);
+          margin-top: 2px;
+        }
+
+        &.other-month {
+          .day-number {
+            color: var(--text-muted);
+          }
+        }
+
+        &.today {
+          background: var(--color-primary);
+
+          .day-number {
+            color: #fff;
+          }
+        }
+
+        &.selected {
+          background: var(--color-primary-light);
+          border: 1px solid var(--color-primary);
+        }
+
+        &.has-note:not(.today):not(.selected) {
+          background: var(--bg-hover);
+        }
+
+        &:hover:not(.other-month) {
+          background: var(--bg-hover);
+        }
+      }
+    }
+  }
+}
+
+.notes-list {
+  flex: 1;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+
+  .list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    border-bottom: 1px solid var(--border-subtle);
+
+    .list-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 0;
+    }
+
+    .note-count {
+      font-size: 13px;
+      color: var(--text-muted);
+      background: var(--bg-hover);
+      padding: 4px 10px;
+      border-radius: 10px;
+    }
+  }
+
+  .notes-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+
+    .note-card {
+      background: var(--bg-card);
+      border-radius: var(--radius-card);
+      padding: 14px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: 1px solid transparent;
+
+      &:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-card);
+        border-color: var(--border-subtle);
+      }
+
+      &.active {
+        border-color: var(--color-primary);
+        background: var(--color-primary-light);
+      }
+
+      .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+
+        .note-time {
+          font-size: 12px;
+          color: var(--text-muted);
+          font-family: 'SF Mono', Monaco, monospace;
+        }
+
+        .delete-btn {
+          width: 24px;
+          height: 24px;
+          border: none;
+          background: transparent;
+          border-radius: 4px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: var(--text-muted);
+          opacity: 0;
+          transition: all 0.2s ease;
+
+          &:hover {
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+          }
+        }
+
+        .note-card:hover & .delete-btn {
+          opacity: 1;
+        }
+      }
+
+      .card-body {
+        margin-bottom: 8px;
+
+        .note-excerpt {
+          font-size: 14px;
+          color: var(--text-primary);
+          line-height: 1.5;
+          margin: 0;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+      }
+
+      .card-footer {
+        .note-date {
+          font-size: 12px;
+          color: var(--text-muted);
+        }
+      }
+    }
+
+    .empty-notes {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px;
+      text-align: center;
+
+      .empty-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: var(--bg-hover);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 12px;
+
+        .el-icon {
+          font-size: 24px;
+          color: var(--text-muted);
+        }
+      }
+
+      p {
+        font-size: 14px;
+        color: var(--text-muted);
+        margin: 0 0 16px;
+      }
+
+      button {
+        padding: 8px 20px;
+        background: var(--color-primary);
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: all 0.2s ease;
+
+        &:hover {
+          opacity: 0.9;
+        }
+      }
+    }
+  }
+}
+
+.editor-section {
+  flex: 2;
+  width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+
+  .editor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border-subtle);
+
+    .editor-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--text-primary);
+
+      .el-icon {
+        color: var(--color-primary);
+      }
+    }
+
+    .editor-actions {
+      display: flex;
+      gap: 8px;
+    }
+  }
+
+  .editor-container {
+    flex: 1;
+    overflow: auto;
   }
 }
 </style>

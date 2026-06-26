@@ -1,6 +1,6 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { defineStore, storeToRefs } from "pinia";
-import { getStore, sendSync, setStore, send, sendMany } from "../utils/common";
+import { getStore, sendSync, setStore, send, sendMany, getWindowConfig } from "../utils/common";
 import { initPiniaStatus, type defaultField } from "@/utils/store";
 
 export default defineStore("window-mode", () => {
@@ -11,37 +11,49 @@ export default defineStore("window-mode", () => {
     setStore("showPomodoroMiniWindow", value);
   }
 
-  watch(showPomodoroMiniWindow, (newValue, oldValue) => {
+  const pomodoroMiniWindowConfig = ref({
+    position: 'bottom-right',
+    width: 108,
+    height: 81,
+    gap: 30,
+    x: 0,
+    y: 0,
+  });
+
+  watch(showPomodoroMiniWindow, (newValue) => {
     if (newValue == true) {
-      send("open-new-window", "second");
+      console.log("打开番茄钟小窗口", getWindowConfig("pomodoro") );
+      send("open-new-window", "pomodoro", getWindowConfig("pomodoro"));
     } else {
-      send("close-new-window", "second");
+      send("close-new-window", "pomodoro");
     }
   });
 
-  // 笔记本小窗口
   const showMiniNotebookWindow = ref();
   const showMiniNotebookWindowC = computed(() => showMiniNotebookWindow.value);
   function setShowMiniNotebookWindow(value: boolean) {
     showMiniNotebookWindow.value = value;
     setStore("showMiniNotebookWindow", value);
   }
-  watch(showMiniNotebookWindow, (newValue, oldValue) => {
+
+  const miniNotebookWindowConfig = ref({
+    position: 'bottom-right',
+    width: 800,
+    height: 600,
+    gap: 30,
+    x: 0,
+    y: 0,
+  });
+
+  watch(showMiniNotebookWindow, (newValue) => {
     if (newValue == true) {
-      sendMany("open-new-window", "miniNotebook", {
-        width: 800,
-        height: 600,
-        x: 100,
-        y: 100,
-      });
+      sendMany("open-new-window", "notebook", getWindowConfig("notebook"));
     } else {
-      send("close-new-window", "miniNotebook");
+      send("close-new-window", "notebook");
     }
   });
 
-  // pinia状态初始化
   function init() {
-    // 布尔值变量
     const boolVars: defaultField[] = [
       {
         field: "showPomodoroMiniWindow",
@@ -54,29 +66,52 @@ export default defineStore("window-mode", () => {
         map: showMiniNotebookWindow,
       },
     ];
-    // 数字值变量
-    const numberVars: defaultField[] = [];
-    // 字符串值变量
-    const stringVars: defaultField[] = [];
-    // 颜色值变量
-    const colorVars: defaultField[] = [];
-    // 字体值变量
-    const fontVars: defaultField[] = [];
 
-    // 对象值变量
-    const objectVars: defaultField[] = [];
+    const migrateOldConfig = () => {
+      const oldPomodoroConfig = getStore("pomodoroMiniWindowConfig");
+      if (oldPomodoroConfig) {
+        setStore("window-mode:pomodoro", oldPomodoroConfig);
+      }
+      const oldNotebookConfig = getStore("miniNotebookWindowConfig");
+      if (oldNotebookConfig) {
+        setStore("window-mode:notebook", oldNotebookConfig);
+      }
+    };
 
-    // 所有的变量集合
+    migrateOldConfig();
+
+    const objectVars: defaultField[] = [
+      {
+        field: "window-mode:pomodoro",
+        default: {
+          position: 'bottom-right',
+          width: 108,
+          height: 81,
+          gap: 30,
+          x: 0,
+          y: 0,
+        },
+        map: pomodoroMiniWindowConfig,
+      },
+      {
+        field: "window-mode:notebook",
+        default: {
+          position: 'bottom-right',
+          width: 800,
+          height: 600,
+          gap: 30,
+          x: 0,
+          y: 0,
+        },
+        map: miniNotebookWindowConfig,
+      },
+    ];
+
     const allVars: defaultField[] = [
       ...boolVars,
-      ...numberVars,
-      ...stringVars,
-      ...colorVars,
-      ...fontVars,
       ...objectVars,
     ];
 
-    // 默认值赋值
     initPiniaStatus(allVars);
   }
 
@@ -89,17 +124,14 @@ export default defineStore("window-mode", () => {
   });
 
   return {
-    // 变量
     showPomodoroMiniWindow,
     showPomodoroMiniWindowC,
-    // 方法
     setShowPomodoroMiniWindow,
-    // 变量
+    pomodoroMiniWindowConfig,
     showMiniNotebookWindow,
     showMiniNotebookWindowC,
-    // 方法
     setShowMiniNotebookWindow,
-    // 其他
+    miniNotebookWindowConfig,
     $reset,
   };
 });

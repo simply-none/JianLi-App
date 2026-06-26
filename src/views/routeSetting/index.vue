@@ -68,7 +68,7 @@ const iconMap: Record<string, any> = {
   fileRela: Connection,
   resourceManage: Files,
   clipboard: Document,
-  notebook: Notebook,
+  notebookApp: Notebook,
   categorizableNotes: Collection,
   registerShortcut: Opportunity,
   safetyProtection: Lock,
@@ -99,7 +99,7 @@ interface MenuGroup {
 const groupDefs: MenuGroup[] = [
   { label: '通用', names: ['setting', 'homeMode', 'windowMode', 'styleBeauty'] },
   { label: '系统与资源', names: ['systemInfo', 'routeSetting', 'appCache', 'fileRela', 'resourceManage', 'safetyProtection'] },
-  { label: '效率工具', names: ['pomodoroRecord', 'clipboard', 'notebook', 'categorizableNotes', 'registerShortcut', 'function', 'weather'] },
+  { label: '效率工具', names: ['pomodoroRecord', 'clipboard', 'notebookApp', 'categorizableNotes', 'registerShortcut', 'function', 'weather'] },
   { label: '开发工具', names: ['netRequest', 'sqlTest', 'flow'] },
   { label: '关于', names: ['about'] },
 ];

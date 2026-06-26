@@ -1,94 +1,162 @@
 <template>
-  <div class="pomodoroMiniWindow">
-    <div class="move">
-      <div class="move-left" @mousemove="enableMouseClickThroughFn"></div>
-      <div class="move-right" @mousemove="disableMouseClickThroughFn"></div>
+  <div class="pomodoro-mini-window" :class="statusClass">
+    <div class="mouse-controls">
+      <div class="mouse-left" @mousemove="enableMouseClickThroughFn"></div>
+      <div class="mouse-right" @mousemove="disableMouseClickThroughFn"></div>
     </div>
-    <div class="drag"></div>
-    <div class="tip">
-      <div class="tip-status" v-if="curStatusC?.value">
-        <template v-if="curStatusC.value == 'work'">
-          <div class="work"></div>
-        </template>
-        <template v-else-if="curStatusC.value == 'rest'">
-          <div class="rest"></div>
-        </template>
+
+    <div class="content-area">
+      <div class="top-section">
+        <div class="status-section">
+          <div class="status-indicator">
+            <div class="status-dot"></div>
+          </div>
+          <div class="status-info">
+            <div class="status-label">{{ statusLabel }}</div>
+            <div class="status-subtitle">{{ statusSubtitle }}</div>
+          </div>
+        </div>
       </div>
-      <div class="tip-label">
-        倒计时
+
+      <div class="countdown-section">
+        <div class="countdown-value">{{ nextDiffTime }}</div>
+      </div>
+
+      <div class="progress-section">
+        <div class="progress-bar">
+          <div 
+            class="progress-fill" 
+            :style="{ width: progressPercentValue + '%' }"
+          ></div>
+        </div>
+        <div class="progress-text">{{ Math.round(progressPercentValue) }}%</div>
       </div>
     </div>
-    <div class="value">{{ nextDiffTime }}</div>
   </div>
 </template>
 
 <script setup>
-import { onMounted, ref, onBeforeUnmount } from 'vue';
+import { ref, computed, watch } from 'vue';
 import moment from 'moment';
-import { throttle } from '@/utils/index';
+
 const curStatusC = ref({})
 const nextTime = ref()
-const nextDiffTime = ref()
+const nextDiffTime = ref('00:00:00')
 const sysData = ref({})
+const progressPercentValue = ref(0)
+
+const statusClass = computed(() => {
+  const status = curStatusC.value?.value;
+  return status === 'work' ? 'status-work' : 'status-rest';
+});
+
+const statusLabel = computed(() => {
+  const status = curStatusC.value?.value;
+  return status === 'work' ? '工作中' : '休息中';
+});
+
+const statusSubtitle = computed(() => {
+  const status = curStatusC.value?.value;
+  return status === 'work' ? '距离休息' : '距离工作';
+});
 
 window.ipcRenderer.on('sync-data-to-other-window', (event, arg) => {
-  console.log(arg, 'MY PomodoroMiniWindow')
-
   if (Object.prototype.toString.call(arg) === '[object Object]') {
-    sysData.value = arg || {}
-    sysData.value.globalFont && document.documentElement.style.setProperty('--jianli-global-font', sysData.value.globalFont)
-     sysData.value.globalFontEN && document.documentElement.style.setProperty('--jianli-global-font-EN', sysData.value.globalFontEN)
-    curStatusC.value = arg.curStatus
-    // 判断是否是work还是rest
+    sysData.value = arg || {};
+    sysData.value.globalFont && document.documentElement.style.setProperty('--jianli-global-font', sysData.value.globalFont);
+    sysData.value.globalFontEN && document.documentElement.style.setProperty('--jianli-global-font-EN', sysData.value.globalFontEN);
+    curStatusC.value = arg.curStatus;
+    
     if (arg.curStatus && arg.curStatus.value === 'work') {
-      nextTime.value = moment(arg.startWorkTime + arg.workTimeGapUnit * arg.workTimeGap).format('YYYY-MM-DD HH:mm:ss')
+      nextTime.value = moment(arg.startWorkTime + arg.workTimeGapUnit * arg.workTimeGap).format('YYYY-MM-DD HH:mm:ss');
     } else {
-      nextTime.value = moment(arg.closeWorkTime + arg.restTimeGapUnit * arg.restTimeGap).format('YYYY-MM-DD HH:mm:ss')
+      nextTime.value = moment(arg.closeWorkTime + arg.restTimeGapUnit * arg.restTimeGap).format('YYYY-MM-DD HH:mm:ss');
     }
-
-    // 倒计时，当前时间和下一次时间的差值
-    countDown()
+    
+    const status = arg.curStatus?.value;
+    if (status && arg) {
+      let startTime, duration;
+      
+      if (status === 'work') {
+        startTime = arg.startWorkTime;
+        duration = arg.workTimeGapUnit * arg.workTimeGap;
+      } else {
+        startTime = arg.closeWorkTime;
+        duration = arg.restTimeGapUnit * arg.restTimeGap;
+      }
+      
+      if (startTime && duration && duration > 0) {
+        const elapsed = moment().valueOf() - startTime;
+        const progress = (elapsed / duration) * 100;
+        progressPercentValue.value = Math.max(0, Math.min(100, progress));
+      }
+    }
+    
+    countDown();
   }
-})
+});
 
-// 将定时器抽离成函数
+let timer = null;
+
 function countDown() {
-  let timer = setInterval(() => {
-    const now = moment()
-    const next = moment(nextTime.value)
-    const diff = next.diff(now)
-    const diffTime = moment.duration(diff)
-
-    // 如果时间小于0，就停止定时器
-    if (diff < 0) {
-      clearInterval(timer)
-      nextDiffTime.value = '等待中...'
+  if (timer) {
+    clearInterval(timer);
+  }
+  
+  timer = setInterval(() => {
+    if (!nextTime.value) {
+      nextDiffTime.value = '等待中...';
+      progressPercentValue.value = 0;
       return;
     }
-
-    const diffHours = diffTime.hours() < 10 ? '0' + diffTime.hours() : diffTime.hours()
-    const diffMinutes = diffTime.minutes() < 10 ? '0' + diffTime.minutes() : diffTime.minutes()
-    const diffSeconds = diffTime.seconds() < 10 ? '0' + diffTime.seconds() : diffTime.seconds()
-
-    nextDiffTime.value = diffHours + ':' + diffMinutes + ':' + diffSeconds
-  }, 1000) // 1秒执行一次
+    
+    const now = moment();
+    const next = moment(nextTime.value);
+    const diff = next.diff(now);
+    
+    if (diff < 0) {
+      nextDiffTime.value = '等待中...';
+      progressPercentValue.value = 0;
+      return;
+    }
+    
+    const diffTime = moment.duration(diff);
+    const diffHours = diffTime.hours().toString().padStart(2, '0');
+    const diffMinutes = diffTime.minutes().toString().padStart(2, '0');
+    const diffSeconds = diffTime.seconds().toString().padStart(2, '0');
+    
+    nextDiffTime.value = `${diffHours}:${diffMinutes}:${diffSeconds}`;
+    
+    const status = curStatusC.value?.value;
+    const data = sysData.value;
+    
+    if (data && status) {
+      let startTime, duration;
+      
+      if (status === 'work') {
+        startTime = data.startWorkTime;
+        duration = data.workTimeGapUnit * data.workTimeGap;
+      } else {
+        startTime = data.closeWorkTime;
+        duration = data.restTimeGapUnit * data.restTimeGap;
+      }
+      
+      if (startTime && duration && duration > 0) {
+        const elapsed = now.valueOf() - startTime;
+        const progress = (elapsed / duration) * 100;
+        progressPercentValue.value = Math.max(0, Math.min(100, progress));
+      }
+    }
+  }, 1000);
 }
 
-// 鼠标移入移出
 const enableMouseClickThroughFn = () => {
-  // throttle(() => {
-  window.ipcRenderer.send('enable-mouse-click-through', 'second')
-  // }, 100)
-
+  window.ipcRenderer.send('enable-mouse-click-through', 'pomodoro');
 }
+
 const disableMouseClickThroughFn = () => {
-  // throttle(() => {
-  window.ipcRenderer.send('disable-mouse-click-through', 'second')
-  // }, 100)
+  window.ipcRenderer.send('disable-mouse-click-through', 'pomodoro');
 }
-
-onMounted(() => {
-})
 </script>
 
 <style lang="scss">
@@ -97,93 +165,223 @@ onMounted(() => {
   --jianli-global-font-EN: "";
 }
 
-html,
-body,
-button,
-input {
+html, body {
   font-family: var(--jianli-global-font-EN), var(--jianli-global-font);
 }
 </style>
 
 <style lang="scss" scoped>
-.pomodoroMiniWindow {
+.pomodoro-mini-window {
   width: 100%;
   height: 100%;
   box-sizing: border-box;
-  padding: 0 12px 12px 12px;
-  background: #ffffff00;
-}
-
-.drag {
-  width: 100%;
-  height: 12px;
-  -webkit-app-region: drag;
-  cursor: pointer;
-}
-
-.move {
-  width: 100%;
-  height: 12px;
+  padding: 4% 5%;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 0.8em;
+  backdrop-filter: blur(10px);
   display: flex;
-  justify-content: space-around;
+  flex-direction: column;
+  transition: all 0.5s ease;
+  position: relative;
+  overflow: hidden;
+  font-size: clamp(8px, 3vmin, 14px);
 
-  &-left {
-    width: 9px;
-    height: 9px;
-    background: #a8a8a83f;
+  &.status-work {
+    background: rgba(76, 175, 80, 0.08);
+    border: 1px solid rgba(76, 175, 80, 0.2);
+    
+    .status-dot {
+      background: #4caf50;
+      box-shadow: 0 0 1em rgba(76, 175, 80, 0.6);
+    }
+    
+    .status-label {
+      color: #2e7d32;
+    }
+    
+    .progress-fill {
+      background: linear-gradient(90deg, #4caf50 0%, #66bb6a 100%);
+    }
+    
+    .countdown-value {
+      color: #2e7d32;
+    }
   }
 
-  &-right {
-    width: 9px;
-    height: 9px;
-    background: #a8a8a83f;
+  &.status-rest {
+    background: rgba(33, 150, 243, 0.08);
+    border: 1px solid rgba(33, 150, 243, 0.2);
+    
+    .status-dot {
+      background: #2196f3;
+      box-shadow: 0 0 1em rgba(33, 150, 243, 0.6);
+    }
+    
+    .status-label {
+      color: #1565c0;
+    }
+    
+    .progress-fill {
+      background: linear-gradient(90deg, #2196f3 0%, #42a5f5 100%);
+    }
+    
+    .countdown-value {
+      color: #1565c0;
+    }
   }
 }
 
-.label {
-  font-size: 18px;
-  font-weight: 500;
-  color: #333;
-  pointer-events: none;
-}
-
-.value {
-  font-size: 20px;
-  font-weight: 900;
-  color: #333;
-  pointer-events: none;
-}
-
-.tip {
+.top-section {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
 
-  &-label {
-    font-size: 16px;
-    font-weight: 500;
-    color: #333;
+.mouse-controls {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  
+  .mouse-left,
+  .mouse-right {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 8%;
+    max-width: 16px;
+    min-width: 8px;
+    pointer-events: auto;
+    cursor: default;
   }
+  
+  .mouse-left {
+    left: 0;
+  }
+  
+  .mouse-right {
+    right: 0;
+  }
+}
 
-  &-status {
-    margin-right: 12px;
+.content-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.5em;
+  z-index: 1;
+  min-height: 0;
+}
+
+.status-section {
+  display: flex;
+  align-items: center;
+  gap: 1em;
+  flex-shrink: 0;
+  
+  .status-indicator {
+    flex-shrink: 0;
     display: flex;
     align-items: center;
+    justify-content: center;
+    -webkit-app-region: drag;
+    
+    .status-dot {
+      width: 1.35em;
+      height: 1.35em;
+      min-width: 8px;
+      min-height: 8px;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
   }
-
-  .work,
-  .rest {
-    // 实现一个小圆点
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
+  
+  .status-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2em;
+    min-width: 0;
+    overflow: hidden;
+    
+    .status-label {
+      font-size: 1.75em;
+      font-weight: 700;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .status-subtitle {
+      font-size: 1.3em;
+      color: #666;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
   }
+}
 
-  .work {
-    background: #00ff00;
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
   }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.7;
+  }
+}
 
-  .rest {
-    background: #ff0000;
+.countdown-section {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex: 1;
+  min-height: 0;
+  
+  .countdown-value {
+    font-size: clamp(16px, 8vmin, 36px);
+    font-weight: 900;
+    font-family: 'SF Mono', Monaco, 'Consolas', monospace;
+    text-shadow: 0 0.1em 0.3em rgba(0, 0, 0, 0.1);
+    line-height: 1;
+    white-space: nowrap;
+  }
+}
+
+.progress-section {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  flex-shrink: 0;
+  
+  .progress-bar {
+    flex: 1;
+    height: clamp(9px, 2vmin, 12px);
+    min-height: 9px;
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 0.3em;
+    overflow: hidden;
+    
+    .progress-fill {
+      height: 100%;
+      border-radius: 0.3em;
+      transition: width 1s ease;
+    }
+  }
+  
+  .progress-text {
+    font-size: 1.35em;
+    font-weight: 600;
+    color: #666;
+    flex-shrink: 0;
+    white-space: nowrap;
   }
 }
 </style>

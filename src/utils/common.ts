@@ -42,13 +42,23 @@ export function sendSync(key: string, value: any) {
 }
 
 // 发送异步数据
-export function send(key: string, value: any) {
-  window.ipcRenderer.send(key, value)
+export function send(key: string, value: any, ops?: any) {
+  window.ipcRenderer.send(key, value, ops)
 }
 
 // 发送异步数据，参数是key: string, ...args: any[]
 export function sendMany(key: string, ...args: any[]) {
   window.ipcRenderer.send(key, ...args)
+}
+
+// 获取窗口配置，从 SQLite 的 basic_info 表中读取 window-mode:{windowName}
+export function getWindowConfig(windowName: string): ObjectType {
+  const key = `window-mode:${windowName}`;
+  const config = getStore(key);
+  if (config && typeof config === 'object' && !Array.isArray(config)) {
+    return config;
+  }
+  return {};
 }
 
 // sql

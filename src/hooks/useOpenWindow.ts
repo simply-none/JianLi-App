@@ -3,7 +3,7 @@ import { storeToRefs } from "pinia";
 import useGlobalSetting from "@/store/useGlobalSetting";
 import { useWorkOrRest } from "@/hooks/useWorkOrReset";
 import electronConfig from '../../electron-builder.json5'
-import { send } from "@/utils/common";
+import { send, getWindowConfig } from "@/utils/common";
 
 /**
  * 该hook用于在app.vue中，不同打开窗口
@@ -19,7 +19,8 @@ export default function useOpenWindow() {
 
   // 主窗口的打开
   function openMainWindow () {
-    send('open-new-window', 'second')
+    console.log('openMainWindow', getWindowConfig('pomodoro'));
+    send('open-new-window', 'pomodoro', getWindowConfig('pomodoro'))
     document.documentElement.style.setProperty('--jianli-global-font', globalFontC.value)
     document.documentElement.style.setProperty('--jianli-global-font-EN', globalFontENC.value)
     startApp();

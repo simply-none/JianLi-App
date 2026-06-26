@@ -1,27 +1,100 @@
 <template>
-  <el-form class="fileRela-form" label-width="120" label-position="left">
+  <div class="shortcut-page">
+    <header class="page-header">
+      <div class="header-content">
+        <div class="header-icon">
+          <Keyboard />
+        </div>
+        <div class="header-text">
+          <h1 class="page-title">快捷键注册</h1>
+          <p class="page-subtitle">配置全局快捷键，快速访问各项功能</p>
+        </div>
+      </div>
+    </header>
 
-    <el-form-item>
-      <template #label>
-        <div class="setting-title">快捷键注册</div>
-      </template>
-    </el-form-item>
+    <main class="page-content">
+      <div class="shortcuts-grid">
+        <div 
+          v-for="(item, index) in allShortcuts" 
+          :key="item.key" 
+          class="shortcut-card"
+        >
+          <div class="card-icon" :class="getIconClass(item.key)">
+            <component :is="getIcon(item.key)" />
+          </div>
+          
+          <div class="card-info">
+            <h3 class="card-title">{{ item.name }}</h3>
+            <p class="card-desc">{{ getDescription(item.key) }}</p>
+          </div>
 
-    <el-form-item v-for="(item, index) in allShortcuts" :key="item.key" :label="item.name" class="mode-wrapper">
-      <!-- 快捷键注册 -->
-      <shortcut :shortcut="item.shortcut"></shortcut>
-      <!-- 注册按钮 -->
-      <el-button class="register-btn" type="primary" @click="registerCommonFn(item)">注册</el-button>
-    </el-form-item>
-  </el-form>
+          <div class="card-divider"></div>
+
+          <div class="card-shortcut">
+            <shortcut 
+              :shortcut="item.shortcut" 
+              @update:shortcut="(val) => updateShortcut(index, val)"
+            />
+          </div>
+
+          <div class="card-actions">
+            <el-button 
+              type="primary" 
+              class="register-btn" 
+              @click="registerCommonFn(item)"
+              :disabled="!canRegister(item.shortcut)"
+            >
+              <el-icon><Check /></el-icon>
+              注册
+            </el-button>
+            <el-button 
+              type="default" 
+              class="reset-btn"
+              @click="resetShortcut(index)"
+            >
+              <el-icon><Refresh /></el-icon>
+              重置
+            </el-button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <footer class="tips-section">
+      <div class="tips-card">
+        <div class="tips-header">
+          <el-icon><InfoFilled /></el-icon>
+          <span>使用说明</span>
+        </div>
+        <ul class="tips-list">
+          <li>⌨️ <strong>键盘输入</strong>：点击按键区域后直接按下键盘上的键</li>
+          <li>📋 <strong>下拉选择</strong>：点击按键区域也可以从下拉列表中选择</li>
+          <li>⚠️ <strong>快捷键要求</strong>：必须至少选择 2 个按键组合</li>
+          <li>🔄 <strong>重复检测</strong>：同一快捷键组合中不允许重复的键</li>
+        </ul>
+      </div>
+    </footer>
+  </div>
 </template>
 
 <script setup>
-import { ref, reactive, watch, computed, toRaw, onMounted } from 'vue';
-import { storeToRefs } from 'pinia';
-import moment from 'moment';
+import { ref, watch, onMounted, markRaw } from 'vue';
 import { useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
+import { 
+  Monitor, 
+  House, 
+  Document, 
+  Clock, 
+  Files, 
+  Connection, 
+  Tools, 
+  Notebook,
+  Check,
+  Refresh,
+  InfoFilled
+} from '@element-plus/icons-vue';
+import moment from 'moment';
 import shortcut from './shortcut.vue';
 import { mergeShortcuts } from '@/utils';
 
@@ -29,20 +102,13 @@ const route = useRoute();
 
 const tableName = ref('register_shortcut')
 
-// route变更
 watch(() => route.path, (newPath) => {
-  // 判断是否是当前页面
   if (newPath === '/registerShortcut') {
-    console.log('当前路由变化:', newPath);
-
-    // 刷新数据
     getShortcut();
   }
-
 }, { immediate: true });
 
 const registerShortcut = (shortcut) => {
-  console.log(shortcut);
   const curTime = moment().format('YYYY-MM-DD HH:mm:ss')
   window.ipcRenderer.handlePromise('set-data', {
     tableName: tableName.value,
@@ -56,12 +122,56 @@ const registerShortcut = (shortcut) => {
     }
   }).then(result => {
     if (result.success) {
-      console.log('设置成功:', result.data);
       window.ipcRenderer.send('register-shortcut', shortcut)
     } else {
       console.log('设置失败:', result.error);
     }
   })
+}
+
+const iconMap = {
+  showAppShortcut: markRaw(Monitor),
+  homeShortcut: markRaw(House),
+  notebookShortcut: markRaw(Document),
+  pomodoroRecordShortcut: markRaw(Clock),
+  clipboardShortcut: markRaw(Files),
+  netRequestShortcut: markRaw(Connection),
+  systemInfoShortcut: markRaw(Tools),
+  flowShortcut: markRaw(Notebook),
+}
+
+const iconClassMap = {
+  showAppShortcut: 'icon-blue',
+  homeShortcut: 'icon-green',
+  notebookShortcut: 'icon-purple',
+  pomodoroRecordShortcut: 'icon-orange',
+  clipboardShortcut: 'icon-yellow',
+  netRequestShortcut: 'icon-cyan',
+  systemInfoShortcut: 'icon-red',
+  flowShortcut: 'icon-pink',
+}
+
+const descriptionMap = {
+  showAppShortcut: '快速显示/隐藏应用窗口',
+  homeShortcut: '快速跳转到首屏页面',
+  notebookShortcut: '快速打开记事本功能',
+  pomodoroRecordShortcut: '快速查看番茄钟记录',
+  clipboardShortcut: '快速打开剪贴板历史',
+  netRequestShortcut: '快速打开网络请求记录',
+  systemInfoShortcut: '快速查看系统信息',
+  flowShortcut: '快速打开流程图工具',
+}
+
+const getIcon = (key) => {
+  return iconMap[key] || Monitor
+}
+
+const getIconClass = (key) => {
+  return iconClassMap[key] || 'icon-blue'
+}
+
+const getDescription = (key) => {
+  return descriptionMap[key] || ''
 }
 
 const originShortcuts = ref([
@@ -114,7 +224,6 @@ const originShortcuts = ref([
     key: 'systemInfoShortcut',
     shortcut: ['', '', ''],
   },
-  // 流程图
   {
     type: 'open_match_page',
     url: 'flow',
@@ -124,11 +233,21 @@ const originShortcuts = ref([
   },
 ])
 
-// 获取所有的快捷键
 const allShortcuts = ref([])
 
+const updateShortcut = (index, val) => {
+  allShortcuts.value[index].shortcut = val
+}
+
+const resetShortcut = (index) => {
+  allShortcuts.value[index].shortcut = ['', '', '']
+}
+
+const canRegister = (shortcut) => {
+  return shortcut.filter(item => item !== '').length >= 2
+}
+
 const registerCommonFn = (item) => {
-  // 判断item.shortcut是否是至少两个元素不为空字符串的数组，如果不是，则不执行注册操作
   const isMust = item.shortcut.filter(item => item !== '').length >= 2
   if (!isMust) {
     ElMessage.error('请选择至少两个快捷键')
@@ -142,21 +261,18 @@ const registerCommonFn = (item) => {
     ...cur,
     shortcut: item.shortcut.join('+'),
   });
+  ElMessage.success('快捷键注册成功')
 }
 
-// 获取数据
 function getShortcut() {
   window.ipcRenderer.handlePromise('query-data', {
     tableName: tableName.value,
     conditions: {
     }
   }).then(result => {
-    console.log('查询结果:', result);
     if (result.success) {
       const r = mergeShortcuts(originShortcuts.value, result.data)
-      // shortcut通过+分割为数组，长度小于3，补全空字符串
       allShortcuts.value = r.map(item => {
-        // 如果是数组，直接返回
         if (Array.isArray(item.shortcut)) {
           return item
         }
@@ -166,44 +282,299 @@ function getShortcut() {
         }
         return item
       })
-      console.log(allShortcuts.value)
-    } else {
-      console.log('查询失败:', result.error);
     }
   })
 }
 
-
+onMounted(() => {
+  getShortcut()
+})
 </script>
 
 <style scoped lang="scss">
-.fileRela-form {
-  padding: 24px;
-  box-sizing: border-box;
+.shortcut-page {
+  display: flex;
+  flex-direction: column;
   height: 100%;
-  overflow: auto;
+  overflow: hidden;
+  background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
 }
 
-.setting-title {
-  padding-left: 3px;
-  border-bottom: 6px solid #6d6d6d;
-  width: 100%;
-  font-weight: 600;
+.page-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 32px 24px;
+  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+  
+  .header-content {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  
+  .header-icon {
+    width: 64px;
+    height: 64px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(10px);
+    
+    .el-icon {
+      font-size: 32px;
+      color: #fff;
+    }
+  }
+  
+  .header-text {
+    .page-title {
+      font-size: 28px;
+      font-weight: 700;
+      color: #fff;
+      margin: 0 0 8px;
+    }
+    
+    .page-subtitle {
+      font-size: 15px;
+      color: rgba(255, 255, 255, 0.8);
+      margin: 0;
+    }
+  }
 }
 
-.setting-form {
+.page-content {
+  flex: 1;
+  padding: 32px 24px;
+  max-width: 1400px;
+  margin: 0 auto;
   width: 100%;
   box-sizing: border-box;
-  // padding: 12px;
-  background-color: #ffffff;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
-.setting-handle {
+.shortcuts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 24px;
+}
+
+.shortcut-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s ease;
+  
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  }
+  
+  .card-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+    
+    .el-icon {
+      font-size: 24px;
+      color: #fff;
+    }
+    
+    &.icon-blue {
+      background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    }
+    
+    &.icon-green {
+      background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+    }
+    
+    &.icon-purple {
+      background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+      
+      .el-icon {
+        color: #667eea;
+      }
+    }
+    
+    &.icon-orange {
+      background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+    }
+    
+    &.icon-yellow {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    }
+    
+    &.icon-cyan {
+      background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    }
+    
+    &.icon-red {
+      background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
+      
+      .el-icon {
+        color: #ff6b6b;
+      }
+    }
+    
+    &.icon-pink {
+      background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+      
+      .el-icon {
+        color: #ff8a65;
+      }
+    }
+  }
+  
+  .card-info {
+    margin-bottom: 20px;
+    
+    .card-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #303133;
+      margin: 0 0 8px;
+    }
+    
+    .card-desc {
+      font-size: 13px;
+      color: #909399;
+      margin: 0;
+    }
+  }
+  
+  .card-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #e4e7ed, transparent);
+    margin-bottom: 20px;
+  }
+  
+  .card-shortcut {
+    margin-bottom: 20px;
+  }
+  
+  .card-actions {
+    display: flex;
+    gap: 12px;
+    
+    .register-btn {
+      flex: 1;
+      height: 40px;
+      font-weight: 600;
+      border-radius: 8px;
+      transition: all 0.2s ease;
+      
+      &:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(64, 158, 255, 0.3);
+      }
+      
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+    
+    .reset-btn {
+      width: 80px;
+      height: 40px;
+      border-radius: 8px;
+      
+      &:hover {
+        background: #f5f7fa;
+      }
+    }
+  }
+}
+
+.tips-section {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
   width: 100%;
-  text-align: right;
+  box-sizing: border-box;
+
+  .tips-card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 20px 24px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+    border-left: 4px solid #667eea;
+    
+    .tips-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+      
+      .el-icon {
+        font-size: 18px;
+        color: #667eea;
+      }
+      
+      span {
+        font-size: 16px;
+        font-weight: 600;
+        color: #303133;
+      }
+    }
+    
+    .tips-list {
+      margin: 0;
+      padding-left: 20px;
+      
+      li {
+        font-size: 14px;
+        color: #606266;
+        margin-bottom: 8px;
+        
+        &:last-child {
+          margin-bottom: 0;
+        }
+        
+        strong {
+          color: #303133;
+        }
+      }
+    }
+  }
 }
 
-.register-btn {
-  margin-left: 12px;
+@media (max-width: 768px) {
+  .shortcuts-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .page-header {
+    padding: 24px 16px;
+    
+    .header-content {
+      flex-direction: column;
+      text-align: center;
+    }
+    
+    .page-title {
+      font-size: 24px;
+    }
+  }
+  
+  .page-content {
+    padding: 20px 16px;
+  }
+  
+  .shortcut-card {
+    padding: 20px;
+  }
+
+  .tips-section {
+    padding: 0 16px 20px;
+  }
 }
 </style>

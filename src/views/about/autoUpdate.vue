@@ -1,98 +1,90 @@
 <template>
-  <el-form class="setting-auto-update-form" label-width="108" label-position="left">
-    <el-form-item>
-      <template #label>
-        <div class="setting-title">自动更新</div>
-      </template>
-    </el-form-item>
+  <div class="update-card">
+    <div class="card-header">
+      <span class="icon">📦</span>
+      <span class="card-title">自动更新</span>
+    </div>
+    <div class="card-content">
+      <div class="update-item">
+        <span class="update-label">当前版本</span>
+        <el-tag type="info" size="large">v{{ currentVersion }}</el-tag>
+      </div>
 
-    <!-- 当前版本 -->
-    <el-form-item label="当前版本">
-      <el-tag type="info" size="large">v{{ currentVersion }}</el-tag>
-    </el-form-item>
-
-    <!-- 检查更新按钮 -->
-    <el-form-item label="检查更新">
-      <el-button
-        type="primary"
-        :loading="checkLoading"
-        :disabled="downloadLoading"
-        @click="checkForUpdate"
-      >
-        {{ hasUpdate ? '发现新版本' : '检查更新' }}
-      </el-button>
-
-      <el-tag v-if="checkDone && !hasUpdate" type="success" style="margin-left: 12px;">
-        已是最新版本
-      </el-tag>
-      <el-tag v-if="hasUpdate" type="danger" style="margin-left: 12px;">
-        有可用更新: v{{ latestVersion }}
-      </el-tag>
-    </el-form-item>
-
-    <!-- 最新版本信息 -->
-    <el-form-item v-if="hasUpdate" label="最新版本">
-      <div class="update-info">
-        <div class="update-version">
-          <el-tag type="success">v{{ latestVersion }}</el-tag>
-          <span v-if="releaseName" class="release-name">{{ releaseName }}</span>
-        </div>
-
-        <!-- 更新说明 -->
-        <div v-if="releaseBody" class="release-body">
-          <pre>{{ releaseBody }}</pre>
-        </div>
-
-        <!-- 发布时间 -->
-        <div v-if="publishedAt" class="release-date">
-          发布时间: {{ formatDate(publishedAt) }}
+      <div class="update-item">
+        <span class="update-label">检查更新</span>
+        <div class="update-actions">
+          <el-button
+            type="primary"
+            :loading="checkLoading"
+            :disabled="downloadLoading"
+            @click="checkForUpdate"
+          >
+            {{ hasUpdate ? '发现新版本' : '检查更新' }}
+          </el-button>
+          <el-tag v-if="checkDone && !hasUpdate" type="success">
+            已是最新版本
+          </el-tag>
+          <el-tag v-if="hasUpdate" type="danger">
+            有可用更新: v{{ latestVersion }}
+          </el-tag>
         </div>
       </div>
-    </el-form-item>
 
-    <!-- 下载与安装 -->
-    <el-form-item v-if="hasUpdate" label="下载更新">
-      <div style="width: 100%;">
-        <div style="display: flex; align-items: center; gap: 12px;">
-          <el-button
-            type="success"
-            :loading="downloadLoading"
-            :disabled="installReady"
-            @click="downloadUpdate"
-          >
-            {{ downloadLoading ? `下载中 ${downloadProgress}%` : (installReady ? '已下载' : '下载更新') }}
-          </el-button>
-
-          <el-button
-            v-if="installReady"
-            type="warning"
-            @click="installUpdate"
-          >
-            安装并重启
-          </el-button>
-        </div>
-
-        <el-progress
-          v-if="downloadLoading || downloadProgress >= 100"
-          :percentage="downloadProgress"
-          :status="downloadProgress >= 100 ? 'success' : undefined"
-          style="margin-top: 10px;"
-        />
-
-        <!-- 下载文件信息 -->
-        <div v-if="selectedAsset" class="asset-info">
-          安装包: {{ selectedAsset.name }} ({{ formatSize(selectedAsset.size) }})
+      <div v-if="hasUpdate" class="update-item">
+        <span class="update-label">最新版本</span>
+        <div class="update-info">
+          <div class="update-version">
+            <el-tag type="success">v{{ latestVersion }}</el-tag>
+            <span v-if="releaseName" class="release-name">{{ releaseName }}</span>
+          </div>
+          <div v-if="releaseBody" class="release-body">
+            <pre>{{ releaseBody }}</pre>
+          </div>
+          <div v-if="publishedAt" class="release-date">
+            发布时间: {{ formatDate(publishedAt) }}
+          </div>
         </div>
       </div>
-    </el-form-item>
 
-    <!-- GitHub 发布页链接 -->
-    <el-form-item v-if="releaseUrl" label="发布详情">
-      <el-button type="primary" link @click="openReleaseUrl">
-        查看 GitHub 发布页 ↗
-      </el-button>
-    </el-form-item>
-  </el-form>
+      <div v-if="hasUpdate" class="update-item">
+        <span class="update-label">下载更新</span>
+        <div class="download-section">
+          <div class="download-buttons">
+            <el-button
+              type="success"
+              :loading="downloadLoading"
+              :disabled="installReady"
+              @click="downloadUpdate"
+            >
+              {{ downloadLoading ? `下载中 ${downloadProgress}%` : (installReady ? '已下载' : '下载更新') }}
+            </el-button>
+            <el-button
+              v-if="installReady"
+              type="warning"
+              @click="installUpdate"
+            >
+              安装并重启
+            </el-button>
+          </div>
+          <el-progress
+            v-if="downloadLoading || downloadProgress >= 100"
+            :percentage="downloadProgress"
+            :status="downloadProgress >= 100 ? 'success' : undefined"
+          />
+          <div v-if="selectedAsset" class="asset-info">
+            安装包: {{ selectedAsset.name }} ({{ formatSize(selectedAsset.size) }})
+          </div>
+        </div>
+      </div>
+
+      <div v-if="releaseUrl" class="update-item">
+        <span class="update-label">发布详情</span>
+        <el-button type="primary" link @click="openReleaseUrl">
+          查看 GitHub 发布页 ↗
+        </el-button>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -257,11 +249,59 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
-.setting-title {
-  padding-left: 3px;
-  border-bottom: 6px solid #6d6d6d;
-  width: 100%;
-  font-weight: 600;
+.update-card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+
+  .icon {
+    font-size: 18px;
+  }
+
+  .card-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #fff;
+  }
+}
+
+.card-content {
+  padding: 20px;
+}
+
+.update-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0;
+  border-bottom: 1px solid #f0f0f0;
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  .update-label {
+    font-size: 14px;
+    color: #909399;
+    font-weight: 500;
+  }
+}
+
+.update-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .update-info {
@@ -271,19 +311,19 @@ onUnmounted(() => {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-bottom: 8px;
+    margin-bottom: 12px;
 
     .release-name {
       font-weight: 600;
       font-size: 14px;
+      color: #303133;
     }
   }
 
   .release-body {
-    margin: 8px 0;
-    padding: 10px 12px;
+    padding: 12px 14px;
     background-color: #f5f7fa;
-    border-radius: 6px;
+    border-radius: 8px;
     max-height: 200px;
     overflow-y: auto;
 
@@ -301,12 +341,23 @@ onUnmounted(() => {
   .release-date {
     color: #909399;
     font-size: 12px;
-    margin-top: 4px;
+    margin-top: 8px;
   }
 }
 
+.download-section {
+  width: 100%;
+}
+
+.download-buttons {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
 .asset-info {
-  margin-top: 6px;
+  margin-top: 8px;
   color: #909399;
   font-size: 12px;
 }

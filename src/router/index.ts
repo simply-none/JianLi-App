@@ -16,7 +16,7 @@ export const RouteNames = {
   FILE_RELA: "fileRela",
   RESOURCE_MANAGE: "resourceManage",
   CLIPBOARD: "clipboard",
-  NOTEBOOK: "notebook",
+  NOTEBOOKAPP: "notebookApp",
   REGISTER_SHORTCUT: "registerShortcut",
   SAFETY_PROTECTION: "safetyProtection",
   STYLE_BEAUTY: "styleBeauty",
@@ -29,7 +29,7 @@ export const RouteNames = {
   HOME: "home",
   LAYOUT: "layout",
   SMALL: "small",
-  SECOND: "second",
+  SECOND: "pomodoro",
   JOB_TIP_WINDOW: "jobTipWindow",
   MINI_NOTEBOOK: "miniNotebook",
   CATEGORIZABLE_NOTES: "categorizableNotes",
@@ -122,8 +122,8 @@ export const layoutRouters: RouteRecordRaw[] = [
     },
   },
   {
-    path: "/notebook",
-    name: RouteNames.NOTEBOOK,
+    path: "/notebookApp",
+    name: RouteNames.NOTEBOOKAPP,
     component: () => import("@/views/notebook/index.vue"),
     meta: {
       title: "笔记本",
@@ -233,7 +233,7 @@ const routers: RouteRecordRaw[] = [
     component: () => import("@/views/smallWindow.vue"),
   },
   {
-    path: "/second",
+    path: "/pomodoro",
     name: RouteNames.SECOND,
     component: () => import("@/views/pomodoroMiniWindow/index.vue"),
   },

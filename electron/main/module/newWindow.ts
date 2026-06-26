@@ -16,6 +16,86 @@ let childWindow: Record<string, BrowserWindow | null> = {};
 let screenWidth = 0;
 let screenHeight = 0;
 
+type PositionType = 
+  | 'bottom-right' 
+  | 'bottom-left' 
+  | 'top-right' 
+  | 'top-left' 
+  | 'center' 
+  | 'center-top' 
+  | 'center-bottom' 
+  | 'center-left' 
+  | 'center-right'
+  | 'custom';
+
+interface PositionOps {
+  width?: number;
+  height?: number;
+  gap?: number;
+  position?: PositionType;
+  x?: number;
+  y?: number;
+  center?: boolean;
+}
+
+function calculatePosition(ops?: PositionOps) {
+  const width = ops?.width || 108;
+  const height = ops?.height || 81;
+  const gap = ops?.gap || 30;
+  const position = ops?.position || 'bottom-right';
+  
+  let x: number;
+  let y: number;
+  
+  switch (position) {
+    case 'bottom-right':
+      x = screenWidth - width - gap;
+      y = screenHeight - height - gap;
+      break;
+    case 'bottom-left':
+      x = gap;
+      y = screenHeight - height - gap;
+      break;
+    case 'top-right':
+      x = screenWidth - width - gap;
+      y = gap;
+      break;
+    case 'top-left':
+      x = gap;
+      y = gap;
+      break;
+    case 'center':
+      x = Math.floor((screenWidth - width) / 2);
+      y = Math.floor((screenHeight - height) / 2);
+      break;
+    case 'center-top':
+      x = Math.floor((screenWidth - width) / 2);
+      y = gap;
+      break;
+    case 'center-bottom':
+      x = Math.floor((screenWidth - width) / 2);
+      y = screenHeight - height - gap;
+      break;
+    case 'center-left':
+      x = gap;
+      y = Math.floor((screenHeight - height) / 2);
+      break;
+    case 'center-right':
+      x = screenWidth - width - gap;
+      y = Math.floor((screenHeight - height) / 2);
+      break;
+    case 'custom':
+      x = ops?.x ?? 0;
+      y = ops?.y ?? 0;
+      break;
+    default:
+      x = screenWidth - width - gap;
+      y = screenHeight - height - gap;
+  }
+  
+  return { x, y };
+}
+
 function getScreenInfo() {
   // 获取屏幕宽高
   const primaryDisplay = screen.getPrimaryDisplay();
@@ -35,7 +115,7 @@ export function createOtherWindow(arg: string, ops?: ObjectType, recreate = fals
       createOtherWindow(arg, ops, true)
     }
   }
-  childWindow[arg] = new BrowserWindow({
+  let windowOps = ({
     title: "second window",
     icon: appLogoIco,
     transparent: ops?.transparent || true,
@@ -45,8 +125,8 @@ export function createOtherWindow(arg: string, ops?: ObjectType, recreate = fals
     fullscreenable: ops?.fullscreenable || false,
     width: ops?.fullscreenable ? null : ops?.width || 108,
     height: ops?.fullscreenable ? null : ops?.height || 81,
-    x: ops?.center ? null : ops?.x === 0 ? ops?.x : (ops?.x || screenWidth - 120),
-    y: ops?.center ? null : ops?.y === 0 ? ops?.y : (ops?.y || screenHeight - 219),
+    x: ops?.center ? null : calculatePosition(ops).x,
+    y: ops?.center ? null : calculatePosition(ops).y,
     webPreferences: {
       preload,
       devTools: true,
@@ -54,6 +134,7 @@ export function createOtherWindow(arg: string, ops?: ObjectType, recreate = fals
       plugins: true,
     },
   });
+  childWindow[arg] = new BrowserWindow(windowOps)
 
   childWindow[arg]?.setAlwaysOnTop(true, "screen-saver");
   if (!ops || !ops.mouseEvents) {
@@ -63,7 +144,7 @@ export function createOtherWindow(arg: string, ops?: ObjectType, recreate = fals
   }
   childWindow[arg]?.show();
   childWindow[arg]?.focus();
-
+  console.log(arg, '窗口名称')
   if (VITE_DEV_SERVER_URL) {
     childWindow[arg].loadURL(
       `${VITE_DEV_SERVER_URL}#${arg}?isSecondWindow=true`
