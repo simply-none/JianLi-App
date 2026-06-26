@@ -2,7 +2,13 @@
 
 变更日志
 
-## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.6.23-rc.2...HEAD) (2026-06-25)
+## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.6.25-rc.1...HEAD) (2026-06-26)
+
+### ♻️ Code Refactoring | 代码重构
+
+* 重构剩下功能的样式排版 ([407fc15](https://github.com/simply-none/JianLi-App/commit/407fc15efd3dc58eaecc782cd6df4b97c6ce4f01))
+
+## [v26.6.25-rc.1](https://github.com/simply-none/JianLi-App/compare/v26.6.23-rc.2...v26.6.25-rc.1) (2026-06-25)
 
 ### ✨ Features | 新功能
 
