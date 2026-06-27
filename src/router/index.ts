@@ -34,6 +34,7 @@ export const RouteNames = {
   MINI_NOTEBOOK: "miniNotebook",
   CATEGORIZABLE_NOTES: "categorizableNotes",
   ROUTE_SETTING: "routeSetting",
+  BROWSER: "browser",
 } as const;
 
 export type RouteNameType = typeof RouteNames[keyof typeof RouteNames];
@@ -199,6 +200,14 @@ export const layoutRouters: RouteRecordRaw[] = [
     component: () => import("@/views/weather/index.vue"),
     meta: {
       title: "天气",
+    },
+  },
+  {
+    path: "/browser",
+    name: RouteNames.BROWSER,
+    component: () => import("@/views/browser/index.vue"),
+    meta: {
+      title: "浏览器",
     },
   },
   {

@@ -52,7 +52,7 @@ import {
   FolderOpened, Connection, Files, Document,
   Notebook, Opportunity, Lock, MagicStick,
   Position, Coin, Share, Tools, InfoFilled,
-  Collection,
+  Collection, MapLocation,
 } from '@element-plus/icons-vue';
 import { RouteRecordNameGeneric } from 'vue-router';
 
@@ -79,6 +79,7 @@ const iconMap: Record<string, any> = {
   function: Tools,
   weather: Document,
   about: InfoFilled,
+  browser: MapLocation,
 };
 
 // 为每个路由注入图标到 meta
@@ -99,7 +100,7 @@ interface MenuGroup {
 const groupDefs: MenuGroup[] = [
   { label: '通用', names: ['setting', 'homeMode', 'windowMode', 'styleBeauty'] },
   { label: '系统与资源', names: ['systemInfo', 'routeSetting', 'appCache', 'fileRela', 'resourceManage', 'safetyProtection'] },
-  { label: '效率工具', names: ['pomodoroRecord', 'clipboard', 'notebookApp', 'categorizableNotes', 'registerShortcut', 'function', 'weather'] },
+  { label: '效率工具', names: ['pomodoroRecord', 'clipboard', 'notebookApp', 'categorizableNotes', 'registerShortcut', 'function', 'weather', 'browser'] },
   { label: '开发工具', names: ['netRequest', 'sqlTest', 'flow'] },
   { label: '关于', names: ['about'] },
 ];

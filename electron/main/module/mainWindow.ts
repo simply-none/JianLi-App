@@ -61,6 +61,8 @@ function createWindow() {
       nodeIntegration: true,
       // 加载扩展必须启动该配置
       plugins: true,
+      // 启用 webview 标签
+      webviewTag: true,
     },
   });
 }
@@ -104,7 +106,10 @@ export function initMainWindow() {
     hideApp();
   });
 
-  win.webContents.setWindowOpenHandler(({ url }) => {
+  win.webContents.setWindowOpenHandler(({ url, webContents }) => {
+    if (webContents && webContents.id !== win.webContents.id) {
+      return { action: "allow" };
+    }
     if (url.startsWith("https:")) shell.openExternal(url);
     return { action: "deny" };
   });
