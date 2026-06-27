@@ -2,7 +2,13 @@
 
 变更日志
 
-## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.6.25-rc.1...HEAD) (2026-06-26)
+## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.6.26-rc.1...HEAD) (2026-06-27)
+
+### ✨ Features | 新功能
+
+* 番茄钟小窗口新增五种主题皮肤 ([080432b](https://github.com/simply-none/JianLi-App/commit/080432bc4aed9db8044b743ba31415b363d741ec))
+
+## [v26.6.26-rc.1](https://github.com/simply-none/JianLi-App/compare/v26.6.25-rc.1...v26.6.26-rc.1) (2026-06-26)
 
 ### ♻️ Code Refactoring | 代码重构
 
