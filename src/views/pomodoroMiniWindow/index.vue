@@ -5,45 +5,60 @@
       <div class="mouse-right" @mousemove="disableMouseClickThroughFn"></div>
     </div>
 
-    <div class="content-area">
-      <div class="top-section">
-        <div class="status-section">
-          <div class="status-indicator">
-            <div class="status-dot"></div>
-          </div>
-          <div class="status-info">
-            <div class="status-label">{{ statusLabel }}</div>
-            <div class="status-subtitle">{{ statusSubtitle }}</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="countdown-section">
-        <div class="countdown-value">{{ nextDiffTime }}</div>
-      </div>
-
-      <div class="progress-section">
-        <div class="progress-bar">
-          <div 
-            class="progress-fill" 
-            :style="{ width: progressPercentValue + '%' }"
-          ></div>
-        </div>
-        <div class="progress-text">{{ Math.round(progressPercentValue) }}%</div>
-      </div>
+    <div class="content-area" @dblclick="cycleLayout">
+      <component
+        :is="currentLayoutComponent"
+        :status="currentStatus"
+        :countdown="nextDiffTime"
+        :progress="progressPercentValue"
+        :status-label="statusLabel"
+        :status-subtitle="statusSubtitle"
+        @cycle-theme="cycleTheme"
+      />
     </div>
   </div>
 </template>
 
-<script setup>
-import { ref, computed, watch } from 'vue';
+<script setup lang="ts">
+import { ref, computed, watch, onMounted, markRaw } from 'vue';
 import moment from 'moment';
+import LayoutDefault from './layouts/LayoutDefault.vue';
+import LayoutSimple from './layouts/LayoutSimple.vue';
+import LayoutCircle from './layouts/LayoutCircle.vue';
+import LayoutCompact from './layouts/LayoutCompact.vue';
+import LayoutClassic from './layouts/LayoutClassic.vue';
+import LayoutFlip from './layouts/LayoutFlip.vue';
 
-const curStatusC = ref({})
+const curStatusC = ref<any>({})
 const nextTime = ref()
 const nextDiffTime = ref('00:00:00')
-const sysData = ref({})
+const sysData = ref<any>({})
 const progressPercentValue = ref(0)
+const currentLayout = ref('default')
+
+const themes = [
+  'coral', 'mint', 'sky', 'lavender', 'sakura',
+  'amber', 'white', 'dark', 'gray', 'aurora'
+]
+
+const layouts = ['default', 'simple', 'circle', 'compact', 'classic', 'flip']
+
+const layoutComponents: Record<string, any> = {
+  default: markRaw(LayoutDefault),
+  simple: markRaw(LayoutSimple),
+  circle: markRaw(LayoutCircle),
+  compact: markRaw(LayoutCompact),
+  classic: markRaw(LayoutClassic),
+  flip: markRaw(LayoutFlip),
+}
+
+const currentLayoutComponent = computed(() => {
+  return layoutComponents[currentLayout.value] || layoutComponents.default
+})
+
+const currentStatus = computed(() => {
+  return curStatusC.value?.value || 'work'
+})
 
 const statusClass = computed(() => {
   const status = curStatusC.value?.value;
@@ -60,90 +75,154 @@ const statusSubtitle = computed(() => {
   return status === 'work' ? '距离休息' : '距离工作';
 });
 
-window.ipcRenderer.on('sync-data-to-other-window', (event, arg) => {
+const cycleTheme = () => {
+  const currentSkin = document.documentElement.getAttribute('data-skin') || 'white'
+  const idx = themes.indexOf(currentSkin)
+  const nextTheme = themes[(idx + 1) % themes.length]
+
+  applyTheme(nextTheme)
+  saveConfig('skin', nextTheme)
+}
+
+const cycleLayout = () => {
+  const idx = layouts.indexOf(currentLayout.value)
+  currentLayout.value = layouts[(idx + 1) % layouts.length]
+  saveConfig('layout', currentLayout.value)
+}
+
+const applyTheme = (theme: string) => {
+  if (theme === 'white') {
+    document.documentElement.removeAttribute('data-skin')
+  } else {
+    document.documentElement.setAttribute('data-skin', theme)
+  }
+}
+
+const saveConfig = (key: string, value: string) => {
+  try {
+    const configStr = window.ipcRenderer.sendSync('get-store', 'window-mode:pomodoro')
+    const config = configStr && typeof configStr === 'string' ? JSON.parse(configStr) : (configStr || {})
+    config[key] = value
+    window.ipcRenderer.sendSync('set-store', 'window-mode:pomodoro', JSON.stringify(config))
+    window.ipcRenderer.send('sync-data-to-other-window', {
+      pomodoroMiniWindowConfig: { ...config },
+    })
+  } catch (e) {
+    console.log('保存配置失败:', e)
+  }
+}
+
+const loadConfig = () => {
+  try {
+    const configStr = window.ipcRenderer.sendSync('get-store', 'window-mode:pomodoro')
+    const config = configStr && typeof configStr === 'string' ? JSON.parse(configStr) : (configStr || {})
+    if (config.skin) {
+      applyTheme(config.skin)
+    }
+    if (config.layout) {
+      currentLayout.value = config.layout
+    }
+  } catch (e) {
+    console.log('加载配置失败:', e)
+  }
+}
+
+window.ipcRenderer.on('sync-data-to-other-window', (event: any, arg: any) => {
   if (Object.prototype.toString.call(arg) === '[object Object]') {
-    sysData.value = arg || {};
+    Object.assign(sysData.value, arg || {})
     sysData.value.globalFont && document.documentElement.style.setProperty('--jianli-global-font', sysData.value.globalFont);
     sysData.value.globalFontEN && document.documentElement.style.setProperty('--jianli-global-font-EN', sysData.value.globalFontEN);
-    curStatusC.value = arg.curStatus;
-    
-    if (arg.curStatus && arg.curStatus.value === 'work') {
-      nextTime.value = moment(arg.startWorkTime + arg.workTimeGapUnit * arg.workTimeGap).format('YYYY-MM-DD HH:mm:ss');
-    } else {
-      nextTime.value = moment(arg.closeWorkTime + arg.restTimeGapUnit * arg.restTimeGap).format('YYYY-MM-DD HH:mm:ss');
+
+    if (arg.pomodoroMiniWindowConfig) {
+      if (arg.pomodoroMiniWindowConfig.skin) {
+        applyTheme(arg.pomodoroMiniWindowConfig.skin)
+      }
+      if (arg.pomodoroMiniWindowConfig.layout) {
+        currentLayout.value = arg.pomodoroMiniWindowConfig.layout
+      }
     }
-    
-    const status = arg.curStatus?.value;
-    if (status && arg) {
-      let startTime, duration;
-      
-      if (status === 'work') {
-        startTime = arg.startWorkTime;
-        duration = arg.workTimeGapUnit * arg.workTimeGap;
+
+    if (arg.curStatus) {
+      curStatusC.value = arg.curStatus;
+
+      if (arg.curStatus.value === 'work') {
+        nextTime.value = moment(arg.startWorkTime + arg.workTimeGapUnit * arg.workTimeGap).format('YYYY-MM-DD HH:mm:ss');
       } else {
-        startTime = arg.closeWorkTime;
-        duration = arg.restTimeGapUnit * arg.restTimeGap;
+        nextTime.value = moment(arg.closeWorkTime + arg.restTimeGapUnit * arg.restTimeGap).format('YYYY-MM-DD HH:mm:ss');
       }
-      
-      if (startTime && duration && duration > 0) {
-        const elapsed = moment().valueOf() - startTime;
-        const progress = (elapsed / duration) * 100;
-        progressPercentValue.value = Math.max(0, Math.min(100, progress));
+
+      const status = arg.curStatus?.value;
+      if (status && arg) {
+        let startTime, duration;
+
+        if (status === 'work') {
+          startTime = arg.startWorkTime;
+          duration = arg.workTimeGapUnit * arg.workTimeGap;
+        } else {
+          startTime = arg.closeWorkTime;
+          duration = arg.restTimeGapUnit * arg.restTimeGap;
+        }
+
+        if (startTime && duration && duration > 0) {
+          const elapsed = moment().valueOf() - startTime;
+          const progress = 100 - (elapsed / duration) * 100;
+          progressPercentValue.value = Math.max(0, Math.min(100, progress));
+        }
       }
+
+      countDown();
     }
-    
-    countDown();
   }
 });
 
-let timer = null;
+let timer: any = null;
 
 function countDown() {
   if (timer) {
     clearInterval(timer);
   }
-  
+
   timer = setInterval(() => {
     if (!nextTime.value) {
       nextDiffTime.value = '等待中...';
       progressPercentValue.value = 0;
       return;
     }
-    
+
     const now = moment();
     const next = moment(nextTime.value);
     const diff = next.diff(now);
-    
+
     if (diff < 0) {
       nextDiffTime.value = '等待中...';
       progressPercentValue.value = 0;
       return;
     }
-    
+
     const diffTime = moment.duration(diff);
     const diffHours = diffTime.hours().toString().padStart(2, '0');
     const diffMinutes = diffTime.minutes().toString().padStart(2, '0');
     const diffSeconds = diffTime.seconds().toString().padStart(2, '0');
-    
+
     nextDiffTime.value = `${diffHours}:${diffMinutes}:${diffSeconds}`;
-    
+
     const status = curStatusC.value?.value;
     const data = sysData.value;
-    
+
     if (data && status) {
       let startTime, duration;
-      
+
       if (status === 'work') {
-        startTime = data.startWorkTime;
-        duration = data.workTimeGapUnit * data.workTimeGap;
+        startTime = (data as any).startWorkTime;
+        duration = (data as any).workTimeGapUnit * (data as any).workTimeGap;
       } else {
-        startTime = data.closeWorkTime;
-        duration = data.restTimeGapUnit * data.restTimeGap;
+        startTime = (data as any).closeWorkTime;
+        duration = (data as any).restTimeGapUnit * (data as any).restTimeGap;
       }
-      
+
       if (startTime && duration && duration > 0) {
         const elapsed = now.valueOf() - startTime;
-        const progress = (elapsed / duration) * 100;
+        const progress = 100 - (elapsed / duration) * 100;
         progressPercentValue.value = Math.max(0, Math.min(100, progress));
       }
     }
@@ -157,6 +236,10 @@ const enableMouseClickThroughFn = () => {
 const disableMouseClickThroughFn = () => {
   window.ipcRenderer.send('disable-mouse-click-through', 'pomodoro');
 }
+
+onMounted(() => {
+  loadConfig()
+})
 </script>
 
 <style lang="scss">
@@ -168,6 +251,159 @@ const disableMouseClickThroughFn = () => {
 html, body {
   font-family: var(--jianli-global-font-EN), var(--jianli-global-font);
 }
+
+/* ==================== 10套独立皮肤 ==================== */
+
+/* 默认皮肤（白色透明） */
+:root,
+[data-skin="white"] {
+  --skin-bg: rgba(255, 255, 255, 0.95);
+  --skin-border: rgba(99, 102, 241, 0.25);
+  --skin-text-primary: #4338ca;
+  --skin-text-secondary: #6366f1;
+  --skin-dot: #6366f1;
+  --skin-dot-glow: rgba(99, 102, 241, 0.6);
+  --skin-progress-bg: rgba(99, 102, 241, 0.15);
+  --skin-progress-fill: linear-gradient(90deg, #6366f1, #818cf8);
+  --skin-circle-ring: #6366f1;
+  --skin-btn-bg: rgba(99, 102, 241, 0.12);
+  --skin-btn-hover: rgba(99, 102, 241, 0.22);
+}
+
+/* 珊瑚橙 */
+[data-skin="coral"] {
+  --skin-bg: rgba(255, 230, 230, 0.92);
+  --skin-border: rgba(220, 38, 38, 0.25);
+  --skin-text-primary: #DC2626;
+  --skin-text-secondary: #991B1B;
+  --skin-dot: #EF4444;
+  --skin-dot-glow: rgba(239, 68, 68, 0.6);
+  --skin-progress-bg: rgba(220, 38, 38, 0.15);
+  --skin-progress-fill: linear-gradient(90deg, #EF4444, #F87171);
+  --skin-circle-ring: #EF4444;
+  --skin-btn-bg: rgba(239, 68, 68, 0.12);
+  --skin-btn-hover: rgba(239, 68, 68, 0.22);
+}
+
+/* 薄荷绿 */
+[data-skin="mint"] {
+  --skin-bg: rgba(209, 250, 240, 0.92);
+  --skin-border: rgba(5, 150, 105, 0.25);
+  --skin-text-primary: #059669;
+  --skin-text-secondary: #047857;
+  --skin-dot: #10B981;
+  --skin-dot-glow: rgba(16, 185, 129, 0.6);
+  --skin-progress-bg: rgba(5, 150, 105, 0.15);
+  --skin-progress-fill: linear-gradient(90deg, #10B981, #34D399);
+  --skin-circle-ring: #10B981;
+  --skin-btn-bg: rgba(16, 185, 129, 0.12);
+  --skin-btn-hover: rgba(16, 185, 129, 0.22);
+}
+
+/* 星空蓝 */
+[data-skin="sky"] {
+  --skin-bg: rgba(219, 234, 254, 0.92);
+  --skin-border: rgba(37, 99, 235, 0.25);
+  --skin-text-primary: #1D4ED8;
+  --skin-text-secondary: #2563EB;
+  --skin-dot: #3B82F6;
+  --skin-dot-glow: rgba(59, 130, 246, 0.6);
+  --skin-progress-bg: rgba(37, 99, 235, 0.15);
+  --skin-progress-fill: linear-gradient(90deg, #3B82F6, #60A5FA);
+  --skin-circle-ring: #3B82F6;
+  --skin-btn-bg: rgba(59, 130, 246, 0.12);
+  --skin-btn-hover: rgba(59, 130, 246, 0.22);
+}
+
+/* 薰衣草 */
+[data-skin="lavender"] {
+  --skin-bg: rgba(237, 233, 254, 0.92);
+  --skin-border: rgba(124, 58, 237, 0.25);
+  --skin-text-primary: #6D28D9;
+  --skin-text-secondary: #7C3AED;
+  --skin-dot: #8B5CF6;
+  --skin-dot-glow: rgba(139, 92, 246, 0.6);
+  --skin-progress-bg: rgba(124, 58, 237, 0.15);
+  --skin-progress-fill: linear-gradient(90deg, #8B5CF6, #A78BFA);
+  --skin-circle-ring: #8B5CF6;
+  --skin-btn-bg: rgba(139, 92, 246, 0.12);
+  --skin-btn-hover: rgba(139, 92, 246, 0.22);
+}
+
+/* 樱花粉 */
+[data-skin="sakura"] {
+  --skin-bg: rgba(252, 231, 243, 0.92);
+  --skin-border: rgba(219, 39, 119, 0.25);
+  --skin-text-primary: #BE185D;
+  --skin-text-secondary: #DB2777;
+  --skin-dot: #EC4899;
+  --skin-dot-glow: rgba(236, 72, 153, 0.6);
+  --skin-progress-bg: rgba(219, 39, 119, 0.15);
+  --skin-progress-fill: linear-gradient(90deg, #EC4899, #F472B6);
+  --skin-circle-ring: #EC4899;
+  --skin-btn-bg: rgba(236, 72, 153, 0.12);
+  --skin-btn-hover: rgba(236, 72, 153, 0.22);
+}
+
+/* 琥珀金 */
+[data-skin="amber"] {
+  --skin-bg: rgba(254, 243, 199, 0.92);
+  --skin-border: rgba(217, 119, 6, 0.25);
+  --skin-text-primary: #B45309;
+  --skin-text-secondary: #D97706;
+  --skin-dot: #F59E0B;
+  --skin-dot-glow: rgba(245, 158, 11, 0.6);
+  --skin-progress-bg: rgba(217, 119, 6, 0.15);
+  --skin-progress-fill: linear-gradient(90deg, #F59E0B, #FBBF24);
+  --skin-circle-ring: #F59E0B;
+  --skin-btn-bg: rgba(245, 158, 11, 0.12);
+  --skin-btn-hover: rgba(245, 158, 11, 0.22);
+}
+
+/* 暗夜黑 */
+[data-skin="dark"] {
+  --skin-bg: rgba(31, 41, 55, 0.95);
+  --skin-border: rgba(255, 255, 255, 0.1);
+  --skin-text-primary: #F3F4F6;
+  --skin-text-secondary: #D1D5DB;
+  --skin-dot: #60A5FA;
+  --skin-dot-glow: rgba(96, 165, 250, 0.6);
+  --skin-progress-bg: rgba(255, 255, 255, 0.1);
+  --skin-progress-fill: linear-gradient(90deg, #60A5FA, #93C5FD);
+  --skin-circle-ring: #60A5FA;
+  --skin-btn-bg: rgba(96, 165, 250, 0.15);
+  --skin-btn-hover: rgba(96, 165, 250, 0.25);
+}
+
+/* 薄雾灰 */
+[data-skin="gray"] {
+  --skin-bg: rgba(243, 244, 246, 0.92);
+  --skin-border: rgba(75, 85, 99, 0.25);
+  --skin-text-primary: #1F2937;
+  --skin-text-secondary: #4B5563;
+  --skin-dot: #6B7280;
+  --skin-dot-glow: rgba(107, 114, 128, 0.6);
+  --skin-progress-bg: rgba(75, 85, 99, 0.15);
+  --skin-progress-fill: linear-gradient(90deg, #6B7280, #9CA3AF);
+  --skin-circle-ring: #6B7280;
+  --skin-btn-bg: rgba(107, 114, 128, 0.12);
+  --skin-btn-hover: rgba(107, 114, 128, 0.22);
+}
+
+/* 极光青 */
+[data-skin="aurora"] {
+  --skin-bg: rgba(207, 250, 255, 0.92);
+  --skin-border: rgba(8, 145, 178, 0.25);
+  --skin-text-primary: #0E7490;
+  --skin-text-secondary: #0891B2;
+  --skin-dot: #06B6D4;
+  --skin-dot-glow: rgba(6, 182, 212, 0.6);
+  --skin-progress-bg: rgba(8, 145, 178, 0.15);
+  --skin-progress-fill: linear-gradient(90deg, #06B6D4, #22D3EE);
+  --skin-circle-ring: #06B6D4;
+  --skin-btn-bg: rgba(6, 182, 212, 0.12);
+  --skin-btn-hover: rgba(6, 182, 212, 0.22);
+}
 </style>
 
 <style lang="scss" scoped>
@@ -176,66 +412,16 @@ html, body {
   height: 100%;
   box-sizing: border-box;
   padding: 4% 5%;
-  background: rgba(255, 255, 255, 0.85);
+  background: var(--skin-bg);
   border-radius: 0.8em;
   backdrop-filter: blur(10px);
   display: flex;
   flex-direction: column;
-  transition: all 0.5s ease;
+  transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
   font-size: clamp(8px, 3vmin, 14px);
-
-  &.status-work {
-    background: rgba(76, 175, 80, 0.08);
-    border: 1px solid rgba(76, 175, 80, 0.2);
-    
-    .status-dot {
-      background: #4caf50;
-      box-shadow: 0 0 1em rgba(76, 175, 80, 0.6);
-    }
-    
-    .status-label {
-      color: #2e7d32;
-    }
-    
-    .progress-fill {
-      background: linear-gradient(90deg, #4caf50 0%, #66bb6a 100%);
-    }
-    
-    .countdown-value {
-      color: #2e7d32;
-    }
-  }
-
-  &.status-rest {
-    background: rgba(33, 150, 243, 0.08);
-    border: 1px solid rgba(33, 150, 243, 0.2);
-    
-    .status-dot {
-      background: #2196f3;
-      box-shadow: 0 0 1em rgba(33, 150, 243, 0.6);
-    }
-    
-    .status-label {
-      color: #1565c0;
-    }
-    
-    .progress-fill {
-      background: linear-gradient(90deg, #2196f3 0%, #42a5f5 100%);
-    }
-    
-    .countdown-value {
-      color: #1565c0;
-    }
-  }
-}
-
-.top-section {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-shrink: 0;
+  border: 1px solid var(--skin-border);
 }
 
 .mouse-controls {
@@ -245,7 +431,7 @@ html, body {
   right: 0;
   bottom: 0;
   pointer-events: none;
-  
+
   .mouse-left,
   .mouse-right {
     position: absolute;
@@ -257,11 +443,11 @@ html, body {
     pointer-events: auto;
     cursor: default;
   }
-  
+
   .mouse-left {
     left: 0;
   }
-  
+
   .mouse-right {
     right: 0;
   }
@@ -271,117 +457,8 @@ html, body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: 0.5em;
   z-index: 1;
   min-height: 0;
-}
-
-.status-section {
-  display: flex;
-  align-items: center;
-  gap: 1em;
-  flex-shrink: 0;
-  
-  .status-indicator {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    -webkit-app-region: drag;
-    
-    .status-dot {
-      width: 1.35em;
-      height: 1.35em;
-      min-width: 8px;
-      min-height: 8px;
-      border-radius: 50%;
-      animation: pulse 2s infinite;
-    }
-  }
-  
-  .status-info {
-    display: flex;
-    flex-direction: column;
-    gap: 0.2em;
-    min-width: 0;
-    overflow: hidden;
-    
-    .status-label {
-      font-size: 1.75em;
-      font-weight: 700;
-      line-height: 1.2;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    
-    .status-subtitle {
-      font-size: 1.3em;
-      color: #666;
-      line-height: 1.2;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-  }
-}
-
-@keyframes pulse {
-  0%, 100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.2);
-    opacity: 0.7;
-  }
-}
-
-.countdown-section {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  flex: 1;
-  min-height: 0;
-  
-  .countdown-value {
-    font-size: clamp(16px, 8vmin, 36px);
-    font-weight: 900;
-    font-family: 'SF Mono', Monaco, 'Consolas', monospace;
-    text-shadow: 0 0.1em 0.3em rgba(0, 0, 0, 0.1);
-    line-height: 1;
-    white-space: nowrap;
-  }
-}
-
-.progress-section {
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
-  flex-shrink: 0;
-  
-  .progress-bar {
-    flex: 1;
-    height: clamp(9px, 2vmin, 12px);
-    min-height: 9px;
-    background: rgba(0, 0, 0, 0.1);
-    border-radius: 0.3em;
-    overflow: hidden;
-    
-    .progress-fill {
-      height: 100%;
-      border-radius: 0.3em;
-      transition: width 1s ease;
-    }
-  }
-  
-  .progress-text {
-    font-size: 1.35em;
-    font-weight: 600;
-    color: #666;
-    flex-shrink: 0;
-    white-space: nowrap;
-  }
+  cursor: pointer;
 }
 </style>

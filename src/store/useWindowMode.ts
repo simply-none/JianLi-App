@@ -1,4 +1,4 @@
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch, toRaw } from "vue";
 import { defineStore, storeToRefs } from "pinia";
 import { getStore, sendSync, setStore, send, sendMany, getWindowConfig } from "../utils/common";
 import { initPiniaStatus, type defaultField } from "@/utils/store";
@@ -18,12 +18,14 @@ export default defineStore("window-mode", () => {
     gap: 30,
     x: 0,
     y: 0,
+    skin: 'white',
+    layout: 'default',
   });
 
   watch(showPomodoroMiniWindow, (newValue) => {
     if (newValue == true) {
-      console.log("打开番茄钟小窗口", getWindowConfig("pomodoro") );
-      send("open-new-window", "pomodoro", getWindowConfig("pomodoro"));
+      console.log("打开番茄钟小窗口", pomodoroMiniWindowConfig.value);
+      send("open-new-window", "pomodoro", pomodoroMiniWindowConfig.value);
     } else {
       send("close-new-window", "pomodoro");
     }
@@ -47,11 +49,17 @@ export default defineStore("window-mode", () => {
 
   watch(showMiniNotebookWindow, (newValue) => {
     if (newValue == true) {
-      sendMany("open-new-window", "notebook", getWindowConfig("notebook"));
+      sendMany("open-new-window", "notebook", miniNotebookWindowConfig.value);
     } else {
       send("close-new-window", "notebook");
     }
   });
+
+  watch(pomodoroMiniWindowConfig, (newVal) => {
+    send('sync-data-to-other-window', {
+      pomodoroMiniWindowConfig: toRaw(newVal),
+    });
+  }, { deep: true });
 
   function init() {
     const boolVars: defaultField[] = [
@@ -90,6 +98,8 @@ export default defineStore("window-mode", () => {
           gap: 30,
           x: 0,
           y: 0,
+          skin: 'white',
+          layout: 'default',
         },
         map: pomodoroMiniWindowConfig,
       },
@@ -113,6 +123,16 @@ export default defineStore("window-mode", () => {
     ];
 
     initPiniaStatus(allVars);
+
+    window.ipcRenderer?.on('sync-data-to-other-window', (_event: any, arg: any) => {
+      if (arg?.pomodoroMiniWindowConfig) {
+        const newConfig = arg.pomodoroMiniWindowConfig;
+        const currentConfig = pomodoroMiniWindowConfig.value;
+        if (JSON.stringify(newConfig) !== JSON.stringify(currentConfig)) {
+          pomodoroMiniWindowConfig.value = { ...currentConfig, ...newConfig };
+        }
+      }
+    });
   }
 
   function $reset() {

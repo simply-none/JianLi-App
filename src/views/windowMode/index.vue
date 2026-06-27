@@ -1,249 +1,347 @@
 <template>
-  <div class="window-mode-container">
-    <div class="section-title">窗口模式</div>
+  <layout-vue>
+    <template #main>
+      <div class="setting-page">
+        <div class="section">
+          <h2 class="section-title">
+            <el-icon><Monitor /></el-icon>
+            番茄钟小窗口
+          </h2>
 
-    <div class="window-card">
-      <div class="card-header">
-        <div class="card-title">
-          <span class="icon">⏱</span>
-          <span>番茄钟小窗口</span>
-        </div>
-        <div class="toggle-group">
-          <button 
-            class="toggle-btn" 
-            :class="{ active: showPomodoroMiniWindowCc }"
-            @click="changeShowPomodoroMiniWindowFn(true)"
-          >
-            开启
-          </button>
-          <button 
-            class="toggle-btn" 
-            :class="{ active: !showPomodoroMiniWindowCc }"
-            @click="changeShowPomodoroMiniWindowFn(false)"
-          >
-            关闭
-          </button>
-          <button 
-            class="apply-btn"
-            @click="applyPomodoroWindow"
-          >
-            应用
-          </button>
-        </div>
-      </div>
-
-      <div class="card-content">
-        <div class="config-section">
-          <div class="config-label">📐 位置选择</div>
-          <div class="position-wrapper">
-            <div class="position-grid">
-              <button 
-                v-for="pos in positionOptions" 
-                :key="pos.value"
-                class="position-card"
-                :class="{ selected: pomodoroConfig.position === pos.value }"
-                @click="selectPosition('pomodoro', pos.value)"
+          <div class="toggle-card">
+            <span class="toggle-label">小窗口状态</span>
+            <div class="toggle-group">
+              <el-button 
+                :type="showPomodoroMiniWindowCc ? 'primary' : 'default'"
+                :plain="!showPomodoroMiniWindowCc"
+                @click="changeShowPomodoroMiniWindowFn(true)"
+                class="toggle-btn"
               >
-                {{ pos.icon }}
-              </button>
-            </div>
-            <button 
-              class="custom-btn"
-              @click="openCustomModal('pomodoro', 'position')"
-            >
-              ⚙ 自定义
-            </button>
-          </div>
-        </div>
-
-        <div class="config-section">
-          <div class="config-label">📏 窗口尺寸</div>
-          <div class="size-row">
-            <button 
-              v-for="size in sizeOptions" 
-              :key="size.label"
-              class="size-card"
-              :class="{ selected: pomodoroConfig.width === size.width && pomodoroConfig.height === size.height }"
-              @click="selectSize('pomodoro', size.width, size.height)"
-            >
-              {{ size.label }}
-            </button>
-            <button 
-              class="size-card custom-card"
-              @click="openCustomModal('pomodoro', 'size')"
-            >
-              自定义
-            </button>
-          </div>
-        </div>
-
-        <div class="config-section">
-          <div class="config-label">📐 边缘间隙</div>
-          <div class="gap-row">
-            <button 
-              v-for="gap in gapOptions" 
-              :key="gap"
-              class="gap-card"
-              :class="{ selected: pomodoroConfig.gap === gap }"
-              @click="selectGap('pomodoro', gap)"
-            >
-              {{ gap }}px
-            </button>
-            <button 
-              class="gap-card custom-card"
-              @click="openCustomModal('pomodoro', 'gap')"
-            >
-              自定义
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="window-card">
-      <div class="card-header">
-        <div class="card-title">
-          <span class="icon">📝</span>
-          <span>笔记本小窗口</span>
-        </div>
-        <div class="toggle-group">
-          <button 
-            class="toggle-btn" 
-            :class="{ active: showMiniNotebookWindowCc }"
-            @click="changeShowMiniNotebookWindowFn(true)"
-          >
-            开启
-          </button>
-          <button 
-            class="toggle-btn" 
-            :class="{ active: !showMiniNotebookWindowCc }"
-            @click="changeShowMiniNotebookWindowFn(false)"
-          >
-            关闭
-          </button>
-          <button 
-            class="apply-btn"
-            @click="applyNotebookWindow"
-          >
-            应用
-          </button>
-        </div>
-      </div>
-
-      <div class="card-content">
-        <div class="config-section">
-          <div class="config-label">📐 位置选择</div>
-          <div class="position-wrapper">
-            <div class="position-grid">
-              <button 
-                v-for="pos in positionOptions" 
-                :key="pos.value"
-                class="position-card"
-                :class="{ selected: notebookConfig.position === pos.value }"
-                @click="selectPosition('notebook', pos.value)"
+                开启
+              </el-button>
+              <el-button 
+                :type="!showPomodoroMiniWindowCc ? 'primary' : 'default'"
+                :plain="showPomodoroMiniWindowCc"
+                @click="changeShowPomodoroMiniWindowFn(false)"
+                class="toggle-btn"
               >
-                {{ pos.icon }}
-              </button>
+                关闭
+              </el-button>
+              <el-button 
+                type="primary"
+                @click="applyPomodoroWindow"
+                class="apply-btn"
+              >
+                <el-icon><Plus /></el-icon>
+                应用
+              </el-button>
             </div>
-            <button 
-              class="custom-btn"
-              @click="openCustomModal('notebook', 'position')"
-            >
-              ⚙ 自定义
-            </button>
+          </div>
+
+          <div class="window-card">
+            <div class="config-section">
+              <div class="config-label">
+                <el-icon :size="16"><Position /></el-icon>
+                位置选择
+              </div>
+              <div class="position-wrapper">
+                <div class="position-grid">
+                  <el-button 
+                    v-for="pos in positionOptions" 
+                    :key="pos.value"
+                    :type="pomodoroConfig.position === pos.value ? 'primary' : 'default'"
+                    :plain="pomodoroConfig.position !== pos.value"
+                    @click="selectPosition('pomodoro', pos.value)"
+                    class="position-card"
+                  >
+                    {{ pos.icon }}
+                  </el-button>
+                </div>
+                <el-button 
+                  type="default"
+                  plain
+                  @click="openCustomModal('pomodoro', 'position')"
+                  class="custom-btn"
+                >
+                  <el-icon :size="14"><EditPen /></el-icon>
+                  自定义
+                </el-button>
+              </div>
+            </div>
+
+            <div class="config-section">
+              <div class="config-label">
+                <el-icon :size="16"><FullScreen /></el-icon>
+                窗口尺寸
+              </div>
+              <div class="size-row">
+                <el-button 
+                  v-for="size in sizeOptions" 
+                  :key="size.label"
+                  :type="pomodoroConfig.width === size.width && pomodoroConfig.height === size.height ? 'primary' : 'default'"
+                  :plain="pomodoroConfig.width !== size.width || pomodoroConfig.height !== size.height"
+                  @click="selectSize('pomodoro', size.width, size.height)"
+                  class="config-option"
+                >
+                  {{ size.label }}
+                </el-button>
+                <el-button 
+                  type="default"
+                  plain
+                  @click="openCustomModal('pomodoro', 'size')"
+                  class="config-option custom-option"
+                >
+                  <el-icon :size="14"><EditPen /></el-icon>
+                  自定义
+                </el-button>
+              </div>
+            </div>
+
+            <div class="config-section">
+              <div class="config-label">
+                <el-icon :size="16"><Position /></el-icon>
+                边缘间隙
+              </div>
+              <div class="gap-row">
+                <el-button 
+                  v-for="gap in gapOptions" 
+                  :key="gap"
+                  :type="pomodoroConfig.gap === gap ? 'primary' : 'default'"
+                  :plain="pomodoroConfig.gap !== gap"
+                  @click="selectGap('pomodoro', gap)"
+                  class="config-option"
+                >
+                  {{ gap }}px
+                </el-button>
+                <el-button 
+                  type="default"
+                  plain
+                  @click="openCustomModal('pomodoro', 'gap')"
+                  class="config-option custom-option"
+                >
+                  <el-icon :size="14"><EditPen /></el-icon>
+                  自定义
+                </el-button>
+              </div>
+            </div>
+
+            <div class="config-section">
+              <div class="config-label">
+                <el-icon :size="16"><SetUp /></el-icon>
+                皮肤主题
+              </div>
+              <div class="theme-row">
+                <el-button 
+                  v-for="theme in skinOptions" 
+                  :key="theme.value"
+                  :type="pomodoroConfig.skin === theme.value ? 'primary' : 'default'"
+                  :plain="pomodoroConfig.skin !== theme.value"
+                  @click="selectSkin(theme.value)"
+                  class="config-option theme-option"
+                >
+                  {{ theme.label }}
+                </el-button>
+              </div>
+            </div>
+
+            <div class="config-section">
+              <div class="config-label">
+                <el-icon :size="16"><Grid /></el-icon>
+                排版样式
+              </div>
+              <div class="layout-row">
+                <el-button 
+                  v-for="layout in layoutOptions" 
+                  :key="layout.value"
+                  :type="pomodoroConfig.layout === layout.value ? 'primary' : 'default'"
+                  :plain="pomodoroConfig.layout !== layout.value"
+                  @click="selectLayout(layout.value)"
+                  class="config-option"
+                >
+                  {{ layout.label }}
+                </el-button>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div class="config-section">
-          <div class="config-label">📏 窗口尺寸</div>
-          <div class="size-row">
-            <button 
-              v-for="size in notebookSizeOptions" 
-              :key="size.label"
-              class="size-card"
-              :class="{ selected: notebookConfig.width === size.width && notebookConfig.height === size.height }"
-              @click="selectSize('notebook', size.width, size.height)"
-            >
-              {{ size.label }}
-            </button>
-            <button 
-              class="size-card custom-card"
-              @click="openCustomModal('notebook', 'size')"
-            >
-              自定义
-            </button>
+        <div class="section">
+          <h2 class="section-title">
+            <el-icon><Notebook /></el-icon>
+            笔记本小窗口
+          </h2>
+
+          <div class="toggle-card">
+            <span class="toggle-label">小窗口状态</span>
+            <div class="toggle-group">
+              <el-button 
+                :type="showMiniNotebookWindowCc ? 'primary' : 'default'"
+                :plain="!showMiniNotebookWindowCc"
+                @click="changeShowMiniNotebookWindowFn(true)"
+                class="toggle-btn"
+              >
+                开启
+              </el-button>
+              <el-button 
+                :type="!showMiniNotebookWindowCc ? 'primary' : 'default'"
+                :plain="showMiniNotebookWindowCc"
+                @click="changeShowMiniNotebookWindowFn(false)"
+                class="toggle-btn"
+              >
+                关闭
+              </el-button>
+              <el-button 
+                type="primary"
+                @click="applyNotebookWindow"
+                class="apply-btn"
+              >
+                <el-icon><Plus /></el-icon>
+                应用
+              </el-button>
+            </div>
+          </div>
+
+          <div class="window-card">
+            <div class="config-section">
+              <div class="config-label">
+                <el-icon :size="16"><Position /></el-icon>
+                位置选择
+              </div>
+              <div class="position-wrapper">
+                <div class="position-grid">
+                  <el-button 
+                    v-for="pos in positionOptions" 
+                    :key="pos.value"
+                    :type="notebookConfig.position === pos.value ? 'primary' : 'default'"
+                    :plain="notebookConfig.position !== pos.value"
+                    @click="selectPosition('notebook', pos.value)"
+                    class="position-card"
+                  >
+                    {{ pos.icon }}
+                  </el-button>
+                </div>
+                <el-button 
+                  type="default"
+                  plain
+                  @click="openCustomModal('notebook', 'position')"
+                  class="custom-btn"
+                >
+                  <el-icon :size="14"><EditPen /></el-icon>
+                  自定义
+                </el-button>
+              </div>
+            </div>
+
+            <div class="config-section">
+              <div class="config-label">
+                <el-icon :size="16"><FullScreen /></el-icon>
+                窗口尺寸
+              </div>
+              <div class="size-row">
+                <el-button 
+                  v-for="size in notebookSizeOptions" 
+                  :key="size.label"
+                  :type="notebookConfig.width === size.width && notebookConfig.height === size.height ? 'primary' : 'default'"
+                  :plain="notebookConfig.width !== size.width || notebookConfig.height !== size.height"
+                  @click="selectSize('notebook', size.width, size.height)"
+                  class="config-option"
+                >
+                  {{ size.label }}
+                </el-button>
+                <el-button 
+                  type="default"
+                  plain
+                  @click="openCustomModal('notebook', 'size')"
+                  class="config-option custom-option"
+                >
+                  <el-icon :size="14"><EditPen /></el-icon>
+                  自定义
+                </el-button>
+              </div>
+            </div>
+
+            <div class="config-section">
+              <div class="config-label">
+                <el-icon :size="16"><Position /></el-icon>
+                边缘间隙
+              </div>
+              <div class="gap-row">
+                <el-button 
+                  v-for="gap in gapOptions" 
+                  :key="gap"
+                  :type="notebookConfig.gap === gap ? 'primary' : 'default'"
+                  :plain="notebookConfig.gap !== gap"
+                  @click="selectGap('notebook', gap)"
+                  class="config-option"
+                >
+                  {{ gap }}px
+                </el-button>
+                <el-button 
+                  type="default"
+                  plain
+                  @click="openCustomModal('notebook', 'gap')"
+                  class="config-option custom-option"
+                >
+                  <el-icon :size="14"><EditPen /></el-icon>
+                  自定义
+                </el-button>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div class="config-section">
-          <div class="config-label">📐 边缘间隙</div>
-          <div class="gap-row">
-            <button 
-              v-for="gap in gapOptions" 
-              :key="gap"
-              class="gap-card"
-              :class="{ selected: notebookConfig.gap === gap }"
-              @click="selectGap('notebook', gap)"
-            >
-              {{ gap }}px
-            </button>
-            <button 
-              class="gap-card custom-card"
-              @click="openCustomModal('notebook', 'gap')"
-            >
-              自定义
-            </button>
+        <div v-if="showModal" class="modal-overlay" @click="closeModal">
+          <div class="modal-content" @click.stop>
+            <div class="modal-header">
+              {{ modalTitle }}
+              <el-button type="text" @click="closeModal" class="close-btn">
+                <el-icon><Close /></el-icon>
+              </el-button>
+            </div>
+            <div class="modal-body">
+              <div v-if="modalType === 'position'" class="modal-form">
+                <div class="form-item">
+                  <label>X 坐标：</label>
+                  <input type="number" v-model="customPosition.x" placeholder="输入X坐标" />
+                </div>
+                <div class="form-item">
+                  <label>Y 坐标：</label>
+                  <input type="number" v-model="customPosition.y" placeholder="输入Y坐标" />
+                </div>
+              </div>
+              <div v-if="modalType === 'size'" class="modal-form">
+                <div class="form-item">
+                  <label>宽度：</label>
+                  <input type="number" v-model="customSize.width" placeholder="输入宽度" />
+                </div>
+                <div class="form-item">
+                  <label>高度：</label>
+                  <input type="number" v-model="customSize.height" placeholder="输入高度" />
+                </div>
+              </div>
+              <div v-if="modalType === 'gap'" class="modal-form">
+                <div class="form-item">
+                  <label>间隙：</label>
+                  <input type="number" v-model="customGap" placeholder="输入间隙值" />
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <el-button type="default" @click="closeModal" class="modal-btn">取消</el-button>
+              <el-button type="primary" @click="confirmCustom" class="modal-btn">确定</el-button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-
-    <div v-if="showModal" class="modal-overlay" @click="closeModal">
-      <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          {{ modalTitle }}
-          <button class="close-btn" @click="closeModal">✕</button>
-        </div>
-        <div class="modal-body">
-          <div v-if="modalType === 'position'" class="modal-form">
-            <div class="form-item">
-              <label>X 坐标：</label>
-              <input type="number" v-model="customPosition.x" placeholder="输入X坐标" />
-            </div>
-            <div class="form-item">
-              <label>Y 坐标：</label>
-              <input type="number" v-model="customPosition.y" placeholder="输入Y坐标" />
-            </div>
-          </div>
-          <div v-if="modalType === 'size'" class="modal-form">
-            <div class="form-item">
-              <label>宽度：</label>
-              <input type="number" v-model="customSize.width" placeholder="输入宽度" />
-            </div>
-            <div class="form-item">
-              <label>高度：</label>
-              <input type="number" v-model="customSize.height" placeholder="输入高度" />
-            </div>
-          </div>
-          <div v-if="modalType === 'gap'" class="modal-form">
-            <div class="form-item">
-              <label>间隙：</label>
-              <input type="number" v-model="customGap" placeholder="输入间隙值" />
-            </div>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="modal-btn cancel" @click="closeModal">取消</button>
-          <button class="modal-btn confirm" @click="confirmCustom">确定</button>
-        </div>
-      </div>
-    </div>
-  </div>
+    </template>
+  </layout-vue>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, toRaw } from 'vue';
 import { storeToRefs } from 'pinia';
+import { Monitor, Notebook, Position, FullScreen, EditPen, Close, Plus, SetUp, Grid } from '@element-plus/icons-vue';
+import LayoutVue from '@/components/layout.vue';
 import useWindowMode from '@/store/useWindowMode';
 import { setStore } from '@/utils/common';
 
@@ -332,6 +430,40 @@ const notebookSizeOptions = [
 ];
 
 const gapOptions = [10, 20, 30, 50];
+
+const skinOptions = [
+  { label: '默认(白)', value: 'white' },
+  { label: '珊瑚橙', value: 'coral' },
+  { label: '薄荷绿', value: 'mint' },
+  { label: '星空蓝', value: 'sky' },
+  { label: '薰衣草', value: 'lavender' },
+  { label: '樱花粉', value: 'sakura' },
+  { label: '琥珀金', value: 'amber' },
+  { label: '暗夜黑', value: 'dark' },
+  { label: '薄雾灰', value: 'gray' },
+  { label: '极光青', value: 'aurora' },
+];
+
+const layoutOptions = [
+  { label: '默认', value: 'default' },
+  { label: '简约', value: 'simple' },
+  { label: '圆形', value: 'circle' },
+  { label: '紧凑', value: 'compact' },
+  { label: '经典', value: 'classic' },
+  { label: '翻页', value: 'flip' },
+];
+
+function selectSkin(value: string) {
+  pomodoroConfig.value.skin = value;
+  pomodoroMiniWindowConfig.value.skin = value;
+  setStore('window-mode:pomodoro', { ...pomodoroMiniWindowConfig.value });
+}
+
+function selectLayout(value: string) {
+  pomodoroConfig.value.layout = value;
+  pomodoroMiniWindowConfig.value.layout = value;
+  setStore('window-mode:pomodoro', { ...pomodoroMiniWindowConfig.value });
+}
 
 function selectPosition(type: string, value: string) {
   if (type === 'pomodoro') {
@@ -463,209 +595,167 @@ function confirmCustom() {
 </script>
 
 <style scoped lang="scss">
-.window-mode-container {
-  // padding: 24px;
+.el-button+.el-button {
+  margin-left: 0px;
+}
+:deep(.main) {
+  padding: 0 !important;
+}
+
+.setting-page {
+  width: 100%;
+  min-height: 100%;
   box-sizing: border-box;
-  height: 100%;
-  overflow: auto;
-  // background: #f5f7fa;
-}
-
-.section-title {
-  font-size: 18px;
-  font-weight: 700;
-  color: #303133;
-  margin-bottom: 20px;
-  padding-bottom: 10px;
-  border-bottom: 3px solid #409eff;
-}
-
-.window-card {
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
-  margin-bottom: 20px;
-  overflow: hidden;
-  
-  &:last-child {
-    margin-bottom: 0;
-  }
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  
-  .card-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 16px;
-    font-weight: 600;
-    color: #fff;
-    
-    .icon {
-      font-size: 18px;
-    }
-  }
-  
-  .toggle-group {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    
-    .toggle-btn {
-      padding: 6px 16px;
-      border: none;
-      border-radius: 6px;
-      background: rgba(255, 255, 255, 0.2);
-      color: #fff;
-      font-size: 14px;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      
-      &.active {
-        background: #fff;
-        color: #667eea;
-        font-weight: 600;
-      }
-      
-      &:hover {
-        opacity: 0.8;
-      }
-    }
-    
-    .apply-btn {
-      padding: 6px 16px;
-      border: 1px solid rgba(255, 255, 255, 0.5);
-      border-radius: 6px;
-      background: transparent;
-      color: #fff;
-      font-size: 14px;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      
-      &:hover {
-        background: rgba(255, 255, 255, 0.2);
-      }
-      
-      &:active {
-        background: rgba(255, 255, 255, 0.3);
-      }
-    }
-  }
-}
-
-.card-content {
   padding: 20px;
-}
 
-.config-section {
-  margin-bottom: 20px;
-  
-  &:last-child {
-    margin-bottom: 0;
+  .section {
+    margin-bottom: 28px;
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 0 0 16px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid var(--color-primary);
+
+      .el-icon {
+        color: var(--color-primary);
+      }
+    }
   }
-}
 
-.config-label {
-  font-size: 14px;
-  font-weight: 600;
-  color: #606266;
-  margin-bottom: 12px;
-}
+  .toggle-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-card);
+    padding: 16px 20px;
+    margin-bottom: 16px;
 
-.position-wrapper {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
+    .toggle-label {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
 
-.position-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 36px);
-  gap: 6px;
-}
+    .toggle-group {
+      display: flex;
+      gap: 10px;
 
-.position-card {
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  background: #f5f7fa;
-  border: 2px solid #e4e7ed;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    border-color: #409eff;
-    background: #ecf5ff;
+      .toggle-btn {
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-size: 14px;
+      }
+
+      .apply-btn {
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+      }
+    }
   }
-  
-  &.selected {
-    border-color: #409eff;
-    background: #409eff;
-    color: #fff;
-  }
-}
 
-.custom-btn {
-  padding: 8px 12px;
-  background: #f5f7fa;
-  border: 2px solid #e4e7ed;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 12px;
-  color: #409eff;
-  transition: all 0.2s ease;
-  white-space: nowrap;
-  
-  &:hover {
-    border-color: #409eff;
-    background: #ecf5ff;
-  }
-}
+  .window-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-card);
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
 
-.size-row,
-.gap-row {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
+    &::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      background: linear-gradient(180deg, var(--color-primary), var(--color-primary) 50%, rgba(0,0,0,0.1));
+    }
+  }
 
-.size-card,
-.gap-card {
-  padding: 10px 16px;
-  background: #f5f7fa;
-  border: 2px solid #e4e7ed;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 14px;
-  color: #606266;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    border-color: #409eff;
-    background: #ecf5ff;
+  .config-section {
+    margin-bottom: 20px;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
   }
-  
-  &.selected {
-    border-color: #409eff;
-    background: #409eff;
-    color: #fff;
-    font-weight: 600;
+
+  .config-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+
+    .el-icon {
+      color: var(--color-primary);
+    }
   }
-  
-  &.custom-card {
-    color: #409eff;
-    border-color: #409eff;
-    background: #ecf5ff;
+
+  .position-wrapper {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .position-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 36px);
+    gap: 6px;
+  }
+
+  .position-card {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    border-radius: 6px;
+    padding: 0;
+  }
+
+  .custom-btn {
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .size-row,
+  .gap-row,
+  .theme-row,
+  .layout-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .theme-row {
+    max-height: 120px;
+    overflow-y: auto;
+  }
+
+  .config-option {
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+
+    &.custom-option {
+      color: var(--color-primary);
+    }
   }
 }
 
@@ -683,8 +773,8 @@ function confirmCustom() {
 }
 
 .modal-content {
-  background: #fff;
-  border-radius: 12px;
+  background: var(--bg-card);
+  border-radius: var(--radius-card);
   width: 90%;
   max-width: 320px;
   overflow: hidden;
@@ -707,22 +797,24 @@ function confirmCustom() {
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  background: #f5f7fa;
+  background: var(--bg-subtle);
   font-size: 16px;
   font-weight: 600;
-  color: #303133;
-  
+  color: var(--text-primary);
+
   .close-btn {
     width: 28px;
     height: 28px;
-    border: none;
-    background: #e4e7ed;
-    border-radius: 50%;
-    font-size: 14px;
-    cursor: pointer;
-    
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    transition: all 0.2s ease;
+
     &:hover {
-      background: #dcdfe6;
+      color: var(--text-primary);
+      background: var(--bg-hover);
+      border-radius: 50%;
     }
   }
 }
@@ -741,21 +833,23 @@ function confirmCustom() {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  
+
   label {
     font-size: 14px;
-    color: #606266;
+    color: var(--text-secondary);
   }
-  
+
   input {
     padding: 10px 12px;
-    border: 2px solid #e4e7ed;
+    border: 1px solid var(--input-border);
     border-radius: 8px;
     font-size: 14px;
     outline: none;
-    
+    background: var(--input-bg);
+    color: var(--text-primary);
+
     &:focus {
-      border-color: #409eff;
+      border-color: var(--input-border-focus);
     }
   }
 }
@@ -765,33 +859,12 @@ function confirmCustom() {
   justify-content: flex-end;
   gap: 10px;
   padding: 16px 20px;
-  border-top: 1px solid #ebeef5;
-}
+  border-top: 1px solid var(--border-light);
 
-.modal-btn {
-  padding: 8px 20px;
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  
-  &.cancel {
-    background: #f5f7fa;
-    color: #606266;
-    
-    &:hover {
-      background: #e4e7ed;
-    }
-  }
-  
-  &.confirm {
-    background: #409eff;
-    color: #fff;
-    
-    &:hover {
-      background: #66b1ff;
-    }
+  .modal-btn {
+    padding: 8px 20px;
+    border-radius: 8px;
+    font-size: 14px;
   }
 }
 </style>

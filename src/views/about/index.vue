@@ -4,7 +4,9 @@
 
     <div class="about-card">
       <div class="card-header">
-        <span class="icon">ℹ️</span>
+        <div class="header-icon">
+          <el-icon><InfoFilled /></el-icon>
+        </div>
         <span class="card-title">关于</span>
       </div>
       <div class="card-content">
@@ -33,7 +35,9 @@
 
     <div class="about-card">
       <div class="card-header">
-        <span class="icon">🙏</span>
+        <div class="header-icon">
+          <el-icon><Coin /></el-icon>
+        </div>
         <span class="card-title">鸣谢</span>
       </div>
       <div class="card-content">
@@ -55,23 +59,24 @@
 <script setup lang="ts">
 import packageJson from '../../../package.json';
 import AutoUpdate from './autoUpdate.vue';
+import { InfoFilled, Coin } from '@element-plus/icons-vue';
 
 const thanks = ['electron-vite-vue', ...Object.keys(packageJson.dependencies), ...Object.keys(packageJson.devDependencies)].sort();
 </script>
 
 <style scoped lang="scss">
 .about-container {
-  // padding: 24px;
   box-sizing: border-box;
   height: 100%;
   overflow: auto;
-  // background: #f5f7fa;
+  background: var(--bg-base);
 }
 
 .about-card {
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
   margin-bottom: 20px;
   overflow: hidden;
 
@@ -83,18 +88,30 @@ const thanks = ['electron-vite-vue', ...Object.keys(packageJson.dependencies), .
 .card-header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   padding: 16px 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-subtle);
 
-  .icon {
-    font-size: 18px;
+  .header-icon {
+    width: 36px;
+    height: 36px;
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    .el-icon {
+      font-size: 18px;
+      color: #fff;
+    }
   }
 
   .card-title {
     font-size: 16px;
     font-weight: 600;
-    color: #fff;
+    color: var(--text-primary);
   }
 }
 
@@ -107,7 +124,7 @@ const thanks = ['electron-vite-vue', ...Object.keys(packageJson.dependencies), .
   align-items: center;
   gap: 10px;
   padding: 12px 0;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-light);
 
   &:last-child {
     border-bottom: none;
@@ -121,13 +138,13 @@ const thanks = ['electron-vite-vue', ...Object.keys(packageJson.dependencies), .
 
   .info-label {
     font-size: 14px;
-    color: #909399;
+    color: var(--text-secondary);
     min-width: 80px;
   }
 
   .info-value {
     font-size: 14px;
-    color: #303133;
+    color: var(--text-primary);
     flex: 1;
     font-weight: 500;
   }
@@ -135,7 +152,7 @@ const thanks = ['electron-vite-vue', ...Object.keys(packageJson.dependencies), .
 
 .thanks-intro {
   font-size: 13px;
-  color: #909399;
+  color: var(--text-secondary);
   margin-bottom: 12px;
 }
 
@@ -147,10 +164,10 @@ const thanks = ['electron-vite-vue', ...Object.keys(packageJson.dependencies), .
 
 .thanks-tag {
   padding: 4px 10px;
-  background: #ecf5ff;
-  color: #409eff;
+  background: var(--tag-bg-info);
+  color: var(--color-primary);
   border-radius: 4px;
   font-size: 12px;
-  border: 1px solid #d9ecff;
+  border: 1px solid var(--border-subtle);
 }
 </style>

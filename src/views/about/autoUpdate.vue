@@ -1,7 +1,9 @@
 <template>
   <div class="update-card">
     <div class="card-header">
-      <span class="icon">📦</span>
+      <div class="header-icon">
+        <el-icon><Download /></el-icon>
+      </div>
       <span class="card-title">自动更新</span>
     </div>
     <div class="card-content">
@@ -90,6 +92,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
 import { ElMessage } from 'element-plus';
+import { Download } from '@element-plus/icons-vue';
 import moment from 'moment';
 
 // 状态
@@ -250,9 +253,10 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 .update-card {
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
   margin-bottom: 20px;
   overflow: hidden;
 }
@@ -260,18 +264,30 @@ onUnmounted(() => {
 .card-header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   padding: 16px 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-subtle);
 
-  .icon {
-    font-size: 18px;
+  .header-icon {
+    width: 36px;
+    height: 36px;
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    .el-icon {
+      font-size: 18px;
+      color: #fff;
+    }
   }
 
   .card-title {
     font-size: 16px;
     font-weight: 600;
-    color: #fff;
+    color: var(--text-primary);
   }
 }
 
@@ -284,7 +300,7 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 8px;
   padding: 12px 0;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-light);
 
   &:last-child {
     border-bottom: none;
@@ -292,7 +308,7 @@ onUnmounted(() => {
 
   .update-label {
     font-size: 14px;
-    color: #909399;
+    color: var(--text-secondary);
     font-weight: 500;
   }
 }
@@ -316,13 +332,13 @@ onUnmounted(() => {
     .release-name {
       font-weight: 600;
       font-size: 14px;
-      color: #303133;
+      color: var(--text-primary);
     }
   }
 
   .release-body {
     padding: 12px 14px;
-    background-color: #f5f7fa;
+    background-color: var(--bg-subtle);
     border-radius: 8px;
     max-height: 200px;
     overflow-y: auto;
@@ -334,12 +350,12 @@ onUnmounted(() => {
       font-size: 13px;
       line-height: 1.6;
       font-family: inherit;
-      color: #606266;
+      color: var(--text-regular);
     }
   }
 
   .release-date {
-    color: #909399;
+    color: var(--text-secondary);
     font-size: 12px;
     margin-top: 8px;
   }
@@ -358,7 +374,7 @@ onUnmounted(() => {
 
 .asset-info {
   margin-top: 8px;
-  color: #909399;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 </style>

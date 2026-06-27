@@ -105,6 +105,7 @@ function getScreenInfo() {
 
 export function createOtherWindow(arg: string, ops?: ObjectType, recreate = false) {
   getScreenInfo();
+  console.log(arg, 'arg', ops)
   if (childWindow[arg] && !recreate) {
     try {
       childWindow[arg]?.show();

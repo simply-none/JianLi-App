@@ -43,6 +43,10 @@ export function sendSync(key: string, value: any) {
 
 // 发送异步数据
 export function send(key: string, value: any, ops?: any) {
+  // 如果ops是ref/proxy，需要转换为普通对象
+  if (isRef(ops) || isProxy(ops)) {
+    ops = formatValue(ops)
+  }
   window.ipcRenderer.send(key, value, ops)
 }
 
@@ -53,12 +57,20 @@ export function sendMany(key: string, ...args: any[]) {
 
 // 获取窗口配置，从 SQLite 的 basic_info 表中读取 window-mode:{windowName}
 export function getWindowConfig(windowName: string): ObjectType {
-  const key = `window-mode:${windowName}`;
-  const config = getStore(key);
-  if (config && typeof config === 'object' && !Array.isArray(config)) {
-    return config;
+  try {
+    const key = `window-mode:${windowName}`;
+    let config: ObjectType | string = getStore(key);
+    if (config && typeof config === 'string') {
+      config = JSON.parse(config)
+    }
+    if (config && typeof config === 'object' && !Array.isArray(config)) {
+      return config;
+    }
+    return {};
+  } catch (err) {
+    console.error(err, 'getWindowConfig error')
+    return {}
   }
-  return {};
 }
 
 // sql
