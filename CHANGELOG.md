@@ -2,7 +2,13 @@
 
 变更日志
 
-## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.6.27-rc.1...HEAD) (2026-06-28)
+## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.6.28-rc.1...HEAD) (2026-06-28)
+
+### ✨ Features | 新功能
+
+* 新增笔记快速记录功能，支持快捷键唤出 ([aa04cbf](https://github.com/simply-none/JianLi-App/commit/aa04cbfdecd01c29b1e10337392c191d5e5be6d3))
+
+## [v26.6.28-rc.1](https://github.com/simply-none/JianLi-App/compare/v26.6.27-rc.1...v26.6.28-rc.1) (2026-06-28)
 
 ### ✨ Features | 新功能
 
