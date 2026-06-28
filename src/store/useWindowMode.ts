@@ -55,9 +55,42 @@ export default defineStore("window-mode", () => {
     }
   });
 
+  const showQuickNoteWindow = ref();
+  const showQuickNoteWindowC = computed(() => showQuickNoteWindow.value);
+  function setShowQuickNoteWindow(value: boolean) {
+    showQuickNoteWindow.value = value;
+    setStore("showQuickNoteWindow", value);
+  }
+
+  const quickNoteWindowConfig = ref({
+    position: 'bottom-right',
+    width: 600,
+    height: 400,
+    gap: 30,
+    x: 0,
+    y: 0,
+    skin: 'white',
+    layout: 'minimal',
+  });
+
+  watch(showQuickNoteWindow, (newValue) => {
+    if (newValue == true) {
+      console.log("打开快速记录小窗口", quickNoteWindowConfig.value);
+      send("open-new-window", "quickNote", quickNoteWindowConfig.value);
+    } else {
+      send("close-new-window", "quickNote");
+    }
+  });
+
   watch(pomodoroMiniWindowConfig, (newVal) => {
     send('sync-data-to-other-window', {
       pomodoroMiniWindowConfig: toRaw(newVal),
+    });
+  }, { deep: true });
+
+  watch(quickNoteWindowConfig, (newVal) => {
+    send('sync-data-to-other-window', {
+      quickNoteWindowConfig: toRaw(newVal),
     });
   }, { deep: true });
 
@@ -72,6 +105,11 @@ export default defineStore("window-mode", () => {
         field: "showMiniNotebookWindow",
         default: false,
         map: showMiniNotebookWindow,
+      },
+      {
+        field: "showQuickNoteWindow",
+        default: false,
+        map: showQuickNoteWindow,
       },
     ];
 
@@ -115,6 +153,20 @@ export default defineStore("window-mode", () => {
         },
         map: miniNotebookWindowConfig,
       },
+      {
+        field: "window-mode:quickNote",
+        default: {
+          position: 'bottom-right',
+          width: 600,
+          height: 400,
+          gap: 30,
+          x: 0,
+          y: 0,
+          skin: 'white',
+          layout: 'minimal',
+        },
+        map: quickNoteWindowConfig,
+      },
     ];
 
     const allVars: defaultField[] = [
@@ -130,6 +182,13 @@ export default defineStore("window-mode", () => {
         const currentConfig = pomodoroMiniWindowConfig.value;
         if (JSON.stringify(newConfig) !== JSON.stringify(currentConfig)) {
           pomodoroMiniWindowConfig.value = { ...currentConfig, ...newConfig };
+        }
+      }
+      if (arg?.quickNoteWindowConfig) {
+        const newConfig = arg.quickNoteWindowConfig;
+        const currentConfig = quickNoteWindowConfig.value;
+        if (JSON.stringify(newConfig) !== JSON.stringify(currentConfig)) {
+          quickNoteWindowConfig.value = { ...currentConfig, ...newConfig };
         }
       }
     });
@@ -152,6 +211,10 @@ export default defineStore("window-mode", () => {
     showMiniNotebookWindowC,
     setShowMiniNotebookWindow,
     miniNotebookWindowConfig,
+    showQuickNoteWindow,
+    showQuickNoteWindowC,
+    setShowQuickNoteWindow,
+    quickNoteWindowConfig,
     $reset,
   };
 });

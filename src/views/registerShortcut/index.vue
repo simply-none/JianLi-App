@@ -126,6 +126,7 @@ const iconMap = {
   netRequestShortcut: 'Connection',
   systemInfoShortcut: 'Toolbox',
   flowShortcut: 'Notebook',
+  quickNoteShortcut: 'SquarePen',
 }
 
 const iconClassMap = {
@@ -137,6 +138,7 @@ const iconClassMap = {
   netRequestShortcut: 'icon-cyan',
   systemInfoShortcut: 'icon-red',
   flowShortcut: 'icon-pink',
+  quickNoteShortcut: 'icon-indigo',
 }
 
 const descriptionMap = {
@@ -148,6 +150,7 @@ const descriptionMap = {
   netRequestShortcut: '快速打开网络请求记录',
   systemInfoShortcut: '快速查看系统信息',
   flowShortcut: '快速打开流程图工具',
+  quickNoteShortcut: '快速打开/关闭快速记录小窗口',
 }
 
 const getIcon = (key) => {
@@ -217,6 +220,13 @@ const originShortcuts = ref([
     url: 'flow',
     name: '打开流程图',
     key: 'flowShortcut',
+    shortcut: ['', '', ''],
+  },
+  {
+    type: 'open_quick_note',
+    url: '',
+    name: '快速记录',
+    key: 'quickNoteShortcut',
     shortcut: ['', '', ''],
   },
 ])

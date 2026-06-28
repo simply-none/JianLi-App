@@ -294,6 +294,171 @@
           </div>
         </div>
 
+        <div class="section">
+          <h2 class="section-title">
+            <LucideIcon name="PenTool" :size="16" />
+            快速记录小窗口
+          </h2>
+
+          <div class="toggle-card">
+            <span class="toggle-label">小窗口状态</span>
+            <div class="toggle-group">
+              <el-button 
+                :type="showQuickNoteWindowCc ? 'primary' : 'default'"
+                :plain="!showQuickNoteWindowCc"
+                @click="changeShowQuickNoteWindowFn(true)"
+                class="toggle-btn"
+              >
+                <LucideIcon name="MonitorCheck" :size="14" />
+                开启
+              </el-button>
+              <el-button 
+                :type="!showQuickNoteWindowCc ? 'primary' : 'default'"
+                :plain="showQuickNoteWindowCc"
+                @click="changeShowQuickNoteWindowFn(false)"
+                class="toggle-btn"
+              >
+                <LucideIcon name="MonitorX" :size="14" />
+                关闭
+              </el-button>
+              <el-button 
+                type="primary"
+                @click="applyQuickNoteWindow"
+                class="apply-btn"
+              >
+                <LucideIcon name="MonitorCloud" :size="14" />
+                应用
+              </el-button>
+            </div>
+          </div>
+
+          <div class="window-card">
+            <div class="config-section">
+              <div class="config-label">
+                <LucideIcon name="MousePointerClick" :size="16" />
+                位置选择
+              </div>
+              <div class="position-wrapper">
+                <div class="position-grid">
+                  <el-button 
+                    v-for="pos in positionOptions" 
+                    :key="pos.value"
+                    :type="quickNoteConfig.position === pos.value ? 'primary' : 'default'"
+                    :plain="quickNoteConfig.position !== pos.value"
+                    @click="selectPosition('quickNote', pos.value)"
+                    class="position-card"
+                  >
+                    {{ pos.icon }}
+                  </el-button>
+                </div>
+                <el-button 
+                  type="default"
+                  plain
+                  @click="openCustomModal('quickNote', 'position')"
+                  class="custom-btn"
+                >
+                  <LucideIcon name="Columns3Cog" :size="14" />
+                  自定义
+                </el-button>
+              </div>
+            </div>
+
+            <div class="config-section">
+              <div class="config-label">
+                <LucideIcon name="MonitorCog" :size="16" />
+                窗口尺寸
+              </div>
+              <div class="size-row">
+                <el-button 
+                  v-for="size in quickNoteSizeOptions" 
+                  :key="size.label"
+                  :type="quickNoteConfig.width === size.width && quickNoteConfig.height === size.height ? 'primary' : 'default'"
+                  :plain="quickNoteConfig.width !== size.width || quickNoteConfig.height !== size.height"
+                  @click="selectSize('quickNote', size.width, size.height)"
+                  class="config-option"
+                >
+                  {{ size.label }}
+                </el-button>
+                <el-button 
+                  type="default"
+                  plain
+                  @click="openCustomModal('quickNote', 'size')"
+                  class="config-option custom-option"
+                >
+                  <LucideIcon name="Columns3Cog" :size="14" />
+                  自定义
+                </el-button>
+              </div>
+            </div>
+
+            <div class="config-section">
+              <div class="config-label">
+                <LucideIcon name="UnfoldVertical" :size="16" />
+                边缘间隙
+              </div>
+              <div class="gap-row">
+                <el-button 
+                  v-for="gap in gapOptions" 
+                  :key="gap"
+                  :type="quickNoteConfig.gap === gap ? 'primary' : 'default'"
+                  :plain="quickNoteConfig.gap !== gap"
+                  @click="selectGap('quickNote', gap)"
+                  class="config-option"
+                >
+                  {{ gap }}px
+                </el-button>
+                <el-button 
+                  type="default"
+                  plain
+                  @click="openCustomModal('quickNote', 'gap')"
+                  class="config-option custom-option"
+                >
+                  <LucideIcon name="Columns3Cog" :size="14" />
+                  自定义
+                </el-button>
+              </div>
+            </div>
+
+            <div class="config-section">
+              <div class="config-label">
+                <LucideIcon name="PaintbrushVertical" :size="16" />
+                皮肤主题
+              </div>
+              <div class="theme-row">
+                <el-button 
+                  v-for="theme in skinOptions" 
+                  :key="theme.value"
+                  :type="quickNoteConfig.skin === theme.value ? 'primary' : 'default'"
+                  :plain="quickNoteConfig.skin !== theme.value"
+                  @click="selectQuickNoteSkin(theme.value)"
+                  class="config-option theme-option"
+                >
+                  {{ theme.label }}
+                </el-button>
+              </div>
+            </div>
+
+            <div class="config-section">
+              <div class="config-label">
+                <LucideIcon name="LayoutDashboard" :size="16" />
+                排版样式
+              </div>
+              <div class="layout-row">
+                <el-button 
+                  v-for="layout in quickNoteLayoutOptions" 
+                  :key="layout.value"
+                  :type="quickNoteConfig.layout === layout.value ? 'primary' : 'default'"
+                  :plain="quickNoteConfig.layout !== layout.value"
+                  @click="selectQuickNoteLayout(layout.value)"
+                  class="config-option"
+                >
+                  {{ layout.label }}
+                </el-button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div v-if="showModal" class="modal-overlay" @click="closeModal">
           <div class="modal-content" @click.stop>
             <div class="modal-header">
@@ -352,16 +517,20 @@ import { setStore } from '@/utils/common';
 const { 
   showPomodoroMiniWindowC, 
   showMiniNotebookWindowC,
+  showQuickNoteWindowC,
   pomodoroMiniWindowConfig,
-  miniNotebookWindowConfig
+  miniNotebookWindowConfig,
+  quickNoteWindowConfig
 } = storeToRefs(useWindowMode());
-const { setShowPomodoroMiniWindow, setShowMiniNotebookWindow } = useWindowMode();
+const { setShowPomodoroMiniWindow, setShowMiniNotebookWindow, setShowQuickNoteWindow } = useWindowMode();
 
 const showPomodoroMiniWindowCc = ref(showPomodoroMiniWindowC.value);
 const showMiniNotebookWindowCc = ref(showMiniNotebookWindowC.value);
+const showQuickNoteWindowCc = ref(showQuickNoteWindowC.value);
 
 const pomodoroConfig = ref({ ...pomodoroMiniWindowConfig.value });
 const notebookConfig = ref({ ...miniNotebookWindowConfig.value });
+const quickNoteConfig = ref({ ...quickNoteWindowConfig.value });
 
 watch(showPomodoroMiniWindowC, (val) => {
   showPomodoroMiniWindowCc.value = JSON.parse(JSON.stringify(val));
@@ -369,6 +538,10 @@ watch(showPomodoroMiniWindowC, (val) => {
 
 watch(showMiniNotebookWindowC, (val) => {
   showMiniNotebookWindowCc.value = JSON.parse(JSON.stringify(val));
+});
+
+watch(showQuickNoteWindowC, (val) => {
+  showQuickNoteWindowCc.value = JSON.parse(JSON.stringify(val));
 });
 
 watch(pomodoroMiniWindowConfig, (val) => {
@@ -379,12 +552,20 @@ watch(miniNotebookWindowConfig, (val) => {
   notebookConfig.value = { ...val };
 }, { deep: true });
 
+watch(quickNoteWindowConfig, (val) => {
+  quickNoteConfig.value = { ...val };
+}, { deep: true });
+
 function changeShowPomodoroMiniWindowFn(val: boolean) {
   setShowPomodoroMiniWindow(toRaw(val));
 }
 
 function changeShowMiniNotebookWindowFn(val: boolean) {
   setShowMiniNotebookWindow(toRaw(val));
+}
+
+function changeShowQuickNoteWindowFn(val: boolean) {
+  setShowQuickNoteWindow(toRaw(val));
 }
 
 function applyPomodoroWindow() {
@@ -406,6 +587,17 @@ function applyNotebookWindow() {
     }, 300);
   } else {
     changeShowMiniNotebookWindowFn(true);
+  }
+}
+
+function applyQuickNoteWindow() {
+  if (showQuickNoteWindowCc.value) {
+    changeShowQuickNoteWindowFn(false);
+    setTimeout(() => {
+      changeShowQuickNoteWindowFn(true);
+    }, 300);
+  } else {
+    changeShowQuickNoteWindowFn(true);
   }
 }
 
@@ -433,6 +625,12 @@ const notebookSizeOptions = [
   { label: '1024×768', width: 1024, height: 768 },
 ];
 
+const quickNoteSizeOptions = [
+  { label: '400×300', width: 400, height: 300 },
+  { label: '600×400', width: 600, height: 400 },
+  { label: '800×500', width: 800, height: 500 },
+];
+
 const gapOptions = [10, 20, 30, 50];
 
 const skinOptions = [
@@ -457,6 +655,13 @@ const layoutOptions = [
   { label: '翻页', value: 'flip' },
 ];
 
+const quickNoteLayoutOptions = [
+  { label: '极简卡片', value: 'minimal' },
+  { label: '毛玻璃', value: 'glass' },
+  { label: '双栏侧边', value: 'sidebar' },
+  { label: '经典编辑器', value: 'classic' },
+];
+
 function selectSkin(value: string) {
   pomodoroConfig.value.skin = value;
   pomodoroMiniWindowConfig.value.skin = value;
@@ -469,15 +674,31 @@ function selectLayout(value: string) {
   setStore('window-mode:pomodoro', { ...pomodoroMiniWindowConfig.value });
 }
 
+function selectQuickNoteSkin(value: string) {
+  quickNoteConfig.value.skin = value;
+  quickNoteWindowConfig.value.skin = value;
+  setStore('window-mode:quickNote', { ...quickNoteWindowConfig.value });
+}
+
+function selectQuickNoteLayout(value: string) {
+  quickNoteConfig.value.layout = value;
+  quickNoteWindowConfig.value.layout = value;
+  setStore('window-mode:quickNote', { ...quickNoteWindowConfig.value });
+}
+
 function selectPosition(type: string, value: string) {
   if (type === 'pomodoro') {
     pomodoroConfig.value.position = value;
     pomodoroMiniWindowConfig.value.position = value;
     setStore('window-mode:pomodoro', { ...pomodoroMiniWindowConfig.value });
-  } else {
+  } else if (type === 'notebook') {
     notebookConfig.value.position = value;
     miniNotebookWindowConfig.value.position = value;
     setStore('window-mode:notebook', { ...miniNotebookWindowConfig.value });
+  } else {
+    quickNoteConfig.value.position = value;
+    quickNoteWindowConfig.value.position = value;
+    setStore('window-mode:quickNote', { ...quickNoteWindowConfig.value });
   }
 }
 
@@ -488,12 +709,18 @@ function selectSize(type: string, width: number, height: number) {
     pomodoroMiniWindowConfig.value.width = width;
     pomodoroMiniWindowConfig.value.height = height;
     setStore('window-mode:pomodoro', { ...pomodoroMiniWindowConfig.value });
-  } else {
+  } else if (type === 'notebook') {
     notebookConfig.value.width = width;
     notebookConfig.value.height = height;
     miniNotebookWindowConfig.value.width = width;
     miniNotebookWindowConfig.value.height = height;
     setStore('window-mode:notebook', { ...miniNotebookWindowConfig.value });
+  } else {
+    quickNoteConfig.value.width = width;
+    quickNoteConfig.value.height = height;
+    quickNoteWindowConfig.value.width = width;
+    quickNoteWindowConfig.value.height = height;
+    setStore('window-mode:quickNote', { ...quickNoteWindowConfig.value });
   }
 }
 
@@ -502,16 +729,20 @@ function selectGap(type: string, gap: number) {
     pomodoroConfig.value.gap = gap;
     pomodoroMiniWindowConfig.value.gap = gap;
     setStore('window-mode:pomodoro', { ...pomodoroMiniWindowConfig.value });
-  } else {
+  } else if (type === 'notebook') {
     notebookConfig.value.gap = gap;
     miniNotebookWindowConfig.value.gap = gap;
     setStore('window-mode:notebook', { ...miniNotebookWindowConfig.value });
+  } else {
+    quickNoteConfig.value.gap = gap;
+    quickNoteWindowConfig.value.gap = gap;
+    setStore('window-mode:quickNote', { ...quickNoteWindowConfig.value });
   }
 }
 
 const showModal = ref(false);
 const modalType = ref<'position' | 'size' | 'gap'>('position');
-const modalTarget = ref<'pomodoro' | 'notebook'>('pomodoro');
+const modalTarget = ref<'pomodoro' | 'notebook' | 'quickNote'>('pomodoro');
 
 const customPosition = ref({ x: 0, y: 0 });
 const customSize = ref({ width: 0, height: 0 });
@@ -526,11 +757,11 @@ const modalTitle = computed(() => {
   return titles[modalType.value];
 });
 
-function openCustomModal(target: 'pomodoro' | 'notebook', type: 'position' | 'size' | 'gap') {
+function openCustomModal(target: 'pomodoro' | 'notebook' | 'quickNote', type: 'position' | 'size' | 'gap') {
   modalTarget.value = target;
   modalType.value = type;
   
-  const config = target === 'pomodoro' ? pomodoroConfig.value : notebookConfig.value;
+  const config = target === 'pomodoro' ? pomodoroConfig.value : target === 'notebook' ? notebookConfig.value : quickNoteConfig.value;
   
   if (type === 'position') {
     customPosition.value = { x: 0, y: 0 };
@@ -556,12 +787,18 @@ function confirmCustom() {
         pomodoroMiniWindowConfig.value.x = customPosition.value.x;
         pomodoroMiniWindowConfig.value.y = customPosition.value.y;
         setStore('window-mode:pomodoro', { ...pomodoroMiniWindowConfig.value });
-      } else {
+      } else if (modalTarget.value === 'notebook') {
         notebookConfig.value.position = 'custom';
         miniNotebookWindowConfig.value.position = 'custom';
         miniNotebookWindowConfig.value.x = customPosition.value.x;
         miniNotebookWindowConfig.value.y = customPosition.value.y;
         setStore('window-mode:notebook', { ...miniNotebookWindowConfig.value });
+      } else {
+        quickNoteConfig.value.position = 'custom';
+        quickNoteWindowConfig.value.position = 'custom';
+        quickNoteWindowConfig.value.x = customPosition.value.x;
+        quickNoteWindowConfig.value.y = customPosition.value.y;
+        setStore('window-mode:quickNote', { ...quickNoteWindowConfig.value });
       }
     }
   } else if (modalType.value === 'size') {
@@ -572,12 +809,18 @@ function confirmCustom() {
         pomodoroMiniWindowConfig.value.width = customSize.value.width;
         pomodoroMiniWindowConfig.value.height = customSize.value.height;
         setStore('window-mode:pomodoro', { ...pomodoroMiniWindowConfig.value });
-      } else {
+      } else if (modalTarget.value === 'notebook') {
         notebookConfig.value.width = customSize.value.width;
         notebookConfig.value.height = customSize.value.height;
         miniNotebookWindowConfig.value.width = customSize.value.width;
         miniNotebookWindowConfig.value.height = customSize.value.height;
         setStore('window-mode:notebook', { ...miniNotebookWindowConfig.value });
+      } else {
+        quickNoteConfig.value.width = customSize.value.width;
+        quickNoteConfig.value.height = customSize.value.height;
+        quickNoteWindowConfig.value.width = customSize.value.width;
+        quickNoteWindowConfig.value.height = customSize.value.height;
+        setStore('window-mode:quickNote', { ...quickNoteWindowConfig.value });
       }
     }
   } else {
@@ -586,10 +829,14 @@ function confirmCustom() {
         pomodoroConfig.value.gap = customGap.value;
         pomodoroMiniWindowConfig.value.gap = customGap.value;
         setStore('window-mode:pomodoro', { ...pomodoroMiniWindowConfig.value });
-      } else {
+      } else if (modalTarget.value === 'notebook') {
         notebookConfig.value.gap = customGap.value;
         miniNotebookWindowConfig.value.gap = customGap.value;
         setStore('window-mode:notebook', { ...miniNotebookWindowConfig.value });
+      } else {
+        quickNoteConfig.value.gap = customGap.value;
+        quickNoteWindowConfig.value.gap = customGap.value;
+        setStore('window-mode:quickNote', { ...quickNoteWindowConfig.value });
       }
     }
   }

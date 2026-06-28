@@ -34,6 +34,7 @@ export const RouteNames = {
   CATEGORIZABLE_NOTES: "categorizableNotes",
   ROUTE_SETTING: "routeSetting",
   BROWSER: "browser",
+  QUICK_NOTE: "quickNote",
 } as const;
 
 export type RouteNameType = typeof RouteNames[keyof typeof RouteNames];
@@ -246,6 +247,11 @@ const routers: RouteRecordRaw[] = [
     path: "/miniNotebook",
     name: RouteNames.MINI_NOTEBOOK,
     component: () => import("@/views/miniNotebook/index.vue"),
+  },
+  {
+    path: "/quickNote",
+    name: RouteNames.QUICK_NOTE,
+    component: () => import("@/views/quickNote/index.vue"),
   },
 ];
 

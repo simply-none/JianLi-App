@@ -2,9 +2,10 @@ import { createTable, queryByConditions, upsertData } from "../utils/sql.ts";
 import { win, hideApp, focusAppToTop } from "./mainWindow.ts";
 import moment from "moment";
 import { myDb } from "./sql.ts";
-import { clipboard, ipcMain, globalShortcut } from "electron";
+import { clipboard, ipcMain, globalShortcut, BrowserWindow } from "electron";
 import colors from "colors";
 import { getPomodoroStatus, setPomodoroToWork } from "./store.ts";
+import { createOtherWindow, hideOtherWindow } from "./newWindow.ts";
 
 export const tableName = "register_shortcut";
 
@@ -29,6 +30,45 @@ async function showApp() {
     win.show();
   }
 } 
+
+function toggleQuickNoteWindow() {
+  const quickNoteWin = getQuickNoteWindow();
+  if (quickNoteWin && quickNoteWin.isVisible()) {
+    hideOtherWindow("quickNote");
+  } else {
+    queryByConditions({
+      db: myDb.db,
+      tableName: "basic_info",
+      conditions: {
+        whereStr: "key = 'window-mode:quickNote'",
+      },
+      callback: (err, data) => {
+        if (err) {
+          console.log(err, "err");
+          createOtherWindow("quickNote", { mouseEvents: true });
+          return;
+        }
+        let config = {};
+        if (data && data.length > 0) {
+          try {
+            config = JSON.parse(data[0].value);
+          } catch (e) {
+            console.log(e, "parse error");
+          }
+        }
+        createOtherWindow("quickNote", { ...config, mouseEvents: true });
+      },
+    });
+  }
+}
+
+function getQuickNoteWindow() {
+  const allWindows = BrowserWindow.getAllWindows();
+  return allWindows.find((w) => {
+    const url = w.webContents.getURL();
+    return url.includes("quickNote") && url.includes("isSecondWindow=true");
+  });
+}
 
 export function initRegisterShortcut() {
   createTable({
@@ -68,13 +108,14 @@ export function initRegisterShortcut() {
 
 function globalShortcutFn(item) {
   globalShortcut.register(item.shortcut, () => {
-    // 判断快捷键类型：
-    // 如果是打开匹配页面
     if (item.type === "open_match_page") {
       openMatchPage(item.url);
     }
     else if (item.type == 'show_app') {
       showApp();
+    }
+    else if (item.type == 'open_quick_note') {
+      toggleQuickNoteWindow();
     }
     console.log("Electron loves global shortcuts!");
   });

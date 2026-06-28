@@ -1,5 +1,6 @@
 <template>
   <div class="lucide-icon-box" :class="['lucide-icon-' + padding, 'lucide-icon-' + type]" 
+    :title="title || undefined"
     :style="padding ? {
       padding: getPadding(padding),
       backgroundColor: getLightColor(color, 3),
@@ -17,7 +18,7 @@
 </template>
 
 <script setup lang="ts">
-import { AlarmClock, AlarmClockCheck, AlarmClockMinus, AlarmClockPlus, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, BadgeInfo, Battery, BellPlus, BellRing, Bluetooth, BookMarked, BookmarkPlus, BookOpenText, Building2, Check, ChevronRight, CircleAlert, CircleCheck, CircleX, Clock, Clock1, CloudBackup, CloudSun, CloudSync, CloudUpload, Coffee, Coins, Columns3Cog, Container, Copy, Cpu, Crosshair, Database, EllipsisVertical, Eye, EyeOff, FileBox, Files, FileText, FileType, Folder, FolderCog, FolderOpen, FolderPlus, Folders, Fullscreen, GamepadDirectional, Globe, HardDrive, Haze, Headset, Hourglass, House, Info, Key, Keyboard, LaptopMinimal, LayoutDashboard, LibraryBig, Lightbulb, List, ListChevronsDownUp, ListChevronsUpDown, ListCollapse, Lock, LogOut, MapPin, Monitor, MonitorCheck, MonitorCloud, MonitorCog, MonitorX, MousePointerClick, Notebook, Package2, PaintbrushVertical, Pause, Pen, Pencil, Play, Plug2, PlugZap, Plus, Printer, RefreshCcw, ScanEye, ScrollText, Search, Server, Settings, Share2, ShieldCog, ShieldCogCorner, ShieldQuestionMark, SquarePen, SquarePlay, StarCheck, Sun, TagPlus, Tags, Telescope, Timer, Toolbox, Trash, Trash2, TvMinimal, UnfoldVertical, Upload, UploadCloud, Usb, User, Wand, Webcam, WebcamOff, Wrench, X } from '@lucide/vue';
+import { AlarmClock, AlarmClockCheck, AlarmClockMinus, AlarmClockPlus, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, BadgeInfo, Battery, BellPlus, BellRing, Bluetooth, BookMarked, BookmarkPlus, BookOpenText, Building2, Check, ChevronRight, CircleAlert, CircleCheck, CircleX, Clock, Clock1, CloudBackup, CloudSun, CloudSync, CloudUpload, Coffee, Coins, Columns3Cog, Container, Copy, Cpu, Crosshair, Database, EllipsisVertical, Eye, EyeOff, FileBox, FileCheck, Files, FileText, FileType, Folder, FolderCog, FolderOpen, FolderPlus, Folders, Fullscreen, GamepadDirectional, Globe, Hand, HardDrive, Haze, Headset, Hourglass, House, Info, Key, Keyboard, LaptopMinimal, LayoutDashboard, LibraryBig, Lightbulb, List, ListChevronsDownUp, ListChevronsUpDown, ListCollapse, Lock, LogOut, MapPin, Monitor, MonitorCheck, MonitorCloud, MonitorCog, MonitorX, Moon, MousePointerClick, Move, Notebook, Package2, PaintbrushVertical, Pause, Pen, Pencil, Play, Plug2, PlugZap, Plus, Printer, RefreshCcw, ScanEye, ScrollText, Search, Server, Settings, Share2, ShieldCog, ShieldCogCorner, ShieldQuestionMark, SquarePen, SquarePlay, StarCheck, Sun, SunMoon, TagPlus, Tags, Telescope, Timer, Toolbox, Trash, Trash2, TvMinimal, UnfoldVertical, Upload, UploadCloud, Usb, User, Wand, Webcam, WebcamOff, Wrench, X } from '@lucide/vue';
 import { ref } from 'vue';
 import { getLightColor } from '@/utils';
 withDefaults(
@@ -36,6 +37,8 @@ withDefaults(
     padding?: string | number,
     // box的类型：square, circle, rounded
     type?: 'square' | 'circle' | 'rounded',
+    /** 鼠标悬停提示文字 */
+    title?: string,
   }>(),
   {
     strokeWidth: 2,
@@ -45,6 +48,7 @@ withDefaults(
     name: Fullscreen.name, // 默认图标为 Fullscreen
     padding: 0,
     type: 'square',
+    title: '',
   }
 )
 
@@ -170,6 +174,11 @@ let nameMap = ref<Record<any, any>>({
   FileType,
   Package2,
   ScrollText,
+  Hand,
+  Move,
+  SunMoon,
+  Moon,
+  FileCheck,
 })
 
 function getPadding(padding: string | number): string {
