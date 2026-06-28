@@ -87,8 +87,23 @@ function main() {
     const version = updateVersion();
     const branch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf-8' }).trim();
     console.log(`最终版本号: ${version}`);
-    console.log(`Run \`git push --follow-tags origin ${branch}\` to publish`);
-    console.log(`Run \`git push origin --tags\` to publish`);
+    console.log(`等待 3 秒后自动推送...`);
+    
+    setTimeout(() => {
+      try {
+        console.log(`执行: git push --follow-tags origin ${branch}`);
+        execSync(`git push --follow-tags origin ${branch}`, { stdio: 'inherit' });
+        console.log(`✅ 已推送代码和标签到 ${branch} 分支`);
+        
+        console.log(`执行: git push origin --tags`);
+        execSync('git push origin --tags', { stdio: 'inherit' });
+        console.log(`✅ 已推送所有标签`);
+      } catch (error) {
+        console.error('推送失败:', error.message);
+        process.exit(1);
+      }
+    }, 3 * 1000);
+    
   } catch (error) {
     process.exit(1);
   }
