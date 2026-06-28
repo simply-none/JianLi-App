@@ -2,7 +2,14 @@
 
 变更日志
 
-## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.6.26-rc.1...HEAD) (2026-06-27)
+## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.6.27-rc.1...HEAD) (2026-06-28)
+
+### ✨ Features | 新功能
+
+* 更新几种主页模式主题 ([48f1855](https://github.com/simply-none/JianLi-App/commit/48f185537a83e3854617c7bb68dea7cc4abf0594))
+* 新建浏览器页面功能 ([39ec87e](https://github.com/simply-none/JianLi-App/commit/39ec87ea51f0f33992c94016e74ba2214c6df174))
+
+## [v26.6.27-rc.1](https://github.com/simply-none/JianLi-App/compare/v26.6.26-rc.1...v26.6.27-rc.1) (2026-06-27)
 
 ### ✨ Features | 新功能
 
