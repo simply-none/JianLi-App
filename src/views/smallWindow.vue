@@ -3,7 +3,7 @@
     <div class="window-content">
       <div class="status-section">
         <div class="status-icon">
-          <component :is="statusIcon" />
+          <LucideIcon :name="statusIcon" :size="24" />
         </div>
         <div class="status-info">
           <div class="status-label">{{ statusLabel }}</div>
@@ -28,7 +28,7 @@
     </div>
 
     <div class="setting-btn" @click="toSetting">
-      <Setting />
+      <LucideIcon name="Settings" :size="18" />
     </div>
   </div>
 </template>
@@ -38,7 +38,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import useWorkOrResetStore from '@/store/useWorkOrReset';
 import { storeToRefs } from 'pinia';
-import { Setting, Timer, Coffee } from '@element-plus/icons-vue';
+import LucideIcon from '@/components/LucideIcon.vue';
 
 const router = useRouter();
 const timer = ref(null);
@@ -52,7 +52,7 @@ const {
 } = storeToRefs(useWorkOrResetStore());
 
 const statusIcon = computed(() => {
-  return curStatus.value === 'work' ? Timer : Coffee;
+  return curStatus.value === 'work' ? 'timer' : 'coffee';
 });
 
 const statusClass = computed(() => {

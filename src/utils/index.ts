@@ -117,3 +117,30 @@ export const mergeShortcuts = (origin: ObjectType[], current: ObjectType[]) => {
     return cur ? cur : item
   })
 }
+
+// 路由名称 → Lucide 图标名称映射
+export const iconMap: Record<string, string> = {
+  setting: 'Settings',
+  systemInfo: 'Monitor',
+  routeSetting: 'Settings',
+  homeMode: 'House',
+  windowMode: 'Monitor',
+  pomodoroRecord: 'Timer',
+  appCache: 'FolderOpen',
+  fileRela: 'Plug2',
+  resourceManage: 'Files',
+  clipboard: 'FileText',
+  notebookApp: 'Notebook',
+  categorizableNotes: 'LibraryBig',
+  registerShortcut: 'Lightbulb',
+  safetyProtection: 'Lock',
+  netRequest: 'MapPin',
+  sqlTest: 'Database',
+  flow: 'Share2',
+  function: 'Wrench',
+  weather: 'CloudSun',
+  about: 'Info',
+  browser: 'Globe',
+};
+
+export { getLightColor, getDarkColor } from './color';

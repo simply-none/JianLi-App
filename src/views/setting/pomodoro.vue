@@ -2,11 +2,11 @@
   <div class="pomodoro-set">
     <div class="action-bar">
       <el-button type="primary" @click="tipAll" class="action-btn">
-        <el-icon><Bell /></el-icon>
+        <LucideIcon name="AlarmClockCheck" />
         一键提醒
       </el-button>
       <el-button type="warning" @click="stopAllTip" class="action-btn">
-        <el-icon><BellFilled /></el-icon>
+        <LucideIcon name="AlarmClockMinus" />
         停止所有提醒
       </el-button>
     </div>
@@ -14,11 +14,11 @@
     <div class="section">
       <div class="section-header">
         <h3 class="section-title">
-          <el-icon><Notification /></el-icon>
+          <LucideIcon name="AlarmClockCheck" />
           当前提醒
         </h3>
         <el-button type="primary" size="small" @click="openTipDialog()" class="add-btn">
-          <el-icon><Plus /></el-icon>
+          <LucideIcon name="AlarmClockPlus" />
           新增提醒
         </el-button>
       </div>
@@ -27,7 +27,7 @@
         <div v-for="item in tipTypeCc" :key="item.type + item.gap" class="tip-card">
           <div class="tip-card-left">
             <div class="tip-icon">
-              <el-icon :size="24"><Bell /></el-icon>
+              <LucideIcon name="AlarmClockCheck" :size="24" />
             </div>
             <div class="tip-info">
               <div class="tip-type">{{ getType(item.type) }}</div>
@@ -39,21 +39,21 @@
           </div>
           <div class="tip-card-right">
             <div class="tip-next-time">
-              <el-icon :size="14"><Clock /></el-icon>
+              <LucideIcon name="AlarmClock" :size="14" />
               <span>{{ (nextTime[item.type] || {}).nextTime || '--' }}</span>
             </div>
             <div class="tip-actions">
               <el-button size="small" @click="openTipDialog(item)" class="tip-btn edit">
-                <el-icon><Edit /></el-icon>
+                <LucideIcon name="Pen" />
               </el-button>
               <el-button size="small" @click="() => tip(item)" class="tip-btn start">
-                <el-icon><VideoPlay /></el-icon>
+                <LucideIcon name="Play" />
               </el-button>
               <el-button size="small" @click="() => stopTip(item)" class="tip-btn stop">
-                <el-icon><VideoPause /></el-icon>
+                <LucideIcon name="Pause" />
               </el-button>
               <el-button size="small" @click="delTip(item)" class="tip-btn delete">
-                <el-icon><Delete /></el-icon>
+                <LucideIcon name="Trash" />
               </el-button>
             </div>
           </div>
@@ -61,7 +61,7 @@
       </div>
 
       <div v-else class="empty-state">
-        <el-icon :size="48" class="empty-icon"><Bell /></el-icon>
+        <LucideIcon name="AlarmClockCheck" :size="48" class="empty-icon" />
         <div class="empty-text">暂无提醒</div>
       </div>
     </div>
@@ -69,11 +69,11 @@
     <div class="section">
       <div class="section-header">
         <h3 class="section-title">
-          <el-icon><PriceTag /></el-icon>
+          <LucideIcon name="BellRing" />
           提醒类型
         </h3>
         <el-button type="primary" size="small" @click="openTipOpsDialog()" class="add-btn">
-          <el-icon><Plus /></el-icon>
+          <LucideIcon name="BellPlus" />
           新增类型
         </el-button>
       </div>
@@ -84,11 +84,16 @@
             <div v-if="item.iconType == 'image'" class="icon-image">
               <el-image :src="item.icon" fit="cover">
                 <template #error>
-                  <el-icon><Picture /></el-icon>
+                  <LucideIcon name="image" />
                 </template>
               </el-image>
             </div>
-            <div v-else class="icon-emoji" v-html="item.icon || '<el-icon><Picture /></el-icon>'"></div>
+            <div v-else-if="item.icon" class="icon-emoji">
+              <div v-html="item.icon"></div>
+            </div>
+            <div v-else class="icon-emoji">
+              <LucideIcon name="image" />
+            </div>
           </div>
           <div class="tip-ops-info">
             <div class="tip-ops-label">{{ item.label }}</div>
@@ -96,17 +101,17 @@
           </div>
           <div class="tip-ops-actions">
             <el-button size="small" @click="openTipOpsDialog(item)" class="ops-btn edit">
-              <el-icon><Edit /></el-icon>
+              <LucideIcon name="Pen" />
             </el-button>
             <el-button size="small" @click="delTipOps(item)" class="ops-btn delete">
-              <el-icon><Delete /></el-icon>
+              <LucideIcon name="Trash" />
             </el-button>
           </div>
         </div>
       </div>
 
       <div v-else class="empty-state">
-        <el-icon :size="48" class="empty-icon"><PriceTag /></el-icon>
+        <LucideIcon name="BellRing" :size="48" class="empty-icon" />
         <div class="empty-text">暂无提醒类型</div>
       </div>
     </div>
@@ -154,7 +159,7 @@
             <el-input v-model="tipOpsForm.icon" placeholder="请输入或选择图标" class="icon-input">
               <template #append>
                 <el-button @click="uploadIcon">
-                  <el-icon><Upload /></el-icon>
+                  <LucideIcon name="Upload" />
                 </el-button>
               </template>
             </el-input>
@@ -184,10 +189,7 @@
 import { ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { ElMessage } from 'element-plus';
-import {
-  Bell, BellFilled, Notification, Clock, Edit, VideoPlay, VideoPause,
-  Delete, Plus, PriceTag, Picture, Upload
-} from '@element-plus/icons-vue';
+import LucideIcon from '@/components/LucideIcon.vue';
 import useTips from '@/store/useTips';
 import { send, sendSync } from '@/utils/common';
 

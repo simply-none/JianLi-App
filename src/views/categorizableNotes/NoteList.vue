@@ -13,15 +13,15 @@
         <div class="note-card-header">
           <h3 class="note-title">{{ getTitle(note) }}</h3>
           <el-dropdown trigger="click" @click.stop>
-            <el-icon class="more-icon" @click.stop><MoreFilled /></el-icon>
+            <LucideIcon name="EllipsisVertical" class="more-icon" @click.stop />
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item @click.stop="$emit('edit', note)">
-                  <el-icon><Edit /></el-icon>
+                  <LucideIcon name="Pencil" />
                   编辑
                 </el-dropdown-item>
                 <el-dropdown-item divided @click.stop="handleDelete(note)">
-                  <el-icon><Delete /></el-icon>
+                  <LucideIcon name="Trash2" />
                   删除
                 </el-dropdown-item>
               </el-dropdown-menu>
@@ -53,7 +53,7 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { ElMessage, ElMessageBox, ElLoading } from 'element-plus';
-import { MoreFilled, Edit, Delete } from '@element-plus/icons-vue';
+import LucideIcon from '@/components/LucideIcon.vue';
 import moment from 'moment';
 
 const scrollbarRef = ref(null);

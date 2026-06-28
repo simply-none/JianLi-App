@@ -1,123 +1,137 @@
 <template>
-  <el-form class="fileRela-form" label-width="108" label-position="left">
-    <el-form-item>
-      <template #label>
-        <div class="setting-title">资源管理</div>
-      </template>
-    </el-form-item>
-
-    <el-form-item label="上传文件" class="mode-wrapper">
-      <UploadVue :limit="10" :multiply="true" @updateData="handleChange">
-      </UploadVue>
-    </el-form-item>
-
-    <el-form-item label="文件列表" class="mode-wrapper">
-      <div class="file-list" v-if="imageResourceCc.length > 0">
-        <div
-          v-for="(file, index) in imageResourceCc"
-          :key="index"
-          class="file-card"
-          @click="previewFile(file)"
-        >
-          <div class="file-preview">
-            <el-image
-              v-if="getFileType(file.origin) === 'image'"
-              :src="fileProtocol + file.val"
-              fit="cover"
-              lazy
-            />
-            <FileIcon
-              v-else
-              :type="getFileType(file.origin)"
-              :size="64"
-            />
+  <layout-vue>
+    <template #main>
+      <div class="resource-page">
+        <!-- Section 1: 上传文件 -->
+        <div class="section">
+          <h2 class="section-title">
+            <LucideIcon name="UploadCloud" />
+            上传文件
+          </h2>
+          <div class="upload-card">
+            <UploadVue :limit="10" :multiply="true" @updateData="handleChange" />
           </div>
-          <div class="file-info">
-            <div class="file-name">{{ file.origin }}</div>
-            <div class="file-meta">
-              <span class="file-type" :class="getFileType(file.origin)">
-                {{ getFileTypeLabel(file.origin) }}
-              </span>
+        </div>
+
+        <!-- Section 2: 文件列表 -->
+        <div class="section">
+          <h2 class="section-title">
+            <LucideIcon name="FolderOpen" />
+            文件列表
+          </h2>
+          <div class="file-list-card">
+            <div class="file-list" v-if="imageResourceCc.length > 0">
+              <div
+                v-for="(file, index) in imageResourceCc"
+                :key="index"
+                class="file-card"
+                @click="previewFile(file)"
+              >
+                <div class="file-preview">
+                  <el-image
+                    v-if="getFileType(file.origin) === 'image'"
+                    :src="fileProtocol + file.val"
+                    fit="cover"
+                    lazy
+                  />
+                  <FileIcon
+                    v-else
+                    :type="getFileType(file.origin)"
+                    :size="64"
+                  />
+                </div>
+                <div class="file-info">
+                  <div class="file-name">{{ file.origin }}</div>
+                  <div class="file-meta">
+                    <span class="file-type" :class="getFileType(file.origin)">
+                      {{ getFileTypeLabel(file.origin) }}
+                    </span>
+                  </div>
+                </div>
+                <div class="file-actions">
+                  <el-button
+                    size="small"
+                    type="primary"
+                    @click.stop="openFileLocation(file)"
+                  >
+                    打开位置
+                  </el-button>
+                  <el-button
+                    size="small"
+                    type="danger"
+                    @click.stop="deleteFile(file, index as number)"
+                  >
+                    删除
+                  </el-button>
+                </div>
+              </div>
+            </div>
+            <div v-else class="empty-state">
+              <el-empty description="暂无上传文件" />
             </div>
           </div>
-          <div class="file-actions">
-            <el-button
-              size="small"
-              type="primary"
-              @click.stop="openFileLocation(file)"
-            >
-              打开位置
-            </el-button>
-            <el-button
-              size="small"
-              type="danger"
-              @click.stop="deleteFile(file, index as number)"
-            >
-              删除
-            </el-button>
-          </div>
         </div>
-      </div>
-      <div v-else class="empty-state">
-        <el-empty description="暂无上传文件" />
-      </div>
-    </el-form-item>
 
-    <el-dialog
-      v-model="previewVisible"
-      :title="previewTitle"
-      width="80%"
-      top="5vh"
-    >
-      <div class="preview-content">
-        <el-image
-          v-if="previewFileType === 'image'"
-          :src="fileProtocol + previewFileData?.val"
-          fit="contain"
-          style="max-height: 70vh"
-        />
-        <video
-          v-else-if="previewFileType === 'video'"
-          :src="fileProtocol + previewFileData?.val"
-          controls
-          style="max-width: 100%; max-height: 70vh"
-        />
-        <audio
-          v-else-if="previewFileType === 'audio'"
-          :src="fileProtocol + previewFileData?.val"
-          controls
-          style="width: 100%"
-        />
-        <pre v-else-if="previewFileType === 'text'" class="text-preview">
-          {{ previewContent }}
-        </pre>
-        <iframe
-          v-else-if="previewFileType === 'pdf'"
-          :src="fileProtocol + previewFileData?.val"
-          style="width: 100%; height: 70vh"
-          frameborder="0"
-        />
-        <div v-else class="other-preview">
-          <FileIcon :type="previewFileType" :size="64" class="mb-4" />
-          <div>该文件类型不支持预览</div>
-          <div class="mt-2 text-muted">文件名：{{ previewFileData?.origin }}</div>
-          <el-button
-            type="primary"
-            class="mt-4"
-            @click="openFileLocation(previewFileData)"
-          >
-            打开文件位置
-          </el-button>
-        </div>
+        <!-- 预览对话框 -->
+        <el-dialog
+          v-model="previewVisible"
+          :title="previewTitle"
+          width="80%"
+          top="5vh"
+        >
+          <div class="preview-content">
+            <el-image
+              v-if="previewFileType === 'image'"
+              :src="fileProtocol + previewFileData?.val"
+              fit="contain"
+              style="max-height: 70vh"
+            />
+            <video
+              v-else-if="previewFileType === 'video'"
+              :src="fileProtocol + previewFileData?.val"
+              controls
+              style="max-width: 100%; max-height: 70vh"
+            />
+            <audio
+              v-else-if="previewFileType === 'audio'"
+              :src="fileProtocol + previewFileData?.val"
+              controls
+              style="width: 100%"
+            />
+            <pre v-else-if="previewFileType === 'text'" class="text-preview">
+              {{ previewContent }}
+            </pre>
+            <iframe
+              v-else-if="previewFileType === 'pdf'"
+              :src="fileProtocol + previewFileData?.val"
+              style="width: 100%; height: 70vh"
+              frameborder="0"
+            />
+            <div v-else class="other-preview">
+              <FileIcon :type="previewFileType" :size="64" class="mb-4" />
+              <div>该文件类型不支持预览</div>
+              <div class="mt-2 text-muted">文件名：{{ previewFileData?.origin }}</div>
+              <el-button
+                type="primary"
+                class="mt-4"
+                @click="openFileLocation(previewFileData)"
+              >
+                打开文件位置
+              </el-button>
+            </div>
+          </div>
+        </el-dialog>
       </div>
-    </el-dialog>
-  </el-form>
+    </template>
+  </layout-vue>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, computed, onMounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import LayoutVue from '@/components/layout.vue';
+import LucideIcon from '@/components/LucideIcon.vue';
 import FileIcon from '@/components/FileIcon.vue';
 import useCacheSetStore from '@/store/useCacheSet';
 import useResourceManage from '@/store/useResourceManage';
@@ -268,184 +282,217 @@ function handleChange(data: any) {
 </script>
 
 <style scoped lang="scss">
-.fileRela-form {
-  padding: 24px;
+:deep(.main) {
+  padding: 0 !important;
+}
+
+.resource-page {
+  width: 100%;
+  min-height: 100%;
   box-sizing: border-box;
-  height: 100%;
-  overflow: auto;
-}
 
-.setting-title {
-  padding-left: 3px;
-  border-bottom: 6px solid var(--color-primary);
-  width: 100%;
-  font-weight: 600;
-  color: var(--text-primary);
-}
+  .section {
+    margin-bottom: 28px;
 
-.file-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 16px;
-  width: 100%;
-}
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 0 0 16px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid var(--color-primary);
 
-.file-card {
-  background: var(--bg-card);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
-  overflow: hidden;
-  cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
-  display: flex;
-  flex-direction: column;
-
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      .el-icon {
+        color: var(--color-primary);
+      }
+    }
   }
-}
 
-.file-preview {
-  width: 100%;
-  height: 120px;
-  background: var(--bg-base);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
+  .upload-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-card);
+    padding: 20px;
+    transition: all 0.2s ease;
 
-  img {
+    &:hover {
+      border-color: var(--color-primary);
+      box-shadow: var(--shadow-card);
+    }
+  }
+
+  .file-list-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-card);
+    padding: 20px;
+  }
+
+  .file-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
     width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-}
-
-
-
-.file-info {
-  padding: 12px;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.file-name {
-  font-size: 0.86rem;
-  font-weight: 500;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.file-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.72rem;
-}
-
-.file-type {
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-weight: 500;
-
-  &.image {
-    background: rgba(99, 102, 241, 0.1);
-    color: var(--color-primary);
   }
 
-  &.video {
-    background: rgba(239, 68, 68, 0.1);
-    color: #ef4444;
+  .file-card {
+    background: var(--bg-base);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-card);
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    display: flex;
+    flex-direction: column;
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
   }
 
-  &.audio {
-    background: rgba(139, 92, 246, 0.1);
-    color: #8b5cf6;
+  .file-preview {
+    width: 100%;
+    height: 120px;
+    background: var(--bg-base);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
   }
 
-  &.text {
-    background: rgba(34, 197, 94, 0.1);
-    color: #22c55e;
-  }
-
-  &.pdf {
-    background: rgba(239, 68, 68, 0.1);
-    color: #ef4444;
-  }
-
-  &.font {
-    background: rgba(245, 158, 11, 0.1);
-    color: #f59e0b;
-  }
-
-  &.archive {
-    background: rgba(6, 182, 212, 0.1);
-    color: #06b6d4;
-  }
-
-  &.document {
-    background: rgba(59, 130, 246, 0.1);
-    color: #3b82f6;
-  }
-
-  &.other {
-    background: rgba(156, 163, 175, 0.1);
-    color: var(--text-muted);
-  }
-}
-
-.file-size {
-  color: var(--text-muted);
-}
-
-.file-actions {
-  padding: 0 12px 12px;
-  display: flex;
-  gap: 8px;
-
-  button {
+  .file-info {
+    padding: 12px;
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
   }
-}
 
-.empty-state {
-  padding: 40px 0;
-}
+  .file-name {
+    font-size: 0.86rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
-.preview-content {
-  padding: 20px;
-  max-height: 70vh;
-  overflow: auto;
-}
+  .file-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.72rem;
+  }
 
-.text-preview {
-  background: var(--bg-base);
-  padding: 16px;
-  border-radius: var(--radius-card);
-  font-size: 0.82rem;
-  line-height: 1.6;
-  color: var(--text-primary);
-  white-space: pre-wrap;
-  word-break: break-all;
-  max-height: 70vh;
-  overflow: auto;
-}
+  .file-type {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 500;
 
-.other-preview {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 0;
-  color: var(--text-secondary);
+    &.image {
+      background: rgba(99, 102, 241, 0.1);
+      color: var(--color-primary);
+    }
 
-  .text-muted {
+    &.video {
+      background: rgba(239, 68, 68, 0.1);
+      color: #ef4444;
+    }
+
+    &.audio {
+      background: rgba(139, 92, 246, 0.1);
+      color: #8b5cf6;
+    }
+
+    &.text {
+      background: rgba(34, 197, 94, 0.1);
+      color: #22c55e;
+    }
+
+    &.pdf {
+      background: rgba(239, 68, 68, 0.1);
+      color: #ef4444;
+    }
+
+    &.font {
+      background: rgba(245, 158, 11, 0.1);
+      color: #f59e0b;
+    }
+
+    &.archive {
+      background: rgba(6, 182, 212, 0.1);
+      color: #06b6d4;
+    }
+
+    &.document {
+      background: rgba(59, 130, 246, 0.1);
+      color: #3b82f6;
+    }
+
+    &.other {
+      background: rgba(156, 163, 175, 0.1);
+      color: var(--text-muted);
+    }
+  }
+
+  .file-size {
     color: var(--text-muted);
+  }
+
+  .file-actions {
+    padding: 0 12px 12px;
+    display: flex;
+    gap: 8px;
+
+    button {
+      flex: 1;
+    }
+  }
+
+  .empty-state {
+    padding: 40px 0;
+  }
+
+  .preview-content {
+    padding: 20px;
+    max-height: 70vh;
+    overflow: auto;
+  }
+
+  .text-preview {
+    background: var(--bg-base);
+    padding: 16px;
+    border-radius: var(--radius-card);
+    font-size: 0.82rem;
+    line-height: 1.6;
+    color: var(--text-primary);
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 70vh;
+    overflow: auto;
+  }
+
+  .other-preview {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 0;
+    color: var(--text-secondary);
+
+    .text-muted {
+      color: var(--text-muted);
+    }
   }
 }
 </style>

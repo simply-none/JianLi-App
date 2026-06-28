@@ -10,7 +10,7 @@
         @select="handleCitySelect"
       >
         <template #prefix>
-          <el-icon class="search-icon"><Search /></el-icon>
+          <LucideIcon name="Search" class="search-icon" />
         </template>
         <template #suffix>
           <el-button v-if="searchQuery" icon="Close" circle size="small" @click="searchQuery = ''" />
@@ -30,7 +30,7 @@
 
     <div v-if="historyList.length > 0" class="history-section">
       <div class="section-title">
-        <el-icon><Clock /></el-icon>
+        <LucideIcon name="Clock1" />
         <span>搜索历史</span>
         <el-button text size="small" @click="clearHistory">清除</el-button>
       </div>
@@ -48,7 +48,7 @@
     </div>
 
     <div class="location-badge">
-      <el-icon><MapLocation /></el-icon>
+      <LucideIcon name="MapPin" />
       <span>{{ currentCity }}</span>
       <el-button text size="small" @click="locateAndLoad">重新定位</el-button>
     </div>
@@ -56,7 +56,7 @@
     <div v-if="weatherData" class="weather-content">
       <div class="weather-card main-card">
         <div class="weather-icon-large">
-          <component :is="weatherIcon" />
+          <LucideIcon :name="weatherIconName" />
         </div>
         <div class="weather-info">
           <div class="temperature">{{ weatherData.temperature }}°C</div>
@@ -67,28 +67,28 @@
 
       <div class="weather-grid">
         <div class="weather-card info-card">
-          <div class="info-icon"><component :is="Sunny" /></div>
+          <div class="info-icon"><LucideIcon name="Sun" /></div>
           <div class="info-content">
             <div class="info-label">体感温度</div>
             <div class="info-value">{{ weatherData.feelsLike }}°C</div>
           </div>
         </div>
         <div class="weather-card info-card">
-          <div class="info-icon"><component :is="Cloudy" /></div>
+          <div class="info-icon"><LucideIcon name="Cloud" /></div>
           <div class="info-content">
             <div class="info-label">湿度</div>
             <div class="info-value">{{ weatherData.humidity }}%</div>
           </div>
         </div>
         <div class="weather-card info-card">
-          <div class="info-icon"><component :is="Cloudy" /></div>
+          <div class="info-icon"><LucideIcon name="Cloud" /></div>
           <div class="info-content">
             <div class="info-label">风力</div>
             <div class="info-value">{{ weatherData.windDirection }} {{ weatherData.windSpeed }}</div>
           </div>
         </div>
         <div class="weather-card info-card">
-          <div class="info-icon"><component :is="Calendar" /></div>
+          <div class="info-icon"><LucideIcon name="Calendar" /></div>
           <div class="info-content">
             <div class="info-label">能见度</div>
             <div class="info-value">{{ weatherData.visibility }}km</div>
@@ -98,13 +98,13 @@
 
       <div class="forecast-section">
         <div class="section-title">
-          <el-icon><Calendar /></el-icon>
+          <LucideIcon name="Calendar" />
           <span>未来预报</span>
         </div>
         <div class="forecast-list">
           <div v-for="day in weatherData.forecast" :key="day.date" class="forecast-item">
             <div class="forecast-date">{{ day.date }}</div>
-            <component :is="getForecastIcon(day.icon)" class="forecast-icon" />
+            <LucideIcon :name="getForecastIconName(day.icon)" class="forecast-icon" />
             <div class="forecast-temp">
               <span class="high">{{ day.high }}°</span>
               <span class="low">{{ day.low }}°</span>
@@ -158,10 +158,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import {
-  Search, Clock, MapLocation, Cloudy, Sunny, Calendar,
-} from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import LucideIcon from '@/components/LucideIcon.vue'
 
 interface WeatherData {
   temperature: number
@@ -202,38 +200,38 @@ const debugActiveTab = ref('logs')
 const debugLogs = ref<DebugLog[]>([])
 const useCache = ref(true)
 
-const weatherIconMap: Record<string, any> = {
-  'Sunny': Sunny,
-  'Clear': Sunny,
-  'Partly': Cloudy,
-  'Cloudy': Cloudy,
-  'Clouds': Cloudy,
-  'Rain': Cloudy,
-  'Snow': Cloudy,
-  'Thunder': Cloudy,
-  'Storm': Cloudy,
-  'Fog': Cloudy,
-  'Mist': Cloudy,
-  'Haze': Cloudy,
-  'Drizzle': Cloudy,
-  '晴': Sunny,
-  '多云': Cloudy,
-  '阴': Cloudy,
-  '雨': Cloudy,
-  '雪': Cloudy,
-  '雷': Cloudy,
-  '雾': Cloudy,
-  '冰雹': Cloudy,
-  '风': Cloudy,
+const weatherIconMap: Record<string, string> = {
+  'Sunny': 'sun',
+  'Clear': 'sun',
+  'Partly': 'cloud',
+  'Cloudy': 'cloud',
+  'Clouds': 'cloud',
+  'Rain': 'cloud',
+  'Snow': 'cloud',
+  'Thunder': 'cloud',
+  'Storm': 'cloud',
+  'Fog': 'cloud',
+  'Mist': 'cloud',
+  'Haze': 'cloud',
+  'Drizzle': 'cloud',
+  '晴': 'sun',
+  '多云': 'cloud',
+  '阴': 'cloud',
+  '雨': 'cloud',
+  '雪': 'cloud',
+  '雷': 'cloud',
+  '雾': 'cloud',
+  '冰雹': 'cloud',
+  '风': 'cloud',
 }
 
-const weatherIcon = computed(() => {
-  if (!weatherData.value) return Cloudy
+const weatherIconName = computed(() => {
+  if (!weatherData.value) return 'cloud'
   const desc = weatherData.value.description
-  for (const [key, icon] of Object.entries(weatherIconMap)) {
-    if (desc.includes(key)) return icon
+  for (const [key, iconName] of Object.entries(weatherIconMap)) {
+    if (desc.includes(key)) return iconName
   }
-  return Cloudy
+  return 'cloud'
 })
 
 function addDebugLog(message: string, type: 'info' | 'success' | 'error' | 'warning' = 'info') {
@@ -437,35 +435,35 @@ function formatUpdateTime(timestamp: number): string {
   return new Date(timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 }
 
-function getForecastIcon(icon: string) {
-  const iconMap: Record<string, any> = {
-    'Sunny': Sunny,
-    'Clear': Sunny,
-    'Mostly Sunny': Sunny,
-    'Sun': Sunny,
-    'Cloudy': Cloudy,
-    'Clouds': Cloudy,
-    'Partly Cloudy': Cloudy,
-    'Partly': Cloudy,
-    'Rain': Cloudy,
-    'Rainy': Cloudy,
-    'Snow': Cloudy,
-    'Snowy': Cloudy,
-    'Thunder': Cloudy,
-    'Thunderstorm': Cloudy,
-    'Storm': Cloudy,
-    'Drizzle': Cloudy,
-    'Mist': Cloudy,
-    'Fog': Cloudy,
-    'Haze': Cloudy,
-    'Smoke': Cloudy,
-    'Dust': Cloudy,
-    'Sand': Cloudy,
-    'Ash': Cloudy,
-    'Squalls': Cloudy,
-    'Tornado': Cloudy,
+function getForecastIconName(icon: string): string {
+  const iconMap: Record<string, string> = {
+    'Sunny': 'Sun',
+    'Clear': 'Sun',
+    'Mostly Sunny': 'Sun',
+    'Sun': 'Sun',
+    'Cloudy': 'Cloud',
+    'Clouds': 'Cloud',
+    'Partly Cloudy': 'Cloud',
+    'Partly': 'Cloud',
+    'Rain': 'Cloud',
+    'Rainy': 'Cloud',
+    'Snow': 'Cloud',
+    'Snowy': 'Cloud',
+    'Thunder': 'Cloud',
+    'Thunderstorm': 'Cloud',
+    'Storm': 'Cloud',
+    'Drizzle': 'Cloud',
+    'Mist': 'Cloud',
+    'Fog': 'Cloud',
+    'Haze': 'Cloud',
+    'Smoke': 'Cloud',
+    'Dust': 'Cloud',
+    'Sand': 'Cloud',
+    'Ash': 'Cloud',
+    'Squalls': 'Cloud',
+    'Tornado': 'Cloud',
   }
-  return iconMap[icon] || Cloudy
+  return iconMap[icon] || 'Cloud'
 }
 
 onMounted(() => {

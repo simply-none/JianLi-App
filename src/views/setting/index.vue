@@ -4,7 +4,7 @@
       <div class="setting-page">
         <div class="section">
           <h2 class="section-title">
-            <el-icon><Timer /></el-icon>
+            <LucideIcon name="Timer" />
             番茄钟设置
           </h2>
 
@@ -12,10 +12,8 @@
             <div class="status-left">
               <div class="status-indicator-wrapper">
                 <div class="status-indicator" :class="curStatusC.value === 'rest' ? 'rest' : 'work'">
-                  <el-icon :size="20" class="status-icon">
-                    <Coffee v-if="curStatusC.value === 'rest'" />
-                    <Timer v-else />
-                  </el-icon>
+                  <LucideIcon name="Coffee" :size="20" class="status-icon" v-if="curStatusC.value === 'rest'" />
+                  <LucideIcon name="Timer" :size="20" class="status-icon" v-else />
                 </div>
                 <div class="status-ring" :class="curStatusC.value === 'rest' ? 'rest' : 'work'"></div>
               </div>
@@ -26,12 +24,12 @@
             </div>
             <div class="status-right">
               <div class="status-time">
-                <el-icon :size="16"><Clock /></el-icon>
+                <LucideIcon name="Building2" :size="16" />
                 <span>{{ nextWorkTime }}</span>
                 <span class="time-label">下次工作</span>
               </div>
               <div class="status-time">
-                <el-icon :size="16"><Coffee /></el-icon>
+                <LucideIcon name="Coffee" :size="16" />
                 <span>{{ nextRestTime }}</span>
                 <span class="time-label">下次休息</span>
               </div>
@@ -41,7 +39,7 @@
           <div class="time-cards">
             <div class="time-card work-time-card">
               <div class="time-card-icon">
-                <el-icon :size="24"><Timer /></el-icon>
+                <LucideIcon name="Building2" :size="24" />
               </div>
               <div class="time-card-content">
                 <div class="time-card-title">工作时间</div>
@@ -68,7 +66,7 @@
 
             <div class="time-card rest-time-card">
               <div class="time-card-icon">
-                <el-icon :size="24"><Coffee /></el-icon>
+                <LucideIcon name="Coffee" :size="24" />
               </div>
               <div class="time-card-content">
                 <div class="time-card-title">休息时间</div>
@@ -96,7 +94,7 @@
 
           <div class="action-bar">
             <el-button type="primary" @click="() => changeEffectFn()" class="action-btn">
-              <el-icon><Star /></el-icon>
+              <LucideIcon name="StarCheck" />
               立即生效
             </el-button>
           </div>
@@ -104,7 +102,7 @@
 
         <div class="section">
           <h2 class="section-title">
-            <el-icon><CircleCheck /></el-icon>
+            <LucideIcon name="Hourglass" />
             番茄钟可视化
           </h2>
           <div class="visual-card">
@@ -114,7 +112,7 @@
 
         <div class="section">
           <h2 class="section-title">
-            <el-icon><Lock /></el-icon>
+            <LucideIcon name="Haze" />
             强制设置
           </h2>
 
@@ -136,7 +134,7 @@
 
           <div class="force-action-card">
             <el-button type="primary" @click="() => forceWorkWithTimes({ isUpdateStartTime: true })" class="force-btn">
-              <el-icon><Lightning /></el-icon>
+              <LucideIcon name="Telescope" />
               强制开始工作
             </el-button>
             <el-tag size="small" type="info" class="force-badge">
@@ -147,7 +145,7 @@
 
         <div class="section">
           <h2 class="section-title">
-            <el-icon><Box /></el-icon>
+            <LucideIcon name="FolderCog" />
             缓存设置
           </h2>
           <div class="cache-card">
@@ -157,7 +155,7 @@
 
         <div class="section">
           <h2 class="section-title">
-            <el-icon><SetUp /></el-icon>
+            <LucideIcon name="Settings" />
             其他设置
           </h2>
 
@@ -218,28 +216,28 @@
 
           <div class="action-grid">
             <div class="action-card work-action">
-              <el-icon class="action-icon"><Aim /></el-icon>
+              <LucideIcon name="Crosshair"  :padding="12" color="#6366f1" type="rounded"/>
               <div class="action-title">开始工作</div>
               <div class="action-desc">立即开始工作模式</div>
               <el-button type="primary" @click="() => startWorkFn()" class="action-button">开始</el-button>
             </div>
 
             <div class="action-card rest-action">
-              <el-icon class="action-icon"><Coffee /></el-icon>
+              <LucideIcon name="Coffee" :padding="12" color="#67c23a" type="rounded" />
               <div class="action-title">开始休息</div>
               <div class="action-desc">立即开始休息模式</div>
               <el-button type="success" @click="() => startRestFn({ isUpdateCloseTime: true })" class="action-button">休息</el-button>
             </div>
 
             <div class="action-card clear-action">
-              <el-icon class="action-icon"><Delete /></el-icon>
+              <LucideIcon name="Trash" :padding="12" color="#e6a23c" type="rounded" />
               <div class="action-title">清空数据</div>
               <div class="action-desc">清除所有系统数据</div>
               <el-button type="warning" @click="clearStore" class="action-button">清空</el-button>
             </div>
 
             <div class="action-card quit-action">
-              <el-icon class="action-icon"><Open /></el-icon>
+              <LucideIcon name="LogOut" :padding="12" color="#f56c6c" type="rounded" />
               <div class="action-title">退出应用</div>
               <div class="action-desc">退出当前应用程序</div>
               <el-button type="danger" @click="quitApp" class="action-button">退出</el-button>
@@ -253,12 +251,8 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, nextTick } from 'vue';
-import {
-  Timer, Clock, Coffee, Star, CircleCheck, Lock, Lightning,
-  Box, SetUp, Aim, Delete, Open
-} from '@element-plus/icons-vue';
-
 import LayoutVue from '@/components/layout.vue';
+import LucideIcon from '@/components/LucideIcon.vue';
 import useWorkOrResetStore from '@/store/useWorkOrReset';
 import { useWorkOrRest } from '@/hooks/useWorkOrReset';
 import useClearStore from '@/hooks/useClearStore';

@@ -239,7 +239,60 @@ const disableMouseClickThroughFn = () => {
 
 onMounted(() => {
   loadConfig()
+  // 主动获取番茄钟数据
+  fetchPomodoroData()
 })
+
+async function fetchPomodoroData() {
+  try {
+    // 使用 get-store-all 获取 base-info 表的所有数据
+    const data = await window.ipcRenderer.invoke('get-store-all', 'base-info')
+    
+    if (data && typeof data === 'object') {
+      // 处理数据并更新状态
+      handlePomodoroData(data)
+    }
+  } catch (e) {
+    console.log('获取番茄钟数据失败:', e)
+  }
+}
+
+function handlePomodoroData(data: any) {
+  // 设置当前状态
+  curStatusC.value = { value: data.curStatus?.value || 'work' }
+  
+  // 计算下一个状态切换时间
+  if (data.curStatus?.value === 'work') {
+    nextTime.value = moment(data.startWorkTime + data.workTimeGapUnit * data.workTimeGap).format('YYYY-MM-DD HH:mm:ss')
+  } else {
+    nextTime.value = moment(data.closeWorkTime + data.restTimeGapUnit * data.restTimeGap).format('YYYY-MM-DD HH:mm:ss')
+  }
+  
+  // 计算进度
+  if (data.curStatus?.value === 'work') {
+    const startTime = data.startWorkTime
+    const duration = data.workTimeGapUnit * data.workTimeGap
+    if (startTime && duration && duration > 0) {
+      const elapsed = moment().valueOf() - startTime
+      const progress = 100 - (elapsed / duration) * 100
+      progressPercentValue.value = Math.max(0, Math.min(100, progress))
+    }
+  } else {
+    const startTime = data.closeWorkTime
+    const duration = data.restTimeGapUnit * data.restTimeGap
+    if (startTime && duration && duration > 0) {
+      const elapsed = moment().valueOf() - startTime
+      const progress = 100 - (elapsed / duration) * 100
+      progressPercentValue.value = Math.max(0, Math.min(100, progress))
+    }
+  }
+  
+  // 同步到 sysData
+  sysData.value = data
+  
+  // 启动倒计时
+  countDown()
+}
 </script>
 
 <style lang="scss">

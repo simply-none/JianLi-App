@@ -6,7 +6,7 @@
         <p>记录您的复制历史，随时查看和管理</p>
       </div>
       <el-button type="danger" @click="clearAll">
-        <el-icon><Delete /></el-icon>
+        <LucideIcon name="Trash2" />
         清空全部
       </el-button>
     </div>
@@ -40,11 +40,11 @@
               <span class="card-time">{{ formatTime(item.create_time) }}</span>
               <div class="card-actions">
                 <el-button type="primary" size="small" @click="copyToClipboard(item.text)">
-                  <el-icon><CopyDocument /></el-icon>
+                  <LucideIcon name="Copy" :size="12"/>
                   复制
                 </el-button>
                 <el-button type="danger" size="small" @click="deleteClipboardItem(item)">
-                  <el-icon><Delete /></el-icon>
+                  <LucideIcon name="Trash" :size="12"/>
                   删除
                 </el-button>
               </div>
@@ -62,8 +62,8 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, ElLoading } from 'element-plus'
-import { Search, Delete, CopyDocument } from '@element-plus/icons-vue'
 import moment from 'moment'
+import LucideIcon from '@/components/LucideIcon.vue'
 
 const scrollbarRef = ref(null)
 const clipboardItems = ref([])

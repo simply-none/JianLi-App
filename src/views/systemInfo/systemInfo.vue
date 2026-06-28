@@ -7,15 +7,15 @@
       </div>
       <div class="header-actions">
         <el-button type="primary" v-if="!isMonitoring" @click="startMonitor">
-          <el-icon><VideoPlay /></el-icon>
+          <LucideIcon name="Webcam" :size="16" />
           开始监控
         </el-button>
         <el-button v-if="isMonitoring" @click="stopMonitor">
-          <el-icon><VideoPause /></el-icon>
+          <LucideIcon name="WebcamOff" :size="16" />
           停止监控
         </el-button>
         <el-button @click="toggleExtended">
-          <el-icon><Expand v-if="!showExtended" /><Fold v-else /></el-icon>
+          <LucideIcon :name="showExtended ? 'ListChevronsDownUp' : 'ListChevronsUpDown'" :size="16" />
           {{ showExtended ? '收起全部' : '展示所有' }}
         </el-button>
       </div>
@@ -27,7 +27,7 @@
         <div class="metric-card">
           <div class="metric-header">
             <div class="metric-title">
-              <el-icon class="metric-icon cpu-icon"><Cpu /></el-icon>
+              <LucideIcon class="metric-icon cpu-icon" name="Cpu" :size="20" />
               <span class="metric-label">CPU 使用率</span>
             </div>
             <el-tag size="small" :type="isMonitoring ? 'success' : 'info'">
@@ -40,7 +40,7 @@
         <div class="metric-card">
           <div class="metric-header">
             <div class="metric-title">
-              <el-icon class="metric-icon memory-icon"><Coin /></el-icon>
+              <LucideIcon class="metric-icon memory-icon" name="HardDrive" :size="20" />
               <span class="metric-label">内存使用</span>
             </div>
             <el-tag size="small" type="info">{{ memoryPercent }}%</el-tag>
@@ -54,7 +54,7 @@
         <div class="metric-card">
           <div class="metric-header">
             <div class="metric-title">
-              <el-icon class="metric-icon network-icon"><Connection /></el-icon>
+              <LucideIcon class="metric-icon network-icon" name="Globe" :size="20" />
               <span class="metric-label">网络流量</span>
             </div>
           </div>
@@ -75,7 +75,7 @@
     <div class="info-sections">
       <div class="info-section">
         <h3 class="section-title">
-          <el-icon><Monitor /></el-icon>
+          <LucideIcon name="MonitorCog" :size="16" />
           系统信息
         </h3>
         <div class="info-card">
@@ -108,7 +108,7 @@
 
       <div class="info-section">
         <h3 class="section-title">
-          <el-icon><Coin /></el-icon>
+          <LucideIcon name="HardDrive" :size="16" />
           内存信息
         </h3>
         <div class="info-card">
@@ -133,13 +133,13 @@
 
       <div class="info-section">
         <h3 class="section-title">
-          <el-icon><Files /></el-icon>
+          <LucideIcon name="Folders" :size="16" />
           磁盘信息
         </h3>
         <div class="card-grid">
           <div v-for="(disk, index) in summary.disks" :key="index" class="mini-card">
             <div class="mini-card-icon">
-              <el-icon><Files /></el-icon>
+              <LucideIcon name="Folder" :size="20" />
             </div>
             <div class="mini-card-content">
               <div class="mini-card-title">{{ disk.name || disk.device }}</div>
@@ -151,13 +151,13 @@
 
       <div class="info-section" v-if="summary.graphics?.controllers?.length">
         <h3 class="section-title">
-          <el-icon><MagicStick /></el-icon>
+          <LucideIcon name="Server" :size="16" />
           显卡信息
         </h3>
         <div class="card-grid">
           <div v-for="(gpu, index) in summary.graphics.controllers" :key="index" class="mini-card">
             <div class="mini-card-icon gpu-icon">
-              <el-icon><MagicStick /></el-icon>
+              <LucideIcon name="Server" :size="20" />
             </div>
             <div class="mini-card-content">
               <div class="mini-card-title">{{ gpu.model }}</div>
@@ -169,13 +169,13 @@
 
       <div class="info-section">
         <h3 class="section-title">
-          <el-icon><Position /></el-icon>
+          <LucideIcon name="PlugZap" :size="16" />
           网络接口
         </h3>
         <div class="card-grid">
           <div v-for="(net, index) in summary.network" :key="index" class="mini-card">
             <div class="mini-card-icon network-card-icon">
-              <el-icon><Position /></el-icon>
+              <LucideIcon name="Plug2" :size="20" />
             </div>
             <div class="mini-card-content">
               <div class="mini-card-title">{{ net.iface }}</div>
@@ -188,14 +188,14 @@
 
     <div v-show="showExtended" class="extended-section">
       <h3 class="section-title">
-        <el-icon><MoreFilled /></el-icon>
+        <LucideIcon name="BookOpenText" :size="16" />
         更多系统信息
       </h3>
       
       <div class="extended-grid">
         <div v-if="extended.bios?.vendor" class="extended-card">
           <div class="extended-card-header">
-            <el-icon><Monitor /></el-icon>
+            <LucideIcon name="LaptopMinimal" :size="16" />
             <span>BIOS 信息</span>
           </div>
           <div class="extended-card-body">
@@ -220,7 +220,7 @@
 
         <div v-if="extended.baseboard?.manufacturer" class="extended-card">
           <div class="extended-card-header">
-            <el-icon><Monitor /></el-icon>
+            <LucideIcon name="TvMinimal" :size="16" />
             <span>主板信息</span>
           </div>
           <div class="extended-card-body">
@@ -245,7 +245,7 @@
 
         <div v-if="extended.battery?.length" class="extended-card">
           <div class="extended-card-header">
-            <el-icon><Coin /></el-icon>
+            <LucideIcon name="Battery" :size="16" />
             <span>电池信息</span>
           </div>
           <div class="extended-card-body">
@@ -276,13 +276,13 @@
 
         <div v-if="extended.audio?.length" class="extended-card">
           <div class="extended-card-header">
-            <el-icon><Headset /></el-icon>
+            <LucideIcon name="Headset" :size="16" />
             <span>音频设备</span>
           </div>
           <div class="extended-card-body">
             <div v-for="(dev, idx) in extended.audio" :key="idx" class="device-item">
               <div class="device-icon">
-                <el-icon><Headset /></el-icon>
+                <LucideIcon name="Headset" :size="18" />
               </div>
               <div class="device-info">
                 <div class="device-name">{{ dev.name }}</div>
@@ -294,13 +294,13 @@
 
         <div v-if="extended.bluetooth?.length" class="extended-card">
           <div class="extended-card-header">
-            <el-icon><Mic /></el-icon>
+            <LucideIcon name="Bluetooth" :size="16" />
             <span>蓝牙设备</span>
           </div>
           <div class="extended-card-body">
             <div v-for="(dev, idx) in extended.bluetooth" :key="idx" class="device-item">
               <div class="device-icon">
-                <el-icon><Mic /></el-icon>
+                <LucideIcon name="Bluetooth" :size="18" />
               </div>
               <div class="device-info">
                 <div class="device-name">{{ dev.name }}</div>
@@ -312,13 +312,13 @@
 
         <div v-if="extended.usb?.length" class="extended-card">
           <div class="extended-card-header">
-            <el-icon><Iphone /></el-icon>
+            <LucideIcon name="Usb" :size="16" />
             <span>USB 设备</span>
           </div>
           <div class="extended-card-body">
             <div v-for="(dev, idx) in extended.usb" :key="idx" class="device-item">
               <div class="device-icon">
-                <el-icon><Iphone /></el-icon>
+                <LucideIcon name="Usb" :size="18" />
               </div>
               <div class="device-info">
                 <div class="device-name">{{ dev.name }}</div>
@@ -330,13 +330,13 @@
 
         <div v-if="extended.printer?.length" class="extended-card">
           <div class="extended-card-header">
-            <el-icon><Printer /></el-icon>
+            <LucideIcon name="Printer" :size="16" />
             <span>打印机</span>
           </div>
           <div class="extended-card-body">
             <div v-for="(prt, idx) in extended.printer" :key="idx" class="device-item">
               <div class="device-icon">
-                <el-icon><Printer /></el-icon>
+                <LucideIcon name="Printer" :size="18" />
               </div>
               <div class="device-info">
                 <div class="device-name">{{ prt.name }}</div>
@@ -348,7 +348,7 @@
 
         <div v-if="Object.keys(extended.docker).length" class="extended-card">
           <div class="extended-card-header">
-            <el-icon><Monitor /></el-icon>
+            <LucideIcon name="Container" :size="16" />
             <span>Docker 信息</span>
           </div>
           <div class="extended-card-body">
@@ -373,7 +373,7 @@
 
         <div v-if="Object.keys(extended.versions).length" class="extended-card wide-card">
           <div class="extended-card-header">
-            <el-icon><Monitor /></el-icon>
+            <LucideIcon name="GamepadDirectional" :size="16" />
             <span>软件版本</span>
           </div>
           <div class="extended-card-body">
@@ -416,13 +416,13 @@
 
         <div v-if="extended.users?.length" class="extended-card">
           <div class="extended-card-header">
-            <el-icon><User /></el-icon>
+            <LucideIcon name="User" :size="16" />
             <span>在线用户</span>
           </div>
           <div class="extended-card-body">
             <div v-for="(user, idx) in extended.users" :key="idx" class="device-item">
               <div class="device-icon">
-                <el-icon><User /></el-icon>
+                <LucideIcon name="User" :size="18" />
               </div>
               <div class="device-info">
                 <div class="device-name">{{ user.user }}</div>
@@ -438,11 +438,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import {
-  Cpu, Coin, Connection, Files, Monitor,
-  MagicStick, Position, VideoPlay, VideoPause,
-  Expand, Fold, MoreFilled, Headset, Mic, Iphone, Printer, User
-} from '@element-plus/icons-vue';
+import LucideIcon from '@/components/LucideIcon.vue';
 
 const summary = ref<any>({
   os: {},

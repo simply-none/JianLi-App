@@ -13,18 +13,21 @@ import './lib/heti.min.css'
 
 import { initDevtools } from './utils/devtools'
 
+import LucideIcon from './components/LucideIcon.vue'
+
 const isSecondWindow = location.href.includes('isSecondWindow=true')
 if (!isSecondWindow) {
-  initDevtools() 
+  initDevtools()
 }
 
 const pinia = createPinia()
 
-createApp(App)
-  .use(ElementPlus)
-  .use(router)
-  .use(pinia)
-  .mount('#app')
-  .$nextTick(() => {
-    postMessage({ payload: 'removeLoading' }, '*')
-  })
+let app = createApp(App)
+app.use(ElementPlus)
+app.use(router)
+app.use(pinia)
+app.component('LucideIcon', LucideIcon)
+
+app.mount('#app').$nextTick(() => {
+  postMessage({ payload: 'removeLoading' }, '*')
+})

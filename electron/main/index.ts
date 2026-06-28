@@ -19,6 +19,7 @@ import { initLog } from "./module/log.ts";
 import { initAutoUpdate } from "./module/autoUpdate.ts";
 import { initWeather } from "./module/weather.ts";
 import { initLocation } from "./module/location.ts";
+import { initBing } from "./module/bing.ts";
 
 registerJlocalProtocolBefore()
 
@@ -76,6 +77,8 @@ async function createWindow() {
   initWeather();
   // 定位模块
   initLocation();
+  // Bing 图片模块
+  initBing();
 }
 
 app.whenReady().then(async () => {

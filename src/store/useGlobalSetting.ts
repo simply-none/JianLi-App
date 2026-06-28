@@ -209,14 +209,6 @@ export default defineStore("global-setting", () => {
 
     const originHomeModeOps: HomeModeOps[] = [
       {
-        label: "透明诗词板",
-        value: "0",
-        primaryColor: "#ffffff",
-        secondaryColor: "#000000",
-        opacity: 0.8,
-        newField: 'newField',
-      },
-      {
         label: "模拟Windows更新",
         value: "1",
         primaryColor: "#000000",
@@ -224,11 +216,74 @@ export default defineStore("global-setting", () => {
         opacity: 0.8,
       },
       {
-        label: "vscode代码背景",
-        value: "2",
-        primaryColor: "#000000",
+        label: "极简时钟",
+        value: "4",
+        primaryColor: "#ffffff",
+        secondaryColor: "#0a0a0a",
+        opacity: 0.9,
+      },
+      {
+        label: "GitHub主题",
+        value: "5",
+        primaryColor: "#c9d1d9",
+        secondaryColor: "#0d1117",
+        opacity: 0.95,
+      },
+      {
+        label: "励志名言",
+        value: "6",
+        primaryColor: "#ffffff",
+        secondaryColor: "#2c3e50",
+        opacity: 0.9,
+      },
+      {
+        label: "终端主题",
+        value: "7",
+        primaryColor: "#00ff00",
+        secondaryColor: "#1e1e1e",
+        opacity: 0.95,
+      },
+      {
+        label: "音乐播放器",
+        value: "8",
+        primaryColor: "#ffffff",
+        secondaryColor: "#1a1a2e",
+        opacity: 0.85,
+      },
+      {
+        label: "Windows桌面",
+        value: "9",
+        primaryColor: "#ffffff",
+        secondaryColor: "#0078d4",
+        opacity: 0.9,
+      },
+      {
+        label: "macOS桌面",
+        value: "10",
+        primaryColor: "#ffffff",
+        secondaryColor: "#1c1c1e",
+        opacity: 0.9,
+      },
+      {
+        label: "新闻阅读",
+        value: "11",
+        primaryColor: "#333333",
+        secondaryColor: "#f5f5f5",
+        opacity: 0.9,
+      },
+      {
+        label: "代码编辑",
+        value: "12",
+        primaryColor: "#d4d4d4",
+        secondaryColor: "#1e1e1e",
+        opacity: 0.95,
+      },
+      {
+        label: "搜索引擎",
+        value: "13",
+        primaryColor: "#333333",
         secondaryColor: "#ffffff",
-        opacity: 0.8,
+        opacity: 0.85,
       },
       {
         label: "自定义",
@@ -236,7 +291,7 @@ export default defineStore("global-setting", () => {
         primaryColor: "#000000",
         secondaryColor: "#ffffff",
         opacity: 0.8,
-      }
+      },
     ];
     // 对象值变量
     const objectVars = [

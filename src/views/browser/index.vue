@@ -14,11 +14,11 @@
             >
               <span class="tab-title">{{ tab.title }}</span>
               <span v-if="tabs.length > 1" class="tab-close" @click.stop="closeTab(tab.id)">
-                <el-icon><Close /></el-icon>
+                <LucideIcon name="X" />
               </span>
             </div>
             <div class="tab-add" @click="createTab()">
-              <el-icon><Plus /></el-icon>
+              <LucideIcon name="Plus" />
             </div>
           </div>
           <div class="header-actions">
@@ -48,7 +48,7 @@
                   @keyup.enter="handleSearch"
                 >
                   <template #prefix>
-                    <el-icon><Search /></el-icon>
+                    <LucideIcon name="Search" />
                   </template>
                 </el-input>
                 <el-button type="primary" size="large" @click="handleSearch" class="search-btn">
@@ -93,8 +93,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
 import { storeToRefs } from "pinia";
-import { Search, Close, Plus } from "@element-plus/icons-vue";
 import LayoutVue from "@/components/layout.vue";
+import LucideIcon from "@/components/LucideIcon.vue";
 import useBrowser, { searchEngineList } from "@/store/useBrowser";
 
 const browserStore = useBrowser();

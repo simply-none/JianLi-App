@@ -8,7 +8,7 @@
       <div class="file-card">
         <div class="card-header">
           <h3 class="card-title">
-            <el-icon><Upload /></el-icon>
+            <el-icon><LucideIcon name="UploadCloud" /></el-icon>
             文件上传测试
           </h3>
         </div>
@@ -20,7 +20,7 @@
       <div class="file-card">
         <div class="card-header">
           <h3 class="card-title">
-            <el-icon><Files /></el-icon>
+            <el-icon><LucideIcon name="Files" /></el-icon>
             文件转移
           </h3>
         </div>
@@ -32,21 +32,21 @@
                 <el-input v-model="copyOrigin" placeholder="请选择" disabled :title="copyOrigin">
                   <template #append>
                     <el-button @click="selectCopyPath" class="path-btn">
-                      <el-icon><Folder /></el-icon>
+                      <el-icon><LucideIcon name="Folder" /></el-icon>
                       选择目录
                     </el-button>
                   </template>
                 </el-input>
               </div>
               <div class="arrow-wrap">
-                <el-icon class="arrow-icon"><ArrowRight /></el-icon>
+                <el-icon class="arrow-icon"><LucideIcon name="ArrowRight" /></el-icon>
               </div>
               <div class="path-item">
                 <span class="path-label">目标位置</span>
                 <el-input v-model="copyTarget" placeholder="请选择" disabled :title="copyTarget">
                   <template #append>
                     <el-button @click="selectCopyTarget" class="path-btn">
-                      <el-icon><Folder /></el-icon>
+                      <el-icon><LucideIcon name="Folder" /></el-icon>
                       选择目录
                     </el-button>
                   </template>
@@ -102,7 +102,7 @@
 
             <div class="copy-btn-wrap">
               <el-button type="primary" @click="copyDir" class="copy-btn">
-                <el-icon><Files /></el-icon>
+                <el-icon><LucideIcon name="Files" /></el-icon>
                 复制转移
               </el-button>
             </div>
@@ -115,7 +115,7 @@
       <div class="file-card">
         <div class="card-header">
           <h3 class="card-title">
-            <el-icon><SetUp /></el-icon>
+            <el-icon><LucideIcon name="GamepadDirectional" /></el-icon>
             默认应用
           </h3>
         </div>
@@ -129,7 +129,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { Upload, Files, Folder, ArrowRight, SetUp } from '@element-plus/icons-vue';
+import LucideIcon from '@/components/LucideIcon.vue';
 import UploadVue from '@/components/upload.vue';
 import FileScanVue from './fileScan.vue';
 import DefaultApp from './defaultApp.vue';

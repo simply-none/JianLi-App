@@ -17,7 +17,7 @@
               :class="{ 'is-active': activeIndex === item.name }"
               @click="toggleRoute(item)"
             >
-              <el-icon :size="17" class="menu-icon"><component :is="item.meta?.icon" /></el-icon>
+              <LucideIcon :name="item.meta?.icon as string" :size="17" class="menu-icon" />
               <span class="menu-text">{{ item.meta?.title || '占位' }}</span>
             </div>
           </div>
@@ -72,6 +72,7 @@
 <script setup lang="ts">
 import Layout from '@/components/layout.vue';
 import Header from '@/components/header.vue';
+import LucideIcon from '@/components/LucideIcon.vue';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter, type RouteRecordNameGeneric, type RouteRecordRaw } from 'vue-router';
 import { layoutRouters } from '@/router';
@@ -80,44 +81,12 @@ import useRuntimeVariables from '@/store/useRuntimeVariables';
 import useTheme, { themeOptions, type ThemeName } from '@/store/useTheme';
 import { watch } from 'vue';
 import { getStore } from '@/utils/common';
-import {
-  Setting, Monitor, House, Grid, Timer,
-  FolderOpened, Connection, Files, Document,
-  Notebook, Opportunity, Lock, MagicStick,
-  Position, Coin, Share, Tools, InfoFilled,
-  Collection, MapLocation,
-} from '@element-plus/icons-vue';
-
-// 路由名称 → 图标映射
-const iconMap: Record<string, any> = {
-  setting: Setting,
-  systemInfo: Monitor,
-  routeSetting: Setting,
-  homeMode: House,
-  windowMode: Grid,
-  pomodoroRecord: Timer,
-  appCache: FolderOpened,
-  fileRela: Connection,
-  resourceManage: Files,
-  clipboard: Document,
-  notebookApp: Notebook,
-  categorizableNotes: Collection,
-  registerShortcut: Opportunity,
-  safetyProtection: Lock,
-  styleBeauty: MagicStick,
-  netRequest: Position,
-  sqlTest: Coin,
-  flow: Share,
-  function: Tools,
-  weather: Document,
-  about: InfoFilled,
-  browser: MapLocation,
-};
+import { iconMap } from '@/utils';
 
 // 为每个路由注入图标到 meta
 const enrichedRouters = layoutRouters.map(r => ({
   ...r,
-  meta: { ...r.meta, icon: iconMap[r.name as string] || Setting },
+  meta: { ...r.meta, icon: iconMap[r.name as string] || 'settings' },
 }));
 
 // 菜单分组定义
@@ -127,7 +96,7 @@ interface MenuGroup {
 }
 
 const groupDefs: MenuGroup[] = [
-  { label: '通用', names: ['setting', 'homeMode', 'windowMode', 'styleBeauty'] },
+  { label: '通用', names: ['setting', 'homeMode', 'windowMode'] },
   { label: '系统与资源', names: ['systemInfo', 'routeSetting', 'appCache', 'fileRela', 'resourceManage', 'safetyProtection'] },
   { label: '效率工具', names: ['pomodoroRecord', 'clipboard', 'notebookApp', 'categorizableNotes', 'registerShortcut', 'function', 'weather', 'browser'] },
   { label: '开发工具', names: ['netRequest', 'sqlTest', 'flow'] },

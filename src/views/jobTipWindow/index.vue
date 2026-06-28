@@ -1,7 +1,7 @@
 <template>
   <div class="pomodoroMiniWindow">
     <div class="close" @click="hideWindow">
-      <el-icon><CircleCloseFilled style="color: #e3e3e3;"/></el-icon>
+      <LucideIcon name="circle-close" style="color: #e3e3e3;" :size="16" />
     </div>
     <div class="tip-box">
       <div class="tip-item" v-for="(jobItem, index) in jobTips" @click="jobDone(jobItem, index)">
@@ -31,8 +31,8 @@
 
 <script setup>
 import { onMounted, ref, onBeforeUnmount, computed } from 'vue';
-import { CircleCloseFilled } from '@element-plus/icons-vue'
 import moment from 'moment';
+import LucideIcon from '@/components/LucideIcon.vue';
 import { throttle } from '@/utils/index';
 import { ElMessage } from 'element-plus';
 const curStatusC = ref({})

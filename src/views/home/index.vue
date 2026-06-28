@@ -5,7 +5,7 @@
       <div class="setting">
         <el-popover placement="right" :width="100" trigger="contextmenu" :auto-close="3000">
           <template #reference>
-            <el-image :src="SettingSvg" @click="toSetting"></el-image>
+            <LucideIcon class="setting-icon" name="Settings" @click="toSetting" :padding="12" :size="24" />
           </template>
           <div class="home-btns">
             <el-button type="primary" v-if="curStatusC.value != 'screen'" @click="startLockedFn">
@@ -29,11 +29,18 @@ import { useRouter, useRoute } from 'vue-router';
 import { storeToRefs } from 'pinia';
 
 import custom from '@/views/home/custom.vue';
-import ShowImage from '@/views/home/showImage.vue';
-import TranslucentPoemDisplay from '@/views/home/translucentPoemDisplay.vue';
 import ImitationWindowsUpdate from '@/views/home/imitationWindowsUpdate.vue';
+import MinimalClock from '@/views/home/minimalClock.vue';
+import GitHubTheme from '@/views/home/githubTheme.vue';
+import MotivationalQuote from '@/views/home/motivationalQuote.vue';
+import TerminalTheme from '@/views/home/terminalTheme.vue';
+import MusicPlayerTheme from '@/views/home/musicPlayerTheme.vue';
+import WindowsDesktop from '@/views/home/windowsDesktop.vue';
+import MacOSDesktop from '@/views/home/macOSDesktop.vue';
+import NewsReader from '@/views/home/newsReader.vue';
+import CodeEditorTheme from '@/views/home/codeEditorTheme.vue';
+import SearchEngine from '@/views/home/searchEngine.vue';
 import LayoutVue from '@/components/layout.vue';
-import SettingSvg from '@/assets/set.svg'
 import useGlobalSetting from '@/store/useGlobalSetting';
 import useSafetyProtection from '@/store/useSafetyProtection';
 import { useWorkOrRest } from '@/hooks/useWorkOrReset';
@@ -44,22 +51,46 @@ const isHiddenHomeBtns = ref(false)
 const { homeModeC, curStatusC } = storeToRefs(useGlobalSetting());
 const { startScreenSaverFn, closeScreenSaverFn } = useWorkOrRest();
 const { isPwdSame } = useSafetyProtection();
-const curComponent = shallowRef(TranslucentPoemDisplay)
+const curComponent = shallowRef(custom)
 
 watch(() => homeModeC.value[curStatusC.value.value], (n, o) => {
   console.log(n, o, 'homeModeC')
   switch (n.value) {
-    case '0':
-      curComponent.value = TranslucentPoemDisplay
-      break;
     case '1':
       curComponent.value = ImitationWindowsUpdate
       break;
-    case '2':
-      curComponent.value = ShowImage
-      break;
     case '3':
       curComponent.value = custom
+      break;
+    case '4':
+      curComponent.value = MinimalClock
+      break;
+    case '5':
+      curComponent.value = GitHubTheme
+      break;
+    case '6':
+      curComponent.value = MotivationalQuote
+      break;
+    case '7':
+      curComponent.value = TerminalTheme
+      break;
+    case '8':
+      curComponent.value = MusicPlayerTheme
+      break;
+    case '9':
+      curComponent.value = WindowsDesktop
+      break;
+    case '10':
+      curComponent.value = MacOSDesktop
+      break;
+    case '11':
+      curComponent.value = NewsReader
+      break;
+    case '12':
+      curComponent.value = CodeEditorTheme
+      break;
+    case '13':
+      curComponent.value = SearchEngine
       break;
   }
 }, { immediate: true, deep: true })
@@ -133,18 +164,34 @@ function toSetting() {
     }
   }
 }
-.setting .el-image {
+
+.setting {
+  z-index: 9999;
   position: fixed;
   width: 24px;
   height: 24px;
   padding: 12px;
   top: 0;
   right: 0;
-  cursor: pointer;
+
+  .setting-icon {
+    position: fixed;
+    width: 24px;
+    height: 24px;
+    padding: 12px;
+    top: 0;
+    right: 0;
+    cursor: pointer;
+    visibility: hidden;
+  }
 
   &:hover {
     box-shadow: 0px 0px 15px #818181;
     border-radius: 50%;
+
+    .setting-icon {
+      visibility: visible;
+    }
   }
 }
 

@@ -4,7 +4,7 @@
       <div class="setting-page">
         <div class="section">
           <h2 class="section-title">
-            <el-icon><Monitor /></el-icon>
+            <LucideIcon name="Monitor" :size="16" />
             番茄钟小窗口
           </h2>
 
@@ -17,6 +17,7 @@
                 @click="changeShowPomodoroMiniWindowFn(true)"
                 class="toggle-btn"
               >
+                <LucideIcon name="MonitorCheck" :size="14" />
                 开启
               </el-button>
               <el-button 
@@ -25,6 +26,7 @@
                 @click="changeShowPomodoroMiniWindowFn(false)"
                 class="toggle-btn"
               >
+                <LucideIcon name="MonitorX" :size="14" />
                 关闭
               </el-button>
               <el-button 
@@ -32,7 +34,7 @@
                 @click="applyPomodoroWindow"
                 class="apply-btn"
               >
-                <el-icon><Plus /></el-icon>
+                <LucideIcon name="MonitorCloud" :size="14" />
                 应用
               </el-button>
             </div>
@@ -41,7 +43,7 @@
           <div class="window-card">
             <div class="config-section">
               <div class="config-label">
-                <el-icon :size="16"><Position /></el-icon>
+                <LucideIcon name="MousePointerClick" :size="16" />
                 位置选择
               </div>
               <div class="position-wrapper">
@@ -63,7 +65,7 @@
                   @click="openCustomModal('pomodoro', 'position')"
                   class="custom-btn"
                 >
-                  <el-icon :size="14"><EditPen /></el-icon>
+                  <LucideIcon name="Columns3Cog" :size="14" />
                   自定义
                 </el-button>
               </div>
@@ -71,7 +73,7 @@
 
             <div class="config-section">
               <div class="config-label">
-                <el-icon :size="16"><FullScreen /></el-icon>
+                <LucideIcon name="MonitorCog" :size="16" />
                 窗口尺寸
               </div>
               <div class="size-row">
@@ -91,7 +93,7 @@
                   @click="openCustomModal('pomodoro', 'size')"
                   class="config-option custom-option"
                 >
-                  <el-icon :size="14"><EditPen /></el-icon>
+                  <LucideIcon name="Columns3Cog" :size="14" />
                   自定义
                 </el-button>
               </div>
@@ -99,7 +101,7 @@
 
             <div class="config-section">
               <div class="config-label">
-                <el-icon :size="16"><Position /></el-icon>
+                <LucideIcon name="UnfoldVertical" :size="16" />
                 边缘间隙
               </div>
               <div class="gap-row">
@@ -119,7 +121,7 @@
                   @click="openCustomModal('pomodoro', 'gap')"
                   class="config-option custom-option"
                 >
-                  <el-icon :size="14"><EditPen /></el-icon>
+                  <LucideIcon name="Columns3Cog" :size="14" />
                   自定义
                 </el-button>
               </div>
@@ -127,7 +129,7 @@
 
             <div class="config-section">
               <div class="config-label">
-                <el-icon :size="16"><SetUp /></el-icon>
+                <LucideIcon name="PaintbrushVertical" :size="16" />
                 皮肤主题
               </div>
               <div class="theme-row">
@@ -146,7 +148,7 @@
 
             <div class="config-section">
               <div class="config-label">
-                <el-icon :size="16"><Grid /></el-icon>
+                <LucideIcon name="LayoutDashboard" :size="16" />
                 排版样式
               </div>
               <div class="layout-row">
@@ -167,7 +169,7 @@
 
         <div class="section">
           <h2 class="section-title">
-            <el-icon><Notebook /></el-icon>
+            <LucideIcon name="LibraryBig" :size="16" />
             笔记本小窗口
           </h2>
 
@@ -180,6 +182,7 @@
                 @click="changeShowMiniNotebookWindowFn(true)"
                 class="toggle-btn"
               >
+                <LucideIcon name="MonitorCheck" :size="14" />
                 开启
               </el-button>
               <el-button 
@@ -188,6 +191,7 @@
                 @click="changeShowMiniNotebookWindowFn(false)"
                 class="toggle-btn"
               >
+                <LucideIcon name="MonitorX" :size="14" />
                 关闭
               </el-button>
               <el-button 
@@ -195,7 +199,7 @@
                 @click="applyNotebookWindow"
                 class="apply-btn"
               >
-                <el-icon><Plus /></el-icon>
+                <LucideIcon name="MonitorCloud" :size="14" />
                 应用
               </el-button>
             </div>
@@ -204,7 +208,7 @@
           <div class="window-card">
             <div class="config-section">
               <div class="config-label">
-                <el-icon :size="16"><Position /></el-icon>
+                <LucideIcon name="MousePointerClick" :size="16" />
                 位置选择
               </div>
               <div class="position-wrapper">
@@ -226,7 +230,7 @@
                   @click="openCustomModal('notebook', 'position')"
                   class="custom-btn"
                 >
-                  <el-icon :size="14"><EditPen /></el-icon>
+                  <LucideIcon name="Columns3Cog" :size="14" />
                   自定义
                 </el-button>
               </div>
@@ -234,7 +238,7 @@
 
             <div class="config-section">
               <div class="config-label">
-                <el-icon :size="16"><FullScreen /></el-icon>
+                <LucideIcon name="MonitorCog" :size="16" />
                 窗口尺寸
               </div>
               <div class="size-row">
@@ -254,7 +258,7 @@
                   @click="openCustomModal('notebook', 'size')"
                   class="config-option custom-option"
                 >
-                  <el-icon :size="14"><EditPen /></el-icon>
+                  <LucideIcon name="Columns3Cog" :size="14" />
                   自定义
                 </el-button>
               </div>
@@ -262,7 +266,7 @@
 
             <div class="config-section">
               <div class="config-label">
-                <el-icon :size="16"><Position /></el-icon>
+                <LucideIcon name="UnfoldVertical" :size="16" />
                 边缘间隙
               </div>
               <div class="gap-row">
@@ -282,7 +286,7 @@
                   @click="openCustomModal('notebook', 'gap')"
                   class="config-option custom-option"
                 >
-                  <el-icon :size="14"><EditPen /></el-icon>
+                  <LucideIcon name="Columns3Cog" :size="14" />
                   自定义
                 </el-button>
               </div>
@@ -295,7 +299,7 @@
             <div class="modal-header">
               {{ modalTitle }}
               <el-button type="text" @click="closeModal" class="close-btn">
-                <el-icon><Close /></el-icon>
+                <LucideIcon name="close" :size="16" />
               </el-button>
             </div>
             <div class="modal-body">
@@ -340,8 +344,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, toRaw } from 'vue';
 import { storeToRefs } from 'pinia';
-import { Monitor, Notebook, Position, FullScreen, EditPen, Close, Plus, SetUp, Grid } from '@element-plus/icons-vue';
 import LayoutVue from '@/components/layout.vue';
+import LucideIcon from '@/components/LucideIcon.vue';
 import useWindowMode from '@/store/useWindowMode';
 import { setStore } from '@/utils/common';
 

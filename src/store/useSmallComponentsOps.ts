@@ -62,6 +62,39 @@ export default defineStore("small-components-ops", () => {
       { name: 'distanceToNextStatus' },
     ],
     custom: [],
+    // 新增10种模式
+    minimalClock: [
+      { name: 'bigDateTime' },
+    ],
+    githubTheme: [
+      { name: 'bigDateTime' },
+    ],
+    motivationalQuote: [
+      { name: 'bigDateTime' },
+      { name: 'poet' },
+      { name: 'tips' },
+    ],
+    terminalTheme: [
+      { name: 'bigDateTime' },
+    ],
+    musicPlayerTheme: [
+      { name: 'bigDateTime' },
+    ],
+    windowsDesktop: [
+      { name: 'bigDateTime' },
+    ],
+    macOSDesktop: [
+      { name: 'bigDateTime' },
+    ],
+    newsReader: [
+      { name: 'bigDateTime' },
+    ],
+    codeEditorTheme: [
+      { name: 'bigDateTime' },
+    ],
+    searchEngine: [
+      { name: 'bigDateTime' },
+    ],
   });
   const defaultSmallComponentC = computed(() => defaultSmallComponent.value);
 

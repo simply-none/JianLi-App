@@ -2,7 +2,7 @@
   <div class="home-mode">
     <div class="section-header">
       <h3 class="section-title">
-        <el-icon><Grid /></el-icon>
+        <LucideIcon name="FileBox" :size="16" />
         主页模式
       </h3>
     </div>
@@ -10,7 +10,7 @@
     <div class="mode-cards">
       <div class="mode-card work-card">
         <div class="mode-card-icon">
-          <el-icon :size="28"><Sunny /></el-icon>
+          <LucideIcon name="Sun" :size="28" />
         </div>
         <div class="mode-card-content">
           <div class="mode-card-title">日常模式</div>
@@ -23,7 +23,7 @@
 
       <div class="mode-card rest-card">
         <div class="mode-card-icon">
-          <el-icon :size="28"><Lock /></el-icon>
+          <LucideIcon name="Lock" :size="28" />
         </div>
         <div class="mode-card-content">
           <div class="mode-card-title">锁定模式</div>
@@ -36,7 +36,7 @@
 
       <div class="mode-card screen-card">
         <div class="mode-card-icon">
-          <el-icon :size="28"><Monitor /></el-icon>
+          <LucideIcon name="Monitor" :size="28" />
         </div>
         <div class="mode-card-content">
           <div class="mode-card-title">屏保模式</div>
@@ -53,7 +53,7 @@
 <script setup lang="ts">
 import { ref, watch, toRaw } from 'vue';
 import { storeToRefs } from 'pinia';
-import { Sunny, Lock, Monitor, Grid } from '@element-plus/icons-vue';
+import LucideIcon from '@/components/LucideIcon.vue';
 import useGlobalSetting from '@/store/useGlobalSetting';
 import type { StatusMode } from '@/store/useGlobalSetting';
 

@@ -19,7 +19,6 @@ export const RouteNames = {
   NOTEBOOKAPP: "notebookApp",
   REGISTER_SHORTCUT: "registerShortcut",
   SAFETY_PROTECTION: "safetyProtection",
-  STYLE_BEAUTY: "styleBeauty",
   NET_REQUEST: "netRequest",
   SQL_TEST: "sqlTest",
   FLOW: "flow",
@@ -152,14 +151,6 @@ export const layoutRouters: RouteRecordRaw[] = [
     component: () => import("@/views/safetyProtection/index.vue"),
     meta: {
       title: "安全防护",
-    },
-  },
-  {
-    path: "/styleBeauty",
-    name: RouteNames.STYLE_BEAUTY,
-    component: () => import("@/views/styleBeauty/index.vue"),
-    meta: {
-      title: "样式美化",
     },
   },
   {

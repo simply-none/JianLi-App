@@ -4,7 +4,7 @@
       <div class="json-node-row" @click="shouldExpand(value) && toggleExpand(key)">
         <div class="json-node-left">
           <span class="expand-icon" :class="{ expanded: isExpanded(key) }">
-            <el-icon v-if="shouldExpand(value)"><ArrowRight /></el-icon>
+            <LucideIcon v-if="shouldExpand(value)" name="ChevronRight" :size="16" color="#2c3e50" />
             <span v-else class="empty-space"></span>
           </span>
           <span class="json-key">{{ formatKey(key, value) }}</span>
@@ -24,7 +24,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { ArrowRight } from '@element-plus/icons-vue';
+import LucideIcon from '@/components/LucideIcon.vue';
 
 const props = defineProps<{
   data: ObjectType;

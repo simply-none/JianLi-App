@@ -6,15 +6,11 @@
       </div>
       <div class="header-right">
         <el-button type="primary" @click="addContent">
-          <el-icon>
-            <Plus />
-          </el-icon>
+          <LucideIcon name="Plus" />
           新建笔记
         </el-button>
         <el-button type="primary" @click="getNoteBookData">
-          <el-icon>
-            <Management />
-          </el-icon>
+          <LucideIcon name="ListCollapse" />
           展示所有笔记
         </el-button>
       </div>
@@ -26,15 +22,11 @@
           <div class="sidebar-section">
             <div class="section-header">
               <button @click="prevMonth" class="nav-btn">
-                <el-icon>
-                  <ArrowLeft />
-                </el-icon>
+                <LucideIcon name="ArrowLeft" />
               </button>
               <span class="month-title">{{ currentMonthLabel }}</span>
               <button @click="nextMonth" class="nav-btn">
-                <el-icon>
-                  <ArrowRight />
-                </el-icon>
+                <LucideIcon name="ArrowRight" />
               </button>
             </div>
             <div class="weekdays">
@@ -66,9 +58,7 @@
               <div class="card-header">
                 <span class="note-time">{{ formatTime(note.updateTime) }}</span>
                 <button @click.stop="deleteContent(note)" class="delete-btn">
-                  <el-icon>
-                    <Delete />
-                  </el-icon>
+                  <LucideIcon name="Trash" />
                 </button>
               </div>
               <div class="card-body">
@@ -81,9 +71,7 @@
 
             <div v-if="noteBookData.length === 0" class="empty-notes">
               <div class="empty-icon">
-                <el-icon>
-                  <Files />
-                </el-icon>
+                <LucideIcon name="FileText" />
               </div>
               <p>暂无笔记</p>
               <button @click="addContent">创建第一条笔记</button>
@@ -95,22 +83,16 @@
       <main class="editor-section">
         <div class="editor-header">
           <div class="editor-title">
-            <el-icon>
-              <EditPen />
-            </el-icon>
+            <LucideIcon name="Pencil" />
             <span>{{ curstatusLabel }}</span>
           </div>
           <div class="editor-actions">
             <el-button type="warning" @click="addContent">
-              <el-icon>
-                <Refresh />
-              </el-icon>
+              <LucideIcon name="BookmarkPlus" />
               新建
             </el-button>
             <el-button type="primary" @click="saveNoteBook">
-              <el-icon>
-                <DocumentChecked />
-              </el-icon>
+              <LucideIcon name="BookMarked" />
               保存
             </el-button>
           </div>
@@ -127,7 +109,7 @@
 import { ref, computed, watch, onMounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import { ElMessage } from 'element-plus';
-import { Plus, ArrowLeft, ArrowRight, Delete, Files, EditPen, Refresh, DocumentChecked } from '@element-plus/icons-vue';
+import LucideIcon from '@/components/LucideIcon.vue';
 import moment from 'moment';
 import { v4 as uuidv4 } from 'uuid';
 import { formatDate, getMonthRange, groupByDate } from '@/utils/time';

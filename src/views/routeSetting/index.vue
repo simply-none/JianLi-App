@@ -16,7 +16,7 @@
             :class="{ 'is-locked': isLockedRoute(item.name) }"
           >
             <div class="route-info">
-              <el-icon class="route-icon"><component :is="item.meta?.icon" /></el-icon>
+              <LucideIcon class="route-icon" :name="item.meta?.icon || 'settings'" :size="20" />
               <div class="route-text">
                 <span class="route-name">{{ item.meta?.title }}</span>
                 <span class="route-path">{{ item.path }}</span>
@@ -47,45 +47,14 @@ import { ref, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { layoutRouters, RouteNames } from '@/router';
 import { getStore, setStore } from '@/utils/common';
-import {
-  Setting, Monitor, House, Grid, Timer,
-  FolderOpened, Connection, Files, Document,
-  Notebook, Opportunity, Lock, MagicStick,
-  Position, Coin, Share, Tools, InfoFilled,
-  Collection, MapLocation,
-} from '@element-plus/icons-vue';
 import { RouteRecordNameGeneric } from 'vue-router';
-
-// 路由名称 → 图标映射
-const iconMap: Record<string, any> = {
-  setting: Setting,
-  systemInfo: Monitor,
-  routeSetting: Setting,
-  homeMode: House,
-  windowMode: Grid,
-  pomodoroRecord: Timer,
-  appCache: FolderOpened,
-  fileRela: Connection,
-  resourceManage: Files,
-  clipboard: Document,
-  notebookApp: Notebook,
-  categorizableNotes: Collection,
-  registerShortcut: Opportunity,
-  safetyProtection: Lock,
-  styleBeauty: MagicStick,
-  netRequest: Position,
-  sqlTest: Coin,
-  flow: Share,
-  function: Tools,
-  weather: Document,
-  about: InfoFilled,
-  browser: MapLocation,
-};
+import LucideIcon from '@/components/LucideIcon.vue';
+import { iconMap } from '@/utils';
 
 // 为每个路由注入图标到 meta
 const enrichedRouters = layoutRouters.map(r => ({
   ...r,
-  meta: { ...r.meta, icon: iconMap[r.name as string] || Setting },
+  meta: { ...r.meta, icon: iconMap[r.name as string] || 'settings' },
 }));
 
 // 不可配置的路由（始终显示）
@@ -98,7 +67,7 @@ interface MenuGroup {
 }
 
 const groupDefs: MenuGroup[] = [
-  { label: '通用', names: ['setting', 'homeMode', 'windowMode', 'styleBeauty'] },
+  { label: '通用', names: ['setting', 'homeMode', 'windowMode'] },
   { label: '系统与资源', names: ['systemInfo', 'routeSetting', 'appCache', 'fileRela', 'resourceManage', 'safetyProtection'] },
   { label: '效率工具', names: ['pomodoroRecord', 'clipboard', 'notebookApp', 'categorizableNotes', 'registerShortcut', 'function', 'weather', 'browser'] },
   { label: '开发工具', names: ['netRequest', 'sqlTest', 'flow'] },

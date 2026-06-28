@@ -100,6 +100,7 @@ function countDown(time) {
   background: #0077d7;
   color: #ddd;
   cursor: none;
+  position: relative;
 
   &-body {
     flex: 1;

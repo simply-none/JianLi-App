@@ -2,14 +2,14 @@
   <div class="app-cache">
     <div class="section-header">
       <h3 class="section-title">
-        <el-icon><DataBoard /></el-icon>
+        <LucideIcon name="FolderOpen" />
         应用缓存
       </h3>
     </div>
 
     <div class="cache-card">
       <div class="cache-card-header">
-        <el-icon :size="18"><Download /></el-icon>
+        <LucideIcon name="CloudBackup" :size="18" />
         <span>数据还原</span>
       </div>
       <div class="cache-card-body">
@@ -48,12 +48,12 @@
 
     <div class="cache-card">
       <div class="cache-card-header">
-        <el-icon :size="18"><Upload /></el-icon>
+          <LucideIcon name="CloudSync" :size="18" />
         <span>数据备份</span>
       </div>
       <div class="cache-card-body">
         <el-button type="primary" @click="generateRestore" class="backup-btn">
-          <el-icon><Download /></el-icon>
+                    <LucideIcon name="CloudUpload" :size="18" />
           开始备份
         </el-button>
         <p class="backup-hint">备份文件将保存到设置的缓存目录中</p>
@@ -66,7 +66,7 @@
 import { h, ref, toRaw } from 'vue';
 import { storeToRefs } from 'pinia';
 import { ElMessage } from 'element-plus';
-import { DataBoard, Download, Upload, RefreshLeft, Box } from '@element-plus/icons-vue';
+import LucideIcon from '@/components/LucideIcon.vue';
 import useCacheSetStore from '@/store/useCacheSet';
 import { send, sendSync } from '@/utils/common';
 import moment from 'moment';

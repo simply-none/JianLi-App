@@ -21,9 +21,7 @@
         <div class="tag-option">
           <span class="tag-dot" :style="{ backgroundColor: tag.color || '#6366f1' }"></span>
           <span class="tag-name">{{ tag.name }}</span>
-          <el-icon class="delete-icon" @click.stop="handleDeleteTag(tag)">
-            <Delete />
-          </el-icon>
+          <LucideIcon name="trash-2" class="delete-icon" @click.stop="handleDeleteTag(tag)" />
         </div>
       </el-option>
       <template #empty>
@@ -59,7 +57,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, nextTick } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Delete } from '@element-plus/icons-vue';
+import LucideIcon from '@/components/LucideIcon.vue';
 import { v4 as uuidv4 } from 'uuid';
 import moment from 'moment';
 import { getStore, setStore } from '@/utils/common';

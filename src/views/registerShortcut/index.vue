@@ -3,7 +3,7 @@
     <header class="page-header">
       <div class="header-content">
         <div class="header-icon">
-          <Keyboard />
+          <LucideIcon name="Keyboard" :size="24" />
         </div>
         <div class="header-text">
           <h1 class="page-title">快捷键注册</h1>
@@ -20,7 +20,7 @@
           class="shortcut-card"
         >
           <div class="card-icon" :class="getIconClass(item.key)">
-            <component :is="getIcon(item.key)" />
+            <LucideIcon :name="getIcon(item.key)" :size="24" />
           </div>
           
           <div class="card-info">
@@ -44,7 +44,7 @@
               @click="registerCommonFn(item)"
               :disabled="!canRegister(item.shortcut)"
             >
-              <el-icon><Check /></el-icon>
+              <LucideIcon name="Check" :size="14" />
               注册
             </el-button>
             <el-button 
@@ -52,7 +52,7 @@
               class="reset-btn"
               @click="resetShortcut(index)"
             >
-              <el-icon><Refresh /></el-icon>
+              <LucideIcon name="RefreshCcw" :size="14" />
               重置
             </el-button>
           </div>
@@ -63,7 +63,7 @@
     <footer class="tips-section">
       <div class="tips-card">
         <div class="tips-header">
-          <el-icon><InfoFilled /></el-icon>
+          <LucideIcon name="Info" :size="18" />
           <span>使用说明</span>
         </div>
         <ul class="tips-list">
@@ -78,22 +78,10 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, markRaw } from 'vue';
+import { ref, watch, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { 
-  Monitor, 
-  House, 
-  Document, 
-  Clock, 
-  Files, 
-  Connection, 
-  Tools, 
-  Notebook,
-  Check,
-  Refresh,
-  InfoFilled
-} from '@element-plus/icons-vue';
+import LucideIcon from '@/components/LucideIcon.vue';
 import moment from 'moment';
 import shortcut from './shortcut.vue';
 import { mergeShortcuts } from '@/utils';
@@ -130,14 +118,14 @@ const registerShortcut = (shortcut) => {
 }
 
 const iconMap = {
-  showAppShortcut: markRaw(Monitor),
-  homeShortcut: markRaw(House),
-  notebookShortcut: markRaw(Document),
-  pomodoroRecordShortcut: markRaw(Clock),
-  clipboardShortcut: markRaw(Files),
-  netRequestShortcut: markRaw(Connection),
-  systemInfoShortcut: markRaw(Tools),
-  flowShortcut: markRaw(Notebook),
+  showAppShortcut: 'Monitor',
+  homeShortcut: 'House',
+  notebookShortcut: 'File',
+  pomodoroRecordShortcut: 'Clock',
+  clipboardShortcut: 'Folder',
+  netRequestShortcut: 'Connection',
+  systemInfoShortcut: 'Toolbox',
+  flowShortcut: 'Notebook',
 }
 
 const iconClassMap = {
@@ -163,7 +151,7 @@ const descriptionMap = {
 }
 
 const getIcon = (key) => {
-  return iconMap[key] || Monitor
+  return iconMap[key] || 'monitor'
 }
 
 const getIconClass = (key) => {

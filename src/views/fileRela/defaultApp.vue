@@ -1,7 +1,7 @@
 <template>
   <div>
     <el-button type="primary" @click="openAppDialog">
-      <el-icon><Search /></el-icon>
+      <el-icon><LucideIcon name="ScanEye" /></el-icon>
       查看默认应用
     </el-button>
 
@@ -25,7 +25,7 @@
 
 <script setup lang="ts">
 import { ref, reactive } from 'vue';
-import { Search } from '@element-plus/icons-vue';
+import LucideIcon from '@/components/LucideIcon.vue';
 
 const emit = defineEmits(['updateDefaultAppPaths']);
 

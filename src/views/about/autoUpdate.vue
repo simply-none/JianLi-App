@@ -1,13 +1,10 @@
 <template>
   <div class="update-card">
-    <div class="card-header">
-      <div class="header-icon">
-        <el-icon><Download /></el-icon>
-      </div>
-      <span class="card-title">自动更新</span>
-    </div>
-    <div class="card-content">
-      <div class="update-item">
+    <h2 class="section-title">
+      <LucideIcon name="CloudBackup" />
+      自动更新
+    </h2>
+    <div class="update-item">
         <span class="update-label">当前版本</span>
         <el-tag type="info" size="large">v{{ currentVersion }}</el-tag>
       </div>
@@ -85,14 +82,13 @@
           查看 GitHub 发布页 ↗
         </el-button>
       </div>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
 import { ElMessage } from 'element-plus';
-import { Download } from '@element-plus/icons-vue';
+import LucideIcon from '@/components/LucideIcon.vue';
 import moment from 'moment';
 
 // 状态
@@ -256,43 +252,19 @@ onUnmounted(() => {
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
-  margin-bottom: 20px;
-  overflow: hidden;
-}
+  padding: 20px;
 
-.card-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 20px;
-  background: var(--bg-card);
-  border-bottom: 1px solid var(--border-subtle);
-
-  .header-icon {
-    width: 36px;
-    height: 36px;
-    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
-    border-radius: 10px;
+  .section-title {
     display: flex;
     align-items: center;
-    justify-content: center;
-
-    .el-icon {
-      font-size: 18px;
-      color: #fff;
-    }
-  }
-
-  .card-title {
+    gap: 10px;
     font-size: 16px;
     font-weight: 600;
     color: var(--text-primary);
+    margin: 0 0 16px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--color-primary);
   }
-}
-
-.card-content {
-  padding: 20px;
 }
 
 .update-item {

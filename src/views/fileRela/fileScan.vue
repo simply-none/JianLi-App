@@ -2,7 +2,7 @@
   <div class="file-scan-card">
     <div class="card-header">
       <h3 class="card-title">
-        <el-icon><Search /></el-icon>
+        <el-icon><LucideIcon name="Search" :size="28" /></el-icon>
         文件扫描
       </h3>
     </div>
@@ -14,7 +14,7 @@
           <el-input v-model="scanPath" placeholder="请选择目录" disabled :title="scanPath">
             <template #append>
               <el-button @click="selectScanPath">
-                <el-icon><Folder /></el-icon>
+                <el-icon><LucideIcon name="Folder" /></el-icon>
                 选择目录
               </el-button>
             </template>
@@ -59,7 +59,7 @@
       
       <div class="action-row">
         <el-button type="primary" @click="startScan" class="scan-btn">
-          <el-icon><Search /></el-icon>
+          <el-icon><LucideIcon name="Search" /></el-icon>
           开始扫描
         </el-button>
       </div>
@@ -79,7 +79,7 @@
   <el-dialog v-if="showResVisible" v-model="showResVisible" title="资源展示" @before-close="beforeCloseShowRes">
     <div class="show-res">
       <div class="show-res-arrow show-res-prev" @click="lookResPrev">
-        <el-icon><ArrowLeft /></el-icon>
+        <el-icon><LucideIcon name="ArrowLeft" /></el-icon>
       </div>
       <div v-if="!curRes || !curRes.name"></div>
       <el-image v-else-if="curType(curRes) === 'image'" :src="fileProtocol + encodeURIComponent(curRes.path)" class="res-image" />
@@ -92,7 +92,7 @@
         </div>
       </div>
       <div class="show-res-arrow show-res-next" @click="lookResNext">
-        <el-icon><ArrowRight /></el-icon>
+        <el-icon><LucideIcon name="ArrowRight" /></el-icon>
       </div>
     </div>
   </el-dialog>
@@ -100,7 +100,7 @@
 
 <script setup lang="tsx">
 import { ref, computed, toRaw } from 'vue';
-import { Search, Folder, ArrowLeft, ArrowRight } from '@element-plus/icons-vue';
+import LucideIcon from '@/components/LucideIcon.vue';
 import { ElMessage } from 'element-plus';
 import type { Column } from 'element-plus';
 import { sendSync } from '@/utils/common';

@@ -2,16 +2,16 @@
   <div class="cache-set">
     <div class="cache-card">
       <div class="cache-card-header">
-        <el-icon :size="20"><FolderOpened /></el-icon>
+        <LucideIcon name="FolderOpen" :size="20" />
         <span>文件存放目录</span>
       </div>
       <div class="cache-card-body">
         <div class="path-display">
-          <el-icon :size="18" class="path-icon"><Folder /></el-icon>
+          <LucideIcon name="Folder" :size="18" class="path-icon" />
           <span class="path-text" :title="fileCachePathCc">{{ fileCachePathCc || '请选择文件存放目录' }}</span>
         </div>
         <el-button type="primary" @click="selectFileDir" class="select-btn">
-          <el-icon><FolderAdd /></el-icon>
+          <LucideIcon name="FolderPlus" />
           选择目录
         </el-button>
       </div>
@@ -22,7 +22,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
-import { FolderOpened, Folder, FolderAdd } from '@element-plus/icons-vue';
+import LucideIcon from '@/components/LucideIcon.vue';
 import useCacheSetStore from '@/store/useCacheSet';
 import { sendSync } from '@/utils/common';
 

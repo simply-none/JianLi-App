@@ -2,10 +2,11 @@
   <div class="pomodoro-charts">
     <div class="charts-header">
       <el-button
-        :icon="ArrowLeft"
         circle
         @click="prevDay"
-      />
+      >
+        <LucideIcon name="ArrowLeft" :size="16" />
+      </el-button>
       <el-date-picker
         v-model="curDate"
         value-format="YYYY-MM-DD"
@@ -14,11 +15,12 @@
         style="margin: 0 10px"
       />
       <el-button
-        :icon="ArrowRight"
         circle
         :disabled="isToday"
         @click="nextDay"
-      />
+      >
+        <LucideIcon name="ArrowRight" :size="16" />
+      </el-button>
       <el-button
         :disabled="isToday"
         style="margin-left: 10px"
@@ -65,10 +67,10 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import * as echarts from 'echarts'
 import moment from 'moment'
-import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { getSqlData, pomodoroStatusTable, getStore } from '@/utils/common'
 import { storeToRefs } from 'pinia'
 import useThemeStore, { type ThemeName } from '@/store/useTheme'
+import LucideIcon from '@/components/LucideIcon.vue'
 
 const { currentTheme } = storeToRefs(useThemeStore())
 

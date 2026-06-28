@@ -2,7 +2,7 @@
   <div class="safety-protection">
     <div class="page-header">
       <h2 class="page-title">
-        <el-icon><Lock /></el-icon>
+        <LucideIcon name="Lock" :size="22" />
         安全防护
       </h2>
       <p class="page-desc">管理您的账户安全设置</p>
@@ -11,7 +11,7 @@
     <div class="section">
       <div class="section-header">
         <h3 class="section-title">
-          <el-icon><Key /></el-icon>
+          <LucideIcon name="Key" :size="16" />
           密码设置
         </h3>
       </div>
@@ -19,12 +19,12 @@
       <div class="security-card">
         <div class="form-group" v-if="passwordC">
           <label class="form-label">
-            <el-icon class="label-icon"><Lock /></el-icon>
+            <LucideIcon class="label-icon" name="Lock" :size="16" />
             当前密码状态
           </label>
           <div class="password-status">
             <el-tag type="info" size="large">
-              <el-icon><Check /></el-icon>
+              <LucideIcon name="Check" :size="16" />
               已设置密码保护
             </el-tag>
           </div>
@@ -32,12 +32,12 @@
 
         <div class="form-group" v-if="!passwordC">
           <label class="form-label">
-            <el-icon class="label-icon"><Lock /></el-icon>
+            <LucideIcon class="label-icon" name="Lock" :size="16" />
             当前密码状态
           </label>
           <div class="password-status">
-            <el-tag type="warning" size="large">
-              <el-icon><CircleClose /></el-icon>
+            <el-tag type="CircleAlert" size="large">
+              <LucideIcon name="circle-CircleX" :size="16" />
               未设置密码
             </el-tag>
             <p class="status-hint">建议设置密码以保护您的数据安全</p>
@@ -46,7 +46,7 @@
 
         <div class="form-group" v-if="passwordC">
           <label class="form-label">
-            <el-icon class="label-icon"><Lock /></el-icon>
+            <LucideIcon class="label-icon" name="Lock" :size="16" />
             原密码校验
           </label>
           <el-input 
@@ -58,13 +58,13 @@
           >
             <template #suffix>
               <el-button type="primary" @click="checkPassword">
-                <el-icon><Check /></el-icon>
+                <LucideIcon name="Check" :size="16" />
                 校验
               </el-button>
             </template>
           </el-input>
           <div v-if="showValidatePwdQuestionBtn" class="validate-hint">
-            <el-icon class="hint-icon"><Warning /></el-icon>
+            <LucideIcon class="hint-icon" name="CircleAlert" :size="16" />
             密码校验失败，是否通过密保问题重置密码？
             <el-button type="text" @click="showValidatePwdQuestion = true">校验密保问题</el-button>
           </div>
@@ -73,7 +73,7 @@
         <div v-if="ischeckPassword" class="password-section">
           <div class="form-group">
             <label class="form-label">
-              <el-icon class="label-icon"><Key /></el-icon>
+              <LucideIcon class="label-icon" name="Key" :size="16" />
               新密码
             </label>
             <el-input 
@@ -84,7 +84,7 @@
               @keyup.enter="updatePwd"
             >
               <template #prefix>
-                <el-icon><Lock /></el-icon>
+                <LucideIcon name="Lock" :size="16" />
               </template>
             </el-input>
             <div class="password-strength">
@@ -92,7 +92,7 @@
               <div class="strength-bars">
                 <div 
                   v-for="i in 5" 
-                  :key="i" 
+                  :Key="i" 
                   class="strength-bar"
                   :class="getStrengthClass(newPassword, i)"
                 ></div>
@@ -105,7 +105,7 @@
 
           <div class="form-group">
             <label class="form-label">
-              <el-icon class="label-icon"><Key /></el-icon>
+              <LucideIcon class="label-icon" name="Key" :size="16" />
               确认密码
             </label>
             <el-input 
@@ -116,22 +116,22 @@
               @keyup.enter="updatePwd"
             >
               <template #prefix>
-                <el-icon><Lock /></el-icon>
+                <LucideIcon name="Lock" :size="16" />
               </template>
               <template #suffix>
-                <el-icon v-if="confirmPassword && newPassword === confirmPassword" color="#67c23a"><Check /></el-icon>
-                <el-icon v-else-if="confirmPassword" color="#f56c6c"><Close /></el-icon>
+                <LucideIcon v-if="confirmPassword && newPassword === confirmPassword" name="Check" :size="16" color="#67c23a" />
+                <LucideIcon v-else-if="confirmPassword" name="CircleX" :size="16" color="#f56c6c" />
               </template>
             </el-input>
             <div v-if="confirmPassword" class="match-hint" :class="newPassword === confirmPassword ? 'match' : 'mismatch'">
-              <el-icon>{{ newPassword === confirmPassword ? 'Check' : 'Close' }}</el-icon>
+              <LucideIcon :name="newPassword === confirmPassword ? 'Check' : 'CircleX'" :size="14" />
               {{ newPassword === confirmPassword ? '两次输入一致' : '两次输入不一致' }}
             </div>
           </div>
 
           <div class="form-actions">
             <el-button type="primary" size="large" @click="updatePwd">
-              <el-icon><DocumentChecked /></el-icon>
+              <LucideIcon name="CircleCheck" :size="16" />
               保存密码
             </el-button>
           </div>
@@ -142,7 +142,7 @@
     <div class="section">
       <div class="section-header">
         <h3 class="section-title">
-          <el-icon><QuestionFilled /></el-icon>
+          <LucideIcon name="ShieldCog" :size="16" />
           密保问题
         </h3>
       </div>
@@ -150,8 +150,7 @@
       <div class="security-card">
         <div class="card-actions">
           <el-button @click="showValidatePwdQuestionList = !showValidatePwdQuestionList">
-            <el-icon v-if="showValidatePwdQuestionList"><ArrowUp /></el-icon>
-            <el-icon v-else><ArrowDown /></el-icon>
+            <LucideIcon :name="showValidatePwdQuestionList ? 'EyeOff' : 'Eye'" :size="16" />
             {{ showValidatePwdQuestionList ? '收起' : '显示密保问题' }}
           </el-button>
         </div>
@@ -159,7 +158,7 @@
         <div v-if="showValidatePwdQuestionList" class="question-list">
           <div 
             v-for="(item, index) in pwdQuestionListCc" 
-            :key="index" 
+            :Key="index" 
             class="question-card"
           >
             <div class="question-header">
@@ -192,23 +191,21 @@
 
           <div v-if="pwdQuestionListCc?.length < 3" class="add-question">
             <el-button type="primary" plain @click="addPwdQuestion">
-              <el-icon><Plus /></el-icon>
+              <LucideIcon name="Plus" :size="16" />
               新增密保问题
             </el-button>
           </div>
 
           <div class="form-actions">
             <el-button type="primary" @click="savePwdQuestion">
-              <el-icon><DocumentChecked /></el-icon>
+              <LucideIcon name="CircleCheck" :size="16" />
               保存密保问题
             </el-button>
           </div>
         </div>
 
         <div v-else class="empty-hint">
-          <el-icon :size="48" color="var(--text-muted)">
-            <FileQuestion />
-          </el-icon>
+          <LucideIcon name="ShieldCogCorner" :size="48" color="var(--text-muted)" />
           <p>点击上方按钮查看密保问题</p>
         </div>
       </div>
@@ -219,20 +216,20 @@
         <div class="modal-header">
           <h3>验证密保问题</h3>
           <el-button type="text" @click="showValidatePwdQuestion = false">
-            <el-icon><Close /></el-icon>
+            <LucideIcon name="CircleX" :size="16" />
           </el-button>
         </div>
 
         <div class="modal-steps">
           <el-steps :active="activeAnswer" finish-status="success">
-            <el-step v-for="(val, idx) in pwdQuestionListCc" :key="idx" :title="'问题 ' + (idx + 1)" />
+            <el-step v-for="(val, idx) in pwdQuestionListCc" :Key="idx" :title="'问题 ' + (idx + 1)" />
           </el-steps>
         </div>
 
         <div class="modal-body">
           <div v-if="pwdQuestionListCc[activeAnswer]" class="verify-form">
             <div class="verify-question">
-              <el-icon><HelpFilled /></el-icon>
+              <LucideIcon name="ShieldQuestionMark" :size="16" />
               <span>{{ pwdQuestionListCc[activeAnswer].question }}</span>
             </div>
             <el-input 
@@ -260,8 +257,8 @@
 import { ref, watch, toRaw } from 'vue';
 import { storeToRefs } from 'pinia';
 import { ElMessage } from 'element-plus';
-import { Lock, Key, Check, Close, CircleClose, Warning, DocumentChecked, Plus, ArrowUp, ArrowDown, HelpFilled, QuestionFilled } from '@element-plus/icons-vue';
 import useSafetyProtection from '@/store/useSafetyProtection';
+import LucideIcon from '@/components/LucideIcon.vue';
 
 const { passwordC, pwdQuestionListC } = storeToRefs(useSafetyProtection());
 const { setPassword, isPwdSame, setPwdQuestionList } = useSafetyProtection();

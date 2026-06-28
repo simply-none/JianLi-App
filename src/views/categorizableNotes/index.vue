@@ -7,7 +7,7 @@
           <p class="cn-subtitle">支持标签分类，轻松管理你的笔记</p>
         </div>
         <el-button type="primary" @click="createNewNote">
-          <el-icon><Plus /></el-icon>
+          <LucideIcon name="Plus" />
           新建笔记
         </el-button>
       </div>
@@ -15,7 +15,7 @@
       <div class="cn-toolbar">
         <div class="toolbar-left">
           <div class="search-box">
-            <el-icon class="search-icon"><Search /></el-icon>
+            <LucideIcon name="Search" class="search-icon" />
             <el-input
               v-model="searchKeyword"
               placeholder="搜索笔记内容..."
@@ -34,7 +34,7 @@
             >
               <template #reference>
                 <el-button plain>
-                  <el-icon><CollectionTag /></el-icon>
+                  <LucideIcon name="Tags" />
                   标签筛选
                   <span v-if="selectedFilterTags.length > 0" class="tag-count">
                     {{ selectedFilterTags.length }}
@@ -61,7 +61,7 @@
                     >
                       <span class="tag-dot" :style="{ backgroundColor: tag.color }"></span>
                       <span class="tag-name">{{ tag.name }}</span>
-                      <el-icon v-if="selectedFilterTags.includes(tag.key)" class="check-icon"><Check /></el-icon>
+                      <LucideIcon v-if="selectedFilterTags.includes(tag.key)" name="Check" class="check-icon" />
                     </div>
                   </div>
                 </div>
@@ -79,7 +79,7 @@
                       <span class="tag-dot" :style="{ backgroundColor: tag.color }"></span>
                       <span class="tag-name">{{ tag.name }}</span>
                       <span class="deleted-badge">已删除</span>
-                      <el-icon v-if="selectedFilterTags.includes(tag.key)" class="check-icon"><Check /></el-icon>
+                      <LucideIcon v-if="selectedFilterTags.includes(tag.key)" name="Check" class="check-icon" />
                     </div>
                   </div>
                 </div>
@@ -94,10 +94,10 @@
         <div class="toolbar-right">
           <el-radio-group v-model="viewMode" size="small">
             <el-radio-button value="list">
-              <el-icon><List /></el-icon>
+              <LucideIcon name="List" />
             </el-radio-button>
             <el-radio-button value="editor">
-              <el-icon><EditPen /></el-icon>
+              <LucideIcon name="Pencil" />
             </el-radio-button>
           </el-radio-group>
         </div>
@@ -112,7 +112,7 @@
           :style="{ backgroundColor: getTagColor(tagKey) + '20', color: getTagColor(tagKey) }"
         >
           {{ getTagName(tagKey) }}
-          <el-icon class="close-icon" @click="toggleFilterTag(tagKey)"><Close /></el-icon>
+          <LucideIcon name="X" class="close-icon" @click="toggleFilterTag(tagKey)" />
         </span>
       </div>
 
@@ -135,7 +135,7 @@
             <span class="tags-label">标签:</span>
             <TagSelector v-model="editorTags" placeholder="选择或创建标签..." class="editor-tags-select" />
             <el-button type="primary" @click="handleSaveBtn">
-              <el-icon><Refresh /></el-icon>
+              <LucideIcon name="TagPlus" />
               保存
             </el-button>
           </div>
@@ -168,7 +168,7 @@ import { storeToRefs } from 'pinia';
 import { MdEditor } from 'md-editor-v3';
 import 'md-editor-v3/lib/style.css';
 import { ElMessage } from 'element-plus';
-import { Plus, Search, CollectionTag, List, EditPen, Check, Close, Refresh } from '@element-plus/icons-vue';
+import LucideIcon from '@/components/LucideIcon.vue';
 import { v4 as uuidv4 } from 'uuid';
 import moment from 'moment';
 import { getStore } from '@/utils/common';
