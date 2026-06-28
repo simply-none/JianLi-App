@@ -2,7 +2,13 @@
 
 变更日志
 
-## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.6.28-rc.1...HEAD) (2026-06-28)
+## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.6.28-rc.2...HEAD) (2026-06-28)
+
+### 🔧 Chores | 其他杂项
+
+* 发布脚本优化 ([d79a3a8](https://github.com/simply-none/JianLi-App/commit/d79a3a864c7240d191fed2619720b32e4de45b6a))
+
+## [v26.6.28-rc.2](https://github.com/simply-none/JianLi-App/compare/v26.6.28-rc.1...v26.6.28-rc.2) (2026-06-28)
 
 ### ✨ Features | 新功能
 
