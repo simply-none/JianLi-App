@@ -84,7 +84,7 @@
         :theme="editorTheme"
         :previewTheme="previewTheme"
         :preview="false"
-        :toolbars="false"
+        :toolbars="[] as ToolbarNames[]"
         :toolbarsExclude="[]"
         @on-change="handleChange"
         @on-save="handleSave"
@@ -134,8 +134,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue';
-import { MdEditor } from 'md-editor-v3';
+import { ref, computed, watch, nextTick, PropType } from 'vue';
+import { MdEditor, Themes, ToolbarNames } from 'md-editor-v3';
 import 'md-editor-v3/lib/style.css';
 import LucideIcon from '@/components/LucideIcon.vue';
 
@@ -153,7 +153,7 @@ const props = defineProps({
     default: 'glass'
   },
   noteList: {
-    type: Array,
+    type: Array as PropType<ObjectType[]>,
     default: () => []
   },
   currentNote: {
@@ -190,7 +190,7 @@ const showNoteList = ref(false);
 const searchKeyword = ref('');
 const showToast = ref(false);
 const toastText = ref('已保存');
-const editorTheme = ref(props.skin === 'dark' ? 'dark' : 'light');
+const editorTheme = ref<Themes>(props.skin === 'dark' ? 'dark' : 'light');
 const previewTheme = ref('default');
 
 const localText = computed({

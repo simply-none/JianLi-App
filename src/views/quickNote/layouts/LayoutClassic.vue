@@ -74,7 +74,7 @@
           :theme="editorTheme"
           :previewTheme="previewTheme"
           :preview="true"
-          :toolbars="false"
+          :toolbars="[] as ToolbarNames[]"
           :editable="false"
         />
       </div>
@@ -108,7 +108,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { MdEditor } from 'md-editor-v3';
+import { MdEditor, Themes, ToolbarNames } from 'md-editor-v3';
 import 'md-editor-v3/lib/style.css';
 import LucideIcon from '@/components/LucideIcon.vue';
 
@@ -159,15 +159,15 @@ const emit = defineEmits([
 ]);
 
 const viewMode = ref<'edit' | 'split' | 'preview'>('edit');
-const editorTheme = ref(props.skin === 'dark' ? 'dark' : 'light');
+const editorTheme = ref<Themes>(props.skin === 'dark' ? 'dark' : 'light');
 const previewTheme = ref('default');
 const cursorLine = ref(1);
 const cursorCol = ref(1);
 
-const toolbars = [
+const toolbars: ToolbarNames[] = [
   'bold', 'underline', 'italic', 'strikeThrough', 'sub', 'sup',
   '-', 'title', 'quote', 'unorderedList', 'orderedList', 'task',
-  '-', 'codeRow', 'codeBlock', 'link', 'image', 'table', 'mermaid', 'katex',
+  '-', 'codeRow', 'code', 'link', 'image', 'table', 'mermaid', 'katex',
   '-', 'revoke', 'next', 'save',
   '=', 'pageFullscreen', 'fullscreen', 'preview', 'htmlPreview',
   '-', 'catalog', 'github'

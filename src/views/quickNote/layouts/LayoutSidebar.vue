@@ -95,8 +95,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
-import { MdEditor } from 'md-editor-v3';
+import { ref, computed, watch, PropType } from 'vue';
+import { MdEditor, Themes, ToolbarNames } from 'md-editor-v3';
 import 'md-editor-v3/lib/style.css';
 import LucideIcon from '@/components/LucideIcon.vue';
 import moment from 'moment';
@@ -115,7 +115,7 @@ const props = defineProps({
     default: 'sidebar'
   },
   noteList: {
-    type: Array,
+    type: Array as PropType<any[]>,
     default: () => []
   },
   currentNote: {
@@ -150,14 +150,14 @@ const emit = defineEmits([
 const searchKeyword = ref('');
 const sidebarWidth = ref(200);
 const isResizing = ref(false);
-const editorTheme = ref(props.skin === 'dark' ? 'dark' : 'light');
+const editorTheme = ref<Themes>(props.skin === 'dark' ? 'dark' : 'light');
 const previewTheme = ref('default');
 
-const toolbars = [
+const toolbars: ToolbarNames[] = [
   'bold', 'underline', 'italic', 'strikeThrough',
   '-', 'title', 'sub', 'sup', 'quote',
   '-', 'unorderedList', 'orderedList',
-  '-', 'code', 'codeBlock', 'link', 'image', 'table',
+  '-', 'code', 'codeRow', 'link', 'image', 'table',
   '-', 'revoke', 'next'
 ];
 

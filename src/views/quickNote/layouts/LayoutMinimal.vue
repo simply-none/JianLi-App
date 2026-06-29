@@ -69,8 +69,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
-import { MdEditor } from 'md-editor-v3';
+import { ref, computed, watch, PropType } from 'vue';
+import { MdEditor, Themes, ToolbarNames } from 'md-editor-v3';
 import 'md-editor-v3/lib/style.css';
 import LucideIcon from '@/components/LucideIcon.vue';
 
@@ -88,7 +88,7 @@ const props = defineProps({
     default: 'minimal'
   },
   noteList: {
-    type: Array,
+    type: Array as PropType<ObjectType[]>,
     default: () => []
   },
   currentNote: {
@@ -121,10 +121,10 @@ const emit = defineEmits([
 ]);
 
 const showNoteList = ref(false);
-const editorTheme = ref(props.skin === 'dark' ? 'dark' : 'light');
+const editorTheme = ref<Themes>(props.skin === 'dark' ? 'dark' : 'light');
 const previewTheme = ref('default');
 
-const toolbars = [
+const toolbars: ToolbarNames[] = [
   'bold',
   'underline',
   'italic',
@@ -138,7 +138,7 @@ const toolbars = [
   'orderedList',
   '-',
   'code',
-  'codeBlock',
+  'codeRow',
   'link',
   'image',
   'table',
