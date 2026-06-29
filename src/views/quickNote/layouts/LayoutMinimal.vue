@@ -6,20 +6,23 @@
         <span class="title-text">快速记录</span>
       </div>
       <div class="drag-right">
-        <el-button size="small" text @click="toggleTheme" class="icon-btn">
-          <LucideIcon :name="editorTheme === 'light' ? 'Moon' : 'SunMoon'" :size="16" :title="editorTheme === 'light' ? '切换深色主题' : '切换浅色主题'" />
+        <el-button size="small" text @click="$emit('cycle-skin')" class="icon-btn">
+          <LucideIcon name="Palette" :size="13" title="切换皮肤" />
+        </el-button>
+        <el-button size="small" text @click="$emit('cycle-layout')" class="icon-btn">
+          <LucideIcon name="LayoutDashboard" :size="14" title="切换布局" />
         </el-button>
         <el-button size="small" text @click="showNoteList = !showNoteList" class="icon-btn">
-          <LucideIcon name="FolderOpen" :size="16" title="历史笔记" />
+          <LucideIcon name="SwatchBook" :size="16" title="历史笔记" />
         </el-button>
         <el-button size="small" text @click="$emit('new-note')" class="icon-btn">
-          <LucideIcon name="FilePlus" :size="16" title="新建笔记" />
+          <LucideIcon name="StickyNotePlus" :size="16" title="新建笔记" />
         </el-button>
-        <el-button size="small" text @click="$emit('toggle-drag')" class="icon-btn" :class="{ 'drag-disabled': !dragEnabled }">
-          <LucideIcon :name="dragEnabled ? 'Hand' : 'Move'" :size="16" :title="dragEnabled ? '禁用拖拽' : '启用拖拽'" />
+        <el-button size="small" text @click="$emit('disabled-mouse-click-through')" class="icon-btn" :class="{ 'drag-disabled': !dragEnabled }">
+          <LucideIcon :name="dragEnabled ? 'TrendingUp' : 'TrendingUp'" :size="16" :title="dragEnabled ? '穿透' : '穿透'" />
         </el-button>
         <el-button size="small" text @click="$emit('save')" class="icon-btn save-btn">
-          <LucideIcon name="FileCheck" :size="16" title="保存笔记" />
+          <LucideIcon name="SaveCheck" :size="16" title="保存笔记" />
         </el-button>
         <el-button size="small" text @click="$emit('close-window')" class="icon-btn close-btn">
           <LucideIcon name="X" :size="16" title="关闭窗口" />
@@ -117,6 +120,7 @@ const emit = defineEmits([
   'cycle-skin',
   'cycle-layout',
   'toggle-drag',
+  'disabled-mouse-click-through',
   'close-window'
 ]);
 
@@ -228,6 +232,9 @@ watch(() => props.skin, (newSkin) => {
     .icon-btn {
       padding: 4px 8px;
       color: var(--skin-text-secondary);
+      &+& {
+
+      }
 
       &:hover {
         color: var(--skin-text-primary);

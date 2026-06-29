@@ -1,7 +1,7 @@
 <template>
   <div class="quick-note-window" :class="{ 'drag-disabled': !dragEnabled }">
     <div class="mouse-controls">
-      <div class="mouse-left" @mousemove="enableMouseClickThroughFn"></div>
+      <div class="mouse-left" @mousemove="disableMouseClickThroughFn"></div>
       <div class="mouse-right" @mousemove="disableMouseClickThroughFn"></div>
     </div>
 
@@ -23,6 +23,7 @@
         @cycle-layout="cycleLayout"
         @toggle-drag="toggleDrag"
         @close-window="closeWindow"
+        @disabled-mouse-click-through="enableMouseClickThroughFn"
       />
     </div>
   </div>

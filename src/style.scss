@@ -2970,6 +2970,9 @@ input {
 
 /* ========== Element Plus 组件全局覆写 ========== */
 
+.el-button+.el-button {
+  margin-left: 0px;
+}
 /* el-divider */
 .el-divider {
   border-color: var(--border-subtle) !important;

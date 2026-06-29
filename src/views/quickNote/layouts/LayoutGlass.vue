@@ -14,11 +14,11 @@
         <el-button size="small" text @click="$emit('cycle-layout')" class="action-btn">
           <LucideIcon name="LayoutDashboard" :size="14" title="切换布局" />
         </el-button>
-        <el-button size="small" text @click="$emit('toggle-drag')" class="action-btn" :class="{ 'drag-disabled': !dragEnabled }">
-          <LucideIcon :name="dragEnabled ? 'Hand' : 'Move'" :size="14" :title="dragEnabled ? '禁用拖拽' : '启用拖拽'" />
+        <el-button size="small" text @click="$emit('disabled-mouse-click-through')" class="action-btn" :class="{ 'drag-disabled': !dragEnabled }">
+          <LucideIcon :name="dragEnabled ? 'TrendingUp' : 'TrendingUp'" :size="14" :title="dragEnabled ? '穿透' : '穿透'" />
         </el-button>
         <el-button size="small" text @click="$emit('save')" class="action-btn">
-          <LucideIcon name="FileCheck" :size="14" title="保存笔记" />
+          <LucideIcon name="SaveCheck" :size="14" title="保存笔记" />
         </el-button>
         <el-button size="small" text @click="$emit('close-window')" class="action-btn close-btn">
           <LucideIcon name="X" :size="14" title="关闭窗口" />
@@ -182,6 +182,7 @@ const emit = defineEmits([
   'cycle-skin',
   'cycle-layout',
   'toggle-drag',
+  'disabled-mouse-click-through',
   'close-window'
 ]);
 

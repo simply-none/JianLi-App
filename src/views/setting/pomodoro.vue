@@ -27,7 +27,11 @@
         <div v-for="item in tipTypeCc" :key="item.type + item.gap" class="tip-card">
           <div class="tip-card-left">
             <div class="tip-icon">
-              <LucideIcon name="AlarmClockCheck" :size="24" />
+              <el-image :src="decodeURIComponent(getIcon(item.type))" fit="cover">
+                <template #error>
+                  <LucideIcon name="AlarmClockCheck" />
+                </template>
+              </el-image>
             </div>
             <div class="tip-info">
               <div class="tip-type">{{ getType(item.type) }}</div>
@@ -82,14 +86,14 @@
         <div v-for="item in tipTypeOpsCc" :key="item.value" class="tip-ops-card">
           <div class="tip-ops-icon">
             <div v-if="item.iconType == 'image'" class="icon-image">
-              <el-image :src="item.icon" fit="cover">
+              <el-image :src="decodeURIComponent(item.icon)" fit="cover">
                 <template #error>
                   <LucideIcon name="image" />
                 </template>
               </el-image>
             </div>
             <div v-else-if="item.icon" class="icon-emoji">
-              <div v-html="item.icon"></div>
+              <div v-html="decodeURIComponent(item.icon)"></div>
             </div>
             <div v-else class="icon-emoji">
               <LucideIcon name="image" />
@@ -344,6 +348,9 @@ const curUnit = (unit: number) => {
 
 const getType = (type: string) => {
   return tipTypeOpsCc.value.find(i => i.value == type)?.label;
+};
+const getIcon = (type: string) => {
+  return tipTypeOpsCc.value.find(i => i.value == type)?.icon;
 };
 </script>
 
