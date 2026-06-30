@@ -85,7 +85,7 @@ function saveConfig(key: string, value: string) {
     const configStr = window.ipcRenderer.sendSync('get-store', 'window-mode:quickNote')
     const config = configStr && typeof configStr === 'string' ? JSON.parse(configStr) : (configStr || {})
     config[key] = value
-    window.ipcRenderer.sendSync('set-store', 'window-mode:quickNote', JSON.stringify(config))
+    window.ipcRenderer.sendSync('set-store', 'window-mode:quickNote', config)
     window.ipcRenderer.send('sync-data-to-other-window', {
       quickNoteWindowConfig: { ...config },
     })

@@ -30,7 +30,6 @@ export function setStore(key: 'multi-field' | string, value: any) {
   if (isProxy(value)) {
     value = toRaw(value) 
   }
-  console.log('设置store中的数据', key, value)
 
   window.ipcRenderer.sendSync('set-store', key, value)
 }
