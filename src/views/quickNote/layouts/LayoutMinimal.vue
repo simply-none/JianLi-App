@@ -121,6 +121,7 @@ const emit = defineEmits([
   'cycle-layout',
   'toggle-drag',
   'disabled-mouse-click-through',
+  'change-note',
   'close-window'
 ]);
 
@@ -175,6 +176,7 @@ function toggleTheme() {
 
 function handleChange(val: string) {
   emit('update:modelValue', val);
+  emit('change-note', val);
 }
 
 function handleSave(val: string, htmlPromise: Promise<string>) {

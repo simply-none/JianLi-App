@@ -18,6 +18,7 @@
         :drag-enabled="dragEnabled"
         @save="saveNote"
         @load-note="loadNote"
+        @change-note="saveCurrentNote"
         @new-note="newNote"
         @cycle-skin="cycleSkin"
         @cycle-layout="cycleLayout"
@@ -70,6 +71,8 @@ const dragEnabled = ref(true)
 const wordCount = computed(() => {
   return text.value ? text.value.replace(/\s/g, '').length : 0
 })
+
+loadCurrentNote();
 
 function applyTheme(theme: string) {
   if (theme === 'white') {
@@ -194,6 +197,23 @@ function newNote() {
   saveStatus.value = 'saved'
 }
 
+async function loadCurrentNote() { 
+  const currentNoteStr = localStorage.getItem('quickNote:currentNote')
+  if (currentNoteStr) {
+    curNote.value = JSON.parse(currentNoteStr)
+    text.value = curNote.value.mdText || ''
+  }
+}
+
+async function saveCurrentNote(newText: string) { 
+  let data = {
+    mdText: newText,
+    createTime: curNote.value.createTime || moment().format('YYYY-MM-DD HH:mm:ss'),
+    updateTime: moment().format('YYYY-MM-DD HH:mm:ss'),
+  }
+  localStorage.setItem('quickNote:currentNote', JSON.stringify(data))
+}
+
 async function saveNote() {
   if (!text.value.trim()) {
     ElMessage.warning('内容不能为空')
@@ -223,6 +243,9 @@ async function saveNote() {
       ElMessage.success('保存成功')
       saveStatus.value = 'saved'
       curNote.value.key = curNote.value.key || uuidv4()
+      // 清空笔记
+      text.value = ''
+      localStorage.removeItem('quickNote:currentNote')
       loadNoteList()
       return true
     } else {

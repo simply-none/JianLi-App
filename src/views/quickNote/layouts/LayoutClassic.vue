@@ -156,6 +156,7 @@ const emit = defineEmits([
   'cycle-layout',
   'toggle-drag',
   'disabled-mouse-click-through',
+  'change-note',
   'close-window'
 ]);
 
@@ -189,6 +190,7 @@ const localText = computed({
 
 function handleChange(val: string) {
   emit('update:modelValue', val);
+  emit('change-note', val);
   const lines = val.split('\n');
   cursorLine.value = lines.length;
   cursorCol.value = lines[lines.length - 1]?.length || 0;
