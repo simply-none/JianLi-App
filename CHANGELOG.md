@@ -2,7 +2,33 @@
 
 变更日志
 
-## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.6.28-rc.2...HEAD) (2026-06-28)
+## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.6.28-rc.3...HEAD) (2026-07-02)
+
+### ✨ Features | 新功能
+
+* 优化主页极简时钟下文字样式 ([fb4b932](https://github.com/simply-none/JianLi-App/commit/fb4b932618e601dfa296da72de8b78bb505e6666))
+* 新增一个新主题配色 ([e18560d](https://github.com/simply-none/JianLi-App/commit/e18560da5deb9e89f2a13699005478a698621e41))
+* 新增ui skill ([9e83054](https://github.com/simply-none/JianLi-App/commit/9e830548b5284533f1079d992339072e992424a0))
+* 优化快速笔记的存储，临时实时保存在local storage中 ([884d327](https://github.com/simply-none/JianLi-App/commit/884d327598f59b4ee96ed1219f26029a83d61088))
+
+### 🐛 Bug Fixes | Bug 修复
+
+* 修复类型确实错误 ([42465a0](https://github.com/simply-none/JianLi-App/commit/42465a0252781438a45854b6a9eb4312890ca39a))
+* 小窗口鼠标穿透功能调整，移入即可进行窗口内操作 ([686bb0f](https://github.com/simply-none/JianLi-App/commit/686bb0f27f65486a0130844a4abe96e48d040191))
+* 修复快速记录窗口显示尺寸的问题 ([9386c54](https://github.com/simply-none/JianLi-App/commit/9386c54a3df8429c98dc65c54090615d0dfa21af))
+* 修复一些页面的样式问题 ([e67a375](https://github.com/simply-none/JianLi-App/commit/e67a375b5773d656b7eb9def25b5403beca3d5c9))
+* 修复快速笔记功能的类型错误 ([813b230](https://github.com/simply-none/JianLi-App/commit/813b23028301523acec452877e93972d2d2a3d44))
+
+### ♻️ Code Refactoring | 代码重构
+
+* 抽离主题和皮肤 ([d87c096](https://github.com/simply-none/JianLi-App/commit/d87c0967efa004c71f7cc19f92ec9db4cbf1baed))
+
+### 🔧 Chores | 其他杂项
+
+* 忽略trae生成的文档提交到git ([ba3a893](https://github.com/simply-none/JianLi-App/commit/ba3a8932f53ca7a3b50896f8e4a357c00c088471))
+* 删除trae生成的文档 ([fd7b3d7](https://github.com/simply-none/JianLi-App/commit/fd7b3d74a72ffedfe3e134caa15abac2e4b4b6dd))
+
+## [v26.6.28-rc.3](https://github.com/simply-none/JianLi-App/compare/v26.6.28-rc.2...v26.6.28-rc.3) (2026-06-28)
 
 ### 🔧 Chores | 其他杂项
 
