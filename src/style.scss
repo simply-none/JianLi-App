@@ -1,3016 +1,5 @@
-:root {
-  /* 字体 */
-  --jianli-global-font: "";
-  --jianli-global-font-EN: "";
-
-  /* 主题色 */
-  --color-primary: #6366f1;
-  --color-primary-light: rgba(99, 102, 241, 0.09);
-  --color-primary-hover: rgba(99, 102, 241, 0.13);
-  --color-primary-solid: #4f46e5;
-
-  /* 背景色 */
-  --bg-base: #f5f6fa;
-  --bg-card: #ffffff;
-  --bg-sidebar: #ffffff;
-
-  /* 文字色 */
-  --text-primary: #1a1a1a;
-  --text-secondary: #4b5563;
-  --text-muted: #9ca3af;
-
-  /* 交互色 */
-  --bg-hover: rgba(0, 0, 0, 0.04);
-  --bg-active-btn: rgba(0, 0, 0, 0.05);
-  --bg-active-btn-hover: rgba(0, 0, 0, 0.10);
-
-  /* 边框 / 分隔线 */
-  --border-subtle: rgba(0, 0, 0, 0.06);
-  --border-group: rgba(0, 0, 0, 0.05);
-
-  /* 圆角 */
-  --radius-card: 12px;
-  --radius-btn: 8px;
-
-  /* 阴影 */
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.03);
-  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.03);
-
-  /* 滚动条 */
-  --scrollbar-thumb: rgba(0, 0, 0, 0.12);
-  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.25);
-
-  /* 状态行背景 */
-  --status-work-bg: rgba(16, 185, 129, 0.08);
-  --status-rest-bg: rgba(239, 68, 68, 0.08);
-  --status-screen-bg: rgba(6, 182, 212, 0.08);
-
-  /* App 徽标 */
-  --logo-gradient-from: #6366f1;
-  --logo-gradient-to: #818cf8;
-  --logo-shadow: rgba(99, 102, 241, 0.3);
-
-  /* ========== 渐变头部 ========== */
-  --header-gradient-from: #667eea;
-  --header-gradient-to: #764ba2;
-
-  /* ========== 功能状态色 ========== */
-  --color-success: #10b981;
-  --color-warning: #f59e0b;
-  --color-error: #ef4444;
-  --color-info: #3b82f6;
-
-  /* ========== 标签背景色 ========== */
-  --tag-bg-info: #ecf5ff;
-  --tag-bg-success: #f0fdf4;
-  --tag-bg-warning: #fffbeb;
-  --tag-bg-danger: #fef2f2;
-
-  /* ========== 输入框样式 ========== */
-  --input-bg: #ffffff;
-  --input-border: #dcdfe6;
-  --input-border-focus: #409eff;
-
-  /* ========== 快捷键图标渐变色 ========== */
-  --icon-blue-from: #4facfe;
-  --icon-blue-to: #00f2fe;
-  --icon-green-from: #43e97b;
-  --icon-green-to: #38f9d7;
-  --icon-purple-from: #a8edea;
-  --icon-purple-to: #fed6e3;
-  --icon-purple-icon: #667eea;
-  --icon-orange-from: #fa709a;
-  --icon-orange-to: #fee140;
-  --icon-yellow-from: #f093fb;
-  --icon-yellow-to: #f5576c;
-  --icon-cyan-from: #4facfe;
-  --icon-cyan-to: #00f2fe;
-  --icon-red-from: #ff9a9e;
-  --icon-red-to: #fecfef;
-  --icon-red-icon: #ff6b6b;
-  --icon-pink-from: #ffecd2;
-  --icon-pink-to: #fcb69f;
-  --icon-pink-icon: #ff8a65;
-
-  /* ========== 进度条背景 ========== */
-  --progress-bg: rgba(0, 0, 0, 0.1);
-
-  /* ========== 卡片元素边框色 ========== */
-  --card-border: rgba(0, 0, 0, 0.15);
-
-  /* ========== 标题纯色（替代渐变） ========== */
-  --header-solid: #667eea;
-
-  /* ========== Element Plus 变量覆写 (Light) ========== */
-  --el-color-primary: #6366f1;
-  --el-color-primary-light-3: #8b8ef5;
-  --el-color-primary-light-5: #a5a7f8;
-  --el-color-primary-light-7: #c0c1fb;
-  --el-color-primary-light-8: #cdcefd;
-  --el-color-primary-light-9: #e0e1fe;
-  --el-color-primary-dark-2: #4f46e5;
-
-  --el-bg-color: #ffffff;
-  --el-bg-color-overlay: #ffffff;
-  --el-bg-color-page: #f5f6fa;
-
-  --el-text-color-primary: #1a1a1a;
-  --el-text-color-regular: #4b5563;
-  --el-text-color-secondary: #9ca3af;
-  --el-text-color-placeholder: #c0c4cc;
-  --el-text-color-disabled: #d1d5db;
-
-  --el-border-color: #dcdfe6;
-  --el-border-color-light: #e4e7ed;
-  --el-border-color-lighter: #ebeef5;
-  --el-border-color-extra-light: #f2f6fc;
-
-  --el-fill-color: #f0f2f5;
-  --el-fill-color-light: #f5f7fa;
-  --el-fill-color-lighter: #fafafa;
-  --el-fill-color-blank: #ffffff;
-
-  --el-mask-color: rgba(0, 0, 0, 0.3);
-  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.06);
-}
-
-/* ========== Dark 深色主题 (Tokyo Night) ========== */
-[data-theme="dark"] {
-  --color-primary: #7aa2f7;
-  --color-primary-light: rgba(122, 162, 247, 0.12);
-  --color-primary-hover: rgba(122, 162, 247, 0.18);
-  --color-primary-solid: #7aa2f7;
-
-  --bg-base: #1a1b26;
-  --bg-card: #24283b;
-  --bg-sidebar: #1f2335;
-
-  --text-primary: #c0caf5;
-  --text-secondary: #a9b1d6;
-  --text-muted: #565f89;
-
-  --bg-hover: rgba(255, 255, 255, 0.05);
-  --bg-active-btn: rgba(255, 255, 255, 0.08);
-  --bg-active-btn-hover: rgba(255, 255, 255, 0.14);
-
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-group: rgba(255, 255, 255, 0.06);
-
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.04);
-  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.2);
-
-  --scrollbar-thumb: rgba(255, 255, 255, 0.12);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.25);
-
-  --logo-gradient-from: #7aa2f7;
-  --logo-gradient-to: #bb9af7;
-  --logo-shadow: rgba(122, 162, 247, 0.3);
-
-  /* ========== 渐变头部 (Dark) ========== */
-  --header-gradient-from: #7aa2f7;
-  --header-gradient-to: #bb9af7;
-
-  /* ========== 功能状态色 (Dark) ========== */
-  --color-success: #9ece6a;
-  --color-warning: #e0af68;
-  --color-error: #f7768e;
-  --color-info: #7aa2f7;
-
-  /* ========== 标签背景色 (Dark) ========== */
-  --tag-bg-info: rgba(122, 162, 247, 0.15);
-  --tag-bg-success: rgba(158, 206, 106, 0.15);
-  --tag-bg-warning: rgba(224, 175, 104, 0.15);
-  --tag-bg-danger: rgba(247, 118, 142, 0.15);
-
-  /* ========== 输入框样式 (Dark) ========== */
-  --input-bg: #1f2335;
-  --input-border: #3b4261;
-  --input-border-focus: #7aa2f7;
-
-  /* ========== 快捷键图标渐变色 (Dark) ========== */
-  --icon-blue-from: #7aa2f7;
-  --icon-blue-to: #2ac3de;
-  --icon-green-from: #9ece6a;
-  --icon-green-to: #73daca;
-  --icon-purple-from: #bb9af7;
-  --icon-purple-to: #c0caf5;
-  --icon-purple-icon: #bb9af7;
-  --icon-orange-from: #ff9e64;
-  --icon-orange-to: #f7768e;
-  --icon-yellow-from: #e0af68;
-  --icon-yellow-to: #ff9e64;
-  --icon-cyan-from: #2ac3de;
-  --icon-cyan-to: #7dcfff;
-  --icon-red-from: #f7768e;
-  --icon-red-to: #ff007c;
-  --icon-red-icon: #f7768e;
-  --icon-pink-from: #ff007c;
-  --icon-pink-to: #d700de;
-  --icon-pink-icon: #ff007c;
-
-  /* ========== 进度条背景 (Dark) ========== */
-  --progress-bg: rgba(255, 255, 255, 0.1);
-
-  /* ========== 卡片元素边框色 (Dark) ========== */
-  --card-border: rgba(255, 255, 255, 0.15);
-
-  /* ========== 标题纯色 (Dark) ========== */
-  --header-solid: #3d5a9e;
-
-  /* 状态行背景 (Dark) */
-  --status-work-bg: rgba(16, 185, 129, 0.12);
-  --status-rest-bg: rgba(239, 68, 68, 0.12);
-  --status-screen-bg: rgba(6, 182, 212, 0.12);
-
-  /* Element Plus 覆写 (Dark / Tokyo Night) */
-  --el-color-primary: #7aa2f7;
-  --el-color-primary-light-3: #5a82d7;
-  --el-color-primary-light-5: #3d61b7;
-  --el-color-primary-light-7: #2a4a97;
-  --el-color-primary-light-8: #233f7a;
-  --el-color-primary-light-9: #1c345d;
-  --el-color-primary-dark-2: #9ab4ff;
-
-  --el-bg-color: #24283b;
-  --el-bg-color-overlay: #292e42;
-  --el-bg-color-page: #1a1b26;
-
-  --el-text-color-primary: #c0caf5;
-  --el-text-color-regular: #a9b1d6;
-  --el-text-color-secondary: #565f89;
-  --el-text-color-placeholder: #414868;
-  --el-text-color-disabled: #3b4261;
-
-  --el-border-color: #3b4261;
-  --el-border-color-light: #2f354d;
-  --el-border-color-lighter: #292e42;
-  --el-border-color-extra-light: #24283b;
-
-  --el-fill-color: #292e42;
-  --el-fill-color-light: #24283b;
-  --el-fill-color-lighter: #1f2335;
-  --el-fill-color-blank: #24283b;
-
-  --el-mask-color: rgba(0, 0, 0, 0.5);
-  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
-  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.25);
-}
-
-/* ========== Midnight 午夜主题 (GitHub Dimmed) ========== */
-[data-theme="midnight"] {
-  --color-primary: #539bf5;
-  --color-primary-light: rgba(83, 155, 245, 0.12);
-  --color-primary-hover: rgba(83, 155, 245, 0.18);
-  --color-primary-solid: #539bf5;
-
-  --bg-base: #1c2128;
-  --bg-card: #22272e;
-  --bg-sidebar: #1a1f25;
-
-  --text-primary: #adbac7;
-  --text-secondary: #768390;
-  --text-muted: #545d68;
-
-  --bg-hover: rgba(255, 255, 255, 0.04);
-  --bg-active-btn: rgba(255, 255, 255, 0.06);
-  --bg-active-btn-hover: rgba(255, 255, 255, 0.10);
-
-  --border-subtle: rgba(255, 255, 255, 0.07);
-  --border-group: rgba(255, 255, 255, 0.05);
-
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.04);
-  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.15);
-
-  --scrollbar-thumb: rgba(255, 255, 255, 0.10);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.20);
-
-  --logo-gradient-from: #539bf5;
-  --logo-gradient-to: #6cb6ff;
-  --logo-shadow: rgba(83, 155, 245, 0.3);
-
-  /* ========== 渐变头部 (Midnight) ========== */
-  --header-gradient-from: #539bf5;
-  --header-gradient-to: #6cb6ff;
-
-  /* ========== 功能状态色 (Midnight) ========== */
-  --color-success: #57ab5a;
-  --color-warning: #d29922;
-  --color-error: #f85149;
-  --color-info: #539bf5;
-
-  /* ========== 标签背景色 (Midnight) ========== */
-  --tag-bg-info: rgba(83, 155, 245, 0.15);
-  --tag-bg-success: rgba(87, 171, 90, 0.15);
-  --tag-bg-warning: rgba(210, 153, 34, 0.15);
-  --tag-bg-danger: rgba(248, 81, 73, 0.15);
-
-  /* ========== 输入框样式 (Midnight) ========== */
-  --input-bg: #1a1f26;
-  --input-border: #444c56;
-  --input-border-focus: #539bf5;
-
-  /* ========== 快捷键图标渐变色 (Midnight) ========== */
-  --icon-blue-from: #539bf5;
-  --icon-blue-to: #6cb6ff;
-  --icon-green-from: #57ab5a;
-  --icon-green-to: #6bc46d;
-  --icon-purple-from: #b083f0;
-  --icon-purple-to: #dcbdfb;
-  --icon-purple-icon: #b083f0;
-  --icon-orange-from: #e0823d;
-  --icon-orange-to: #f0883e;
-  --icon-yellow-from: #d29922;
-  --icon-yellow-to: #eac54f;
-  --icon-cyan-from: #39c5cf;
-  --icon-cyan-to: #56d4dd;
-  --icon-red-from: #f85149;
-  --icon-red-to: #ff7b72;
-  --icon-red-icon: #f85149;
-  --icon-pink-from: #db61a2;
-  --icon-pink-to: #f778ba;
-  --icon-pink-icon: #db61a2;
-
-  /* ========== 进度条背景 (Midnight) ========== */
-  --progress-bg: rgba(255, 255, 255, 0.08);
-
-  /* ========== 卡片元素边框色 (Midnight) ========== */
-  --card-border: rgba(255, 255, 255, 0.12);
-
-  /* ========== 标题纯色 (Midnight) ========== */
-  --header-solid: #3d6aa2;
-
-  /* 状态行背景 (Midnight) */
-  --status-work-bg: rgba(16, 185, 129, 0.10);
-  --status-rest-bg: rgba(239, 68, 68, 0.10);
-  --status-screen-bg: rgba(6, 182, 212, 0.10);
-
-  /* Element Plus 覆写 (Midnight / GitHub Dimmed) */
-  --el-color-primary: #539bf5;
-  --el-color-primary-light-3: #437bc5;
-  --el-color-primary-light-5: #335b95;
-  --el-color-primary-light-7: #264575;
-  --el-color-primary-light-8: #1f3a65;
-  --el-color-primary-light-9: #182f55;
-  --el-color-primary-dark-2: #6cb6ff;
-
-  --el-bg-color: #22272e;
-  --el-bg-color-overlay: #2d333b;
-  --el-bg-color-page: #1c2128;
-
-  --el-text-color-primary: #adbac7;
-  --el-text-color-regular: #768390;
-  --el-text-color-secondary: #545d68;
-  --el-text-color-placeholder: #444c56;
-  --el-text-color-disabled: #373e47;
-
-  --el-border-color: #444c56;
-  --el-border-color-light: #373e47;
-  --el-border-color-lighter: #2d333b;
-  --el-border-color-extra-light: #22272e;
-
-  --el-fill-color: #2d333b;
-  --el-fill-color-light: #22272e;
-  --el-fill-color-lighter: #1c2128;
-  --el-fill-color-blank: #22272e;
-
-  --el-mask-color: rgba(0, 0, 0, 0.5);
-  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
-  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.2);
-}
-
-/* ========== Nord 北极主题 ========== */
-[data-theme="nord"] {
-  --color-primary: #88c0d0;
-  --color-primary-light: rgba(136, 192, 208, 0.12);
-  --color-primary-hover: rgba(136, 192, 208, 0.18);
-  --color-primary-solid: #88c0d0;
-
-  --bg-base: #2e3440;
-  --bg-card: #3b4252;
-  --bg-sidebar: #2b3039;
-  --text-primary: #eceff4;
-  --text-secondary: #d8dee9;
-  --text-muted: #7b88a1;
-
-  --bg-hover: rgba(255, 255, 255, 0.05);
-  --bg-active-btn: rgba(255, 255, 255, 0.07);
-  --bg-active-btn-hover: rgba(255, 255, 255, 0.12);
-
-  --border-subtle: rgba(255, 255, 255, 0.07);
-  --border-group: rgba(255, 255, 255, 0.05);
-
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.04);
-  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.15);
-
-  --scrollbar-thumb: rgba(255, 255, 255, 0.10);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.20);
-
-  --logo-gradient-from: #88c0d0;
-  --logo-gradient-to: #81a1c1;
-  --logo-shadow: rgba(136, 192, 208, 0.3);
-
-  /* ========== 渐变头部 (Nord) ========== */
-  --header-gradient-from: #88c0d0;
-  --header-gradient-to: #81a1c1;
-
-  /* ========== 功能状态色 (Nord) ========== */
-  --color-success: #a3be8c;
-  --color-warning: #ebcb8b;
-  --color-error: #bf616a;
-  --color-info: #88c0d0;
-
-  /* ========== 标签背景色 (Nord) ========== */
-  --tag-bg-info: rgba(136, 192, 208, 0.15);
-  --tag-bg-success: rgba(163, 190, 140, 0.15);
-  --tag-bg-warning: rgba(235, 203, 139, 0.15);
-  --tag-bg-danger: rgba(191, 97, 106, 0.15);
-
-  /* ========== 输入框样式 (Nord) ========== */
-  --input-bg: #2b303b;
-  --input-border: #4c566a;
-  --input-border-focus: #88c0d0;
-
-  /* ========== 快捷键图标渐变色 (Nord) ========== */
-  --icon-blue-from: #88c0d0;
-  --icon-blue-to: #81a1c1;
-  --icon-green-from: #a3be8c;
-  --icon-green-to: #8fbcbb;
-  --icon-purple-from: #b48ead;
-  --icon-purple-to: #d08770;
-  --icon-purple-icon: #b48ead;
-  --icon-orange-from: #d08770;
-  --icon-orange-to: #bf616a;
-  --icon-yellow-from: #ebcb8b;
-  --icon-yellow-to: #eceff4;
-  --icon-cyan-from: #8fbcbb;
-  --icon-cyan-to: #88c0d0;
-  --icon-red-from: #bf616a;
-  --icon-red-to: #d08770;
-  --icon-red-icon: #bf616a;
-  --icon-pink-from: #d08770;
-  --icon-pink-to: #b48ead;
-  --icon-pink-icon: #b48ead;
-
-  /* ========== 进度条背景 (Nord) ========== */
-  --progress-bg: rgba(255, 255, 255, 0.08);
-
-  /* ========== 卡片元素边框色 (Nord) ========== */
-  --card-border: rgba(255, 255, 255, 0.12);
-
-  /* ========== 标题纯色 (Nord) ========== */
-  --header-solid: #4d7c8a;
-
-  /* 状态行背景 (Nord) */
-  --status-work-bg: rgba(163, 190, 140, 0.12);
-  --status-rest-bg: rgba(191, 97, 106, 0.12);
-  --status-screen-bg: rgba(136, 192, 208, 0.12);
-
-  /* Element Plus 覆写 (Nord) */
-  --el-color-primary: #88c0d0;
-  --el-color-primary-light-3: #6ea0b0;
-  --el-color-primary-light-5: #548090;
-  --el-color-primary-light-7: #3e6575;
-  --el-color-primary-light-8: #335565;
-  --el-color-primary-light-9: #284555;
-  --el-color-primary-dark-2: #8fbcbb;
-
-  --el-bg-color: #3b4252;
-  --el-bg-color-overlay: #434c5e;
-  --el-bg-color-page: #2e3440;
-
-  --el-text-color-primary: #eceff4;
-  --el-text-color-regular: #d8dee9;
-  --el-text-color-secondary: #7b88a1;
-  --el-text-color-placeholder: #4c566a;
-  --el-text-color-disabled: #434c5e;
-
-  --el-border-color: #4c566a;
-  --el-border-color-light: #434c5e;
-  --el-border-color-lighter: #3b4252;
-  --el-border-color-extra-light: #2e3440;
-
-  --el-fill-color: #434c5e;
-  --el-fill-color-light: #3b4252;
-  --el-fill-color-lighter: #2e3440;
-  --el-fill-color-blank: #3b4252;
-
-  --el-mask-color: rgba(0, 0, 0, 0.5);
-  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
-  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.2);
-}
-
-/* ========== One Dark 主题 (Atom经典) ========== */
-[data-theme="one-dark"] {
-  --color-primary: #e06c75;
-  --color-primary-light: rgba(224, 108, 117, 0.12);
-  --color-primary-hover: rgba(224, 108, 117, 0.18);
-  --color-primary-solid: #e06c75;
-
-  --bg-base: #282c34;
-  --bg-card: #3e4451;
-  --bg-sidebar: #21252b;
-
-  --text-primary: #abb2bf;
-  --text-secondary: #5c6370;
-  --text-muted: #4b5263;
-
-  --bg-hover: rgba(255, 255, 255, 0.04);
-  --bg-active-btn: rgba(255, 255, 255, 0.06);
-  --bg-active-btn-hover: rgba(255, 255, 255, 0.10);
-
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-group: rgba(255, 255, 255, 0.04);
-
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.03);
-  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.15);
-
-  --scrollbar-thumb: rgba(255, 255, 255, 0.10);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.20);
-
-  --logo-gradient-from: #e06c75;
-  --logo-gradient-to: #c678dd;
-  --logo-shadow: rgba(224, 108, 117, 0.3);
-
-  /* ========== 渐变头部 (One Dark) ========== */
-  --header-gradient-from: #e06c75;
-  --header-gradient-to: #c678dd;
-
-  /* ========== 功能状态色 (One Dark) ========== */
-  --color-success: #98c379;
-  --color-warning: #e5c07b;
-  --color-error: #e06c75;
-  --color-info: #61afef;
-
-  /* ========== 标签背景色 (One Dark) ========== */
-  --tag-bg-info: rgba(97, 175, 239, 0.15);
-  --tag-bg-success: rgba(152, 195, 121, 0.15);
-  --tag-bg-warning: rgba(229, 192, 123, 0.15);
-  --tag-bg-danger: rgba(224, 108, 117, 0.15);
-
-  /* ========== 输入框样式 (One Dark) ========== */
-  --input-bg: #282c34;
-  --input-border: #4b5263;
-  --input-border-focus: #e06c75;
-
-  /* ========== 快捷键图标渐变色 (One Dark) ========== */
-  --icon-blue-from: #61afef;
-  --icon-blue-to: #56b6c2;
-  --icon-green-from: #98c379;
-  --icon-green-to: #56b6c2;
-  --icon-purple-from: #c678dd;
-  --icon-purple-to: #e06c75;
-  --icon-purple-icon: #c678dd;
-  --icon-orange-from: #d19a66;
-  --icon-orange-to: #e5c07b;
-  --icon-yellow-from: #e5c07b;
-  --icon-yellow-to: #d19a66;
-  --icon-cyan-from: #56b6c2;
-  --icon-cyan-to: #61afef;
-  --icon-red-from: #e06c75;
-  --icon-red-to: #be5046;
-  --icon-red-icon: #e06c75;
-  --icon-pink-from: #c678dd;
-  --icon-pink-to: #e06c75;
-  --icon-pink-icon: #c678dd;
-
-  /* ========== 进度条背景 (One Dark) ========== */
-  --progress-bg: rgba(255, 255, 255, 0.08);
-
-  /* ========== 卡片元素边框色 (One Dark) ========== */
-  --card-border: rgba(255, 255, 255, 0.12);
-
-  /* ========== 标题纯色 (One Dark) ========== */
-  --header-solid: #8a4a50;
-
-  /* 状态行背景 (One Dark) */
-  --status-work-bg: rgba(152, 195, 121, 0.12);
-  --status-rest-bg: rgba(224, 108, 117, 0.12);
-  --status-screen-bg: rgba(185, 187, 210, 0.12);
-
-  /* Element Plus 覆写 (One Dark) */
-  --el-color-primary: #e06c75;
-  --el-color-primary-light-3: #b0545c;
-  --el-color-primary-light-5: #8a4349;
-  --el-color-primary-light-7: #6a363b;
-  --el-color-primary-light-8: #5a2e33;
-  --el-color-primary-light-9: #4a262a;
-  --el-color-primary-dark-2: #ff838d;
-
-  --el-bg-color: #3e4451;
-  --el-bg-color-overlay: #4a5162;
-  --el-bg-color-page: #282c34;
-
-  --el-text-color-primary: #abb2bf;
-  --el-text-color-regular: #5c6370;
-  --el-text-color-secondary: #4b5263;
-  --el-text-color-placeholder: #3e4451;
-  --el-text-color-disabled: #3b4149;
-
-  --el-border-color: #4b5263;
-  --el-border-color-light: #3e4451;
-  --el-border-color-lighter: #373d48;
-  --el-border-color-extra-light: #282c34;
-
-  --el-fill-color: #4a5162;
-  --el-fill-color-light: #3e4451;
-  --el-fill-color-lighter: #282c34;
-  --el-fill-color-blank: #3e4451;
-
-  --el-mask-color: rgba(0, 0, 0, 0.5);
-  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
-  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.2);
-}
-
-/* ========== Dracula 主题 (高对比度) ========== */
-[data-theme="dracula"] {
-  --color-primary: #ff79c6;
-  --color-primary-light: rgba(255, 121, 198, 0.12);
-  --color-primary-hover: rgba(255, 121, 198, 0.18);
-  --color-primary-solid: #ff79c6;
-
-  --bg-base: #282a36;
-  --bg-card: #44475a;
-  --bg-sidebar: #1e1f29;
-
-  --text-primary: #f8f8f2;
-  --text-secondary: #bd93f9;
-  --text-muted: #6272a4;
-
-  --bg-hover: rgba(255, 255, 255, 0.05);
-  --bg-active-btn: rgba(255, 255, 255, 0.08);
-  --bg-active-btn-hover: rgba(255, 255, 255, 0.14);
-
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-group: rgba(255, 255, 255, 0.06);
-
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.04);
-  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.2);
-
-  --scrollbar-thumb: rgba(255, 255, 255, 0.12);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.25);
-
-  --logo-gradient-from: #ff79c6;
-  --logo-gradient-to: #bd93f9;
-  --logo-shadow: rgba(255, 121, 198, 0.3);
-
-  /* ========== 渐变头部 (Dracula) ========== */
-  --header-gradient-from: #ff79c6;
-  --header-gradient-to: #bd93f9;
-
-  /* ========== 功能状态色 (Dracula) ========== */
-  --color-success: #50fa7b;
-  --color-warning: #f1fa8c;
-  --color-error: #ff5555;
-  --color-info: #8be9fd;
-
-  /* ========== 标签背景色 (Dracula) ========== */
-  --tag-bg-info: rgba(139, 233, 253, 0.15);
-  --tag-bg-success: rgba(80, 250, 123, 0.15);
-  --tag-bg-warning: rgba(241, 250, 140, 0.15);
-  --tag-bg-danger: rgba(255, 85, 85, 0.15);
-
-  /* ========== 输入框样式 (Dracula) ========== */
-  --input-bg: #282a36;
-  --input-border: #6272a4;
-  --input-border-focus: #ff79c6;
-
-  /* ========== 快捷键图标渐变色 (Dracula) ========== */
-  --icon-blue-from: #8be9fd;
-  --icon-blue-to: #6272a4;
-  --icon-green-from: #50fa7b;
-  --icon-green-to: #8be9fd;
-  --icon-purple-from: #bd93f9;
-  --icon-purple-to: #ff79c6;
-  --icon-purple-icon: #bd93f9;
-  --icon-orange-from: #ffb86c;
-  --icon-orange-to: #ff79c6;
-  --icon-yellow-from: #f1fa8c;
-  --icon-yellow-to: #50fa7b;
-  --icon-cyan-from: #8be9fd;
-  --icon-cyan-to: #50fa7b;
-  --icon-red-from: #ff5555;
-  --icon-red-to: #ff79c6;
-  --icon-red-icon: #ff5555;
-  --icon-pink-from: #ff79c6;
-  --icon-pink-to: #bd93f9;
-  --icon-pink-icon: #ff79c6;
-
-  /* ========== 进度条背景 (Dracula) ========== */
-  --progress-bg: rgba(255, 255, 255, 0.1);
-
-  /* ========== 卡片元素边框色 (Dracula) ========== */
-  --card-border: rgba(255, 255, 255, 0.12);
-
-  /* ========== 标题纯色 (Dracula) ========== */
-  --header-solid: #6a3a6a;
-
-  /* 状态行背景 (Dracula) */
-  --status-work-bg: rgba(80, 250, 123, 0.12);
-  --status-rest-bg: rgba(255, 85, 85, 0.12);
-  --status-screen-bg: rgba(196, 199, 224, 0.12);
-
-  /* Element Plus 覆写 (Dracula) */
-  --el-color-primary: #ff79c6;
-  --el-color-primary-light-3: #cc62a3;
-  --el-color-primary-light-5: #a64e80;
-  --el-color-primary-light-7: #853e66;
-  --el-color-primary-light-8: #703657;
-  --el-color-primary-light-9: #5c2e49;
-  --el-color-primary-dark-2: #ff97d4;
-
-  --el-bg-color: #44475a;
-  --el-bg-color-overlay: #50536b;
-  --el-bg-color-page: #282a36;
-
-  --el-text-color-primary: #f8f8f2;
-  --el-text-color-regular: #bd93f9;
-  --el-text-color-secondary: #6272a4;
-  --el-text-color-placeholder: #44475a;
-  --el-text-color-disabled: #3a3d4d;
-
-  --el-border-color: #6272a4;
-  --el-border-color-light: #44475a;
-  --el-border-color-lighter: #3a3d4d;
-  --el-border-color-extra-light: #282a36;
-
-  --el-fill-color: #50536b;
-  --el-fill-color-light: #44475a;
-  --el-fill-color-lighter: #282a36;
-  --el-fill-color-blank: #44475a;
-
-  --el-mask-color: rgba(0, 0, 0, 0.5);
-  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
-  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.25);
-}
-
-/* ========== GitHub Dark 主题 (官方) ========== */
-[data-theme="github-dark"] {
-  --color-primary: #58a6ff;
-  --color-primary-light: rgba(88, 166, 255, 0.12);
-  --color-primary-hover: rgba(88, 166, 255, 0.18);
-  --color-primary-solid: #58a6ff;
-
-  --bg-base: #161b22;
-  --bg-card: #21262d;
-  --bg-sidebar: #0d1117;
-
-  --text-primary: #e6edf3;
-  --text-secondary: #8b949e;
-  --text-muted: #484f58;
-
-  --bg-hover: rgba(255, 255, 255, 0.04);
-  --bg-active-btn: rgba(255, 255, 255, 0.06);
-  --bg-active-btn-hover: rgba(255, 255, 255, 0.10);
-
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-group: rgba(255, 255, 255, 0.04);
-
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.03);
-  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.15);
-
-  --scrollbar-thumb: rgba(255, 255, 255, 0.10);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.20);
-
-  --logo-gradient-from: #58a6ff;
-  --logo-gradient-to: #79c0ff;
-  --logo-shadow: rgba(88, 166, 255, 0.3);
-
-  /* ========== 渐变头部 (GitHub Dark) ========== */
-  --header-gradient-from: #58a6ff;
-  --header-gradient-to: #79c0ff;
-
-  /* ========== 功能状态色 (GitHub Dark) ========== */
-  --color-success: #3fb950;
-  --color-warning: #d29922;
-  --color-error: #f85149;
-  --color-info: #58a6ff;
-
-  /* ========== 标签背景色 (GitHub Dark) ========== */
-  --tag-bg-info: rgba(88, 166, 255, 0.15);
-  --tag-bg-success: rgba(63, 185, 80, 0.15);
-  --tag-bg-warning: rgba(210, 153, 34, 0.15);
-  --tag-bg-danger: rgba(248, 81, 73, 0.15);
-
-  /* ========== 输入框样式 (GitHub Dark) ========== */
-  --input-bg: #161b22;
-  --input-border: #30363d;
-  --input-border-focus: #58a6ff;
-
-  /* ========== 快捷键图标渐变色 (GitHub Dark) ========== */
-  --icon-blue-from: #58a6ff;
-  --icon-blue-to: #79c0ff;
-  --icon-green-from: #3fb950;
-  --icon-green-to: #56d364;
-  --icon-purple-from: #a371f7;
-  --icon-purple-to: #bc8cff;
-  --icon-purple-icon: #a371f7;
-  --icon-orange-from: #db6d28;
-  --icon-orange-to: #f0883e;
-  --icon-yellow-from: #d29922;
-  --icon-yellow-to: #e3b341;
-  --icon-cyan-from: #39c5cf;
-  --icon-cyan-to: #56d4dd;
-  --icon-red-from: #f85149;
-  --icon-red-to: #ff7b72;
-  --icon-red-icon: #f85149;
-  --icon-pink-from: #db61a2;
-  --icon-pink-to: #f778ba;
-  --icon-pink-icon: #db61a2;
-
-  /* ========== 进度条背景 (GitHub Dark) ========== */
-  --progress-bg: rgba(255, 255, 255, 0.08);
-
-  /* ========== 卡片元素边框色 (GitHub Dark) ========== */
-  --card-border: rgba(255, 255, 255, 0.12);
-
-  /* ========== 标题纯色 (GitHub Dark) ========== */
-  --header-solid: #388bfd;
-
-  /* 状态行背景 (GitHub Dark) */
-  --status-work-bg: rgba(34, 197, 94, 0.10);
-  --status-rest-bg: rgba(239, 68, 68, 0.10);
-  --status-screen-bg: rgba(139, 148, 158, 0.10);
-
-  /* Element Plus 覆写 (GitHub Dark) */
-  --el-color-primary: #58a6ff;
-  --el-color-primary-light-3: #488ae6;
-  --el-color-primary-light-5: #3a6fc9;
-  --el-color-primary-light-7: #2d5aab;
-  --el-color-primary-light-8: #264d92;
-  --el-color-primary-light-9: #1e417a;
-  --el-color-primary-dark-2: #79c0ff;
-
-  --el-bg-color: #21262d;
-  --el-bg-color-overlay: #30363d;
-  --el-bg-color-page: #161b22;
-
-  --el-text-color-primary: #e6edf3;
-  --el-text-color-regular: #8b949e;
-  --el-text-color-secondary: #484f58;
-  --el-text-color-placeholder: #30363d;
-  --el-text-color-disabled: #21262d;
-
-  --el-border-color: #30363d;
-  --el-border-color-light: #21262d;
-  --el-border-color-lighter: #1c2128;
-  --el-border-color-extra-light: #161b22;
-
-  --el-fill-color: #30363d;
-  --el-fill-color-light: #21262d;
-  --el-fill-color-lighter: #161b22;
-  --el-fill-color-blank: #21262d;
-
-  --el-mask-color: rgba(0, 0, 0, 0.5);
-  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
-  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.2);
-}
-
-/* ========== Tokyo Night 主题 (霓虹风格) ========== */
-[data-theme="tokyo-night"] {
-  --color-primary: #7aa2f7;
-  --color-primary-light: rgba(122, 162, 247, 0.12);
-  --color-primary-hover: rgba(122, 162, 247, 0.18);
-  --color-primary-solid: #7aa2f7;
-
-  --bg-base: #1a1b26;
-  --bg-card: #24283b;
-  --bg-sidebar: #1f2335;
-
-  --text-primary: #c0caf5;
-  --text-secondary: #a9b1d6;
-  --text-muted: #565f89;
-
-  --bg-hover: rgba(255, 255, 255, 0.05);
-  --bg-active-btn: rgba(255, 255, 255, 0.08);
-  --bg-active-btn-hover: rgba(255, 255, 255, 0.14);
-
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-group: rgba(255, 255, 255, 0.06);
-
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.04);
-  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.2);
-
-  --scrollbar-thumb: rgba(255, 255, 255, 0.12);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.25);
-
-  --logo-gradient-from: #7aa2f7;
-  --logo-gradient-to: #bb9af7;
-  --logo-shadow: rgba(122, 162, 247, 0.3);
-
-  /* ========== 渐变头部 (Tokyo Night) ========== */
-  --header-gradient-from: #7aa2f7;
-  --header-gradient-to: #bb9af7;
-
-  /* ========== 功能状态色 (Tokyo Night) ========== */
-  --color-success: #9ece6a;
-  --color-warning: #e0af68;
-  --color-error: #f7768e;
-  --color-info: #7aa2f7;
-
-  /* ========== 标签背景色 (Tokyo Night) ========== */
-  --tag-bg-info: rgba(122, 162, 247, 0.15);
-  --tag-bg-success: rgba(158, 206, 106, 0.15);
-  --tag-bg-warning: rgba(224, 175, 104, 0.15);
-  --tag-bg-danger: rgba(247, 118, 142, 0.15);
-
-  /* ========== 输入框样式 (Tokyo Night) ========== */
-  --input-bg: #1f2335;
-  --input-border: #3b4261;
-  --input-border-focus: #7aa2f7;
-
-  /* ========== 快捷键图标渐变色 (Tokyo Night) ========== */
-  --icon-blue-from: #7aa2f7;
-  --icon-blue-to: #2ac3de;
-  --icon-green-from: #9ece6a;
-  --icon-green-to: #73daca;
-  --icon-purple-from: #bb9af7;
-  --icon-purple-to: #c0caf5;
-  --icon-purple-icon: #bb9af7;
-  --icon-orange-from: #ff9e64;
-  --icon-orange-to: #f7768e;
-  --icon-yellow-from: #e0af68;
-  --icon-yellow-to: #ff9e64;
-  --icon-cyan-from: #2ac3de;
-  --icon-cyan-to: #7dcfff;
-  --icon-red-from: #f7768e;
-  --icon-red-to: #ff007c;
-  --icon-red-icon: #f7768e;
-  --icon-pink-from: #ff007c;
-  --icon-pink-to: #d700de;
-  --icon-pink-icon: #ff007c;
-
-  /* ========== 进度条背景 (Tokyo Night) ========== */
-  --progress-bg: rgba(255, 255, 255, 0.1);
-
-  /* ========== 卡片元素边框色 (Tokyo Night) ========== */
-  --card-border: rgba(255, 255, 255, 0.12);
-
-  /* ========== 标题纯色 (Tokyo Night) ========== */
-  --header-solid: #4a6fa5;
-
-  /* 状态行背景 (Tokyo Night) */
-  --status-work-bg: rgba(16, 185, 129, 0.12);
-  --status-rest-bg: rgba(239, 68, 68, 0.12);
-  --status-screen-bg: rgba(6, 182, 212, 0.12);
-
-  /* Element Plus 覆写 (Tokyo Night) */
-  --el-color-primary: #7aa2f7;
-  --el-color-primary-light-3: #5a82d7;
-  --el-color-primary-light-5: #3d61b7;
-  --el-color-primary-light-7: #2a4a97;
-  --el-color-primary-light-8: #233f7a;
-  --el-color-primary-light-9: #1c345d;
-  --el-color-primary-dark-2: #9ab4ff;
-
-  --el-bg-color: #24283b;
-  --el-bg-color-overlay: #292e42;
-  --el-bg-color-page: #1a1b26;
-
-  --el-text-color-primary: #c0caf5;
-  --el-text-color-regular: #a9b1d6;
-  --el-text-color-secondary: #565f89;
-  --el-text-color-placeholder: #414868;
-  --el-text-color-disabled: #3b4261;
-
-  --el-border-color: #3b4261;
-  --el-border-color-light: #2f354d;
-  --el-border-color-lighter: #292e42;
-  --el-border-color-extra-light: #24283b;
-
-  --el-fill-color: #292e42;
-  --el-fill-color-light: #24283b;
-  --el-fill-color-lighter: #1f2335;
-  --el-fill-color-blank: #24283b;
-
-  --el-mask-color: rgba(0, 0, 0, 0.5);
-  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
-  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.25);
-}
-
-/* ========== Solarized 主题 (科学配色) ========== */
-[data-theme="solarized"] {
-  --color-primary: #2aa198;
-  --color-primary-light: rgba(42, 161, 152, 0.12);
-  --color-primary-hover: rgba(42, 161, 152, 0.18);
-  --color-primary-solid: #2aa198;
-
-  --bg-base: #073642;
-  --bg-card: #002b36;
-  --bg-sidebar: #00252e;
-
-  --text-primary: #839496;
-  --text-secondary: #586e75;
-  --text-muted: #465457;
-
-  --bg-hover: rgba(255, 255, 255, 0.03);
-  --bg-active-btn: rgba(255, 255, 255, 0.05);
-  --bg-active-btn-hover: rgba(255, 255, 255, 0.08);
-
-  --border-subtle: rgba(255, 255, 255, 0.05);
-  --border-group: rgba(255, 255, 255, 0.03);
-
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(255, 255, 255, 0.03);
-  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.1);
-
-  --scrollbar-thumb: rgba(255, 255, 255, 0.08);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.16);
-
-  --logo-gradient-from: #2aa198;
-  --logo-gradient-to: #268bd2;
-  --logo-shadow: rgba(42, 161, 152, 0.3);
-
-  /* ========== 渐变头部 (Solarized) ========== */
-  --header-gradient-from: #2aa198;
-  --header-gradient-to: #268bd2;
-
-  /* ========== 功能状态色 (Solarized) ========== */
-  --color-success: #859900;
-  --color-warning: #b58900;
-  --color-error: #dc322f;
-  --color-info: #268bd2;
-
-  /* ========== 标签背景色 (Solarized) ========== */
-  --tag-bg-info: rgba(38, 139, 210, 0.15);
-  --tag-bg-success: rgba(133, 153, 0, 0.15);
-  --tag-bg-warning: rgba(181, 137, 0, 0.15);
-  --tag-bg-danger: rgba(220, 50, 47, 0.15);
-
-  /* ========== 输入框样式 (Solarized) ========== */
-  --input-bg: #073642;
-  --input-border: #465457;
-  --input-border-focus: #2aa198;
-
-  /* ========== 快捷键图标渐变色 (Solarized) ========== */
-  --icon-blue-from: #268bd2;
-  --icon-blue-to: #2aa198;
-  --icon-green-from: #859900;
-  --icon-green-to: #2aa198;
-  --icon-purple-from: #6c71c4;
-  --icon-purple-to: #d33682;
-  --icon-purple-icon: #6c71c4;
-  --icon-orange-from: #cb4b16;
-  --icon-orange-to: #b58900;
-  --icon-yellow-from: #b58900;
-  --icon-yellow-to: #839496;
-  --icon-cyan-from: #2aa198;
-  --icon-cyan-to: #268bd2;
-  --icon-red-from: #dc322f;
-  --icon-red-to: #cb4b16;
-  --icon-red-icon: #dc322f;
-  --icon-pink-from: #d33682;
-  --icon-pink-to: #6c71c4;
-  --icon-pink-icon: #d33682;
-
-  /* ========== 进度条背景 (Solarized) ========== */
-  --progress-bg: rgba(255, 255, 255, 0.08);
-
-  /* ========== 卡片元素边框色 (Solarized) ========== */
-  --card-border: rgba(255, 255, 255, 0.1);
-
-  /* ========== 标题纯色 (Solarized) ========== */
-  --header-solid: #2aa198;
-
-  /* 状态行背景 (Solarized) */
-  --status-work-bg: rgba(133, 153, 0, 0.10);
-  --status-rest-bg: rgba(220, 50, 47, 0.10);
-  --status-screen-bg: rgba(131, 148, 150, 0.10);
-
-  /* Element Plus 覆写 (Solarized) */
-  --el-color-primary: #2aa198;
-  --el-color-primary-light-3: #1f8077;
-  --el-color-primary-light-5: #18635b;
-  --el-color-primary-light-7: #124c47;
-  --el-color-primary-light-8: #0e3f3b;
-  --el-color-primary-light-9: #0a3330;
-  --el-color-primary-dark-2: #3abdb4;
-
-  --el-bg-color: #002b36;
-  --el-bg-color-overlay: #073642;
-  --el-bg-color-page: #073642;
-
-  --el-text-color-primary: #839496;
-  --el-text-color-regular: #586e75;
-  --el-text-color-secondary: #465457;
-  --el-text-color-placeholder: #002b36;
-  --el-text-color-disabled: #263539;
-
-  --el-border-color: #465457;
-  --el-border-color-light: #002b36;
-  --el-border-color-lighter: #073642;
-  --el-border-color-extra-light: #073642;
-
-  --el-fill-color: #073642;
-  --el-fill-color-light: #002b36;
-  --el-fill-color-lighter: #00252e;
-  --el-fill-color-blank: #002b36;
-
-  --el-mask-color: rgba(0, 0, 0, 0.5);
-  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
-  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.15);
-}
-
-/* ========== Gruvbox 主题 (温暖复古) ========== */
-[data-theme="gruvbox"] {
-  --color-primary: #fb4934;
-  --color-primary-light: rgba(251, 73, 52, 0.12);
-  --color-primary-hover: rgba(251, 73, 52, 0.18);
-  --color-primary-solid: #fb4934;
-
-  --bg-base: #282828;
-  --bg-card: #3c3836;
-  --bg-sidebar: #1d2021;
-
-  --text-primary: #ebdbb2;
-  --text-secondary: #a89984;
-  --text-muted: #665c54;
-
-  --bg-hover: rgba(255, 255, 255, 0.04);
-  --bg-active-btn: rgba(255, 255, 255, 0.06);
-  --bg-active-btn-hover: rgba(255, 255, 255, 0.10);
-
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-group: rgba(255, 255, 255, 0.04);
-
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.03);
-  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.15);
-
-  --scrollbar-thumb: rgba(255, 255, 255, 0.10);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.20);
-
-  --logo-gradient-from: #fb4934;
-  --logo-gradient-to: #fabd2f;
-  --logo-shadow: rgba(251, 73, 52, 0.3);
-
-  /* ========== 渐变头部 (Gruvbox) ========== */
-  --header-gradient-from: #fb4934;
-  --header-gradient-to: #fabd2f;
-
-  /* ========== 功能状态色 (Gruvbox) ========== */
-  --color-success: #b8bb26;
-  --color-warning: #fabd2f;
-  --color-error: #fb4934;
-  --color-info: #83a598;
-
-  /* ========== 标签背景色 (Gruvbox) ========== */
-  --tag-bg-info: rgba(131, 165, 152, 0.15);
-  --tag-bg-success: rgba(184, 187, 38, 0.15);
-  --tag-bg-warning: rgba(250, 189, 47, 0.15);
-  --tag-bg-danger: rgba(251, 73, 52, 0.15);
-
-  /* ========== 输入框样式 (Gruvbox) ========== */
-  --input-bg: #282828;
-  --input-border: #665c54;
-  --input-border-focus: #fb4934;
-
-  /* ========== 快捷键图标渐变色 (Gruvbox) ========== */
-  --icon-blue-from: #83a598;
-  --icon-blue-to: #458588;
-  --icon-green-from: #b8bb26;
-  --icon-green-to: #8ec07c;
-  --icon-purple-from: #b16286;
-  --icon-purple-to: #d3869b;
-  --icon-purple-icon: #b16286;
-  --icon-orange-from: #fe8019;
-  --icon-orange-to: #f9241e;
-  --icon-yellow-from: #fabd2f;
-  --icon-yellow-to: #fe8019;
-  --icon-cyan-from: #8ec07c;
-  --icon-cyan-to: #83a598;
-  --icon-red-from: #fb4934;
-  --icon-red-to: #cc241d;
-  --icon-red-icon: #fb4934;
-  --icon-pink-from: #d3869b;
-  --icon-pink-to: #b16286;
-  --icon-pink-icon: #d3869b;
-
-  /* ========== 进度条背景 (Gruvbox) ========== */
-  --progress-bg: rgba(255, 255, 255, 0.08);
-
-  /* ========== 卡片元素边框色 (Gruvbox) ========== */
-  --card-border: rgba(255, 255, 255, 0.12);
-
-  /* ========== 标题纯色 (Gruvbox) ========== */
-  --header-solid: #8a2a1f;
-
-  /* 状态行背景 (Gruvbox) */
-  --status-work-bg: rgba(142, 192, 124, 0.12);
-  --status-rest-bg: rgba(251, 73, 52, 0.12);
-  --status-screen-bg: rgba(168, 153, 132, 0.12);
-
-  /* Element Plus 覆写 (Gruvbox) */
-  --el-color-primary: #fb4934;
-  --el-color-primary-light-3: #c53d31;
-  --el-color-primary-light-5: #9a3128;
-  --el-color-primary-light-7: #782720;
-  --el-color-primary-light-8: #63201a;
-  --el-color-primary-light-9: #4e1915;
-  --el-color-primary-dark-2: #ff604a;
-
-  --el-bg-color: #3c3836;
-  --el-bg-color-overlay: #4a4543;
-  --el-bg-color-page: #282828;
-
-  --el-text-color-primary: #ebdbb2;
-  --el-text-color-regular: #a89984;
-  --el-text-color-secondary: #665c54;
-  --el-text-color-placeholder: #3c3836;
-  --el-text-color-disabled: #282828;
-
-  --el-border-color: #665c54;
-  --el-border-color-light: #3c3836;
-  --el-border-color-lighter: #282828;
-  --el-border-color-extra-light: #282828;
-
-  --el-fill-color: #4a4543;
-  --el-fill-color-light: #3c3836;
-  --el-fill-color-lighter: #282828;
-  --el-fill-color-blank: #3c3836;
-
-  --el-mask-color: rgba(0, 0, 0, 0.5);
-  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
-  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.2);
-}
-
-/* ========== Catppuccin 主题 (浅色奶咖) ========== */
-[data-theme="catppuccin"] {
-  --color-primary: #c084fc;
-  --color-primary-light: rgba(192, 132, 252, 0.09);
-  --color-primary-hover: rgba(192, 132, 252, 0.13);
-  --color-primary-solid: #a855f7;
-
-  --bg-base: #f5f5f4;
-  --bg-card: #e7e5e4;
-  --bg-sidebar: #d6d3d1;
-
-  --text-primary: #292524;
-  --text-secondary: #57534e;
-  --text-muted: #78716c;
-
-  --bg-hover: rgba(0, 0, 0, 0.04);
-  --bg-active-btn: rgba(0, 0, 0, 0.05);
-  --bg-active-btn-hover: rgba(0, 0, 0, 0.10);
-
-  --border-subtle: rgba(0, 0, 0, 0.06);
-  --border-group: rgba(0, 0, 0, 0.05);
-
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.03);
-  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.03);
-
-  --scrollbar-thumb: rgba(0, 0, 0, 0.12);
-  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.25);
-
-  --logo-gradient-from: #c084fc;
-  --logo-gradient-to: #d8b4fe;
-  --logo-shadow: rgba(192, 132, 252, 0.3);
-
-  /* ========== 渐变头部 (Catppuccin) ========== */
-  --header-gradient-from: #c084fc;
-  --header-gradient-to: #f472b6;
-
-  /* ========== 功能状态色 (Catppuccin) ========== */
-  --color-success: #40a02b;
-  --color-warning: #df8e1d;
-  --color-error: #d20f39;
-  --color-info: #1e66f5;
-
-  /* ========== 标签背景色 (Catppuccin) ========== */
-  --tag-bg-info: rgba(30, 102, 245, 0.09);
-  --tag-bg-success: rgba(64, 160, 43, 0.09);
-  --tag-bg-warning: rgba(223, 142, 29, 0.09);
-  --tag-bg-danger: rgba(210, 15, 57, 0.09);
-
-  /* ========== 输入框样式 (Catppuccin) ========== */
-  --input-bg: #e7e5e4;
-  --input-border: #d6d3d1;
-  --input-border-focus: #c084fc;
-
-  /* ========== 快捷键图标渐变色 (Catppuccin) ========== */
-  --icon-blue-from: #89b4fa;
-  --icon-blue-to: #b4befe;
-  --icon-green-from: #a6e3a1;
-  --icon-green-to: #94e2d5;
-  --icon-purple-from: #cba6f7;
-  --icon-purple-to: #f5c2e7;
-  --icon-purple-icon: #c084fc;
-  --icon-orange-from: #fab387;
-  --icon-orange-to: #f9e2af;
-  --icon-yellow-from: #f9e2af;
-  --icon-yellow-to: #fab387;
-  --icon-cyan-from: #94e2d5;
-  --icon-cyan-to: #89dceb;
-  --icon-red-from: #f38ba8;
-  --icon-red-to: #eba0ac;
-  --icon-red-icon: #d20f39;
-  --icon-pink-from: #f5c2e7;
-  --icon-pink-to: #cba6f7;
-  --icon-pink-icon: #c084fc;
-
-  /* ========== 进度条背景 (Catppuccin) ========== */
-  --progress-bg: rgba(0, 0, 0, 0.1);
-
-  --status-work-bg: rgba(16, 185, 129, 0.08);
-  --status-rest-bg: rgba(239, 68, 68, 0.08);
-  --status-screen-bg: rgba(6, 182, 212, 0.08);
-
-  --el-color-primary: #c084fc;
-  --el-color-primary-light-3: #a855f7;
-  --el-color-primary-light-5: #9333ea;
-  --el-color-primary-light-7: #7e22ce;
-  --el-color-primary-light-8: #7c3aed;
-  --el-color-primary-light-9: #6b21a8;
-  --el-color-primary-dark-2: #d8b4fe;
-
-  --el-bg-color: #e7e5e4;
-  --el-bg-color-overlay: #d6d3d1;
-  --el-bg-color-page: #f5f5f4;
-
-  --el-text-color-primary: #292524;
-  --el-text-color-regular: #57534e;
-  --el-text-color-secondary: #78716c;
-  --el-text-color-placeholder: #a8a29e;
-  --el-text-color-disabled: #d6d3d1;
-
-  --el-border-color: #d6d3d1;
-  --el-border-color-light: #e7e5e4;
-  --el-border-color-lighter: #f5f5f4;
-  --el-border-color-extra-light: #fafafa;
-
-  --el-fill-color: #d6d3d1;
-  --el-fill-color-light: #e7e5e4;
-  --el-fill-color-lighter: #f5f5f4;
-  --el-fill-color-blank: #e7e5e4;
-
-  --el-mask-color: rgba(0, 0, 0, 0.3);
-  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.06);
-}
-
-/* ========== Catppuccin Mocha 主题 (深色奶咖) ========== */
-[data-theme="catppuccin-mocha"] {
-  --color-primary: #cba6f7;
-  --color-primary-light: rgba(203, 166, 247, 0.12);
-  --color-primary-hover: rgba(203, 166, 247, 0.18);
-  --color-primary-solid: #cba6f7;
-
-  --bg-base: #1e1e2e;
-  --bg-card: #313244;
-  --bg-sidebar: #181825;
-
-  --text-primary: #cdd6f4;
-  --text-secondary: #a6adc8;
-  --text-muted: #6c7086;
-
-  --bg-hover: rgba(255, 255, 255, 0.05);
-  --bg-active-btn: rgba(255, 255, 255, 0.08);
-  --bg-active-btn-hover: rgba(255, 255, 255, 0.14);
-
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-group: rgba(255, 255, 255, 0.06);
-
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.04);
-  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.2);
-
-  --scrollbar-thumb: rgba(255, 255, 255, 0.12);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.25);
-
-  --logo-gradient-from: #cba6f7;
-  --logo-gradient-to: #eba0ac;
-  --logo-shadow: rgba(203, 166, 247, 0.3);
-
-  /* ========== 渐变头部 (Catppuccin Mocha) ========== */
-  --header-gradient-from: #cba6f7;
-  --header-gradient-to: #f5c2e7;
-
-  /* ========== 功能状态色 (Catppuccin Mocha) ========== */
-  --color-success: #a6e3a1;
-  --color-warning: #f9e2af;
-  --color-error: #f38ba8;
-  --color-info: #89b4fa;
-
-  /* ========== 标签背景色 (Catppuccin Mocha) ========== */
-  --tag-bg-info: rgba(137, 180, 250, 0.15);
-  --tag-bg-success: rgba(166, 227, 161, 0.15);
-  --tag-bg-warning: rgba(249, 226, 175, 0.15);
-  --tag-bg-danger: rgba(243, 139, 168, 0.15);
-
-  /* ========== 输入框样式 (Catppuccin Mocha) ========== */
-  --input-bg: #1e1e2e;
-  --input-border: #45475a;
-  --input-border-focus: #cba6f7;
-
-  /* ========== 快捷键图标渐变色 (Catppuccin Mocha) ========== */
-  --icon-blue-from: #89b4fa;
-  --icon-blue-to: #b4befe;
-  --icon-green-from: #a6e3a1;
-  --icon-green-to: #94e2d5;
-  --icon-purple-from: #cba6f7;
-  --icon-purple-to: #f5c2e7;
-  --icon-purple-icon: #cba6f7;
-  --icon-orange-from: #fab387;
-  --icon-orange-to: #f9e2af;
-  --icon-yellow-from: #f9e2af;
-  --icon-yellow-to: #fab387;
-  --icon-cyan-from: #94e2d5;
-  --icon-cyan-to: #89dceb;
-  --icon-red-from: #f38ba8;
-  --icon-red-to: #eba0ac;
-  --icon-red-icon: #f38ba8;
-  --icon-pink-from: #f5c2e7;
-  --icon-pink-to: #cba6f7;
-  --icon-pink-icon: #f5c2e7;
-
-  /* ========== 进度条背景 (Catppuccin Mocha) ========== */
-  --progress-bg: rgba(255, 255, 255, 0.1);
-
-  /* ========== 卡片元素边框色 (Catppuccin Mocha) ========== */
-  --card-border: rgba(255, 255, 255, 0.12);
-
-  /* ========== 标题纯色 (Catppuccin Mocha) ========== */
-  --header-solid: #8b6fc0;
-
-  --status-work-bg: rgba(166, 226, 161, 0.12);
-  --status-rest-bg: rgba(235, 160, 172, 0.12);
-  --status-screen-bg: rgba(180, 190, 254, 0.12);
-
-  --el-color-primary: #cba6f7;
-  --el-color-primary-light-3: #a78bfa;
-  --el-color-primary-light-5: #8b5cf6;
-  --el-color-primary-light-7: #7c3aed;
-  --el-color-primary-light-8: #6d28d9;
-  --el-color-primary-light-9: #5b21b6;
-  --el-color-primary-dark-2: #f5c2e7;
-
-  --el-bg-color: #313244;
-  --el-bg-color-overlay: #45475a;
-  --el-bg-color-page: #1e1e2e;
-
-  --el-text-color-primary: #cdd6f4;
-  --el-text-color-regular: #a6adc8;
-  --el-text-color-secondary: #6c7086;
-  --el-text-color-placeholder: #45475a;
-  --el-text-color-disabled: #313244;
-
-  --el-border-color: #45475a;
-  --el-border-color-light: #313244;
-  --el-border-color-lighter: #1e1e2e;
-  --el-border-color-extra-light: #181825;
-
-  --el-fill-color: #45475a;
-  --el-fill-color-light: #313244;
-  --el-fill-color-lighter: #1e1e2e;
-  --el-fill-color-blank: #313244;
-
-  --el-mask-color: rgba(0, 0, 0, 0.5);
-  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
-  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.25);
-}
-
-/* ========== Ayu Dark 主题 ========== */
-[data-theme="ayu-dark"] {
-  --color-primary: #f07178;
-  --color-primary-light: rgba(240, 113, 120, 0.12);
-  --color-primary-hover: rgba(240, 113, 120, 0.18);
-  --color-primary-solid: #f07178;
-
-  --bg-base: #0a0e14;
-  --bg-card: #10151b;
-  --bg-sidebar: #0d1117;
-
-  --text-primary: #e6e6e6;
-  --text-secondary: #989998;
-  --text-muted: #5c5d5c;
-
-  --bg-hover: rgba(255, 255, 255, 0.04);
-  --bg-active-btn: rgba(255, 255, 255, 0.06);
-  --bg-active-btn-hover: rgba(255, 255, 255, 0.10);
-
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-group: rgba(255, 255, 255, 0.04);
-
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.03);
-  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.15);
-
-  --scrollbar-thumb: rgba(255, 255, 255, 0.10);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.20);
-
-  --logo-gradient-from: #f07178;
-  --logo-gradient-to: #ff8585;
-  --logo-shadow: rgba(240, 113, 120, 0.3);
-
-  /* ========== 渐变头部 (Ayu Dark) ========== */
-  --header-gradient-from: #f07178;
-  --header-gradient-to: #ffb454;
-
-  /* ========== 功能状态色 (Ayu Dark) ========== */
-  --color-success: #a8d98f;
-  --color-warning: #ffb454;
-  --color-error: #f07178;
-  --color-info: #59c2ff;
-
-  /* ========== 标签背景色 (Ayu Dark) ========== */
-  --tag-bg-info: rgba(89, 194, 255, 0.15);
-  --tag-bg-success: rgba(168, 217, 143, 0.15);
-  --tag-bg-warning: rgba(255, 180, 84, 0.15);
-  --tag-bg-danger: rgba(240, 113, 120, 0.15);
-
-  /* ========== 输入框样式 (Ayu Dark) ========== */
-  --input-bg: #0a0e14;
-  --input-border: #3d3e3d;
-  --input-border-focus: #f07178;
-
-  /* ========== 快捷键图标渐变色 (Ayu Dark) ========== */
-  --icon-blue-from: #59c2ff;
-  --icon-blue-to: #39bae6;
-  --icon-green-from: #a8d98f;
-  --icon-green-to: #7fd962;
-  --icon-purple-from: #d2a6ff;
-  --icon-purple-to: #f07178;
-  --icon-purple-icon: #d2a6ff;
-  --icon-orange-from: #ffb454;
-  --icon-orange-to: #ff8f40;
-  --icon-yellow-from: #ffd173;
-  --icon-yellow-to: #ffb454;
-  --icon-cyan-from: #95e6cb;
-  --icon-cyan-to: #59c2ff;
-  --icon-red-from: #f07178;
-  --icon-red-to: #ff3333;
-  --icon-red-icon: #f07178;
-  --icon-pink-from: #f29e74;
-  --icon-pink-to: #f07178;
-  --icon-pink-icon: #f29e74;
-
-  /* ========== 进度条背景 (Ayu Dark) ========== */
-  --progress-bg: rgba(255, 255, 255, 0.08);
-
-  /* ========== 卡片元素边框色 (Ayu Dark) ========== */
-  --card-border: rgba(255, 255, 255, 0.1);
-
-  /* ========== 标题纯色 (Ayu Dark) ========== */
-  --header-solid: #f07178;
-
-  --status-work-bg: rgba(168, 209, 143, 0.12);
-  --status-rest-bg: rgba(240, 113, 120, 0.12);
-  --status-screen-bg: rgba(192, 195, 204, 0.12);
-
-  --el-color-primary: #f07178;
-  --el-color-primary-light-3: #c0585e;
-  --el-color-primary-light-5: #9a454a;
-  --el-color-primary-light-7: #7a383c;
-  --el-color-primary-light-8: #652f32;
-  --el-color-primary-light-9: #502729;
-  --el-color-primary-dark-2: #ff9298;
-
-  --el-bg-color: #10151b;
-  --el-bg-color-overlay: #1a1f27;
-  --el-bg-color-page: #0a0e14;
-
-  --el-text-color-primary: #e6e6e6;
-  --el-text-color-regular: #989998;
-  --el-text-color-secondary: #5c5d5c;
-  --el-text-color-placeholder: #3d3e3d;
-  --el-text-color-disabled: #2d2e2d;
-
-  --el-border-color: #3d3e3d;
-  --el-border-color-light: #2d2e2d;
-  --el-border-color-lighter: #1a1f27;
-  --el-border-color-extra-light: #10151b;
-
-  --el-fill-color: #1a1f27;
-  --el-fill-color-light: #10151b;
-  --el-fill-color-lighter: #0a0e14;
-  --el-fill-color-blank: #10151b;
-
-  --el-mask-color: rgba(0, 0, 0, 0.5);
-  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
-  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.2);
-}
-
-/* ========== Ayu Mirage 主题 ========== */
-[data-theme="ayu-mirage"] {
-  --color-primary: #f28779;
-  --color-primary-light: rgba(242, 135, 121, 0.12);
-  --color-primary-hover: rgba(242, 135, 121, 0.18);
-  --color-primary-solid: #f28779;
-
-  --bg-base: #171b24;
-  --bg-card: #1f2430;
-  --bg-sidebar: #151923;
-
-  --text-primary: #cbccc6;
-  --text-secondary: #8f95a3;
-  --text-muted: #5c6370;
-
-  --bg-hover: rgba(255, 255, 255, 0.04);
-  --bg-active-btn: rgba(255, 255, 255, 0.06);
-  --bg-active-btn-hover: rgba(255, 255, 255, 0.10);
-
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-group: rgba(255, 255, 255, 0.04);
-
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.03);
-  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.15);
-
-  --scrollbar-thumb: rgba(255, 255, 255, 0.10);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.20);
-
-  --logo-gradient-from: #f28779;
-  --logo-gradient-to: #ff9f91;
-  --logo-shadow: rgba(242, 135, 121, 0.3);
-
-  /* ========== 渐变头部 (Ayu Mirage) ========== */
-  --header-gradient-from: #f28779;
-  --header-gradient-to: #ffcc66;
-
-  /* ========== 功能状态色 (Ayu Mirage) ========== */
-  --color-success: #a6cc90;
-  --color-warning: #ffcc66;
-  --color-error: #f28779;
-  --color-info: #5ccfe6;
-
-  /* ========== 标签背景色 (Ayu Mirage) ========== */
-  --tag-bg-info: rgba(92, 207, 230, 0.15);
-  --tag-bg-success: rgba(166, 204, 144, 0.15);
-  --tag-bg-warning: rgba(255, 204, 102, 0.15);
-  --tag-bg-danger: rgba(242, 135, 121, 0.15);
-
-  /* ========== 输入框样式 (Ayu Mirage) ========== */
-  --input-bg: #171b24;
-  --input-border: #4a505c;
-  --input-border-focus: #f28779;
-
-  /* ========== 快捷键图标渐变色 (Ayu Mirage) ========== */
-  --icon-blue-from: #5ccfe6;
-  --icon-blue-to: #39bae6;
-  --icon-green-from: #a6cc90;
-  --icon-green-to: #91b36e;
-  --icon-purple-from: #d4bfff;
-  --icon-purple-to: #f28779;
-  --icon-purple-icon: #d4bfff;
-  --icon-orange-from: #ffcc66;
-  --icon-orange-to: #ffa759;
-  --icon-yellow-from: #ffd580;
-  --icon-yellow-to: #ffcc66;
-  --icon-cyan-from: #95e6cb;
-  --icon-cyan-to: #5ccfe6;
-  --icon-red-from: #f28779;
-  --icon-red-to: #ed6a5e;
-  --icon-red-icon: #f28779;
-  --icon-pink-from: #f29e74;
-  --icon-pink-to: #f28779;
-  --icon-pink-icon: #f29e74;
-
-  /* ========== 进度条背景 (Ayu Mirage) ========== */
-  --progress-bg: rgba(255, 255, 255, 0.08);
-
-  /* ========== 卡片元素边框色 (Ayu Mirage) ========== */
-  --card-border: rgba(255, 255, 255, 0.1);
-
-  /* ========== 标题纯色 (Ayu Mirage) ========== */
-  --header-solid: #f28779;
-
-  --status-work-bg: rgba(174, 214, 164, 0.12);
-  --status-rest-bg: rgba(242, 135, 121, 0.12);
-  --status-screen-bg: rgba(147, 158, 185, 0.12);
-
-  --el-color-primary: #f28779;
-  --el-color-primary-light-3: #c26b5f;
-  --el-color-primary-light-5: #9a5449;
-  --el-color-primary-light-7: #7a433a;
-  --el-color-primary-light-8: #653830;
-  --el-color-primary-light-9: #502d27;
-  --el-color-primary-dark-2: #ff9f91;
-
-  --el-bg-color: #1f2430;
-  --el-bg-color-overlay: #2a3040;
-  --el-bg-color-page: #171b24;
-
-  --el-text-color-primary: #cbccc6;
-  --el-text-color-regular: #8f95a3;
-  --el-text-color-secondary: #5c6370;
-  --el-text-color-placeholder: #4a505c;
-  --el-text-color-disabled: #3a404c;
-
-  --el-border-color: #4a505c;
-  --el-border-color-light: #3a404c;
-  --el-border-color-lighter: #2a3040;
-  --el-border-color-extra-light: #1f2430;
-
-  --el-fill-color: #2a3040;
-  --el-fill-color-light: #1f2430;
-  --el-fill-color-lighter: #171b24;
-  --el-fill-color-blank: #1f2430;
-
-  --el-mask-color: rgba(0, 0, 0, 0.5);
-  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
-  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.2);
-}
-
-/* ========== Monokai 主题 ========== */
-[data-theme="monokai"] {
-  --color-primary: #f92672;
-  --color-primary-light: rgba(249, 38, 114, 0.12);
-  --color-primary-hover: rgba(249, 38, 114, 0.18);
-  --color-primary-solid: #f92672;
-
-  --bg-base: #272822;
-  --bg-card: #383830;
-  --bg-sidebar: #1e1e18;
-
-  --text-primary: #f8f8f2;
-  --text-secondary: #a59f85;
-  --text-muted: #50493d;
-
-  --bg-hover: rgba(255, 255, 255, 0.05);
-  --bg-active-btn: rgba(255, 255, 255, 0.08);
-  --bg-active-btn-hover: rgba(255, 255, 255, 0.14);
-
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-group: rgba(255, 255, 255, 0.06);
-
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.04);
-  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.2);
-
-  --scrollbar-thumb: rgba(255, 255, 255, 0.12);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.25);
-
-  --logo-gradient-from: #f92672;
-  --logo-gradient-to: #fd5ff0;
-  --logo-shadow: rgba(249, 38, 114, 0.3);
-
-  /* ========== 渐变头部 (Monokai) ========== */
-  --header-gradient-from: #f92672;
-  --header-gradient-to: #ae81ff;
-
-  /* ========== 功能状态色 (Monokai) ========== */
-  --color-success: #a6e22e;
-  --color-warning: #e6db74;
-  --color-error: #f92672;
-  --color-info: #66d9ef;
-
-  /* ========== 标签背景色 (Monokai) ========== */
-  --tag-bg-info: rgba(102, 217, 239, 0.15);
-  --tag-bg-success: rgba(166, 226, 46, 0.15);
-  --tag-bg-warning: rgba(230, 219, 116, 0.15);
-  --tag-bg-danger: rgba(249, 38, 114, 0.15);
-
-  /* ========== 输入框样式 (Monokai) ========== */
-  --input-bg: #272822;
-  --input-border: #50493d;
-  --input-border-focus: #f92672;
-
-  /* ========== 快捷键图标渐变色 (Monokai) ========== */
-  --icon-blue-from: #66d9ef;
-  --icon-blue-to: #a1efe4;
-  --icon-green-from: #a6e22e;
-  --icon-green-to: #e6db74;
-  --icon-purple-from: #ae81ff;
-  --icon-purple-to: #fd5ff0;
-  --icon-purple-icon: #ae81ff;
-  --icon-orange-from: #fd971f;
-  --icon-orange-to: #f92672;
-  --icon-yellow-from: #e6db74;
-  --icon-yellow-to: #a6e22e;
-  --icon-cyan-from: #a1efe4;
-  --icon-cyan-to: #66d9ef;
-  --icon-red-from: #f92672;
-  --icon-red-to: #fd971f;
-  --icon-red-icon: #f92672;
-  --icon-pink-from: #fd5ff0;
-  --icon-pink-to: #ae81ff;
-  --icon-pink-icon: #fd5ff0;
-
-  /* ========== 进度条背景 (Monokai) ========== */
-  --progress-bg: rgba(255, 255, 255, 0.1);
-
-  /* ========== 卡片元素边框色 (Monokai) ========== */
-  --card-border: rgba(255, 255, 255, 0.1);
-
-  /* ========== 标题纯色 (Monokai) ========== */
-  --header-solid: #a04a7c;
-
-  /* 状态行背景 (Monokai) */--status-work-bg: rgba(181, 206, 168, 0.12);
-  --status-rest-bg: rgba(249, 38, 114, 0.12);
-  --status-screen-bg: rgba(181, 189, 200, 0.12);
-
-  --el-color-primary: #f92672;
-  --el-color-primary-light-3: #c71e58;
-  --el-color-primary-light-5: #9f1847;
-  --el-color-primary-light-7: #801439;
-  --el-color-primary-light-8: #6a1130;
-  --el-color-primary-light-9: #550e27;
-  --el-color-primary-dark-2: #ff509d;
-
-  --el-bg-color: #383830;
-  --el-bg-color-overlay: #4a4a42;
-  --el-bg-color-page: #272822;
-
-  --el-text-color-primary: #f8f8f2;
-  --el-text-color-regular: #a59f85;
-  --el-text-color-secondary: #50493d;
-  --el-text-color-placeholder: #383830;
-  --el-text-color-disabled: #272822;
-
-  --el-border-color: #50493d;
-  --el-border-color-light: #383830;
-  --el-border-color-lighter: #272822;
-  --el-border-color-extra-light: #1e1e18;
-
-  --el-fill-color: #4a4a42;
-  --el-fill-color-light: #383830;
-  --el-fill-color-lighter: #272822;
-  --el-fill-color-blank: #383830;
-
-  --el-mask-color: rgba(0, 0, 0, 0.5);
-  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
-  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.25);
-}
-
-/* ========== Synthwave 主题 (赛博朋克) ========== */
-[data-theme="synthwave"] {
-  --color-primary: #ff6ec7;
-  --color-primary-light: rgba(255, 110, 199, 0.15);
-  --color-primary-hover: rgba(255, 110, 199, 0.22);
-  --color-primary-solid: #ff6ec7;
-
-  --bg-base: #1a0033;
-  --bg-card: #2d005a;
-  --bg-sidebar: #0f0022;
-
-  --text-primary: #e0b0ff;
-  --text-secondary: #b886db;
-  --text-muted: #6b4a8a;
-
-  --bg-hover: rgba(255, 255, 255, 0.06);
-  --bg-active-btn: rgba(255, 255, 255, 0.10);
-  --bg-active-btn-hover: rgba(255, 255, 255, 0.16);
-
-  --border-subtle: rgba(255, 255, 255, 0.10);
-  --border-group: rgba(255, 255, 255, 0.08);
-
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 110, 199, 0.15);
-  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.25);
-
-  --scrollbar-thumb: rgba(255, 255, 255, 0.15);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.30);
-
-  --logo-gradient-from: #ff6ec7;
-  --logo-gradient-to: #00ffff;
-  --logo-shadow: rgba(255, 110, 199, 0.4);
-
-  /* ========== 渐变头部 (Synthwave) ========== */
-  --header-gradient-from: #ff6ec7;
-  --header-gradient-to: #00ffff;
-
-  /* ========== 功能状态色 (Synthwave) ========== */
-  --color-success: #00ff88;
-  --color-warning: #ffd700;
-  --color-error: #ff2a6d;
-  --color-info: #05d9e8;
-
-  /* ========== 标签背景色 (Synthwave) ========== */
-  --tag-bg-info: rgba(5, 217, 232, 0.15);
-  --tag-bg-success: rgba(0, 255, 136, 0.15);
-  --tag-bg-warning: rgba(255, 215, 0, 0.15);
-  --tag-bg-danger: rgba(255, 42, 109, 0.15);
-
-  /* ========== 输入框样式 (Synthwave) ========== */
-  --input-bg: #1a0033;
-  --input-border: #6b4a8a;
-  --input-border-focus: #ff6ec7;
-
-  /* ========== 快捷键图标渐变色 (Synthwave) ========== */
-  --icon-blue-from: #05d9e8;
-  --icon-blue-to: #005678;
-  --icon-green-from: #00ff88;
-  --icon-green-to: #05d9e8;
-  --icon-purple-from: #d300c5;
-  --icon-purple-to: #ff6ec7;
-  --icon-purple-icon: #d300c5;
-  --icon-orange-from: #ffb000;
-  --icon-orange-to: #ff6ec7;
-  --icon-yellow-from: #ffd700;
-  --icon-yellow-to: #ffb000;
-  --icon-cyan-from: #00ffff;
-  --icon-cyan-to: #05d9e8;
-  --icon-red-from: #ff2a6d;
-  --icon-red-to: #ff6ec7;
-  --icon-red-icon: #ff2a6d;
-  --icon-pink-from: #ff6ec7;
-  --icon-pink-to: #d300c5;
-  --icon-pink-icon: #ff6ec7;
-
-  /* ========== 进度条背景 (Synthwave) ========== */
-  --progress-bg: rgba(255, 255, 255, 0.1);
-
-  /* ========== 卡片元素边框色 (Synthwave) ========== */
-  --card-border: rgba(255, 255, 255, 0.15);
-
-  /* ========== 标题纯色 (Synthwave) ========== */
-  --header-solid: #8a3a6a;
-
-  --status-work-bg: rgba(0, 255, 255, 0.15);
-  --status-rest-bg: rgba(255, 110, 199, 0.15);
-  --status-screen-bg: rgba(255, 255, 0, 0.15);
-
-  --el-color-primary: #ff6ec7;
-  --el-color-primary-light-3: #cc56a0;
-  --el-color-primary-light-5: #a64480;
-  --el-color-primary-light-7: #863666;
-  --el-color-primary-light-8: #702d55;
-  --el-color-primary-light-9: #5a2445;
-  --el-color-primary-dark-2: #ff96d8;
-
-  --el-bg-color: #2d005a;
-  --el-bg-color-overlay: #40007a;
-  --el-bg-color-page: #1a0033;
-
-  --el-text-color-primary: #e0b0ff;
-  --el-text-color-regular: #b886db;
-  --el-text-color-secondary: #6b4a8a;
-  --el-text-color-placeholder: #40007a;
-  --el-text-color-disabled: #2d005a;
-
-  --el-border-color: #6b4a8a;
-  --el-border-color-light: #40007a;
-  --el-border-color-lighter: #2d005a;
-  --el-border-color-extra-light: #1a0033;
-
-  --el-fill-color: #40007a;
-  --el-fill-color-light: #2d005a;
-  --el-fill-color-lighter: #1a0033;
-  --el-fill-color-blank: #2d005a;
-
-  --el-mask-color: rgba(0, 0, 0, 0.6);
-  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
-  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.3);
-}
-
-/* ========== Material Dark 主题 ========== */
-[data-theme="material-dark"] {
-  --color-primary: #6200ee;
-  --color-primary-light: rgba(98, 0, 238, 0.12);
-  --color-primary-hover: rgba(98, 0, 238, 0.18);
-  --color-primary-solid: #6200ee;
-
-  --bg-base: #121212;
-  --bg-card: #1e1e1e;
-  --bg-sidebar: #0d0d0d;
-
-  --text-primary: #ffffff;
-  --text-secondary: #bdbdbd;
-  --text-muted: #616161;
-
-  --bg-hover: rgba(255, 255, 255, 0.04);
-  --bg-active-btn: rgba(255, 255, 255, 0.06);
-  --bg-active-btn-hover: rgba(255, 255, 255, 0.10);
-
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-group: rgba(255, 255, 255, 0.04);
-
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.03);
-  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.15);
-
-  --scrollbar-thumb: rgba(255, 255, 255, 0.10);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.20);
-
-  --logo-gradient-from: #6200ee;
-  --logo-gradient-to: #3700b3;
-  --logo-shadow: rgba(98, 0, 238, 0.3);
-
-  /* ========== 渐变头部 (Material Dark) ========== */
-  --header-gradient-from: #6200ee;
-  --header-gradient-to: #03dac6;
-
-  /* ========== 功能状态色 (Material Dark) ========== */
-  --color-success: #4caf50;
-  --color-warning: #ff9800;
-  --color-error: #f44336;
-  --color-info: #2196f3;
-
-  /* ========== 标签背景色 (Material Dark) ========== */
-  --tag-bg-info: rgba(33, 150, 243, 0.15);
-  --tag-bg-success: rgba(76, 175, 80, 0.15);
-  --tag-bg-warning: rgba(255, 152, 0, 0.15);
-  --tag-bg-danger: rgba(244, 67, 54, 0.15);
-
-  /* ========== 输入框样式 (Material Dark) ========== */
-  --input-bg: #121212;
-  --input-border: #424242;
-  --input-border-focus: #6200ee;
-
-  /* ========== 快捷键图标渐变色 (Material Dark) ========== */
-  --icon-blue-from: #2196f3;
-  --icon-blue-to: #03a9f4;
-  --icon-green-from: #4caf50;
-  --icon-green-to: #8bc34a;
-  --icon-purple-from: #9c27b0;
-  --icon-purple-to: #673ab7;
-  --icon-purple-icon: #9c27b0;
-  --icon-orange-from: #ff9800;
-  --icon-orange-to: #ff5722;
-  --icon-yellow-from: #ffeb3b;
-  --icon-yellow-to: #ffc107;
-  --icon-cyan-from: #00bcd4;
-  --icon-cyan-to: #03dac6;
-  --icon-red-from: #f44336;
-  --icon-red-to: #e91e63;
-  --icon-red-icon: #f44336;
-  --icon-pink-from: #e91e63;
-  --icon-pink-to: #9c27b0;
-  --icon-pink-icon: #e91e63;
-
-  /* ========== 进度条背景 (Material Dark) ========== */
-  --progress-bg: rgba(255, 255, 255, 0.08);
-
-  /* ========== 卡片元素边框色 (Material Dark) ========== */
-  --card-border: rgba(255, 255, 255, 0.12);
-
-  /* ========== 标题纯色 (Material Dark) ========== */
-  --header-solid: #4a0099;
-
-  --status-work-bg: rgba(76, 175, 80, 0.12);
-  --status-rest-bg: rgba(244, 67, 54, 0.12);
-  --status-screen-bg: rgba(255, 193, 7, 0.12);
-
-  --el-color-primary: #6200ee;
-  --el-color-primary-light-3: #5000c5;
-  --el-color-primary-light-5: #3d00a8;
-  --el-color-primary-light-7: #32008a;
-  --el-color-primary-light-8: #2a0075;
-  --el-color-primary-light-9: #220060;
-  --el-color-primary-dark-2: #7c4dff;
-
-  --el-bg-color: #1e1e1e;
-  --el-bg-color-overlay: #2a2a2a;
-  --el-bg-color-page: #121212;
-
-  --el-text-color-primary: #ffffff;
-  --el-text-color-regular: #bdbdbd;
-  --el-text-color-secondary: #616161;
-  --el-text-color-placeholder: #424242;
-  --el-text-color-disabled: #2a2a2a;
-
-  --el-border-color: #424242;
-  --el-border-color-light: #2a2a2a;
-  --el-border-color-lighter: #1e1e1e;
-  --el-border-color-extra-light: #121212;
-
-  --el-fill-color: #2a2a2a;
-  --el-fill-color-light: #1e1e1e;
-  --el-fill-color-lighter: #121212;
-  --el-fill-color-blank: #1e1e1e;
-
-  --el-mask-color: rgba(0, 0, 0, 0.5);
-  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
-  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.2);
-}
-
-/* ========== Jellybeans 主题 ========== */
-[data-theme="jellybeans"] {
-  --color-primary: #d0d0ff;
-  --color-primary-light: rgba(208, 208, 255, 0.12);
-  --color-primary-hover: rgba(208, 208, 255, 0.18);
-  --color-primary-solid: #d0d0ff;
-
-  --bg-base: #1a1a1a;
-  --bg-card: #242424;
-  --bg-sidebar: #141414;
-
-  --text-primary: #e8e8d3;
-  --text-secondary: #a8a897;
-  --text-muted: #686857;
-
-  --bg-hover: rgba(255, 255, 255, 0.04);
-  --bg-active-btn: rgba(255, 255, 255, 0.06);
-  --bg-active-btn-hover: rgba(255, 255, 255, 0.10);
-
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-group: rgba(255, 255, 255, 0.04);
-
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.03);
-  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.15);
-
-  --scrollbar-thumb: rgba(255, 255, 255, 0.10);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.20);
-
-  --logo-gradient-from: #d0d0ff;
-  --logo-gradient-to: #e8e8ff;
-  --logo-shadow: rgba(208, 208, 255, 0.3);
-
-  /* ========== 渐变头部 (Jellybeans) ========== */
-  --header-gradient-from: #d0d0ff;
-  --header-gradient-to: #8fbfdc;
-
-  /* ========== 功能状态色 (Jellybeans) ========== */
-  --color-success: #99ad6a;
-  --color-warning: #fad07a;
-  --color-error: #cf6a4c;
-  --color-info: #8fbfdc;
-
-  /* ========== 标签背景色 (Jellybeans) ========== */
-  --tag-bg-info: rgba(143, 191, 220, 0.15);
-  --tag-bg-success: rgba(153, 173, 106, 0.15);
-  --tag-bg-warning: rgba(250, 208, 122, 0.15);
-  --tag-bg-danger: rgba(207, 106, 76, 0.15);
-
-  /* ========== 输入框样式 (Jellybeans) ========== */
-  --input-bg: #1a1a1a;
-  --input-border: #686857;
-  --input-border-focus: #d0d0ff;
-
-  /* ========== 快捷键图标渐变色 (Jellybeans) ========== */
-  --icon-blue-from: #8fbfdc;
-  --icon-blue-to: #668799;
-  --icon-green-from: #99ad6a;
-  --icon-green-to: #78903a;
-  --icon-purple-from: #d0d0ff;
-  --icon-purple-to: #a0a0ff;
-  --icon-purple-icon: #d0d0ff;
-  --icon-orange-from: #cf6a4c;
-  --icon-orange-to: #c06d44;
-  --icon-yellow-from: #fad07a;
-  --icon-yellow-to: #ffb964;
-  --icon-cyan-from: #668799;
-  --icon-cyan-to: #8fbfdc;
-  --icon-red-from: #cf6a4c;
-  --icon-red-to: #c06d44;
-  --icon-red-icon: #cf6a4c;
-  --icon-pink-from: #c06d44;
-  --icon-pink-to: #d0d0ff;
-  --icon-pink-icon: #c06d44;
-
-  /* ========== 进度条背景 (Jellybeans) ========== */
-  --progress-bg: rgba(255, 255, 255, 0.08);
-
-  /* ========== 卡片元素边框色 (Jellybeans) ========== */
-  --card-border: rgba(255, 255, 255, 0.12);
-
-  /* ========== 标题纯色 (Jellybeans) ========== */
-  --header-solid: #6666aa;
-
-  --status-work-bg: rgba(148, 255, 148, 0.12);
-  --status-rest-bg: rgba(255, 148, 148, 0.12);
-  --status-screen-bg: rgba(208, 208, 208, 0.12);
-
-  --el-color-primary: #d0d0ff;
-  --el-color-primary-light-3: #b0b0d8;
-  --el-color-primary-light-5: #9090b0;
-  --el-color-primary-light-7: #787898;
-  --el-color-primary-light-8: #686888;
-  --el-color-primary-light-9: #585878;
-  --el-color-primary-dark-2: #e8e8ff;
-
-  --el-bg-color: #242424;
-  --el-bg-color-overlay: #303030;
-  --el-bg-color-page: #1a1a1a;
-
-  --el-text-color-primary: #e8e8d3;
-  --el-text-color-regular: #a8a897;
-  --el-text-color-secondary: #686857;
-  --el-text-color-placeholder: #383838;
-  --el-text-color-disabled: #242424;
-
-  --el-border-color: #686857;
-  --el-border-color-light: #383838;
-  --el-border-color-lighter: #242424;
-  --el-border-color-extra-light: #1a1a1a;
-
-  --el-fill-color: #303030;
-  --el-fill-color-light: #242424;
-  --el-fill-color-lighter: #1a1a1a;
-  --el-fill-color-blank: #242424;
-
-  --el-mask-color: rgba(0, 0, 0, 0.5);
-  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
-  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.2);
-}
-
-/* ========== Tomorrow Night 主题 ========== */
-[data-theme="tomorrow-night"] {
-  --color-primary: #42a5f5;
-  --color-primary-light: rgba(66, 165, 245, 0.12);
-  --color-primary-hover: rgba(66, 165, 245, 0.18);
-  --color-primary-solid: #42a5f5;
-
-  --bg-base: #1d1d1d;
-  --bg-card: #282828;
-  --bg-sidebar: #181818;
-
-  --text-primary: #c5c8c6;
-  --text-secondary: #8f908a;
-  --text-muted: #5c5e58;
-
-  --bg-hover: rgba(255, 255, 255, 0.04);
-  --bg-active-btn: rgba(255, 255, 255, 0.06);
-  --bg-active-btn-hover: rgba(255, 255, 255, 0.10);
-
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-group: rgba(255, 255, 255, 0.04);
-
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.03);
-  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.15);
-
-  --scrollbar-thumb: rgba(255, 255, 255, 0.10);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.20);
-
-  --logo-gradient-from: #42a5f5;
-  --logo-gradient-to: #64b5f6;
-  --logo-shadow: rgba(66, 165, 245, 0.3);
-
-  /* ========== 渐变头部 (Tomorrow Night) ========== */
-  --header-gradient-from: #42a5f5;
-  --header-gradient-to: #ab47bc;
-
-  /* ========== 功能状态色 (Tomorrow Night) ========== */
-  --color-success: #98c379;
-  --color-warning: #e5c07b;
-  --color-error: #e06c75;
-  --color-info: #42a5f5;
-
-  /* ========== 标签背景色 (Tomorrow Night) ========== */
-  --tag-bg-info: rgba(66, 165, 245, 0.15);
-  --tag-bg-success: rgba(152, 195, 121, 0.15);
-  --tag-bg-warning: rgba(229, 192, 123, 0.15);
-  --tag-bg-danger: rgba(224, 108, 117, 0.15);
-
-  /* ========== 输入框样式 (Tomorrow Night) ========== */
-  --input-bg: #1d1d1d;
-  --input-border: #5c5e58;
-  --input-border-focus: #42a5f5;
-
-  /* ========== 快捷键图标渐变色 (Tomorrow Night) ========== */
-  --icon-blue-from: #42a5f5;
-  --icon-blue-to: #61afef;
-  --icon-green-from: #98c379;
-  --icon-green-to: #b5bd68;
-  --icon-purple-from: #ab47bc;
-  --icon-purple-to: #ba68c8;
-  --icon-purple-icon: #ab47bc;
-  --icon-orange-from: #d19a66;
-  --icon-orange-to: #e5c07b;
-  --icon-yellow-from: #e5c07b;
-  --icon-yellow-to: #f0c674;
-  --icon-cyan-from: #56b6c2;
-  --icon-cyan-to: #42a5f5;
-  --icon-red-from: #e06c75;
-  --icon-red-to: #be5046;
-  --icon-red-icon: #e06c75;
-  --icon-pink-from: #c678dd;
-  --icon-pink-to: #ab47bc;
-  --icon-pink-icon: #c678dd;
-
-  /* ========== 进度条背景 (Tomorrow Night) ========== */
-  --progress-bg: rgba(255, 255, 255, 0.08);
-
-  /* ========== 卡片元素边框色 (Tomorrow Night) ========== */
-  --card-border: rgba(255, 255, 255, 0.12);
-
-  /* ========== 标题纯色 (Tomorrow Night) ========== */
-  --header-solid: #2d6aa0;
-
-  --status-work-bg: rgba(152, 195, 121, 0.12);
-  --status-rest-bg: rgba(224, 108, 117, 0.12);
-  --status-screen-bg: rgba(185, 187, 210, 0.12);
-
-  --el-color-primary: #42a5f5;
-  --el-color-primary-light-3: #3385c5;
-  --el-color-primary-light-5: #2666a8;
-  --el-color-primary-light-7: #1e4f85;
-  --el-color-primary-light-8: #184272;
-  --el-color-primary-light-9: #12355e;
-  --el-color-primary-dark-2: #64b5f6;
-
-  --el-bg-color: #282828;
-  --el-bg-color-overlay: #353535;
-  --el-bg-color-page: #1d1d1d;
-
-  --el-text-color-primary: #c5c8c6;
-  --el-text-color-regular: #8f908a;
-  --el-text-color-secondary: #5c5e58;
-  --el-text-color-placeholder: #353535;
-  --el-text-color-disabled: #282828;
-
-  --el-border-color: #5c5e58;
-  --el-border-color-light: #353535;
-  --el-border-color-lighter: #282828;
-  --el-border-color-extra-light: #1d1d1d;
-
-  --el-fill-color: #353535;
-  --el-fill-color-light: #282828;
-  --el-fill-color-lighter: #1d1d1d;
-  --el-fill-color-blank: #282828;
-
-  --el-mask-color: rgba(0, 0, 0, 0.5);
-  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
-  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.2);
-}
-
-/* ========== Atom One Light 主题 ========== */
-[data-theme="atom-one-light"] {
-  --color-primary: #61afef;
-  --color-primary-light: rgba(97, 175, 239, 0.09);
-  --color-primary-hover: rgba(97, 175, 239, 0.13);
-  --color-primary-solid: #4d8bc9;
-
-  --bg-base: #fafafa;
-  --bg-card: #ffffff;
-  --bg-sidebar: #f5f5f5;
-
-  --text-primary: #383a42;
-  --text-secondary: #5c6370;
-  --text-muted: #a0a1a7;
-
-  --bg-hover: rgba(0, 0, 0, 0.04);
-  --bg-active-btn: rgba(0, 0, 0, 0.05);
-  --bg-active-btn-hover: rgba(0, 0, 0, 0.10);
-
-  --border-subtle: rgba(0, 0, 0, 0.06);
-  --border-group: rgba(0, 0, 0, 0.05);
-
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.03);
-  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.03);
-
-  --scrollbar-thumb: rgba(0, 0, 0, 0.12);
-  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.25);
-
-  --logo-gradient-from: #61afef;
-  --logo-gradient-to: #89b4fa;
-  --logo-shadow: rgba(97, 175, 239, 0.3);
-
-  /* ========== 渐变头部 (Atom One Light) ========== */
-  --header-gradient-from: #61afef;
-  --header-gradient-to: #c678dd;
-
-  /* ========== 功能状态色 (Atom One Light) ========== */
-  --color-success: #98c379;
-  --color-warning: #d19a66;
-  --color-error: #e06c75;
-  --color-info: #61afef;
-
-  /* ========== 标签背景色 (Atom One Light) ========== */
-  --tag-bg-info: #ecf5ff;
-  --tag-bg-success: #f0fdf4;
-  --tag-bg-warning: #fffbeb;
-  --tag-bg-danger: #fef2f2;
-
-  /* ========== 输入框样式 (Atom One Light) ========== */
-  --input-bg: #ffffff;
-  --input-border: #e4e4e4;
-  --input-border-focus: #61afef;
-
-  /* ========== 快捷键图标渐变色 (Atom One Light) ========== */
-  --icon-blue-from: #61afef;
-  --icon-blue-to: #56b6c2;
-  --icon-green-from: #98c379;
-  --icon-green-to: #b5bd68;
-  --icon-purple-from: #c678dd;
-  --icon-purple-to: #61afef;
-  --icon-purple-icon: #c678dd;
-  --icon-orange-from: #d19a66;
-  --icon-orange-to: #e5c07b;
-  --icon-yellow-from: #e5c07b;
-  --icon-yellow-to: #d19a66;
-  --icon-cyan-from: #56b6c2;
-  --icon-cyan-to: #61afef;
-  --icon-red-from: #e06c75;
-  --icon-red-to: #be5046;
-  --icon-red-icon: #e06c75;
-  --icon-pink-from: #c678dd;
-  --icon-pink-to: #e06c75;
-  --icon-pink-icon: #c678dd;
-
-  /* ========== 进度条背景 (Atom One Light) ========== */
-  --progress-bg: rgba(0, 0, 0, 0.06);
-
-  --status-work-bg: rgba(152, 195, 121, 0.08);
-  --status-rest-bg: rgba(224, 108, 117, 0.08);
-  --status-screen-bg: rgba(185, 187, 210, 0.08);
-
-  --el-color-primary: #61afef;
-  --el-color-primary-light-3: #4d8bc9;
-  --el-color-primary-light-5: #3e70a8;
-  --el-color-primary-light-7: #335a85;
-  --el-color-primary-light-8: #2b4c72;
-  --el-color-primary-light-9: #233e5e;
-  --el-color-primary-dark-2: #89b4fa;
-
-  --el-bg-color: #ffffff;
-  --el-bg-color-overlay: #f5f5f5;
-  --el-bg-color-page: #fafafa;
-
-  --el-text-color-primary: #383a42;
-  --el-text-color-regular: #5c6370;
-  --el-text-color-secondary: #a0a1a7;
-  --el-text-color-placeholder: #c5c5c5;
-  --el-text-color-disabled: #dcdcdc;
-
-  --el-border-color: #e4e4e4;
-  --el-border-color-light: #ebebeb;
-  --el-border-color-lighter: #f0f0f0;
-  --el-border-color-extra-light: #f5f5f5;
-
-  --el-fill-color: #f5f5f5;
-  --el-fill-color-light: #fafafa;
-  --el-fill-color-lighter: #ffffff;
-  --el-fill-color-blank: #ffffff;
-
-  --el-mask-color: rgba(0, 0, 0, 0.3);
-  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.06);
-}
-
-/* ========== Cobalt 主题 ========== */
-[data-theme="cobalt"] {
-  --color-primary: #ff6600;
-  --color-primary-light: rgba(255, 102, 0, 0.12);
-  --color-primary-hover: rgba(255, 102, 0, 0.18);
-  --color-primary-solid: #ff6600;
-
-  --bg-base: #193549;
-  --bg-card: #224b67;
-  --bg-sidebar: #152836;
-
-  --text-primary: #ffffff;
-  --text-secondary: #888888;
-  --text-muted: #555555;
-
-  --bg-hover: rgba(255, 255, 255, 0.05);
-  --bg-active-btn: rgba(255, 255, 255, 0.08);
-  --bg-active-btn-hover: rgba(255, 255, 255, 0.14);
-
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-group: rgba(255, 255, 255, 0.06);
-
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.04);
-  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.2);
-
-  --scrollbar-thumb: rgba(255, 255, 255, 0.12);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.25);
-
-  --logo-gradient-from: #ff6600;
-  --logo-gradient-to: #ff8833;
-  --logo-shadow: rgba(255, 102, 0, 0.3);
-
-  /* ========== 渐变头部 (Cobalt) ========== */
-  --header-gradient-from: #ff6600;
-  --header-gradient-to: #0088ff;
-
-  /* ========== 功能状态色 (Cobalt) ========== */
-  --color-success: #10b981;
-  --color-warning: #f59e0b;
-  --color-error: #ef4444;
-  --color-info: #3b82f6;
-
-  /* ========== 标签背景色 (Cobalt) ========== */
-  --tag-bg-info: rgba(59, 130, 246, 0.15);
-  --tag-bg-success: rgba(16, 185, 129, 0.15);
-  --tag-bg-warning: rgba(245, 158, 11, 0.15);
-  --tag-bg-danger: rgba(239, 68, 68, 0.15);
-
-  /* ========== 输入框样式 (Cobalt) ========== */
-  --input-bg: #0d2a3f;
-  --input-border: #324f66;
-  --input-border-focus: #ff6600;
-
-  /* ========== 快捷键图标渐变色 (Cobalt) ========== */
-  --icon-blue-from: #0088ff;
-  --icon-blue-to: #00d4ff;
-  --icon-green-from: #10b981;
-  --icon-green-to: #34d399;
-  --icon-purple-from: #8b5cf6;
-  --icon-purple-to: #a855f7;
-  --icon-purple-icon: #8b5cf6;
-  --icon-orange-from: #ff6600;
-  --icon-orange-to: #ff8833;
-  --icon-yellow-from: #f59e0b;
-  --icon-yellow-to: #fbbf24;
-  --icon-cyan-from: #00d4ff;
-  --icon-cyan-to: #0088ff;
-  --icon-red-from: #ef4444;
-  --icon-red-to: #f87171;
-  --icon-red-icon: #ef4444;
-  --icon-pink-from: #ec4899;
-  --icon-pink-to: #f43f5e;
-  --icon-pink-icon: #ec4899;
-
-  /* ========== 进度条背景 (Cobalt) ========== */
-  --progress-bg: rgba(255, 255, 255, 0.08);
-
-  /* ========== 卡片元素边框色 (Cobalt) ========== */
-  --card-border: rgba(255, 255, 255, 0.12);
-
-  /* ========== 标题纯色 (Cobalt) ========== */
-  --header-solid: #aa5500;
-
-  --status-work-bg: rgba(16, 185, 129, 0.12);
-  --status-rest-bg: rgba(239, 68, 68, 0.12);
-  --status-screen-bg: rgba(255, 215, 0, 0.12);
-
-  --el-color-primary: #ff6600;
-  --el-color-primary-light-3: #cc5200;
-  --el-color-primary-light-5: #a64000;
-  --el-color-primary-light-7: #853300;
-  --el-color-primary-light-8: #702c00;
-  --el-color-primary-light-9: #5c2500;
-  --el-color-primary-dark-2: #ff8844;
-
-  --el-bg-color: #224b67;
-  --el-bg-color-overlay: #2d5a77;
-  --el-bg-color-page: #193549;
-
-  --el-text-color-primary: #ffffff;
-  --el-text-color-regular: #888888;
-  --el-text-color-secondary: #555555;
-  --el-text-color-placeholder: #3d5a70;
-  --el-text-color-disabled: #224b67;
-
-  --el-border-color: #555555;
-  --el-border-color-light: #3d5a70;
-  --el-border-color-lighter: #224b67;
-  --el-border-color-extra-light: #193549;
-
-  --el-fill-color: #2d5a77;
-  --el-fill-color-light: #224b67;
-  --el-fill-color-lighter: #193549;
-  --el-fill-color-blank: #224b67;
-
-  --el-mask-color: rgba(0, 0, 0, 0.5);
-  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
-  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.25);
-}
-
-/* ========== Spacemacs 主题 ========== */
-[data-theme="spacemacs"] {
-  --color-primary: #859900;
-  --color-primary-light: rgba(133, 153, 0, 0.12);
-  --color-primary-hover: rgba(133, 153, 0, 0.18);
-  --color-primary-solid: #859900;
-
-  --bg-base: #282828;
-  --bg-card: #383838;
-  --bg-sidebar: #1e1e1e;
-
-  --text-primary: #ebdbb2;
-  --text-secondary: #a89984;
-  --text-muted: #666666;
-
-  --bg-hover: rgba(255, 255, 255, 0.04);
-  --bg-active-btn: rgba(255, 255, 255, 0.06);
-  --bg-active-btn-hover: rgba(255, 255, 255, 0.10);
-
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-group: rgba(255, 255, 255, 0.04);
-
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.03);
-  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.15);
-
-  --scrollbar-thumb: rgba(255, 255, 255, 0.10);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.20);
-
-  --logo-gradient-from: #859900;
-  --logo-gradient-to: #b5c100;
-  --logo-shadow: rgba(133, 153, 0, 0.3);
-
-  /* ========== 渐变头部 (Spacemacs) ========== */
-  --header-gradient-from: #859900;
-  --header-gradient-to: #b58900;
-
-  /* ========== 功能状态色 (Spacemacs) ========== */
-  --color-success: #859900;
-  --color-warning: #b58900;
-  --color-error: #dc322f;
-  --color-info: #268bd2;
-
-  /* ========== 标签背景色 (Spacemacs) ========== */
-  --tag-bg-info: rgba(38, 139, 210, 0.15);
-  --tag-bg-success: rgba(133, 153, 0, 0.15);
-  --tag-bg-warning: rgba(181, 137, 0, 0.15);
-  --tag-bg-danger: rgba(220, 50, 47, 0.15);
-
-  /* ========== 输入框样式 (Spacemacs) ========== */
-  --input-bg: #292b2e;
-  --input-border: #44475a;
-  --input-border-focus: #859900;
-
-  /* ========== 快捷键图标渐变色 (Spacemacs) ========== */
-  --icon-blue-from: #268bd2;
-  --icon-blue-to: #2aa198;
-  --icon-green-from: #859900;
-  --icon-green-to: #b58900;
-  --icon-purple-from: #6c71c4;
-  --icon-purple-to: #859900;
-  --icon-purple-icon: #6c71c4;
-  --icon-orange-from: #cb4b16;
-  --icon-orange-to: #dc322f;
-  --icon-yellow-from: #b58900;
-  --icon-yellow-to: #859900;
-  --icon-cyan-from: #2aa198;
-  --icon-cyan-to: #268bd2;
-  --icon-red-from: #dc322f;
-  --icon-red-to: #cb4b16;
-  --icon-red-icon: #dc322f;
-  --icon-pink-from: #d33682;
-  --icon-pink-to: #6c71c4;
-  --icon-pink-icon: #d33682;
-
-  /* ========== 进度条背景 (Spacemacs) ========== */
-  --progress-bg: rgba(255, 255, 255, 0.08);
-
-  /* ========== 卡片元素边框色 (Spacemacs) ========== */
-  --card-border: rgba(255, 255, 255, 0.12);
-
-  /* ========== 标题纯色 (Spacemacs) ========== */
-  --header-solid: #6a7d00;
-
-  --status-work-bg: rgba(133, 153, 0, 0.12);
-  --status-rest-bg: rgba(220, 50, 47, 0.12);
-  --status-screen-bg: rgba(168, 153, 132, 0.12);
-
-  --el-color-primary: #859900;
-  --el-color-primary-light-3: #6b7d00;
-  --el-color-primary-light-5: #546100;
-  --el-color-primary-light-7: #424d00;
-  --el-color-primary-light-8: #374100;
-  --el-color-primary-light-9: #2c3500;
-  --el-color-primary-dark-2: #a0b820;
-
-  --el-bg-color: #383838;
-  --el-bg-color-overlay: #484848;
-  --el-bg-color-page: #282828;
-
-  --el-text-color-primary: #ebdbb2;
-  --el-text-color-regular: #a89984;
-  --el-text-color-secondary: #666666;
-  --el-text-color-placeholder: #484848;
-  --el-text-color-disabled: #383838;
-
-  --el-border-color: #666666;
-  --el-border-color-light: #484848;
-  --el-border-color-lighter: #383838;
-  --el-border-color-extra-light: #282828;
-
-  --el-fill-color: #484848;
-  --el-fill-color-light: #383838;
-  --el-fill-color-lighter: #282828;
-  --el-fill-color-blank: #383838;
-
-  --el-mask-color: rgba(0, 0, 0, 0.5);
-  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
-  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.2);
-}
-
-/* ========== Tender 主题 ========== */
-[data-theme="tender"] {
-  --color-primary: #f4bf75;
-  --color-primary-light: rgba(244, 191, 117, 0.12);
-  --color-primary-hover: rgba(244, 191, 117, 0.18);
-  --color-primary-solid: #f4bf75;
-
-  --bg-base: #282828;
-  --bg-card: #323232;
-  --bg-sidebar: #242424;
-
-  --text-primary: #ebdbb2;
-  --text-secondary: #a89984;
-  --text-muted: #665c54;
-
-  --bg-hover: rgba(255, 255, 255, 0.04);
-  --bg-active-btn: rgba(255, 255, 255, 0.06);
-  --bg-active-btn-hover: rgba(255, 255, 255, 0.10);
-
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-group: rgba(255, 255, 255, 0.04);
-
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.03);
-  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.15);
-
-  --scrollbar-thumb: rgba(255, 255, 255, 0.10);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.20);
-
-  --logo-gradient-from: #f4bf75;
-  --logo-gradient-to: #ffd98a;
-  --logo-shadow: rgba(244, 191, 117, 0.3);
-
-  /* ========== 渐变头部 (Tender) ========== */
-  --header-gradient-from: #f4bf75;
-  --header-gradient-to: #a8d1b1;
-
-  /* ========== 功能状态色 (Tender) ========== */
-  --color-success: #a8d1b1;
-  --color-warning: #f4bf75;
-  --color-error: #f43753;
-  --color-info: #4597c9;
-
-  /* ========== 标签背景色 (Tender) ========== */
-  --tag-bg-info: rgba(69, 151, 201, 0.15);
-  --tag-bg-success: rgba(168, 209, 177, 0.15);
-  --tag-bg-warning: rgba(244, 191, 117, 0.15);
-  --tag-bg-danger: rgba(244, 55, 83, 0.15);
-
-  /* ========== 输入框样式 (Tender) ========== */
-  --input-bg: #282828;
-  --input-border: #5a5a5a;
-  --input-border-focus: #f4bf75;
-
-  /* ========== 快捷键图标渐变色 (Tender) ========== */
-  --icon-blue-from: #4597c9;
-  --icon-blue-to: #6fb3d2;
-  --icon-green-from: #a8d1b1;
-  --icon-green-to: #c9d0a4;
-  --icon-purple-from: #b9a3c7;
-  --icon-purple-to: #d3b9d9;
-  --icon-purple-icon: #b9a3c7;
-  --icon-orange-from: #f4bf75;
-  --icon-orange-to: #ffd98a;
-  --icon-yellow-from: #f4bf75;
-  --icon-yellow-to: #e9c77e;
-  --icon-cyan-from: #7fc6cf;
-  --icon-cyan-to: #4597c9;
-  --icon-red-from: #f43753;
-  --icon-red-to: #ff6b6b;
-  --icon-red-icon: #f43753;
-  --icon-pink-from: #d3b9d9;
-  --icon-pink-to: #b9a3c7;
-  --icon-pink-icon: #d3b9d9;
-
-  /* ========== 进度条背景 (Tender) ========== */
-  --progress-bg: rgba(255, 255, 255, 0.08);
-
-  /* ========== 卡片元素边框色 (Tender) ========== */
-  --card-border: rgba(255, 255, 255, 0.12);
-
-  /* ========== 标题纯色 (Tender) ========== */
-  --header-solid: #b5965c;
-
-  --status-work-bg: rgba(168, 209, 177, 0.12);
-  --status-rest-bg: rgba(239, 68, 68, 0.12);
-  --status-screen-bg: rgba(168, 153, 132, 0.12);
-
-  --el-color-primary: #f4bf75;
-  --el-color-primary-light-3: #c99f5e;
-  --el-color-primary-light-5: #a3824a;
-  --el-color-primary-light-7: #83683d;
-  --el-color-primary-light-8: #6f5834;
-  --el-color-primary-light-9: #5b492b;
-  --el-color-primary-dark-2: #f9d496;
-
-  --el-bg-color: #323232;
-  --el-bg-color-overlay: #404040;
-  --el-bg-color-page: #282828;
-
-  --el-text-color-primary: #ebdbb2;
-  --el-text-color-regular: #a89984;
-  --el-text-color-secondary: #665c54;
-  --el-text-color-placeholder: #404040;
-  --el-text-color-disabled: #323232;
-
-  --el-border-color: #665c54;
-  --el-border-color-light: #404040;
-  --el-border-color-lighter: #323232;
-  --el-border-color-extra-light: #282828;
-
-  --el-fill-color: #404040;
-  --el-fill-color-light: #323232;
-  --el-fill-color-lighter: #282828;
-  --el-fill-color-blank: #323232;
-
-  --el-mask-color: rgba(0, 0, 0, 0.5);
-  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
-  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.2);
-}
-
-/* ========== Brackets Dark 主题 ========== */
-[data-theme="brackets-dark"] {
-  --color-primary: #00a8ff;
-  --color-primary-light: rgba(0, 168, 255, 0.12);
-  --color-primary-hover: rgba(0, 168, 255, 0.18);
-  --color-primary-solid: #00a8ff;
-
-  --bg-base: #111111;
-  --bg-card: #222222;
-  --bg-sidebar: #0a0a0a;
-
-  --text-primary: #cccccc;
-  --text-secondary: #999999;
-  --text-muted: #666666;
-
-  --bg-hover: rgba(255, 255, 255, 0.04);
-  --bg-active-btn: rgba(255, 255, 255, 0.06);
-  --bg-active-btn-hover: rgba(255, 255, 255, 0.10);
-
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-group: rgba(255, 255, 255, 0.04);
-
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.03);
-  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.15);
-
-  --scrollbar-thumb: rgba(255, 255, 255, 0.10);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.20);
-
-  --logo-gradient-from: #00a8ff;
-  --logo-gradient-to: #00d4ff;
-  --logo-shadow: rgba(0, 168, 255, 0.3);
-
-  /* ========== 渐变头部 (Brackets Dark) ========== */
-  --header-gradient-from: #00a8ff;
-  --header-gradient-to: #a855f7;
-
-  /* ========== 功能状态色 (Brackets Dark) ========== */
-  --color-success: #10b981;
-  --color-warning: #f59e0b;
-  --color-error: #ef4444;
-  --color-info: #00a8ff;
-
-  /* ========== 标签背景色 (Brackets Dark) ========== */
-  --tag-bg-info: rgba(0, 168, 255, 0.15);
-  --tag-bg-success: rgba(16, 185, 129, 0.15);
-  --tag-bg-warning: rgba(245, 158, 11, 0.15);
-  --tag-bg-danger: rgba(239, 68, 68, 0.15);
-
-  /* ========== 输入框样式 (Brackets Dark) ========== */
-  --input-bg: #2d2d30;
-  --input-border: #3e3e42;
-  --input-border-focus: #00a8ff;
-
-  /* ========== 快捷键图标渐变色 (Brackets Dark) ========== */
-  --icon-blue-from: #00a8ff;
-  --icon-blue-to: #00d4ff;
-  --icon-green-from: #10b981;
-  --icon-green-to: #34d399;
-  --icon-purple-from: #a855f7;
-  --icon-purple-to: #c084fc;
-  --icon-purple-icon: #a855f7;
-  --icon-orange-from: #f59e0b;
-  --icon-orange-to: #fbbf24;
-  --icon-yellow-from: #fbbf24;
-  --icon-yellow-to: #f59e0b;
-  --icon-cyan-from: #06b6d4;
-  --icon-cyan-to: #00a8ff;
-  --icon-red-from: #ef4444;
-  --icon-red-to: #f87171;
-  --icon-red-icon: #ef4444;
-  --icon-pink-from: #ec4899;
-  --icon-pink-to: #f43f5e;
-  --icon-pink-icon: #ec4899;
-
-  /* ========== 进度条背景 (Brackets Dark) ========== */
-  --progress-bg: rgba(255, 255, 255, 0.08);
-
-  /* ========== 卡片元素边框色 (Brackets Dark) ========== */
-  --card-border: rgba(255, 255, 255, 0.12);
-
-  /* ========== 标题纯色 (Brackets Dark) ========== */
-  --header-solid: #0066aa;
-
-  --status-work-bg: rgba(16, 185, 129, 0.12);
-  --status-rest-bg: rgba(239, 68, 68, 0.12);
-  --status-screen-bg: rgba(153, 153, 153, 0.12);
-
-  --el-color-primary: #00a8ff;
-  --el-color-primary-light-3: #0088cc;
-  --el-color-primary-light-5: #006da6;
-  --el-color-primary-light-7: #005785;
-  --el-color-primary-light-8: #004a72;
-  --el-color-primary-light-9: #003d5e;
-  --el-color-primary-dark-2: #4dc3ff;
-
-  --el-bg-color: #222222;
-  --el-bg-color-overlay: #2e2e2e;
-  --el-bg-color-page: #111111;
-
-  --el-text-color-primary: #cccccc;
-  --el-text-color-regular: #999999;
-  --el-text-color-secondary: #666666;
-  --el-text-color-placeholder: #2e2e2e;
-  --el-text-color-disabled: #222222;
-
-  --el-border-color: #666666;
-  --el-border-color-light: #2e2e2e;
-  --el-border-color-lighter: #222222;
-  --el-border-color-extra-light: #111111;
-
-  --el-fill-color: #2e2e2e;
-  --el-fill-color-light: #222222;
-  --el-fill-color-lighter: #111111;
-  --el-fill-color-blank: #222222;
-
-  --el-mask-color: rgba(0, 0, 0, 0.5);
-  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
-  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.2);
-}
-
-/* ========== Glass Morphism 主题 (玻璃拟态) ========== */
-[data-theme="glass"] {
-  --color-primary: #8b5cf6;
-  --color-primary-light: rgba(139, 92, 246, 0.15);
-  --color-primary-hover: rgba(139, 92, 246, 0.25);
-  --color-primary-solid: #8b5cf6;
-
-  --bg-base: #0f0f1a;
-  --bg-card: rgba(30, 30, 50, 0.6);
-  --bg-sidebar: rgba(25, 25, 40, 0.7);
-
-  --text-primary: #ffffff;
-  --text-secondary: #a0a0c0;
-  --text-muted: #606080;
-
-  --bg-hover: rgba(255, 255, 255, 0.06);
-  --bg-active-btn: rgba(255, 255, 255, 0.10);
-  --bg-active-btn-hover: rgba(255, 255, 255, 0.16);
-
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-group: rgba(255, 255, 255, 0.06);
-
-  --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.05);
-  --shadow-top: 0 4px 20px rgba(0, 0, 0, 0.2);
-
-  --scrollbar-thumb: rgba(255, 255, 255, 0.15);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.30);
-
-  --logo-gradient-from: #8b5cf6;
-  --logo-gradient-to: #a855f7;
-  --logo-shadow: rgba(139, 92, 246, 0.4);
-
-  --header-gradient-from: #8b5cf6;
-  --header-gradient-to: #ec4899;
-
-  --color-success: #10b981;
-  --color-warning: #f59e0b;
-  --color-error: #ef4444;
-  --color-info: #3b82f6;
-
-  --tag-bg-info: rgba(59, 130, 246, 0.15);
-  --tag-bg-success: rgba(16, 185, 129, 0.15);
-  --tag-bg-warning: rgba(245, 158, 11, 0.15);
-  --tag-bg-danger: rgba(239, 68, 68, 0.15);
-
-  --input-bg: rgba(30, 30, 50, 0.8);
-  --input-border: rgba(255, 255, 255, 0.12);
-  --input-border-focus: #8b5cf6;
-
-  --icon-blue-from: #3b82f6;
-  --icon-blue-to: #60a5fa;
-  --icon-green-from: #10b981;
-  --icon-green-to: #34d399;
-  --icon-purple-from: #8b5cf6;
-  --icon-purple-to: #a855f7;
-  --icon-purple-icon: #8b5cf6;
-  --icon-orange-from: #f59e0b;
-  --icon-orange-to: #fbbf24;
-  --icon-yellow-from: #fbbf24;
-  --icon-yellow-to: #f59e0b;
-  --icon-cyan-from: #06b6d4;
-  --icon-cyan-to: #22d3ee;
-  --icon-red-from: #ef4444;
-  --icon-red-to: #f87171;
-  --icon-red-icon: #ef4444;
-  --icon-pink-from: #ec4899;
-  --icon-pink-to: #f43f5e;
-  --icon-pink-icon: #ec4899;
-
-  --progress-bg: rgba(255, 255, 255, 0.1);
-
-  --card-border: rgba(255, 255, 255, 0.12);
-
-  --header-solid: #6d28d9;
-
-  --status-work-bg: rgba(16, 185, 129, 0.15);
-  --status-rest-bg: rgba(239, 68, 68, 0.15);
-  --status-screen-bg: rgba(6, 182, 212, 0.15);
-
-  --el-color-primary: #8b5cf6;
-  --el-color-primary-light-3: #7c3aed;
-  --el-color-primary-light-5: #6d28d9;
-  --el-color-primary-light-7: #5b21b6;
-  --el-color-primary-light-8: #4c1d95;
-  --el-color-primary-light-9: #3d1984;
-  --el-color-primary-dark-2: #a855f7;
-
-  --el-bg-color: rgba(30, 30, 50, 0.8);
-  --el-bg-color-overlay: rgba(40, 40, 60, 0.9);
-  --el-bg-color-page: #0f0f1a;
-
-  --el-text-color-primary: #ffffff;
-  --el-text-color-regular: #a0a0c0;
-  --el-text-color-secondary: #606080;
-  --el-text-color-placeholder: rgba(100, 100, 130, 0.8);
-  --el-text-color-disabled: rgba(80, 80, 100, 0.8);
-
-  --el-border-color: rgba(255, 255, 255, 0.12);
-  --el-border-color-light: rgba(255, 255, 255, 0.08);
-  --el-border-color-lighter: rgba(255, 255, 255, 0.05);
-  --el-border-color-extra-light: rgba(255, 255, 255, 0.03);
-
-  --el-fill-color: rgba(40, 40, 60, 0.8);
-  --el-fill-color-light: rgba(30, 30, 50, 0.7);
-  --el-fill-color-lighter: rgba(25, 25, 40, 0.6);
-  --el-fill-color-blank: rgba(30, 30, 50, 0.6);
-
-  --el-mask-color: rgba(0, 0, 0, 0.6);
-  --el-box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-  --el-box-shadow-light: 0 4px 16px rgba(0, 0, 0, 0.2);
-}
+@import "@/styles/themes/index.scss";
+@import "@/styles/skins/index.scss";
 
 html,
 body {
@@ -3028,7 +17,6 @@ input {
   font-family: var(--jianli-global-font-EN), var(--jianli-global-font);
 }
 
-/* ========== 全局滚动条（细且淡，hover 可见） ========== */
 * {
   ::-webkit-scrollbar {
     width: 4px;
@@ -3043,7 +31,6 @@ input {
     background: transparent;
   }
 
-  // 有滚动内容的容器 hover 时显示滑块
   &:hover {
     &::-webkit-scrollbar-thumb {
       background: var(--scrollbar-thumb);
@@ -3054,7 +41,6 @@ input {
   }
 }
 
-/* ========== 通用工具类 ========== */
 .mode-wrapper {
   width: 100%;
   box-sizing: border-box;
@@ -3063,7 +49,6 @@ input {
   }
 }
 
-/* 通用页面标题样式 */
 .setting-title {
   padding-left: 3px;
   border-bottom: 4px solid var(--color-primary) !important;
@@ -3072,7 +57,6 @@ input {
   color: var(--text-primary) !important;
 }
 
-/* 通用表单容器 */
 .setting-form {
   height: 100%;
   overflow: auto;
@@ -3080,246 +64,975 @@ input {
   color: var(--text-primary);
 }
 
-/* ========== Element Plus 组件全局覆写 ========== */
-
 .el-button+.el-button {
   margin-left: 0px;
 }
-/* el-divider */
 .el-divider {
   border-color: var(--border-subtle) !important;
   margin: 24px 0;
 }
 
-/* el-form label */
 .el-form-item__label {
   color: var(--text-secondary) !important;
 }
 
-/* el-card */
 .el-card {
   background-color: var(--el-bg-color) !important;
   border-color: var(--el-border-color-light) !important;
   color: var(--text-primary) !important;
 }
 
-/* el-table */
 .el-table {
   --el-table-bg-color: var(--el-bg-color) !important;
   --el-table-tr-bg-color: var(--el-bg-color) !important;
-  --el-table-header-bg-color: var(--el-fill-color-light) !important;
-  --el-table-row-hover-bg-color: var(--el-fill-color) !important;
-  --el-table-border-color: var(--el-border-color-lighter) !important;
-  --el-table-text-color: var(--text-primary) !important;
-  --el-table-header-text-color: var(--text-secondary) !important;
-  --el-table-current-row-bg-color: var(--el-fill-color) !important;
-  --el-table-expanded-cell-bg-color: var(--el-fill-color-light) !important;
-  --el-table-fixed-box-shadow: var(--el-box-shadow-light) !important;
+  --el-table-row-hover-bg-color: var(--bg-hover) !important;
+}
 
-  // 属性级覆写确保最高优先级
+.el-table td,
+.el-table th {
+  border-color: var(--border-subtle) !important;
+}
+
+.el-table__empty-block {
   background-color: var(--el-bg-color) !important;
-  color: var(--text-primary) !important;
-
-  th.el-table__cell {
-    background-color: var(--el-fill-color-light) !important;
-    color: var(--text-secondary) !important;
-    border-color: var(--el-border-color-lighter) !important;
-  }
-
-  td.el-table__cell {
-    background-color: var(--el-bg-color) !important;
-    border-color: var(--el-border-color-lighter) !important;
-    color: var(--text-primary) !important;
-  }
-
-  // hover 行
-  .el-table__body tr:hover > td.el-table__cell {
-    background-color: var(--el-fill-color) !important;
-  }
-
-  // 状态行覆写（覆盖各页面 scoped 的硬编码颜色）
-  .table-work td.el-table__cell {
-    --el-table-tr-bg-color: var(--status-work-bg) !important;
-    background-color: var(--status-work-bg) !important;
-  }
-
-  .table-rest td.el-table__cell {
-    --el-table-tr-bg-color: var(--status-rest-bg) !important;
-    background-color: var(--status-rest-bg) !important;
-  }
-
-  .table-screen td.el-table__cell {
-    --el-table-tr-bg-color: var(--status-screen-bg) !important;
-    background-color: var(--status-screen-bg) !important;
-  }
-
-  // 空状态
-  .el-table__empty-text {
-    color: var(--text-muted) !important;
-  }
-
-  // 内层容器
-  .el-table__inner-wrapper::before {
-    background-color: var(--el-border-color-lighter) !important;
-  }
 }
 
-/* el-input textarea */
-.el-textarea__inner {
-  background-color: var(--el-fill-color-blank) !important;
+.el-checkbox__label {
+  color: var(--text-primary) !important;
+}
+
+.el-dialog {
+  background-color: var(--el-bg-color) !important;
+}
+
+.el-dialog__title {
+  color: var(--text-primary) !important;
+}
+
+.el-dialog__body {
+  color: var(--text-primary) !important;
+}
+
+.el-message-box {
+  background-color: var(--el-bg-color) !important;
+}
+
+.el-message-box__title {
+  color: var(--text-primary) !important;
+}
+
+.el-message-box__content {
+  color: var(--text-primary) !important;
+}
+
+.el-menu {
+  background-color: transparent !important;
+}
+
+.el-menu-item {
+  color: var(--text-secondary) !important;
+}
+
+.el-menu-item:hover {
+  background-color: var(--bg-hover) !important;
+}
+
+.el-menu-item.is-active {
+  color: var(--color-primary) !important;
+}
+
+.el-input__inner {
+  background-color: var(--input-bg) !important;
+  border-color: var(--input-border) !important;
+  color: var(--text-primary) !important;
+}
+
+.el-input__inner:focus {
+  border-color: var(--input-border-focus) !important;
+}
+
+.el-input__placeholder {
+  color: var(--text-muted) !important;
+}
+
+.el-select .el-input__inner {
+  background-color: var(--input-bg) !important;
+  border-color: var(--input-border) !important;
+}
+
+.el-select-dropdown {
+  background-color: var(--el-bg-color) !important;
   border-color: var(--el-border-color) !important;
+}
+
+.el-option {
   color: var(--text-primary) !important;
 }
 
-/* el-timeline */
-.el-timeline-item__wrapper {
-  padding-left: 20px !important;
+.el-option:hover {
+  background-color: var(--bg-hover) !important;
+}
+
+.el-radio__label {
+  color: var(--text-primary) !important;
+}
+
+.el-switch {
+  --el-switch-on-color: var(--color-primary) !important;
+}
+
+.el-tabs__header {
+  border-bottom-color: var(--border-subtle) !important;
+}
+
+.el-tabs__item {
+  color: var(--text-secondary) !important;
+}
+
+.el-tabs__item.is-active {
+  color: var(--color-primary) !important;
+}
+
+.el-tabs__active-bar {
+  background-color: var(--color-primary) !important;
+}
+
+.el-tab-pane {
+  color: var(--text-primary) !important;
+}
+
+.el-pagination {
+  --el-pagination-button-bg-color: var(--el-bg-color) !important;
+  --el-pagination-button-border-color: var(--el-border-color) !important;
+  --el-pagination-button-text-color: var(--text-secondary) !important;
+  --el-pagination-button-active-bg-color: var(--color-primary) !important;
+  --el-pagination-button-active-text-color: #ffffff !important;
+}
+
+.el-popover {
+  background-color: var(--el-bg-color) !important;
+  border-color: var(--el-border-color) !important;
+}
+
+.el-popover__title {
+  color: var(--text-primary) !important;
+}
+
+.el-tag {
+  background-color: var(--tag-bg-info) !important;
+  color: var(--color-info) !important;
+}
+
+.el-tag--success {
+  background-color: var(--tag-bg-success) !important;
+  color: var(--color-success) !important;
+}
+
+.el-tag--warning {
+  background-color: var(--tag-bg-warning) !important;
+  color: var(--color-warning) !important;
+}
+
+.el-tag--danger {
+  background-color: var(--tag-bg-danger) !important;
+  color: var(--color-error) !important;
+}
+
+.el-tree {
+  --el-tree-node-hover-bg-color: var(--bg-hover) !important;
+}
+
+.el-tree-node__label {
+  color: var(--text-primary) !important;
+}
+
+.el-tree-node__children {
+  background-color: transparent !important;
+}
+
+.el-scrollbar__view {
+  background-color: transparent !important;
+}
+
+.el-scrollbar__thumb {
+  background-color: var(--scrollbar-thumb) !important;
+}
+
+.el-scrollbar__thumb:hover {
+  background-color: var(--scrollbar-thumb-hover) !important;
+}
+
+.el-drawer {
+  background-color: var(--el-bg-color) !important;
+}
+
+.el-drawer__title {
+  color: var(--text-primary) !important;
+}
+
+.el-breadcrumb__item {
+  color: var(--text-secondary) !important;
+}
+
+.el-breadcrumb__item:last-child .el-breadcrumb__inner {
+  color: var(--text-primary) !important;
+}
+
+.el-tooltip__popper {
+  background-color: rgba(0, 0, 0, 0.8) !important;
+}
+
+.el-autocomplete {
+  --el-autocomplete-bg-color: var(--el-bg-color) !important;
+  --el-autocomplete-border-color: var(--el-border-color) !important;
+}
+
+.el-autocomplete__suggestion-list {
+  color: var(--text-primary) !important;
+}
+
+.el-autocomplete__suggestion-item:hover {
+  background-color: var(--bg-hover) !important;
+}
+
+.el-cascader__dropdown {
+  background-color: var(--el-bg-color) !important;
+  border-color: var(--el-border-color) !important;
+}
+
+.el-cascader-node {
+  color: var(--text-primary) !important;
+}
+
+.el-cascader-node:hover {
+  background-color: var(--bg-hover) !important;
+}
+
+.el-time-picker__dropdown {
+  background-color: var(--el-bg-color) !important;
+  border-color: var(--el-border-color) !important;
+}
+
+.el-date-picker__header {
+  color: var(--text-primary) !important;
+}
+
+.el-date-table th {
+  color: var(--text-secondary) !important;
+}
+
+.el-date-table td {
+  color: var(--text-primary) !important;
+}
+
+.el-date-table td:hover {
+  background-color: var(--bg-hover) !important;
+}
+
+.el-date-table td.today {
+  color: var(--color-primary) !important;
+}
+
+.el-date-table td.current:not(.disabled):not(.start-date):not(.end-date):not(.is-active):not(.in-range) {
+  background-color: var(--bg-hover) !important;
+}
+
+.el-date-picker__time-header {
+  color: var(--text-primary) !important;
+}
+
+.el-time-spinner__item {
+  color: var(--text-primary) !important;
+}
+
+.el-time-spinner__item:hover {
+  background-color: var(--bg-hover) !important;
+}
+
+.el-rate {
+  --el-rate-icon-color: var(--color-primary) !important;
+}
+
+.el-rate__item {
+  color: var(--text-muted) !important;
+}
+
+.el-rate__item.is-active {
+  color: var(--color-primary) !important;
+}
+
+.el-progress__text {
+  color: var(--text-secondary) !important;
+}
+
+.el-progress-bar__outer {
+  background-color: var(--progress-bg) !important;
+}
+
+.el-progress-bar__inner {
+  background-color: var(--color-primary) !important;
+}
+
+.el-slider__bar {
+  background-color: var(--color-primary) !important;
+}
+
+.el-slider__runway {
+  background-color: var(--progress-bg) !important;
+}
+
+.el-slider__button {
+  border-color: var(--color-primary) !important;
+}
+
+.el-upload-dragger {
+  background-color: var(--el-bg-color) !important;
+  border-color: var(--el-border-color) !important;
+}
+
+.el-upload-dragger:hover {
+  border-color: var(--color-primary) !important;
+}
+
+.el-transfer-panel {
+  background-color: var(--el-bg-color) !important;
+  border-color: var(--el-border-color) !important;
+}
+
+.el-transfer-panel__header {
+  color: var(--text-primary) !important;
+}
+
+.el-transfer-panel__item {
+  color: var(--text-primary) !important;
+}
+
+.el-transfer-panel__item:hover {
+  background-color: var(--bg-hover) !important;
+}
+
+.el-transfer-panel__item.is-checked {
+  background-color: var(--bg-hover) !important;
+}
+
+.el-select-dropdown__item {
+  color: var(--text-primary) !important;
+}
+
+.el-select-dropdown__item:hover {
+  background-color: var(--bg-hover) !important;
+}
+
+.el-select-dropdown__item.selected {
+  color: var(--color-primary) !important;
+}
+
+.el-button {
+  --el-button-bg-color: var(--el-bg-color) !important;
+  --el-button-border-color: var(--el-border-color) !important;
+  --el-button-text-color: var(--text-primary) !important;
+}
+
+.el-button:hover {
+  --el-button-bg-color: var(--bg-hover) !important;
+}
+
+.el-button--primary {
+  --el-button-bg-color: var(--color-primary) !important;
+  --el-button-border-color: var(--color-primary) !important;
+  --el-button-text-color: #ffffff !important;
+}
+
+.el-button--primary:hover {
+  --el-button-bg-color: var(--color-primary-hover) !important;
+}
+
+.el-alert {
+  background-color: var(--el-bg-color) !important;
+  border-color: var(--el-border-color) !important;
+}
+
+.el-alert__title {
+  color: var(--text-primary) !important;
+}
+
+.el-alert__description {
+  color: var(--text-secondary) !important;
+}
+
+.el-empty__text {
+  color: var(--text-muted) !important;
+}
+
+.el-result__title {
+  color: var(--text-primary) !important;
+}
+
+.el-result__subTitle {
+  color: var(--text-secondary) !important;
+}
+
+.el-descriptions__label {
+  color: var(--text-secondary) !important;
+}
+
+.el-descriptions__content {
+  color: var(--text-primary) !important;
+}
+
+.el-step__title {
+  color: var(--text-secondary) !important;
+}
+
+.el-step__title.is-process {
+  color: var(--text-primary) !important;
+}
+
+.el-step__title.is-finish {
+  color: var(--color-success) !important;
+}
+
+.el-step__line-inner {
+  background-color: var(--border-subtle) !important;
+}
+
+.el-step__line-inner.is-process {
+  background-color: var(--color-primary) !important;
+}
+
+.el-step__line-inner.is-finish {
+  background-color: var(--color-success) !important;
+}
+
+.el-steps__item.is-finish .el-step__icon {
+  background-color: var(--color-success) !important;
+  border-color: var(--color-success) !important;
+}
+
+.el-steps__item.is-process .el-step__icon {
+  background-color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
 }
 
 .el-timeline-item__timestamp {
   color: var(--text-muted) !important;
 }
 
-.el-timeline-item__tail {
-  border-color: var(--border-subtle) !important;
-}
-
-/* el-radio */
-.el-radio__label {
-  color: var(--text-secondary) !important;
-}
-
-/* el-switch */
-.el-switch__label {
-  color: var(--text-muted) !important;
-
-  &.is-active {
-    color: var(--color-primary) !important;
-  }
-}
-
-/* el-button 微调 */
-.el-button--primary {
-  --el-button-bg-color: var(--color-primary);
-  --el-button-border-color: var(--color-primary);
-  --el-button-hover-bg-color: var(--color-primary-solid);
-  --el-button-hover-border-color: var(--color-primary-solid);
-}
-
-/* el-popper / el-dropdown 背景 */
-.el-popper.is-light {
-  background: var(--el-bg-color-overlay) !important;
-  border-color: var(--el-border-color-light) !important;
+.el-timeline-item__content {
   color: var(--text-primary) !important;
 }
 
-/* el-message-box */
-.el-message-box {
-  background: var(--el-bg-color-overlay) !important;
+.el-timeline-item__tail {
+  background-color: var(--border-subtle) !important;
+}
+
+.el-timeline-item__node {
+  background-color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+}
+
+.el-notification {
+  background-color: var(--el-bg-color) !important;
   border-color: var(--el-border-color) !important;
 }
 
-/* el-select dropdown */
-.el-select-dropdown {
-  background-color: var(--el-bg-color-overlay) !important;
-  border-color: var(--el-border-color-light) !important;
+.el-notification__title {
+  color: var(--text-primary) !important;
+}
+
+.el-notification__content {
+  color: var(--text-secondary) !important;
+}
+
+.el-message {
+  background-color: var(--el-bg-color) !important;
+  border-color: var(--el-border-color) !important;
+}
+
+.el-message__content {
+  color: var(--text-primary) !important;
+}
+
+.el-backtop {
+  background-color: var(--color-primary) !important;
+}
+
+.el-image {
+  background-color: var(--el-bg-color) !important;
+}
+
+.el-image__error {
+  color: var(--text-muted) !important;
+}
+
+.el-skeleton {
+  background-color: var(--el-bg-color) !important;
+}
+
+.el-skeleton__item {
+  background-color: var(--border-subtle) !important;
+}
+
+.el-statistic__content {
+  color: var(--text-primary) !important;
+}
+
+.el-statistic__label {
+  color: var(--text-secondary) !important;
+}
+
+.el-carousel__item {
+  background-color: var(--el-bg-color) !important;
+}
+
+.el-carousel__indicator button {
+  background-color: var(--border-subtle) !important;
+}
+
+.el-carousel__indicator.is-active button {
+  background-color: var(--color-primary) !important;
+}
+
+.el-collapse-item__header {
+  color: var(--text-primary) !important;
+  background-color: var(--el-bg-color) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+.el-collapse-item__content {
+  background-color: var(--el-bg-color) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+.el-descriptions-item__label {
+  color: var(--text-secondary) !important;
+}
+
+.el-descriptions-item__content {
+  color: var(--text-primary) !important;
+}
+
+.el-table__header-wrapper th {
+  background-color: var(--el-bg-color) !important;
+  color: var(--text-secondary) !important;
+}
+
+.el-table__body-wrapper tr:hover > td {
+  background-color: var(--bg-hover) !important;
+}
+
+.el-table__body-wrapper tr.current-row > td {
+  background-color: var(--bg-hover) !important;
+}
+
+.el-table__empty-text {
+  color: var(--text-muted) !important;
+}
+
+.el-table--striped .el-table__body tr.el-table__row--striped td {
+  background-color: var(--bg-hover) !important;
+}
+
+.el-input-number {
+  --el-input-number-bg-color: var(--input-bg) !important;
+  --el-input-number-border-color: var(--input-border) !important;
+  --el-input-number-text-color: var(--text-primary) !important;
+}
+
+.el-input-number__decrease,
+.el-input-number__increase {
+  background-color: var(--el-bg-color) !important;
+  border-color: var(--el-border-color) !important;
+}
+
+.el-input-number__decrease:hover,
+.el-input-number__increase:hover {
+  background-color: var(--bg-hover) !important;
+}
+
+.el-form-item__error {
+  color: var(--color-error) !important;
+}
+
+.el-form-item.is-error .el-input__inner {
+  border-color: var(--color-error) !important;
+}
+
+.el-form-item.is-success .el-input__inner {
+  border-color: var(--color-success) !important;
+}
+
+.el-select-dropdown__empty {
+  color: var(--text-muted) !important;
+}
+
+.el-cascader__tag {
+  background-color: var(--tag-bg-info) !important;
+  color: var(--color-info) !important;
+}
+
+.el-cascader__tag--remove {
+  color: var(--color-info) !important;
+}
+
+.el-cascader__tag--remove:hover {
+  color: var(--color-error) !important;
+}
+
+.el-time-select__item {
+  color: var(--text-primary) !important;
+}
+
+.el-time-select__item:hover {
+  background-color: var(--bg-hover) !important;
+}
+
+.el-time-select__item.selected {
+  color: var(--color-primary) !important;
+}
+
+.el-rate__icon {
+  color: var(--text-muted) !important;
+}
+
+.el-rate__icon.is-active {
+  color: var(--color-primary) !important;
+}
+
+.el-progress__text {
+  color: var(--text-secondary) !important;
+}
+
+.el-progress-bar__outer {
+  background-color: var(--progress-bg) !important;
+}
+
+.el-progress-bar__inner {
+  background-color: var(--color-primary) !important;
+}
+
+.el-slider__bar {
+  background-color: var(--color-primary) !important;
+}
+
+.el-slider__runway {
+  background-color: var(--progress-bg) !important;
+}
+
+.el-slider__button {
+  border-color: var(--color-primary) !important;
+}
+
+.el-upload-dragger {
+  background-color: var(--el-bg-color) !important;
+  border-color: var(--el-border-color) !important;
+}
+
+.el-upload-dragger:hover {
+  border-color: var(--color-primary) !important;
+}
+
+.el-transfer-panel {
+  background-color: var(--el-bg-color) !important;
+  border-color: var(--el-border-color) !important;
+}
+
+.el-transfer-panel__header {
+  color: var(--text-primary) !important;
+}
+
+.el-transfer-panel__item {
+  color: var(--text-primary) !important;
+}
+
+.el-transfer-panel__item:hover {
+  background-color: var(--bg-hover) !important;
+}
+
+.el-transfer-panel__item.is-checked {
+  background-color: var(--bg-hover) !important;
 }
 
 .el-select-dropdown__item {
   color: var(--text-primary) !important;
-
-  &.is-hovering {
-    background-color: var(--el-fill-color) !important;
-  }
-
-  &.selected {
-    color: var(--color-primary) !important;
-  }
 }
 
-/* 通用表单类背景透明化（页面卡片已有白色背景） */
-.fileRela-form,
-.pomodoro-record {
-  background-color: transparent !important;
-  color: var(--text-primary);
+.el-select-dropdown__item:hover {
+  background-color: var(--bg-hover) !important;
 }
 
-/* el-popover */
-.el-popover.el-popper {
-  background: var(--el-bg-color-overlay) !important;
-  border-color: var(--el-border-color-light) !important;
-  color: var(--text-primary) !important;
+.el-select-dropdown__item.selected {
+  color: var(--color-primary) !important;
 }
 
-/* el-dialog */
-.el-dialog {
-  background-color: var(--el-bg-color-overlay) !important;
-
-  .el-dialog__title {
-    color: var(--text-primary) !important;
-  }
-
-  .el-dialog__body {
-    color: var(--text-secondary) !important;
-  }
+.el-button {
+  --el-button-bg-color: var(--el-bg-color) !important;
+  --el-button-border-color: var(--el-border-color) !important;
+  --el-button-text-color: var(--text-primary) !important;
 }
 
-/* el-collapse */
-.el-collapse-item__header,
-.el-collapse-item__wrap {
+.el-button:hover {
+  --el-button-bg-color: var(--bg-hover) !important;
+}
+
+.el-button--primary {
+  --el-button-bg-color: var(--color-primary) !important;
+  --el-button-border-color: var(--color-primary) !important;
+  --el-button-text-color: #ffffff !important;
+}
+
+.el-button--primary:hover {
+  --el-button-bg-color: var(--color-primary-hover) !important;
+}
+
+.el-alert {
   background-color: var(--el-bg-color) !important;
-  border-color: var(--el-border-color-lighter) !important;
+  border-color: var(--el-border-color) !important;
+}
+
+.el-alert__title {
   color: var(--text-primary) !important;
 }
 
-.el-collapse-item__content {
+.el-alert__description {
   color: var(--text-secondary) !important;
 }
 
-/* el-tag */
-.el-tag {
-  border-color: var(--el-border-color-light) !important;
-}
-
-/* el-message 文字颜色 */
-.el-message {
-  background-color: var(--el-bg-color-overlay) !important;
-  border-color: var(--el-border-color-light) !important;
-}
-
-/* el-tabs */
-.el-tabs__item {
-  color: var(--text-secondary) !important;
-
-  &.is-active {
-    color: var(--color-primary) !important;
-  }
-}
-
-.el-tabs__nav-wrap::after {
-  background-color: var(--border-subtle) !important;
-}
-
-/* el-empty 文字 */
-.el-empty__description {
+.el-empty__text {
   color: var(--text-muted) !important;
 }
 
-/* el-input-number */
-.el-input-number {
-  .el-input__wrapper {
-    box-shadow: 0 0 0 1px var(--el-border-color) inset !important;
-  }
-}
-
-/* 页面内 sticky 固定栏背景色 */
-.fixed {
-  background-color: var(--bg-card) !important;
-}
-
-/* el-date-picker */
-.el-picker-panel {
-  background-color: var(--el-bg-color-overlay) !important;
-  border-color: var(--el-border-color-light) !important;
+.el-result__title {
   color: var(--text-primary) !important;
+}
+
+.el-result__subTitle {
+  color: var(--text-secondary) !important;
+}
+
+.el-descriptions__label {
+  color: var(--text-secondary) !important;
+}
+
+.el-descriptions__content {
+  color: var(--text-primary) !important;
+}
+
+.el-step__title {
+  color: var(--text-secondary) !important;
+}
+
+.el-step__title.is-process {
+  color: var(--text-primary) !important;
+}
+
+.el-step__title.is-finish {
+  color: var(--color-success) !important;
+}
+
+.el-step__line-inner {
+  background-color: var(--border-subtle) !important;
+}
+
+.el-step__line-inner.is-process {
+  background-color: var(--color-primary) !important;
+}
+
+.el-step__line-inner.is-finish {
+  background-color: var(--color-success) !important;
+}
+
+.el-steps__item.is-finish .el-step__icon {
+  background-color: var(--color-success) !important;
+  border-color: var(--color-success) !important;
+}
+
+.el-steps__item.is-process .el-step__icon {
+  background-color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+}
+
+.el-timeline-item__timestamp {
+  color: var(--text-muted) !important;
+}
+
+.el-timeline-item__content {
+  color: var(--text-primary) !important;
+}
+
+.el-timeline-item__tail {
+  background-color: var(--border-subtle) !important;
+}
+
+.el-timeline-item__node {
+  background-color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+}
+
+.el-notification {
+  background-color: var(--el-bg-color) !important;
+  border-color: var(--el-border-color) !important;
+}
+
+.el-notification__title {
+  color: var(--text-primary) !important;
+}
+
+.el-notification__content {
+  color: var(--text-secondary) !important;
+}
+
+.el-message {
+  background-color: var(--el-bg-color) !important;
+  border-color: var(--el-border-color) !important;
+}
+
+.el-message__content {
+  color: var(--text-primary) !important;
+}
+
+.el-backtop {
+  background-color: var(--color-primary) !important;
+}
+
+.el-image {
+  background-color: var(--el-bg-color) !important;
+}
+
+.el-image__error {
+  color: var(--text-muted) !important;
+}
+
+.el-skeleton {
+  background-color: var(--el-bg-color) !important;
+}
+
+.el-skeleton__item {
+  background-color: var(--border-subtle) !important;
+}
+
+.el-statistic__content {
+  color: var(--text-primary) !important;
+}
+
+.el-statistic__label {
+  color: var(--text-secondary) !important;
+}
+
+.el-carousel__item {
+  background-color: var(--el-bg-color) !important;
+}
+
+.el-carousel__indicator button {
+  background-color: var(--border-subtle) !important;
+}
+
+.el-carousel__indicator.is-active button {
+  background-color: var(--color-primary) !important;
+}
+
+.el-collapse-item__header {
+  color: var(--text-primary) !important;
+  background-color: var(--el-bg-color) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+.el-collapse-item__content {
+  background-color: var(--el-bg-color) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+.el-descriptions-item__label {
+  color: var(--text-secondary) !important;
+}
+
+.el-descriptions-item__content {
+  color: var(--text-primary) !important;
+}
+
+.el-table__header-wrapper th {
+  background-color: var(--el-bg-color) !important;
+  color: var(--text-secondary) !important;
+}
+
+.el-table__body-wrapper tr:hover > td {
+  background-color: var(--bg-hover) !important;
+}
+
+.el-table__body-wrapper tr.current-row > td {
+  background-color: var(--bg-hover) !important;
+}
+
+.el-table__empty-text {
+  color: var(--text-muted) !important;
+}
+
+.el-table--striped .el-table__body tr.el-table__row--striped td {
+  background-color: var(--bg-hover) !important;
+}
+
+.el-input-number {
+  --el-input-number-bg-color: var(--input-bg) !important;
+  --el-input-number-border-color: var(--input-border) !important;
+  --el-input-number-text-color: var(--text-primary) !important;
+}
+
+.el-input-number__decrease,
+.el-input-number__increase {
+  background-color: var(--el-bg-color) !important;
+  border-color: var(--el-border-color) !important;
+}
+
+.el-input-number__decrease:hover,
+.el-input-number__increase:hover {
+  background-color: var(--bg-hover) !important;
+}
+
+.el-form-item__error {
+  color: var(--color-error) !important;
+}
+
+.el-form-item.is-error .el-input__inner {
+  border-color: var(--color-error) !important;
+}
+
+.el-form-item.is-success .el-input__inner {
+  border-color: var(--color-success) !important;
+}
+
+.el-select-dropdown__empty {
+  color: var(--text-muted) !important;
+}
+
+.el-cascader__tag {
+  background-color: var(--tag-bg-info) !important;
+  color: var(--color-info) !important;
+}
+
+.el-cascader__tag--remove {
+  color: var(--color-info) !important;
+}
+
+.el-cascader__tag--remove:hover {
+  color: var(--color-error) !important;
+}
+
+.el-time-select__item {
+  color: var(--text-primary) !important;
+}
+
+.el-time-select__item:hover {
+  background-color: var(--bg-hover) !important;
+}
+
+.el-time-select__item.selected {
+  color: var(--color-primary) !important;
+}
+
+.el-rate__icon {
+  color: var(--text-muted) !important;
+}
+
+.el-rate__icon.is-active {
+  color: var(--color-primary) !important;
 }

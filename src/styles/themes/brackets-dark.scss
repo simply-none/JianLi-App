@@ -1,0 +1,119 @@
+/* ========== Brackets Dark 主题 ========== */
+[data-theme="brackets-dark"] {
+  --color-primary: #00a8ff;
+  --color-primary-light: rgba(0, 168, 255, 0.12);
+  --color-primary-hover: rgba(0, 168, 255, 0.18);
+  --color-primary-solid: #00a8ff;
+
+  --bg-base: #111111;
+  --bg-card: #222222;
+  --bg-sidebar: #0a0a0a;
+
+  --text-primary: #cccccc;
+  --text-secondary: #999999;
+  --text-muted: #666666;
+
+  --bg-hover: rgba(255, 255, 255, 0.04);
+  --bg-active-btn: rgba(255, 255, 255, 0.06);
+  --bg-active-btn-hover: rgba(255, 255, 255, 0.10);
+
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-group: rgba(255, 255, 255, 0.04);
+
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.03);
+  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.15);
+
+  --scrollbar-thumb: rgba(255, 255, 255, 0.10);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.20);
+
+  --logo-gradient-from: #00a8ff;
+  --logo-gradient-to: #00d4ff;
+  --logo-shadow: rgba(0, 168, 255, 0.3);
+
+  /* ========== 渐变头部 (Brackets Dark) ========== */
+  --header-gradient-from: #00a8ff;
+  --header-gradient-to: #a855f7;
+
+  /* ========== 功能状态色 (Brackets Dark) ========== */
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #00a8ff;
+
+  /* ========== 标签背景色 (Brackets Dark) ========== */
+  --tag-bg-info: rgba(0, 168, 255, 0.15);
+  --tag-bg-success: rgba(16, 185, 129, 0.15);
+  --tag-bg-warning: rgba(245, 158, 11, 0.15);
+  --tag-bg-danger: rgba(239, 68, 68, 0.15);
+
+  /* ========== 输入框样式 (Brackets Dark) ========== */
+  --input-bg: #2d2d30;
+  --input-border: #3e3e42;
+  --input-border-focus: #00a8ff;
+
+  /* ========== 快捷键图标渐变色 (Brackets Dark) ========== */
+  --icon-blue-from: #00a8ff;
+  --icon-blue-to: #00d4ff;
+  --icon-green-from: #10b981;
+  --icon-green-to: #34d399;
+  --icon-purple-from: #a855f7;
+  --icon-purple-to: #c084fc;
+  --icon-purple-icon: #a855f7;
+  --icon-orange-from: #f59e0b;
+  --icon-orange-to: #fbbf24;
+  --icon-yellow-from: #fbbf24;
+  --icon-yellow-to: #f59e0b;
+  --icon-cyan-from: #06b6d4;
+  --icon-cyan-to: #00a8ff;
+  --icon-red-from: #ef4444;
+  --icon-red-to: #f87171;
+  --icon-red-icon: #ef4444;
+  --icon-pink-from: #ec4899;
+  --icon-pink-to: #f43f5e;
+  --icon-pink-icon: #ec4899;
+
+  /* ========== 进度条背景 (Brackets Dark) ========== */
+  --progress-bg: rgba(255, 255, 255, 0.08);
+
+  /* ========== 卡片元素边框色 (Brackets Dark) ========== */
+  --card-border: rgba(255, 255, 255, 0.12);
+
+  /* ========== 标题纯色 (Brackets Dark) ========== */
+  --header-solid: #0066aa;
+
+  --status-work-bg: rgba(16, 185, 129, 0.12);
+  --status-rest-bg: rgba(239, 68, 68, 0.12);
+  --status-screen-bg: rgba(153, 153, 153, 0.12);
+
+  --el-color-primary: #00a8ff;
+  --el-color-primary-light-3: #0088cc;
+  --el-color-primary-light-5: #006da6;
+  --el-color-primary-light-7: #005785;
+  --el-color-primary-light-8: #004a72;
+  --el-color-primary-light-9: #003d5e;
+  --el-color-primary-dark-2: #4dc3ff;
+
+  --el-bg-color: #222222;
+  --el-bg-color-overlay: #2e2e2e;
+  --el-bg-color-page: #111111;
+
+  --el-text-color-primary: #cccccc;
+  --el-text-color-regular: #999999;
+  --el-text-color-secondary: #666666;
+  --el-text-color-placeholder: #2e2e2e;
+  --el-text-color-disabled: #222222;
+
+  --el-border-color: #666666;
+  --el-border-color-light: #2e2e2e;
+  --el-border-color-lighter: #222222;
+  --el-border-color-extra-light: #111111;
+
+  --el-fill-color: #2e2e2e;
+  --el-fill-color-light: #222222;
+  --el-fill-color-lighter: #111111;
+  --el-fill-color-blank: #222222;
+
+  --el-mask-color: rgba(0, 0, 0, 0.5);
+  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.2);
+}

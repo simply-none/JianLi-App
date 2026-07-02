@@ -1,0 +1,119 @@
+/* ========== Spacemacs 主题 ========== */
+[data-theme="spacemacs"] {
+  --color-primary: #859900;
+  --color-primary-light: rgba(133, 153, 0, 0.12);
+  --color-primary-hover: rgba(133, 153, 0, 0.18);
+  --color-primary-solid: #859900;
+
+  --bg-base: #282828;
+  --bg-card: #383838;
+  --bg-sidebar: #1e1e1e;
+
+  --text-primary: #ebdbb2;
+  --text-secondary: #a89984;
+  --text-muted: #666666;
+
+  --bg-hover: rgba(255, 255, 255, 0.04);
+  --bg-active-btn: rgba(255, 255, 255, 0.06);
+  --bg-active-btn-hover: rgba(255, 255, 255, 0.10);
+
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-group: rgba(255, 255, 255, 0.04);
+
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.03);
+  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.15);
+
+  --scrollbar-thumb: rgba(255, 255, 255, 0.10);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.20);
+
+  --logo-gradient-from: #859900;
+  --logo-gradient-to: #b5c100;
+  --logo-shadow: rgba(133, 153, 0, 0.3);
+
+  /* ========== 渐变头部 (Spacemacs) ========== */
+  --header-gradient-from: #859900;
+  --header-gradient-to: #b58900;
+
+  /* ========== 功能状态色 (Spacemacs) ========== */
+  --color-success: #859900;
+  --color-warning: #b58900;
+  --color-error: #dc322f;
+  --color-info: #268bd2;
+
+  /* ========== 标签背景色 (Spacemacs) ========== */
+  --tag-bg-info: rgba(38, 139, 210, 0.15);
+  --tag-bg-success: rgba(133, 153, 0, 0.15);
+  --tag-bg-warning: rgba(181, 137, 0, 0.15);
+  --tag-bg-danger: rgba(220, 50, 47, 0.15);
+
+  /* ========== 输入框样式 (Spacemacs) ========== */
+  --input-bg: #292b2e;
+  --input-border: #44475a;
+  --input-border-focus: #859900;
+
+  /* ========== 快捷键图标渐变色 (Spacemacs) ========== */
+  --icon-blue-from: #268bd2;
+  --icon-blue-to: #2aa198;
+  --icon-green-from: #859900;
+  --icon-green-to: #b58900;
+  --icon-purple-from: #6c71c4;
+  --icon-purple-to: #859900;
+  --icon-purple-icon: #6c71c4;
+  --icon-orange-from: #cb4b16;
+  --icon-orange-to: #dc322f;
+  --icon-yellow-from: #b58900;
+  --icon-yellow-to: #859900;
+  --icon-cyan-from: #2aa198;
+  --icon-cyan-to: #268bd2;
+  --icon-red-from: #dc322f;
+  --icon-red-to: #cb4b16;
+  --icon-red-icon: #dc322f;
+  --icon-pink-from: #d33682;
+  --icon-pink-to: #6c71c4;
+  --icon-pink-icon: #d33682;
+
+  /* ========== 进度条背景 (Spacemacs) ========== */
+  --progress-bg: rgba(255, 255, 255, 0.08);
+
+  /* ========== 卡片元素边框色 (Spacemacs) ========== */
+  --card-border: rgba(255, 255, 255, 0.12);
+
+  /* ========== 标题纯色 (Spacemacs) ========== */
+  --header-solid: #6a7d00;
+
+  --status-work-bg: rgba(133, 153, 0, 0.12);
+  --status-rest-bg: rgba(220, 50, 47, 0.12);
+  --status-screen-bg: rgba(168, 153, 132, 0.12);
+
+  --el-color-primary: #859900;
+  --el-color-primary-light-3: #6b7d00;
+  --el-color-primary-light-5: #546100;
+  --el-color-primary-light-7: #424d00;
+  --el-color-primary-light-8: #374100;
+  --el-color-primary-light-9: #2c3500;
+  --el-color-primary-dark-2: #a0b820;
+
+  --el-bg-color: #383838;
+  --el-bg-color-overlay: #484848;
+  --el-bg-color-page: #282828;
+
+  --el-text-color-primary: #ebdbb2;
+  --el-text-color-regular: #a89984;
+  --el-text-color-secondary: #666666;
+  --el-text-color-placeholder: #484848;
+  --el-text-color-disabled: #383838;
+
+  --el-border-color: #666666;
+  --el-border-color-light: #484848;
+  --el-border-color-lighter: #383838;
+  --el-border-color-extra-light: #282828;
+
+  --el-fill-color: #484848;
+  --el-fill-color-light: #383838;
+  --el-fill-color-lighter: #282828;
+  --el-fill-color-blank: #383838;
+
+  --el-mask-color: rgba(0, 0, 0, 0.5);
+  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.2);
+}

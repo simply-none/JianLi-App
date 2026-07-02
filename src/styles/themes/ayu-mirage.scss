@@ -1,0 +1,119 @@
+/* ========== Ayu Mirage 主题 ========== */
+[data-theme="ayu-mirage"] {
+  --color-primary: #f28779;
+  --color-primary-light: rgba(242, 135, 121, 0.12);
+  --color-primary-hover: rgba(242, 135, 121, 0.18);
+  --color-primary-solid: #f28779;
+
+  --bg-base: #171b24;
+  --bg-card: #1f2430;
+  --bg-sidebar: #151923;
+
+  --text-primary: #cbccc6;
+  --text-secondary: #8f95a3;
+  --text-muted: #5c6370;
+
+  --bg-hover: rgba(255, 255, 255, 0.04);
+  --bg-active-btn: rgba(255, 255, 255, 0.06);
+  --bg-active-btn-hover: rgba(255, 255, 255, 0.10);
+
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-group: rgba(255, 255, 255, 0.04);
+
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.03);
+  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.15);
+
+  --scrollbar-thumb: rgba(255, 255, 255, 0.10);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.20);
+
+  --logo-gradient-from: #f28779;
+  --logo-gradient-to: #ff9f91;
+  --logo-shadow: rgba(242, 135, 121, 0.3);
+
+  /* ========== 渐变头部 (Ayu Mirage) ========== */
+  --header-gradient-from: #f28779;
+  --header-gradient-to: #ffcc66;
+
+  /* ========== 功能状态色 (Ayu Mirage) ========== */
+  --color-success: #a6cc90;
+  --color-warning: #ffcc66;
+  --color-error: #f28779;
+  --color-info: #5ccfe6;
+
+  /* ========== 标签背景色 (Ayu Mirage) ========== */
+  --tag-bg-info: rgba(92, 207, 230, 0.15);
+  --tag-bg-success: rgba(166, 204, 144, 0.15);
+  --tag-bg-warning: rgba(255, 204, 102, 0.15);
+  --tag-bg-danger: rgba(242, 135, 121, 0.15);
+
+  /* ========== 输入框样式 (Ayu Mirage) ========== */
+  --input-bg: #171b24;
+  --input-border: #4a505c;
+  --input-border-focus: #f28779;
+
+  /* ========== 快捷键图标渐变色 (Ayu Mirage) ========== */
+  --icon-blue-from: #5ccfe6;
+  --icon-blue-to: #39bae6;
+  --icon-green-from: #a6cc90;
+  --icon-green-to: #91b36e;
+  --icon-purple-from: #d4bfff;
+  --icon-purple-to: #f28779;
+  --icon-purple-icon: #d4bfff;
+  --icon-orange-from: #ffcc66;
+  --icon-orange-to: #ffa759;
+  --icon-yellow-from: #ffd580;
+  --icon-yellow-to: #ffcc66;
+  --icon-cyan-from: #95e6cb;
+  --icon-cyan-to: #5ccfe6;
+  --icon-red-from: #f28779;
+  --icon-red-to: #ed6a5e;
+  --icon-red-icon: #f28779;
+  --icon-pink-from: #f29e74;
+  --icon-pink-to: #f28779;
+  --icon-pink-icon: #f29e74;
+
+  /* ========== 进度条背景 (Ayu Mirage) ========== */
+  --progress-bg: rgba(255, 255, 255, 0.08);
+
+  /* ========== 卡片元素边框色 (Ayu Mirage) ========== */
+  --card-border: rgba(255, 255, 255, 0.1);
+
+  /* ========== 标题纯色 (Ayu Mirage) ========== */
+  --header-solid: #f28779;
+
+  --status-work-bg: rgba(174, 214, 164, 0.12);
+  --status-rest-bg: rgba(242, 135, 121, 0.12);
+  --status-screen-bg: rgba(147, 158, 185, 0.12);
+
+  --el-color-primary: #f28779;
+  --el-color-primary-light-3: #c26b5f;
+  --el-color-primary-light-5: #9a5449;
+  --el-color-primary-light-7: #7a433a;
+  --el-color-primary-light-8: #653830;
+  --el-color-primary-light-9: #502d27;
+  --el-color-primary-dark-2: #ff9f91;
+
+  --el-bg-color: #1f2430;
+  --el-bg-color-overlay: #2a3040;
+  --el-bg-color-page: #171b24;
+
+  --el-text-color-primary: #cbccc6;
+  --el-text-color-regular: #8f95a3;
+  --el-text-color-secondary: #5c6370;
+  --el-text-color-placeholder: #4a505c;
+  --el-text-color-disabled: #3a404c;
+
+  --el-border-color: #4a505c;
+  --el-border-color-light: #3a404c;
+  --el-border-color-lighter: #2a3040;
+  --el-border-color-extra-light: #1f2430;
+
+  --el-fill-color: #2a3040;
+  --el-fill-color-light: #1f2430;
+  --el-fill-color-lighter: #171b24;
+  --el-fill-color-blank: #1f2430;
+
+  --el-mask-color: rgba(0, 0, 0, 0.5);
+  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.2);
+}

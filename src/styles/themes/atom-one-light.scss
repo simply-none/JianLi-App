@@ -1,0 +1,113 @@
+/* ========== Atom One Light 主题 ========== */
+[data-theme="atom-one-light"] {
+  --color-primary: #61afef;
+  --color-primary-light: rgba(97, 175, 239, 0.09);
+  --color-primary-hover: rgba(97, 175, 239, 0.13);
+  --color-primary-solid: #4d8bc9;
+
+  --bg-base: #fafafa;
+  --bg-card: #ffffff;
+  --bg-sidebar: #f5f5f5;
+
+  --text-primary: #383a42;
+  --text-secondary: #5c6370;
+  --text-muted: #a0a1a7;
+
+  --bg-hover: rgba(0, 0, 0, 0.04);
+  --bg-active-btn: rgba(0, 0, 0, 0.05);
+  --bg-active-btn-hover: rgba(0, 0, 0, 0.10);
+
+  --border-subtle: rgba(0, 0, 0, 0.06);
+  --border-group: rgba(0, 0, 0, 0.05);
+
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.03);
+  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.03);
+
+  --scrollbar-thumb: rgba(0, 0, 0, 0.12);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.25);
+
+  --logo-gradient-from: #61afef;
+  --logo-gradient-to: #89b4fa;
+  --logo-shadow: rgba(97, 175, 239, 0.3);
+
+  /* ========== 渐变头部 (Atom One Light) ========== */
+  --header-gradient-from: #61afef;
+  --header-gradient-to: #c678dd;
+
+  /* ========== 功能状态色 (Atom One Light) ========== */
+  --color-success: #98c379;
+  --color-warning: #d19a66;
+  --color-error: #e06c75;
+  --color-info: #61afef;
+
+  /* ========== 标签背景色 (Atom One Light) ========== */
+  --tag-bg-info: #ecf5ff;
+  --tag-bg-success: #f0fdf4;
+  --tag-bg-warning: #fffbeb;
+  --tag-bg-danger: #fef2f2;
+
+  /* ========== 输入框样式 (Atom One Light) ========== */
+  --input-bg: #ffffff;
+  --input-border: #e4e4e4;
+  --input-border-focus: #61afef;
+
+  /* ========== 快捷键图标渐变色 (Atom One Light) ========== */
+  --icon-blue-from: #61afef;
+  --icon-blue-to: #56b6c2;
+  --icon-green-from: #98c379;
+  --icon-green-to: #b5bd68;
+  --icon-purple-from: #c678dd;
+  --icon-purple-to: #61afef;
+  --icon-purple-icon: #c678dd;
+  --icon-orange-from: #d19a66;
+  --icon-orange-to: #e5c07b;
+  --icon-yellow-from: #e5c07b;
+  --icon-yellow-to: #d19a66;
+  --icon-cyan-from: #56b6c2;
+  --icon-cyan-to: #61afef;
+  --icon-red-from: #e06c75;
+  --icon-red-to: #be5046;
+  --icon-red-icon: #e06c75;
+  --icon-pink-from: #c678dd;
+  --icon-pink-to: #e06c75;
+  --icon-pink-icon: #c678dd;
+
+  /* ========== 进度条背景 (Atom One Light) ========== */
+  --progress-bg: rgba(0, 0, 0, 0.06);
+
+  --status-work-bg: rgba(152, 195, 121, 0.08);
+  --status-rest-bg: rgba(224, 108, 117, 0.08);
+  --status-screen-bg: rgba(185, 187, 210, 0.08);
+
+  --el-color-primary: #61afef;
+  --el-color-primary-light-3: #4d8bc9;
+  --el-color-primary-light-5: #3e70a8;
+  --el-color-primary-light-7: #335a85;
+  --el-color-primary-light-8: #2b4c72;
+  --el-color-primary-light-9: #233e5e;
+  --el-color-primary-dark-2: #89b4fa;
+
+  --el-bg-color: #ffffff;
+  --el-bg-color-overlay: #f5f5f5;
+  --el-bg-color-page: #fafafa;
+
+  --el-text-color-primary: #383a42;
+  --el-text-color-regular: #5c6370;
+  --el-text-color-secondary: #a0a1a7;
+  --el-text-color-placeholder: #c5c5c5;
+  --el-text-color-disabled: #dcdcdc;
+
+  --el-border-color: #e4e4e4;
+  --el-border-color-light: #ebebeb;
+  --el-border-color-lighter: #f0f0f0;
+  --el-border-color-extra-light: #f5f5f5;
+
+  --el-fill-color: #f5f5f5;
+  --el-fill-color-light: #fafafa;
+  --el-fill-color-lighter: #ffffff;
+  --el-fill-color-blank: #ffffff;
+
+  --el-mask-color: rgba(0, 0, 0, 0.3);
+  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.06);
+}

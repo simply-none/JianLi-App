@@ -1,0 +1,121 @@
+/* ========== Dracula 主题 (高对比度) ========== */
+[data-theme="dracula"] {
+  --color-primary: #ff79c6;
+  --color-primary-light: rgba(255, 121, 198, 0.12);
+  --color-primary-hover: rgba(255, 121, 198, 0.18);
+  --color-primary-solid: #ff79c6;
+
+  --bg-base: #282a36;
+  --bg-card: #44475a;
+  --bg-sidebar: #1e1f29;
+
+  --text-primary: #f8f8f2;
+  --text-secondary: #bd93f9;
+  --text-muted: #6272a4;
+
+  --bg-hover: rgba(255, 255, 255, 0.05);
+  --bg-active-btn: rgba(255, 255, 255, 0.08);
+  --bg-active-btn-hover: rgba(255, 255, 255, 0.14);
+
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-group: rgba(255, 255, 255, 0.06);
+
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.2);
+
+  --scrollbar-thumb: rgba(255, 255, 255, 0.12);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.25);
+
+  --logo-gradient-from: #ff79c6;
+  --logo-gradient-to: #bd93f9;
+  --logo-shadow: rgba(255, 121, 198, 0.3);
+
+  /* ========== 渐变头部 (Dracula) ========== */
+  --header-gradient-from: #ff79c6;
+  --header-gradient-to: #bd93f9;
+
+  /* ========== 功能状态色 (Dracula) ========== */
+  --color-success: #50fa7b;
+  --color-warning: #f1fa8c;
+  --color-error: #ff5555;
+  --color-info: #8be9fd;
+
+  /* ========== 标签背景色 (Dracula) ========== */
+  --tag-bg-info: rgba(139, 233, 253, 0.15);
+  --tag-bg-success: rgba(80, 250, 123, 0.15);
+  --tag-bg-warning: rgba(241, 250, 140, 0.15);
+  --tag-bg-danger: rgba(255, 85, 85, 0.15);
+
+  /* ========== 输入框样式 (Dracula) ========== */
+  --input-bg: #282a36;
+  --input-border: #6272a4;
+  --input-border-focus: #ff79c6;
+
+  /* ========== 快捷键图标渐变色 (Dracula) ========== */
+  --icon-blue-from: #8be9fd;
+  --icon-blue-to: #6272a4;
+  --icon-green-from: #50fa7b;
+  --icon-green-to: #8be9fd;
+  --icon-purple-from: #bd93f9;
+  --icon-purple-to: #ff79c6;
+  --icon-purple-icon: #bd93f9;
+  --icon-orange-from: #ffb86c;
+  --icon-orange-to: #ff79c6;
+  --icon-yellow-from: #f1fa8c;
+  --icon-yellow-to: #50fa7b;
+  --icon-cyan-from: #8be9fd;
+  --icon-cyan-to: #50fa7b;
+  --icon-red-from: #ff5555;
+  --icon-red-to: #ff79c6;
+  --icon-red-icon: #ff5555;
+  --icon-pink-from: #ff79c6;
+  --icon-pink-to: #bd93f9;
+  --icon-pink-icon: #ff79c6;
+
+  /* ========== 进度条背景 (Dracula) ========== */
+  --progress-bg: rgba(255, 255, 255, 0.1);
+
+  /* ========== 卡片元素边框色 (Dracula) ========== */
+  --card-border: rgba(255, 255, 255, 0.12);
+
+  /* ========== 标题纯色 (Dracula) ========== */
+  --header-solid: #6a3a6a;
+
+  /* 状态行背景 (Dracula) */
+  --status-work-bg: rgba(80, 250, 123, 0.12);
+  --status-rest-bg: rgba(255, 85, 85, 0.12);
+  --status-screen-bg: rgba(196, 199, 224, 0.12);
+
+  /* Element Plus 覆写 (Dracula) */
+  --el-color-primary: #ff79c6;
+  --el-color-primary-light-3: #cc62a3;
+  --el-color-primary-light-5: #a64e80;
+  --el-color-primary-light-7: #853e66;
+  --el-color-primary-light-8: #703657;
+  --el-color-primary-light-9: #5c2e49;
+  --el-color-primary-dark-2: #ff97d4;
+
+  --el-bg-color: #44475a;
+  --el-bg-color-overlay: #50536b;
+  --el-bg-color-page: #282a36;
+
+  --el-text-color-primary: #f8f8f2;
+  --el-text-color-regular: #bd93f9;
+  --el-text-color-secondary: #6272a4;
+  --el-text-color-placeholder: #44475a;
+  --el-text-color-disabled: #3a3d4d;
+
+  --el-border-color: #6272a4;
+  --el-border-color-light: #44475a;
+  --el-border-color-lighter: #3a3d4d;
+  --el-border-color-extra-light: #282a36;
+
+  --el-fill-color: #50536b;
+  --el-fill-color-light: #44475a;
+  --el-fill-color-lighter: #282a36;
+  --el-fill-color-blank: #44475a;
+
+  --el-mask-color: rgba(0, 0, 0, 0.5);
+  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.25);
+}

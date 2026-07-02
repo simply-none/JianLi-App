@@ -1,0 +1,119 @@
+/* ========== Ayu Dark 主题 ========== */
+[data-theme="ayu-dark"] {
+  --color-primary: #f07178;
+  --color-primary-light: rgba(240, 113, 120, 0.12);
+  --color-primary-hover: rgba(240, 113, 120, 0.18);
+  --color-primary-solid: #f07178;
+
+  --bg-base: #0a0e14;
+  --bg-card: #10151b;
+  --bg-sidebar: #0d1117;
+
+  --text-primary: #e6e6e6;
+  --text-secondary: #989998;
+  --text-muted: #5c5d5c;
+
+  --bg-hover: rgba(255, 255, 255, 0.04);
+  --bg-active-btn: rgba(255, 255, 255, 0.06);
+  --bg-active-btn-hover: rgba(255, 255, 255, 0.10);
+
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-group: rgba(255, 255, 255, 0.04);
+
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.03);
+  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.15);
+
+  --scrollbar-thumb: rgba(255, 255, 255, 0.10);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.20);
+
+  --logo-gradient-from: #f07178;
+  --logo-gradient-to: #ff8585;
+  --logo-shadow: rgba(240, 113, 120, 0.3);
+
+  /* ========== 渐变头部 (Ayu Dark) ========== */
+  --header-gradient-from: #f07178;
+  --header-gradient-to: #ffb454;
+
+  /* ========== 功能状态色 (Ayu Dark) ========== */
+  --color-success: #a8d98f;
+  --color-warning: #ffb454;
+  --color-error: #f07178;
+  --color-info: #59c2ff;
+
+  /* ========== 标签背景色 (Ayu Dark) ========== */
+  --tag-bg-info: rgba(89, 194, 255, 0.15);
+  --tag-bg-success: rgba(168, 217, 143, 0.15);
+  --tag-bg-warning: rgba(255, 180, 84, 0.15);
+  --tag-bg-danger: rgba(240, 113, 120, 0.15);
+
+  /* ========== 输入框样式 (Ayu Dark) ========== */
+  --input-bg: #0a0e14;
+  --input-border: #3d3e3d;
+  --input-border-focus: #f07178;
+
+  /* ========== 快捷键图标渐变色 (Ayu Dark) ========== */
+  --icon-blue-from: #59c2ff;
+  --icon-blue-to: #39bae6;
+  --icon-green-from: #a8d98f;
+  --icon-green-to: #7fd962;
+  --icon-purple-from: #d2a6ff;
+  --icon-purple-to: #f07178;
+  --icon-purple-icon: #d2a6ff;
+  --icon-orange-from: #ffb454;
+  --icon-orange-to: #ff8f40;
+  --icon-yellow-from: #ffd173;
+  --icon-yellow-to: #ffb454;
+  --icon-cyan-from: #95e6cb;
+  --icon-cyan-to: #59c2ff;
+  --icon-red-from: #f07178;
+  --icon-red-to: #ff3333;
+  --icon-red-icon: #f07178;
+  --icon-pink-from: #f29e74;
+  --icon-pink-to: #f07178;
+  --icon-pink-icon: #f29e74;
+
+  /* ========== 进度条背景 (Ayu Dark) ========== */
+  --progress-bg: rgba(255, 255, 255, 0.08);
+
+  /* ========== 卡片元素边框色 (Ayu Dark) ========== */
+  --card-border: rgba(255, 255, 255, 0.1);
+
+  /* ========== 标题纯色 (Ayu Dark) ========== */
+  --header-solid: #f07178;
+
+  --status-work-bg: rgba(168, 209, 143, 0.12);
+  --status-rest-bg: rgba(240, 113, 120, 0.12);
+  --status-screen-bg: rgba(192, 195, 204, 0.12);
+
+  --el-color-primary: #f07178;
+  --el-color-primary-light-3: #c0585e;
+  --el-color-primary-light-5: #9a454a;
+  --el-color-primary-light-7: #7a383c;
+  --el-color-primary-light-8: #652f32;
+  --el-color-primary-light-9: #502729;
+  --el-color-primary-dark-2: #ff9298;
+
+  --el-bg-color: #10151b;
+  --el-bg-color-overlay: #1a1f27;
+  --el-bg-color-page: #0a0e14;
+
+  --el-text-color-primary: #e6e6e6;
+  --el-text-color-regular: #989998;
+  --el-text-color-secondary: #5c5d5c;
+  --el-text-color-placeholder: #3d3e3d;
+  --el-text-color-disabled: #2d2e2d;
+
+  --el-border-color: #3d3e3d;
+  --el-border-color-light: #2d2e2d;
+  --el-border-color-lighter: #1a1f27;
+  --el-border-color-extra-light: #10151b;
+
+  --el-fill-color: #1a1f27;
+  --el-fill-color-light: #10151b;
+  --el-fill-color-lighter: #0a0e14;
+  --el-fill-color-blank: #10151b;
+
+  --el-mask-color: rgba(0, 0, 0, 0.5);
+  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.2);
+}

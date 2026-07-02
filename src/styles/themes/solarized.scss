@@ -1,0 +1,121 @@
+/* ========== Solarized 主题 (科学配色) ========== */
+[data-theme="solarized"] {
+  --color-primary: #2aa198;
+  --color-primary-light: rgba(42, 161, 152, 0.12);
+  --color-primary-hover: rgba(42, 161, 152, 0.18);
+  --color-primary-solid: #2aa198;
+
+  --bg-base: #073642;
+  --bg-card: #002b36;
+  --bg-sidebar: #00252e;
+
+  --text-primary: #839496;
+  --text-secondary: #586e75;
+  --text-muted: #465457;
+
+  --bg-hover: rgba(255, 255, 255, 0.03);
+  --bg-active-btn: rgba(255, 255, 255, 0.05);
+  --bg-active-btn-hover: rgba(255, 255, 255, 0.08);
+
+  --border-subtle: rgba(255, 255, 255, 0.05);
+  --border-group: rgba(255, 255, 255, 0.03);
+
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(255, 255, 255, 0.03);
+  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.1);
+
+  --scrollbar-thumb: rgba(255, 255, 255, 0.08);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.16);
+
+  --logo-gradient-from: #2aa198;
+  --logo-gradient-to: #268bd2;
+  --logo-shadow: rgba(42, 161, 152, 0.3);
+
+  /* ========== 渐变头部 (Solarized) ========== */
+  --header-gradient-from: #2aa198;
+  --header-gradient-to: #268bd2;
+
+  /* ========== 功能状态色 (Solarized) ========== */
+  --color-success: #859900;
+  --color-warning: #b58900;
+  --color-error: #dc322f;
+  --color-info: #268bd2;
+
+  /* ========== 标签背景色 (Solarized) ========== */
+  --tag-bg-info: rgba(38, 139, 210, 0.15);
+  --tag-bg-success: rgba(133, 153, 0, 0.15);
+  --tag-bg-warning: rgba(181, 137, 0, 0.15);
+  --tag-bg-danger: rgba(220, 50, 47, 0.15);
+
+  /* ========== 输入框样式 (Solarized) ========== */
+  --input-bg: #073642;
+  --input-border: #465457;
+  --input-border-focus: #2aa198;
+
+  /* ========== 快捷键图标渐变色 (Solarized) ========== */
+  --icon-blue-from: #268bd2;
+  --icon-blue-to: #2aa198;
+  --icon-green-from: #859900;
+  --icon-green-to: #2aa198;
+  --icon-purple-from: #6c71c4;
+  --icon-purple-to: #d33682;
+  --icon-purple-icon: #6c71c4;
+  --icon-orange-from: #cb4b16;
+  --icon-orange-to: #b58900;
+  --icon-yellow-from: #b58900;
+  --icon-yellow-to: #839496;
+  --icon-cyan-from: #2aa198;
+  --icon-cyan-to: #268bd2;
+  --icon-red-from: #dc322f;
+  --icon-red-to: #cb4b16;
+  --icon-red-icon: #dc322f;
+  --icon-pink-from: #d33682;
+  --icon-pink-to: #6c71c4;
+  --icon-pink-icon: #d33682;
+
+  /* ========== 进度条背景 (Solarized) ========== */
+  --progress-bg: rgba(255, 255, 255, 0.08);
+
+  /* ========== 卡片元素边框色 (Solarized) ========== */
+  --card-border: rgba(255, 255, 255, 0.1);
+
+  /* ========== 标题纯色 (Solarized) ========== */
+  --header-solid: #2aa198;
+
+  /* 状态行背景 (Solarized) */
+  --status-work-bg: rgba(133, 153, 0, 0.10);
+  --status-rest-bg: rgba(220, 50, 47, 0.10);
+  --status-screen-bg: rgba(131, 148, 150, 0.10);
+
+  /* Element Plus 覆写 (Solarized) */
+  --el-color-primary: #2aa198;
+  --el-color-primary-light-3: #1f8077;
+  --el-color-primary-light-5: #18635b;
+  --el-color-primary-light-7: #124c47;
+  --el-color-primary-light-8: #0e3f3b;
+  --el-color-primary-light-9: #0a3330;
+  --el-color-primary-dark-2: #3abdb4;
+
+  --el-bg-color: #002b36;
+  --el-bg-color-overlay: #073642;
+  --el-bg-color-page: #073642;
+
+  --el-text-color-primary: #839496;
+  --el-text-color-regular: #586e75;
+  --el-text-color-secondary: #465457;
+  --el-text-color-placeholder: #002b36;
+  --el-text-color-disabled: #263539;
+
+  --el-border-color: #465457;
+  --el-border-color-light: #002b36;
+  --el-border-color-lighter: #073642;
+  --el-border-color-extra-light: #073642;
+
+  --el-fill-color: #073642;
+  --el-fill-color-light: #002b36;
+  --el-fill-color-lighter: #00252e;
+  --el-fill-color-blank: #002b36;
+
+  --el-mask-color: rgba(0, 0, 0, 0.5);
+  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.15);
+}

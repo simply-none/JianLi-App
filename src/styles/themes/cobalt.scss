@@ -1,0 +1,119 @@
+/* ========== Cobalt 主题 ========== */
+[data-theme="cobalt"] {
+  --color-primary: #ff6600;
+  --color-primary-light: rgba(255, 102, 0, 0.12);
+  --color-primary-hover: rgba(255, 102, 0, 0.18);
+  --color-primary-solid: #ff6600;
+
+  --bg-base: #193549;
+  --bg-card: #224b67;
+  --bg-sidebar: #152836;
+
+  --text-primary: #ffffff;
+  --text-secondary: #888888;
+  --text-muted: #555555;
+
+  --bg-hover: rgba(255, 255, 255, 0.05);
+  --bg-active-btn: rgba(255, 255, 255, 0.08);
+  --bg-active-btn-hover: rgba(255, 255, 255, 0.14);
+
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-group: rgba(255, 255, 255, 0.06);
+
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.2);
+
+  --scrollbar-thumb: rgba(255, 255, 255, 0.12);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.25);
+
+  --logo-gradient-from: #ff6600;
+  --logo-gradient-to: #ff8833;
+  --logo-shadow: rgba(255, 102, 0, 0.3);
+
+  /* ========== 渐变头部 (Cobalt) ========== */
+  --header-gradient-from: #ff6600;
+  --header-gradient-to: #0088ff;
+
+  /* ========== 功能状态色 (Cobalt) ========== */
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #3b82f6;
+
+  /* ========== 标签背景色 (Cobalt) ========== */
+  --tag-bg-info: rgba(59, 130, 246, 0.15);
+  --tag-bg-success: rgba(16, 185, 129, 0.15);
+  --tag-bg-warning: rgba(245, 158, 11, 0.15);
+  --tag-bg-danger: rgba(239, 68, 68, 0.15);
+
+  /* ========== 输入框样式 (Cobalt) ========== */
+  --input-bg: #0d2a3f;
+  --input-border: #324f66;
+  --input-border-focus: #ff6600;
+
+  /* ========== 快捷键图标渐变色 (Cobalt) ========== */
+  --icon-blue-from: #0088ff;
+  --icon-blue-to: #00d4ff;
+  --icon-green-from: #10b981;
+  --icon-green-to: #34d399;
+  --icon-purple-from: #8b5cf6;
+  --icon-purple-to: #a855f7;
+  --icon-purple-icon: #8b5cf6;
+  --icon-orange-from: #ff6600;
+  --icon-orange-to: #ff8833;
+  --icon-yellow-from: #f59e0b;
+  --icon-yellow-to: #fbbf24;
+  --icon-cyan-from: #00d4ff;
+  --icon-cyan-to: #0088ff;
+  --icon-red-from: #ef4444;
+  --icon-red-to: #f87171;
+  --icon-red-icon: #ef4444;
+  --icon-pink-from: #ec4899;
+  --icon-pink-to: #f43f5e;
+  --icon-pink-icon: #ec4899;
+
+  /* ========== 进度条背景 (Cobalt) ========== */
+  --progress-bg: rgba(255, 255, 255, 0.08);
+
+  /* ========== 卡片元素边框色 (Cobalt) ========== */
+  --card-border: rgba(255, 255, 255, 0.12);
+
+  /* ========== 标题纯色 (Cobalt) ========== */
+  --header-solid: #aa5500;
+
+  --status-work-bg: rgba(16, 185, 129, 0.12);
+  --status-rest-bg: rgba(239, 68, 68, 0.12);
+  --status-screen-bg: rgba(255, 215, 0, 0.12);
+
+  --el-color-primary: #ff6600;
+  --el-color-primary-light-3: #cc5200;
+  --el-color-primary-light-5: #a64000;
+  --el-color-primary-light-7: #853300;
+  --el-color-primary-light-8: #702c00;
+  --el-color-primary-light-9: #5c2500;
+  --el-color-primary-dark-2: #ff8844;
+
+  --el-bg-color: #224b67;
+  --el-bg-color-overlay: #2d5a77;
+  --el-bg-color-page: #193549;
+
+  --el-text-color-primary: #ffffff;
+  --el-text-color-regular: #888888;
+  --el-text-color-secondary: #555555;
+  --el-text-color-placeholder: #3d5a70;
+  --el-text-color-disabled: #224b67;
+
+  --el-border-color: #555555;
+  --el-border-color-light: #3d5a70;
+  --el-border-color-lighter: #224b67;
+  --el-border-color-extra-light: #193549;
+
+  --el-fill-color: #2d5a77;
+  --el-fill-color-light: #224b67;
+  --el-fill-color-lighter: #193549;
+  --el-fill-color-blank: #224b67;
+
+  --el-mask-color: rgba(0, 0, 0, 0.5);
+  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.25);
+}

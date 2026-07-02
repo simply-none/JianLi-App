@@ -1,0 +1,14 @@
+/* 暗夜黑 */
+[data-skin="dark"] {
+  --skin-bg: rgba(31, 41, 55, 0.95);
+  --skin-border: rgba(255, 255, 255, 0.1);
+  --skin-text-primary: #F3F4F6;
+  --skin-text-secondary: #D1D5DB;
+  --skin-dot: #60A5FA;
+  --skin-dot-glow: rgba(96, 165, 250, 0.6);
+  --skin-progress-bg: rgba(255, 255, 255, 0.1);
+  --skin-progress-fill: linear-gradient(90deg, #60A5FA, #93C5FD);
+  --skin-circle-ring: #60A5FA;
+  --skin-btn-bg: rgba(96, 165, 250, 0.15);
+  --skin-btn-hover: rgba(96, 165, 250, 0.25);
+}

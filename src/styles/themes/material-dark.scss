@@ -1,0 +1,119 @@
+/* ========== Material Dark 主题 ========== */
+[data-theme="material-dark"] {
+  --color-primary: #6200ee;
+  --color-primary-light: rgba(98, 0, 238, 0.12);
+  --color-primary-hover: rgba(98, 0, 238, 0.18);
+  --color-primary-solid: #6200ee;
+
+  --bg-base: #121212;
+  --bg-card: #1e1e1e;
+  --bg-sidebar: #0d0d0d;
+
+  --text-primary: #ffffff;
+  --text-secondary: #bdbdbd;
+  --text-muted: #616161;
+
+  --bg-hover: rgba(255, 255, 255, 0.04);
+  --bg-active-btn: rgba(255, 255, 255, 0.06);
+  --bg-active-btn-hover: rgba(255, 255, 255, 0.10);
+
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-group: rgba(255, 255, 255, 0.04);
+
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.03);
+  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.15);
+
+  --scrollbar-thumb: rgba(255, 255, 255, 0.10);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.20);
+
+  --logo-gradient-from: #6200ee;
+  --logo-gradient-to: #3700b3;
+  --logo-shadow: rgba(98, 0, 238, 0.3);
+
+  /* ========== 渐变头部 (Material Dark) ========== */
+  --header-gradient-from: #6200ee;
+  --header-gradient-to: #03dac6;
+
+  /* ========== 功能状态色 (Material Dark) ========== */
+  --color-success: #4caf50;
+  --color-warning: #ff9800;
+  --color-error: #f44336;
+  --color-info: #2196f3;
+
+  /* ========== 标签背景色 (Material Dark) ========== */
+  --tag-bg-info: rgba(33, 150, 243, 0.15);
+  --tag-bg-success: rgba(76, 175, 80, 0.15);
+  --tag-bg-warning: rgba(255, 152, 0, 0.15);
+  --tag-bg-danger: rgba(244, 67, 54, 0.15);
+
+  /* ========== 输入框样式 (Material Dark) ========== */
+  --input-bg: #121212;
+  --input-border: #424242;
+  --input-border-focus: #6200ee;
+
+  /* ========== 快捷键图标渐变色 (Material Dark) ========== */
+  --icon-blue-from: #2196f3;
+  --icon-blue-to: #03a9f4;
+  --icon-green-from: #4caf50;
+  --icon-green-to: #8bc34a;
+  --icon-purple-from: #9c27b0;
+  --icon-purple-to: #673ab7;
+  --icon-purple-icon: #9c27b0;
+  --icon-orange-from: #ff9800;
+  --icon-orange-to: #ff5722;
+  --icon-yellow-from: #ffeb3b;
+  --icon-yellow-to: #ffc107;
+  --icon-cyan-from: #00bcd4;
+  --icon-cyan-to: #03dac6;
+  --icon-red-from: #f44336;
+  --icon-red-to: #e91e63;
+  --icon-red-icon: #f44336;
+  --icon-pink-from: #e91e63;
+  --icon-pink-to: #9c27b0;
+  --icon-pink-icon: #e91e63;
+
+  /* ========== 进度条背景 (Material Dark) ========== */
+  --progress-bg: rgba(255, 255, 255, 0.08);
+
+  /* ========== 卡片元素边框色 (Material Dark) ========== */
+  --card-border: rgba(255, 255, 255, 0.12);
+
+  /* ========== 标题纯色 (Material Dark) ========== */
+  --header-solid: #4a0099;
+
+  --status-work-bg: rgba(76, 175, 80, 0.12);
+  --status-rest-bg: rgba(244, 67, 54, 0.12);
+  --status-screen-bg: rgba(255, 193, 7, 0.12);
+
+  --el-color-primary: #6200ee;
+  --el-color-primary-light-3: #5000c5;
+  --el-color-primary-light-5: #3d00a8;
+  --el-color-primary-light-7: #32008a;
+  --el-color-primary-light-8: #2a0075;
+  --el-color-primary-light-9: #220060;
+  --el-color-primary-dark-2: #7c4dff;
+
+  --el-bg-color: #1e1e1e;
+  --el-bg-color-overlay: #2a2a2a;
+  --el-bg-color-page: #121212;
+
+  --el-text-color-primary: #ffffff;
+  --el-text-color-regular: #bdbdbd;
+  --el-text-color-secondary: #616161;
+  --el-text-color-placeholder: #424242;
+  --el-text-color-disabled: #2a2a2a;
+
+  --el-border-color: #424242;
+  --el-border-color-light: #2a2a2a;
+  --el-border-color-lighter: #1e1e1e;
+  --el-border-color-extra-light: #121212;
+
+  --el-fill-color: #2a2a2a;
+  --el-fill-color-light: #1e1e1e;
+  --el-fill-color-lighter: #121212;
+  --el-fill-color-blank: #1e1e1e;
+
+  --el-mask-color: rgba(0, 0, 0, 0.5);
+  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.2);
+}

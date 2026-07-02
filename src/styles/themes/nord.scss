@@ -1,0 +1,120 @@
+/* ========== Nord 北极主题 ========== */
+[data-theme="nord"] {
+  --color-primary: #88c0d0;
+  --color-primary-light: rgba(136, 192, 208, 0.12);
+  --color-primary-hover: rgba(136, 192, 208, 0.18);
+  --color-primary-solid: #88c0d0;
+
+  --bg-base: #2e3440;
+  --bg-card: #3b4252;
+  --bg-sidebar: #2b3039;
+  --text-primary: #eceff4;
+  --text-secondary: #d8dee9;
+  --text-muted: #7b88a1;
+
+  --bg-hover: rgba(255, 255, 255, 0.05);
+  --bg-active-btn: rgba(255, 255, 255, 0.07);
+  --bg-active-btn-hover: rgba(255, 255, 255, 0.12);
+
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --border-group: rgba(255, 255, 255, 0.05);
+
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.15);
+
+  --scrollbar-thumb: rgba(255, 255, 255, 0.10);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.20);
+
+  --logo-gradient-from: #88c0d0;
+  --logo-gradient-to: #81a1c1;
+  --logo-shadow: rgba(136, 192, 208, 0.3);
+
+  /* ========== 渐变头部 (Nord) ========== */
+  --header-gradient-from: #88c0d0;
+  --header-gradient-to: #81a1c1;
+
+  /* ========== 功能状态色 (Nord) ========== */
+  --color-success: #a3be8c;
+  --color-warning: #ebcb8b;
+  --color-error: #bf616a;
+  --color-info: #88c0d0;
+
+  /* ========== 标签背景色 (Nord) ========== */
+  --tag-bg-info: rgba(136, 192, 208, 0.15);
+  --tag-bg-success: rgba(163, 190, 140, 0.15);
+  --tag-bg-warning: rgba(235, 203, 139, 0.15);
+  --tag-bg-danger: rgba(191, 97, 106, 0.15);
+
+  /* ========== 输入框样式 (Nord) ========== */
+  --input-bg: #2b303b;
+  --input-border: #4c566a;
+  --input-border-focus: #88c0d0;
+
+  /* ========== 快捷键图标渐变色 (Nord) ========== */
+  --icon-blue-from: #88c0d0;
+  --icon-blue-to: #81a1c1;
+  --icon-green-from: #a3be8c;
+  --icon-green-to: #8fbcbb;
+  --icon-purple-from: #b48ead;
+  --icon-purple-to: #d08770;
+  --icon-purple-icon: #b48ead;
+  --icon-orange-from: #d08770;
+  --icon-orange-to: #bf616a;
+  --icon-yellow-from: #ebcb8b;
+  --icon-yellow-to: #eceff4;
+  --icon-cyan-from: #8fbcbb;
+  --icon-cyan-to: #88c0d0;
+  --icon-red-from: #bf616a;
+  --icon-red-to: #d08770;
+  --icon-red-icon: #bf616a;
+  --icon-pink-from: #d08770;
+  --icon-pink-to: #b48ead;
+  --icon-pink-icon: #b48ead;
+
+  /* ========== 进度条背景 (Nord) ========== */
+  --progress-bg: rgba(255, 255, 255, 0.08);
+
+  /* ========== 卡片元素边框色 (Nord) ========== */
+  --card-border: rgba(255, 255, 255, 0.12);
+
+  /* ========== 标题纯色 (Nord) ========== */
+  --header-solid: #4d7c8a;
+
+  /* 状态行背景 (Nord) */
+  --status-work-bg: rgba(163, 190, 140, 0.12);
+  --status-rest-bg: rgba(191, 97, 106, 0.12);
+  --status-screen-bg: rgba(136, 192, 208, 0.12);
+
+  /* Element Plus 覆写 (Nord) */
+  --el-color-primary: #88c0d0;
+  --el-color-primary-light-3: #6ea0b0;
+  --el-color-primary-light-5: #548090;
+  --el-color-primary-light-7: #3e6575;
+  --el-color-primary-light-8: #335565;
+  --el-color-primary-light-9: #284555;
+  --el-color-primary-dark-2: #8fbcbb;
+
+  --el-bg-color: #3b4252;
+  --el-bg-color-overlay: #434c5e;
+  --el-bg-color-page: #2e3440;
+
+  --el-text-color-primary: #eceff4;
+  --el-text-color-regular: #d8dee9;
+  --el-text-color-secondary: #7b88a1;
+  --el-text-color-placeholder: #4c566a;
+  --el-text-color-disabled: #434c5e;
+
+  --el-border-color: #4c566a;
+  --el-border-color-light: #434c5e;
+  --el-border-color-lighter: #3b4252;
+  --el-border-color-extra-light: #2e3440;
+
+  --el-fill-color: #434c5e;
+  --el-fill-color-light: #3b4252;
+  --el-fill-color-lighter: #2e3440;
+  --el-fill-color-blank: #3b4252;
+
+  --el-mask-color: rgba(0, 0, 0, 0.5);
+  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.2);
+}

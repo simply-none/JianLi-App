@@ -1,0 +1,121 @@
+/* ========== Tokyo Night 主题 (霓虹风格) ========== */
+[data-theme="tokyo-night"] {
+  --color-primary: #7aa2f7;
+  --color-primary-light: rgba(122, 162, 247, 0.12);
+  --color-primary-hover: rgba(122, 162, 247, 0.18);
+  --color-primary-solid: #7aa2f7;
+
+  --bg-base: #1a1b26;
+  --bg-card: #24283b;
+  --bg-sidebar: #1f2335;
+
+  --text-primary: #c0caf5;
+  --text-secondary: #a9b1d6;
+  --text-muted: #565f89;
+
+  --bg-hover: rgba(255, 255, 255, 0.05);
+  --bg-active-btn: rgba(255, 255, 255, 0.08);
+  --bg-active-btn-hover: rgba(255, 255, 255, 0.14);
+
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-group: rgba(255, 255, 255, 0.06);
+
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.2);
+
+  --scrollbar-thumb: rgba(255, 255, 255, 0.12);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.25);
+
+  --logo-gradient-from: #7aa2f7;
+  --logo-gradient-to: #bb9af7;
+  --logo-shadow: rgba(122, 162, 247, 0.3);
+
+  /* ========== 渐变头部 (Tokyo Night) ========== */
+  --header-gradient-from: #7aa2f7;
+  --header-gradient-to: #bb9af7;
+
+  /* ========== 功能状态色 (Tokyo Night) ========== */
+  --color-success: #9ece6a;
+  --color-warning: #e0af68;
+  --color-error: #f7768e;
+  --color-info: #7aa2f7;
+
+  /* ========== 标签背景色 (Tokyo Night) ========== */
+  --tag-bg-info: rgba(122, 162, 247, 0.15);
+  --tag-bg-success: rgba(158, 206, 106, 0.15);
+  --tag-bg-warning: rgba(224, 175, 104, 0.15);
+  --tag-bg-danger: rgba(247, 118, 142, 0.15);
+
+  /* ========== 输入框样式 (Tokyo Night) ========== */
+  --input-bg: #1f2335;
+  --input-border: #3b4261;
+  --input-border-focus: #7aa2f7;
+
+  /* ========== 快捷键图标渐变色 (Tokyo Night) ========== */
+  --icon-blue-from: #7aa2f7;
+  --icon-blue-to: #2ac3de;
+  --icon-green-from: #9ece6a;
+  --icon-green-to: #73daca;
+  --icon-purple-from: #bb9af7;
+  --icon-purple-to: #c0caf5;
+  --icon-purple-icon: #bb9af7;
+  --icon-orange-from: #ff9e64;
+  --icon-orange-to: #f7768e;
+  --icon-yellow-from: #e0af68;
+  --icon-yellow-to: #ff9e64;
+  --icon-cyan-from: #2ac3de;
+  --icon-cyan-to: #7dcfff;
+  --icon-red-from: #f7768e;
+  --icon-red-to: #ff007c;
+  --icon-red-icon: #f7768e;
+  --icon-pink-from: #ff007c;
+  --icon-pink-to: #d700de;
+  --icon-pink-icon: #ff007c;
+
+  /* ========== 进度条背景 (Tokyo Night) ========== */
+  --progress-bg: rgba(255, 255, 255, 0.1);
+
+  /* ========== 卡片元素边框色 (Tokyo Night) ========== */
+  --card-border: rgba(255, 255, 255, 0.12);
+
+  /* ========== 标题纯色 (Tokyo Night) ========== */
+  --header-solid: #4a6fa5;
+
+  /* 状态行背景 (Tokyo Night) */
+  --status-work-bg: rgba(16, 185, 129, 0.12);
+  --status-rest-bg: rgba(239, 68, 68, 0.12);
+  --status-screen-bg: rgba(6, 182, 212, 0.12);
+
+  /* Element Plus 覆写 (Tokyo Night) */
+  --el-color-primary: #7aa2f7;
+  --el-color-primary-light-3: #5a82d7;
+  --el-color-primary-light-5: #3d61b7;
+  --el-color-primary-light-7: #2a4a97;
+  --el-color-primary-light-8: #233f7a;
+  --el-color-primary-light-9: #1c345d;
+  --el-color-primary-dark-2: #9ab4ff;
+
+  --el-bg-color: #24283b;
+  --el-bg-color-overlay: #292e42;
+  --el-bg-color-page: #1a1b26;
+
+  --el-text-color-primary: #c0caf5;
+  --el-text-color-regular: #a9b1d6;
+  --el-text-color-secondary: #565f89;
+  --el-text-color-placeholder: #414868;
+  --el-text-color-disabled: #3b4261;
+
+  --el-border-color: #3b4261;
+  --el-border-color-light: #2f354d;
+  --el-border-color-lighter: #292e42;
+  --el-border-color-extra-light: #24283b;
+
+  --el-fill-color: #292e42;
+  --el-fill-color-light: #24283b;
+  --el-fill-color-lighter: #1f2335;
+  --el-fill-color-blank: #24283b;
+
+  --el-mask-color: rgba(0, 0, 0, 0.5);
+  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.25);
+}

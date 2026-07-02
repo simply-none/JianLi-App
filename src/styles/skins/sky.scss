@@ -1,0 +1,14 @@
+/* 星空蓝 */
+[data-skin="sky"] {
+  --skin-bg: rgba(219, 234, 254, 0.92);
+  --skin-border: rgba(37, 99, 235, 0.25);
+  --skin-text-primary: #1D4ED8;
+  --skin-text-secondary: #2563EB;
+  --skin-dot: #3B82F6;
+  --skin-dot-glow: rgba(59, 130, 246, 0.6);
+  --skin-progress-bg: rgba(37, 99, 235, 0.15);
+  --skin-progress-fill: linear-gradient(90deg, #3B82F6, #60A5FA);
+  --skin-circle-ring: #3B82F6;
+  --skin-btn-bg: rgba(59, 130, 246, 0.12);
+  --skin-btn-hover: rgba(59, 130, 246, 0.22);
+}

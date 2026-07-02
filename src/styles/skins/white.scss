@@ -1,0 +1,15 @@
+/* 默认皮肤（白色透明） */
+:root,
+[data-skin="white"] {
+  --skin-bg: rgba(255, 255, 255, 0.95);
+  --skin-border: rgba(99, 102, 241, 0.25);
+  --skin-text-primary: #4338ca;
+  --skin-text-secondary: #6366f1;
+  --skin-dot: #6366f1;
+  --skin-dot-glow: rgba(99, 102, 241, 0.6);
+  --skin-progress-bg: rgba(99, 102, 241, 0.15);
+  --skin-progress-fill: linear-gradient(90deg, #6366f1, #818cf8);
+  --skin-circle-ring: #6366f1;
+  --skin-btn-bg: rgba(99, 102, 241, 0.12);
+  --skin-btn-hover: rgba(99, 102, 241, 0.22);
+}

@@ -1,0 +1,119 @@
+/* ========== Catppuccin Mocha 主题 (深色奶咖) ========== */
+[data-theme="catppuccin-mocha"] {
+  --color-primary: #cba6f7;
+  --color-primary-light: rgba(203, 166, 247, 0.12);
+  --color-primary-hover: rgba(203, 166, 247, 0.18);
+  --color-primary-solid: #cba6f7;
+
+  --bg-base: #1e1e2e;
+  --bg-card: #313244;
+  --bg-sidebar: #181825;
+
+  --text-primary: #cdd6f4;
+  --text-secondary: #a6adc8;
+  --text-muted: #6c7086;
+
+  --bg-hover: rgba(255, 255, 255, 0.05);
+  --bg-active-btn: rgba(255, 255, 255, 0.08);
+  --bg-active-btn-hover: rgba(255, 255, 255, 0.14);
+
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-group: rgba(255, 255, 255, 0.06);
+
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.2);
+
+  --scrollbar-thumb: rgba(255, 255, 255, 0.12);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.25);
+
+  --logo-gradient-from: #cba6f7;
+  --logo-gradient-to: #eba0ac;
+  --logo-shadow: rgba(203, 166, 247, 0.3);
+
+  /* ========== 渐变头部 (Catppuccin Mocha) ========== */
+  --header-gradient-from: #cba6f7;
+  --header-gradient-to: #f5c2e7;
+
+  /* ========== 功能状态色 (Catppuccin Mocha) ========== */
+  --color-success: #a6e3a1;
+  --color-warning: #f9e2af;
+  --color-error: #f38ba8;
+  --color-info: #89b4fa;
+
+  /* ========== 标签背景色 (Catppuccin Mocha) ========== */
+  --tag-bg-info: rgba(137, 180, 250, 0.15);
+  --tag-bg-success: rgba(166, 227, 161, 0.15);
+  --tag-bg-warning: rgba(249, 226, 175, 0.15);
+  --tag-bg-danger: rgba(243, 139, 168, 0.15);
+
+  /* ========== 输入框样式 (Catppuccin Mocha) ========== */
+  --input-bg: #1e1e2e;
+  --input-border: #45475a;
+  --input-border-focus: #cba6f7;
+
+  /* ========== 快捷键图标渐变色 (Catppuccin Mocha) ========== */
+  --icon-blue-from: #89b4fa;
+  --icon-blue-to: #b4befe;
+  --icon-green-from: #a6e3a1;
+  --icon-green-to: #94e2d5;
+  --icon-purple-from: #cba6f7;
+  --icon-purple-to: #f5c2e7;
+  --icon-purple-icon: #cba6f7;
+  --icon-orange-from: #fab387;
+  --icon-orange-to: #f9e2af;
+  --icon-yellow-from: #f9e2af;
+  --icon-yellow-to: #fab387;
+  --icon-cyan-from: #94e2d5;
+  --icon-cyan-to: #89dceb;
+  --icon-red-from: #f38ba8;
+  --icon-red-to: #eba0ac;
+  --icon-red-icon: #f38ba8;
+  --icon-pink-from: #f5c2e7;
+  --icon-pink-to: #cba6f7;
+  --icon-pink-icon: #f5c2e7;
+
+  /* ========== 进度条背景 (Catppuccin Mocha) ========== */
+  --progress-bg: rgba(255, 255, 255, 0.1);
+
+  /* ========== 卡片元素边框色 (Catppuccin Mocha) ========== */
+  --card-border: rgba(255, 255, 255, 0.12);
+
+  /* ========== 标题纯色 (Catppuccin Mocha) ========== */
+  --header-solid: #8b6fc0;
+
+  --status-work-bg: rgba(166, 226, 161, 0.12);
+  --status-rest-bg: rgba(235, 160, 172, 0.12);
+  --status-screen-bg: rgba(180, 190, 254, 0.12);
+
+  --el-color-primary: #cba6f7;
+  --el-color-primary-light-3: #a78bfa;
+  --el-color-primary-light-5: #8b5cf6;
+  --el-color-primary-light-7: #7c3aed;
+  --el-color-primary-light-8: #6d28d9;
+  --el-color-primary-light-9: #5b21b6;
+  --el-color-primary-dark-2: #f5c2e7;
+
+  --el-bg-color: #313244;
+  --el-bg-color-overlay: #45475a;
+  --el-bg-color-page: #1e1e2e;
+
+  --el-text-color-primary: #cdd6f4;
+  --el-text-color-regular: #a6adc8;
+  --el-text-color-secondary: #6c7086;
+  --el-text-color-placeholder: #45475a;
+  --el-text-color-disabled: #313244;
+
+  --el-border-color: #45475a;
+  --el-border-color-light: #313244;
+  --el-border-color-lighter: #1e1e2e;
+  --el-border-color-extra-light: #181825;
+
+  --el-fill-color: #45475a;
+  --el-fill-color-light: #313244;
+  --el-fill-color-lighter: #1e1e2e;
+  --el-fill-color-blank: #313244;
+
+  --el-mask-color: rgba(0, 0, 0, 0.5);
+  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.25);
+}

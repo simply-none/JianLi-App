@@ -1,0 +1,119 @@
+/* ========== Monokai 主题 ========== */
+[data-theme="monokai"] {
+  --color-primary: #f92672;
+  --color-primary-light: rgba(249, 38, 114, 0.12);
+  --color-primary-hover: rgba(249, 38, 114, 0.18);
+  --color-primary-solid: #f92672;
+
+  --bg-base: #272822;
+  --bg-card: #383830;
+  --bg-sidebar: #1e1e18;
+
+  --text-primary: #f8f8f2;
+  --text-secondary: #a59f85;
+  --text-muted: #50493d;
+
+  --bg-hover: rgba(255, 255, 255, 0.05);
+  --bg-active-btn: rgba(255, 255, 255, 0.08);
+  --bg-active-btn-hover: rgba(255, 255, 255, 0.14);
+
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-group: rgba(255, 255, 255, 0.06);
+
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.2);
+
+  --scrollbar-thumb: rgba(255, 255, 255, 0.12);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.25);
+
+  --logo-gradient-from: #f92672;
+  --logo-gradient-to: #fd5ff0;
+  --logo-shadow: rgba(249, 38, 114, 0.3);
+
+  /* ========== 渐变头部 (Monokai) ========== */
+  --header-gradient-from: #f92672;
+  --header-gradient-to: #ae81ff;
+
+  /* ========== 功能状态色 (Monokai) ========== */
+  --color-success: #a6e22e;
+  --color-warning: #e6db74;
+  --color-error: #f92672;
+  --color-info: #66d9ef;
+
+  /* ========== 标签背景色 (Monokai) ========== */
+  --tag-bg-info: rgba(102, 217, 239, 0.15);
+  --tag-bg-success: rgba(166, 226, 46, 0.15);
+  --tag-bg-warning: rgba(230, 219, 116, 0.15);
+  --tag-bg-danger: rgba(249, 38, 114, 0.15);
+
+  /* ========== 输入框样式 (Monokai) ========== */
+  --input-bg: #272822;
+  --input-border: #50493d;
+  --input-border-focus: #f92672;
+
+  /* ========== 快捷键图标渐变色 (Monokai) ========== */
+  --icon-blue-from: #66d9ef;
+  --icon-blue-to: #a1efe4;
+  --icon-green-from: #a6e22e;
+  --icon-green-to: #e6db74;
+  --icon-purple-from: #ae81ff;
+  --icon-purple-to: #fd5ff0;
+  --icon-purple-icon: #ae81ff;
+  --icon-orange-from: #fd971f;
+  --icon-orange-to: #f92672;
+  --icon-yellow-from: #e6db74;
+  --icon-yellow-to: #a6e22e;
+  --icon-cyan-from: #a1efe4;
+  --icon-cyan-to: #66d9ef;
+  --icon-red-from: #f92672;
+  --icon-red-to: #fd971f;
+  --icon-red-icon: #f92672;
+  --icon-pink-from: #fd5ff0;
+  --icon-pink-to: #ae81ff;
+  --icon-pink-icon: #fd5ff0;
+
+  /* ========== 进度条背景 (Monokai) ========== */
+  --progress-bg: rgba(255, 255, 255, 0.1);
+
+  /* ========== 卡片元素边框色 (Monokai) ========== */
+  --card-border: rgba(255, 255, 255, 0.1);
+
+  /* ========== 标题纯色 (Monokai) ========== */
+  --header-solid: #a04a7c;
+
+  /* 状态行背景 (Monokai) */--status-work-bg: rgba(181, 206, 168, 0.12);
+  --status-rest-bg: rgba(249, 38, 114, 0.12);
+  --status-screen-bg: rgba(181, 189, 200, 0.12);
+
+  --el-color-primary: #f92672;
+  --el-color-primary-light-3: #c71e58;
+  --el-color-primary-light-5: #9f1847;
+  --el-color-primary-light-7: #801439;
+  --el-color-primary-light-8: #6a1130;
+  --el-color-primary-light-9: #550e27;
+  --el-color-primary-dark-2: #ff509d;
+
+  --el-bg-color: #383830;
+  --el-bg-color-overlay: #4a4a42;
+  --el-bg-color-page: #272822;
+
+  --el-text-color-primary: #f8f8f2;
+  --el-text-color-regular: #a59f85;
+  --el-text-color-secondary: #50493d;
+  --el-text-color-placeholder: #383830;
+  --el-text-color-disabled: #272822;
+
+  --el-border-color: #50493d;
+  --el-border-color-light: #383830;
+  --el-border-color-lighter: #272822;
+  --el-border-color-extra-light: #1e1e18;
+
+  --el-fill-color: #4a4a42;
+  --el-fill-color-light: #383830;
+  --el-fill-color-lighter: #272822;
+  --el-fill-color-blank: #383830;
+
+  --el-mask-color: rgba(0, 0, 0, 0.5);
+  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.25);
+}

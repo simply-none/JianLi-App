@@ -1,0 +1,121 @@
+/* ========== One Dark 主题 (Atom经典) ========== */
+[data-theme="one-dark"] {
+  --color-primary: #e06c75;
+  --color-primary-light: rgba(224, 108, 117, 0.12);
+  --color-primary-hover: rgba(224, 108, 117, 0.18);
+  --color-primary-solid: #e06c75;
+
+  --bg-base: #282c34;
+  --bg-card: #3e4451;
+  --bg-sidebar: #21252b;
+
+  --text-primary: #abb2bf;
+  --text-secondary: #5c6370;
+  --text-muted: #4b5263;
+
+  --bg-hover: rgba(255, 255, 255, 0.04);
+  --bg-active-btn: rgba(255, 255, 255, 0.06);
+  --bg-active-btn-hover: rgba(255, 255, 255, 0.10);
+
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-group: rgba(255, 255, 255, 0.04);
+
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.03);
+  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.15);
+
+  --scrollbar-thumb: rgba(255, 255, 255, 0.10);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.20);
+
+  --logo-gradient-from: #e06c75;
+  --logo-gradient-to: #c678dd;
+  --logo-shadow: rgba(224, 108, 117, 0.3);
+
+  /* ========== 渐变头部 (One Dark) ========== */
+  --header-gradient-from: #e06c75;
+  --header-gradient-to: #c678dd;
+
+  /* ========== 功能状态色 (One Dark) ========== */
+  --color-success: #98c379;
+  --color-warning: #e5c07b;
+  --color-error: #e06c75;
+  --color-info: #61afef;
+
+  /* ========== 标签背景色 (One Dark) ========== */
+  --tag-bg-info: rgba(97, 175, 239, 0.15);
+  --tag-bg-success: rgba(152, 195, 121, 0.15);
+  --tag-bg-warning: rgba(229, 192, 123, 0.15);
+  --tag-bg-danger: rgba(224, 108, 117, 0.15);
+
+  /* ========== 输入框样式 (One Dark) ========== */
+  --input-bg: #282c34;
+  --input-border: #4b5263;
+  --input-border-focus: #e06c75;
+
+  /* ========== 快捷键图标渐变色 (One Dark) ========== */
+  --icon-blue-from: #61afef;
+  --icon-blue-to: #56b6c2;
+  --icon-green-from: #98c379;
+  --icon-green-to: #56b6c2;
+  --icon-purple-from: #c678dd;
+  --icon-purple-to: #e06c75;
+  --icon-purple-icon: #c678dd;
+  --icon-orange-from: #d19a66;
+  --icon-orange-to: #e5c07b;
+  --icon-yellow-from: #e5c07b;
+  --icon-yellow-to: #d19a66;
+  --icon-cyan-from: #56b6c2;
+  --icon-cyan-to: #61afef;
+  --icon-red-from: #e06c75;
+  --icon-red-to: #be5046;
+  --icon-red-icon: #e06c75;
+  --icon-pink-from: #c678dd;
+  --icon-pink-to: #e06c75;
+  --icon-pink-icon: #c678dd;
+
+  /* ========== 进度条背景 (One Dark) ========== */
+  --progress-bg: rgba(255, 255, 255, 0.08);
+
+  /* ========== 卡片元素边框色 (One Dark) ========== */
+  --card-border: rgba(255, 255, 255, 0.12);
+
+  /* ========== 标题纯色 (One Dark) ========== */
+  --header-solid: #8a4a50;
+
+  /* 状态行背景 (One Dark) */
+  --status-work-bg: rgba(152, 195, 121, 0.12);
+  --status-rest-bg: rgba(224, 108, 117, 0.12);
+  --status-screen-bg: rgba(185, 187, 210, 0.12);
+
+  /* Element Plus 覆写 (One Dark) */
+  --el-color-primary: #e06c75;
+  --el-color-primary-light-3: #b0545c;
+  --el-color-primary-light-5: #8a4349;
+  --el-color-primary-light-7: #6a363b;
+  --el-color-primary-light-8: #5a2e33;
+  --el-color-primary-light-9: #4a262a;
+  --el-color-primary-dark-2: #ff838d;
+
+  --el-bg-color: #3e4451;
+  --el-bg-color-overlay: #4a5162;
+  --el-bg-color-page: #282c34;
+
+  --el-text-color-primary: #abb2bf;
+  --el-text-color-regular: #5c6370;
+  --el-text-color-secondary: #4b5263;
+  --el-text-color-placeholder: #3e4451;
+  --el-text-color-disabled: #3b4149;
+
+  --el-border-color: #4b5263;
+  --el-border-color-light: #3e4451;
+  --el-border-color-lighter: #373d48;
+  --el-border-color-extra-light: #282c34;
+
+  --el-fill-color: #4a5162;
+  --el-fill-color-light: #3e4451;
+  --el-fill-color-lighter: #282c34;
+  --el-fill-color-blank: #3e4451;
+
+  --el-mask-color: rgba(0, 0, 0, 0.5);
+  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.2);
+}

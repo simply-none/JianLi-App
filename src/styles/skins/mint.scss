@@ -1,0 +1,14 @@
+/* 薄荷绿 */
+[data-skin="mint"] {
+  --skin-bg: rgba(209, 250, 240, 0.92);
+  --skin-border: rgba(5, 150, 105, 0.25);
+  --skin-text-primary: #059669;
+  --skin-text-secondary: #047857;
+  --skin-dot: #10B981;
+  --skin-dot-glow: rgba(16, 185, 129, 0.6);
+  --skin-progress-bg: rgba(5, 150, 105, 0.15);
+  --skin-progress-fill: linear-gradient(90deg, #10B981, #34D399);
+  --skin-circle-ring: #10B981;
+  --skin-btn-bg: rgba(16, 185, 129, 0.12);
+  --skin-btn-hover: rgba(16, 185, 129, 0.22);
+}

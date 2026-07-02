@@ -1,0 +1,119 @@
+/* ========== Tomorrow Night 主题 ========== */
+[data-theme="tomorrow-night"] {
+  --color-primary: #42a5f5;
+  --color-primary-light: rgba(66, 165, 245, 0.12);
+  --color-primary-hover: rgba(66, 165, 245, 0.18);
+  --color-primary-solid: #42a5f5;
+
+  --bg-base: #1d1d1d;
+  --bg-card: #282828;
+  --bg-sidebar: #181818;
+
+  --text-primary: #c5c8c6;
+  --text-secondary: #8f908a;
+  --text-muted: #5c5e58;
+
+  --bg-hover: rgba(255, 255, 255, 0.04);
+  --bg-active-btn: rgba(255, 255, 255, 0.06);
+  --bg-active-btn-hover: rgba(255, 255, 255, 0.10);
+
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-group: rgba(255, 255, 255, 0.04);
+
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.03);
+  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.15);
+
+  --scrollbar-thumb: rgba(255, 255, 255, 0.10);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.20);
+
+  --logo-gradient-from: #42a5f5;
+  --logo-gradient-to: #64b5f6;
+  --logo-shadow: rgba(66, 165, 245, 0.3);
+
+  /* ========== 渐变头部 (Tomorrow Night) ========== */
+  --header-gradient-from: #42a5f5;
+  --header-gradient-to: #ab47bc;
+
+  /* ========== 功能状态色 (Tomorrow Night) ========== */
+  --color-success: #98c379;
+  --color-warning: #e5c07b;
+  --color-error: #e06c75;
+  --color-info: #42a5f5;
+
+  /* ========== 标签背景色 (Tomorrow Night) ========== */
+  --tag-bg-info: rgba(66, 165, 245, 0.15);
+  --tag-bg-success: rgba(152, 195, 121, 0.15);
+  --tag-bg-warning: rgba(229, 192, 123, 0.15);
+  --tag-bg-danger: rgba(224, 108, 117, 0.15);
+
+  /* ========== 输入框样式 (Tomorrow Night) ========== */
+  --input-bg: #1d1d1d;
+  --input-border: #5c5e58;
+  --input-border-focus: #42a5f5;
+
+  /* ========== 快捷键图标渐变色 (Tomorrow Night) ========== */
+  --icon-blue-from: #42a5f5;
+  --icon-blue-to: #61afef;
+  --icon-green-from: #98c379;
+  --icon-green-to: #b5bd68;
+  --icon-purple-from: #ab47bc;
+  --icon-purple-to: #ba68c8;
+  --icon-purple-icon: #ab47bc;
+  --icon-orange-from: #d19a66;
+  --icon-orange-to: #e5c07b;
+  --icon-yellow-from: #e5c07b;
+  --icon-yellow-to: #f0c674;
+  --icon-cyan-from: #56b6c2;
+  --icon-cyan-to: #42a5f5;
+  --icon-red-from: #e06c75;
+  --icon-red-to: #be5046;
+  --icon-red-icon: #e06c75;
+  --icon-pink-from: #c678dd;
+  --icon-pink-to: #ab47bc;
+  --icon-pink-icon: #c678dd;
+
+  /* ========== 进度条背景 (Tomorrow Night) ========== */
+  --progress-bg: rgba(255, 255, 255, 0.08);
+
+  /* ========== 卡片元素边框色 (Tomorrow Night) ========== */
+  --card-border: rgba(255, 255, 255, 0.12);
+
+  /* ========== 标题纯色 (Tomorrow Night) ========== */
+  --header-solid: #2d6aa0;
+
+  --status-work-bg: rgba(152, 195, 121, 0.12);
+  --status-rest-bg: rgba(224, 108, 117, 0.12);
+  --status-screen-bg: rgba(185, 187, 210, 0.12);
+
+  --el-color-primary: #42a5f5;
+  --el-color-primary-light-3: #3385c5;
+  --el-color-primary-light-5: #2666a8;
+  --el-color-primary-light-7: #1e4f85;
+  --el-color-primary-light-8: #184272;
+  --el-color-primary-light-9: #12355e;
+  --el-color-primary-dark-2: #64b5f6;
+
+  --el-bg-color: #282828;
+  --el-bg-color-overlay: #353535;
+  --el-bg-color-page: #1d1d1d;
+
+  --el-text-color-primary: #c5c8c6;
+  --el-text-color-regular: #8f908a;
+  --el-text-color-secondary: #5c5e58;
+  --el-text-color-placeholder: #353535;
+  --el-text-color-disabled: #282828;
+
+  --el-border-color: #5c5e58;
+  --el-border-color-light: #353535;
+  --el-border-color-lighter: #282828;
+  --el-border-color-extra-light: #1d1d1d;
+
+  --el-fill-color: #353535;
+  --el-fill-color-light: #282828;
+  --el-fill-color-lighter: #1d1d1d;
+  --el-fill-color-blank: #282828;
+
+  --el-mask-color: rgba(0, 0, 0, 0.5);
+  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.2);
+}

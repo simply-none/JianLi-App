@@ -1,0 +1,121 @@
+/* ========== Midnight 午夜主题 (GitHub Dimmed) ========== */
+[data-theme="midnight"] {
+  --color-primary: #539bf5;
+  --color-primary-light: rgba(83, 155, 245, 0.12);
+  --color-primary-hover: rgba(83, 155, 245, 0.18);
+  --color-primary-solid: #539bf5;
+
+  --bg-base: #1c2128;
+  --bg-card: #22272e;
+  --bg-sidebar: #1a1f25;
+
+  --text-primary: #adbac7;
+  --text-secondary: #768390;
+  --text-muted: #545d68;
+
+  --bg-hover: rgba(255, 255, 255, 0.04);
+  --bg-active-btn: rgba(255, 255, 255, 0.06);
+  --bg-active-btn-hover: rgba(255, 255, 255, 0.10);
+
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --border-group: rgba(255, 255, 255, 0.05);
+
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.15);
+
+  --scrollbar-thumb: rgba(255, 255, 255, 0.10);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.20);
+
+  --logo-gradient-from: #539bf5;
+  --logo-gradient-to: #6cb6ff;
+  --logo-shadow: rgba(83, 155, 245, 0.3);
+
+  /* ========== 渐变头部 (Midnight) ========== */
+  --header-gradient-from: #539bf5;
+  --header-gradient-to: #6cb6ff;
+
+  /* ========== 功能状态色 (Midnight) ========== */
+  --color-success: #57ab5a;
+  --color-warning: #d29922;
+  --color-error: #f85149;
+  --color-info: #539bf5;
+
+  /* ========== 标签背景色 (Midnight) ========== */
+  --tag-bg-info: rgba(83, 155, 245, 0.15);
+  --tag-bg-success: rgba(87, 171, 90, 0.15);
+  --tag-bg-warning: rgba(210, 153, 34, 0.15);
+  --tag-bg-danger: rgba(248, 81, 73, 0.15);
+
+  /* ========== 输入框样式 (Midnight) ========== */
+  --input-bg: #1a1f26;
+  --input-border: #444c56;
+  --input-border-focus: #539bf5;
+
+  /* ========== 快捷键图标渐变色 (Midnight) ========== */
+  --icon-blue-from: #539bf5;
+  --icon-blue-to: #6cb6ff;
+  --icon-green-from: #57ab5a;
+  --icon-green-to: #6bc46d;
+  --icon-purple-from: #b083f0;
+  --icon-purple-to: #dcbdfb;
+  --icon-purple-icon: #b083f0;
+  --icon-orange-from: #e0823d;
+  --icon-orange-to: #f0883e;
+  --icon-yellow-from: #d29922;
+  --icon-yellow-to: #eac54f;
+  --icon-cyan-from: #39c5cf;
+  --icon-cyan-to: #56d4dd;
+  --icon-red-from: #f85149;
+  --icon-red-to: #ff7b72;
+  --icon-red-icon: #f85149;
+  --icon-pink-from: #db61a2;
+  --icon-pink-to: #f778ba;
+  --icon-pink-icon: #db61a2;
+
+  /* ========== 进度条背景 (Midnight) ========== */
+  --progress-bg: rgba(255, 255, 255, 0.08);
+
+  /* ========== 卡片元素边框色 (Midnight) ========== */
+  --card-border: rgba(255, 255, 255, 0.12);
+
+  /* ========== 标题纯色 (Midnight) ========== */
+  --header-solid: #3d6aa2;
+
+  /* 状态行背景 (Midnight) */
+  --status-work-bg: rgba(16, 185, 129, 0.10);
+  --status-rest-bg: rgba(239, 68, 68, 0.10);
+  --status-screen-bg: rgba(6, 182, 212, 0.10);
+
+  /* Element Plus 覆写 (Midnight / GitHub Dimmed) */
+  --el-color-primary: #539bf5;
+  --el-color-primary-light-3: #437bc5;
+  --el-color-primary-light-5: #335b95;
+  --el-color-primary-light-7: #264575;
+  --el-color-primary-light-8: #1f3a65;
+  --el-color-primary-light-9: #182f55;
+  --el-color-primary-dark-2: #6cb6ff;
+
+  --el-bg-color: #22272e;
+  --el-bg-color-overlay: #2d333b;
+  --el-bg-color-page: #1c2128;
+
+  --el-text-color-primary: #adbac7;
+  --el-text-color-regular: #768390;
+  --el-text-color-secondary: #545d68;
+  --el-text-color-placeholder: #444c56;
+  --el-text-color-disabled: #373e47;
+
+  --el-border-color: #444c56;
+  --el-border-color-light: #373e47;
+  --el-border-color-lighter: #2d333b;
+  --el-border-color-extra-light: #22272e;
+
+  --el-fill-color: #2d333b;
+  --el-fill-color-light: #22272e;
+  --el-fill-color-lighter: #1c2128;
+  --el-fill-color-blank: #22272e;
+
+  --el-mask-color: rgba(0, 0, 0, 0.5);
+  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.2);
+}

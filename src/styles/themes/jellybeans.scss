@@ -1,0 +1,119 @@
+/* ========== Jellybeans 主题 ========== */
+[data-theme="jellybeans"] {
+  --color-primary: #d0d0ff;
+  --color-primary-light: rgba(208, 208, 255, 0.12);
+  --color-primary-hover: rgba(208, 208, 255, 0.18);
+  --color-primary-solid: #d0d0ff;
+
+  --bg-base: #1a1a1a;
+  --bg-card: #242424;
+  --bg-sidebar: #141414;
+
+  --text-primary: #e8e8d3;
+  --text-secondary: #a8a897;
+  --text-muted: #686857;
+
+  --bg-hover: rgba(255, 255, 255, 0.04);
+  --bg-active-btn: rgba(255, 255, 255, 0.06);
+  --bg-active-btn-hover: rgba(255, 255, 255, 0.10);
+
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-group: rgba(255, 255, 255, 0.04);
+
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.03);
+  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.15);
+
+  --scrollbar-thumb: rgba(255, 255, 255, 0.10);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.20);
+
+  --logo-gradient-from: #d0d0ff;
+  --logo-gradient-to: #e8e8ff;
+  --logo-shadow: rgba(208, 208, 255, 0.3);
+
+  /* ========== 渐变头部 (Jellybeans) ========== */
+  --header-gradient-from: #d0d0ff;
+  --header-gradient-to: #8fbfdc;
+
+  /* ========== 功能状态色 (Jellybeans) ========== */
+  --color-success: #99ad6a;
+  --color-warning: #fad07a;
+  --color-error: #cf6a4c;
+  --color-info: #8fbfdc;
+
+  /* ========== 标签背景色 (Jellybeans) ========== */
+  --tag-bg-info: rgba(143, 191, 220, 0.15);
+  --tag-bg-success: rgba(153, 173, 106, 0.15);
+  --tag-bg-warning: rgba(250, 208, 122, 0.15);
+  --tag-bg-danger: rgba(207, 106, 76, 0.15);
+
+  /* ========== 输入框样式 (Jellybeans) ========== */
+  --input-bg: #1a1a1a;
+  --input-border: #686857;
+  --input-border-focus: #d0d0ff;
+
+  /* ========== 快捷键图标渐变色 (Jellybeans) ========== */
+  --icon-blue-from: #8fbfdc;
+  --icon-blue-to: #668799;
+  --icon-green-from: #99ad6a;
+  --icon-green-to: #78903a;
+  --icon-purple-from: #d0d0ff;
+  --icon-purple-to: #a0a0ff;
+  --icon-purple-icon: #d0d0ff;
+  --icon-orange-from: #cf6a4c;
+  --icon-orange-to: #c06d44;
+  --icon-yellow-from: #fad07a;
+  --icon-yellow-to: #ffb964;
+  --icon-cyan-from: #668799;
+  --icon-cyan-to: #8fbfdc;
+  --icon-red-from: #cf6a4c;
+  --icon-red-to: #c06d44;
+  --icon-red-icon: #cf6a4c;
+  --icon-pink-from: #c06d44;
+  --icon-pink-to: #d0d0ff;
+  --icon-pink-icon: #c06d44;
+
+  /* ========== 进度条背景 (Jellybeans) ========== */
+  --progress-bg: rgba(255, 255, 255, 0.08);
+
+  /* ========== 卡片元素边框色 (Jellybeans) ========== */
+  --card-border: rgba(255, 255, 255, 0.12);
+
+  /* ========== 标题纯色 (Jellybeans) ========== */
+  --header-solid: #6666aa;
+
+  --status-work-bg: rgba(148, 255, 148, 0.12);
+  --status-rest-bg: rgba(255, 148, 148, 0.12);
+  --status-screen-bg: rgba(208, 208, 208, 0.12);
+
+  --el-color-primary: #d0d0ff;
+  --el-color-primary-light-3: #b0b0d8;
+  --el-color-primary-light-5: #9090b0;
+  --el-color-primary-light-7: #787898;
+  --el-color-primary-light-8: #686888;
+  --el-color-primary-light-9: #585878;
+  --el-color-primary-dark-2: #e8e8ff;
+
+  --el-bg-color: #242424;
+  --el-bg-color-overlay: #303030;
+  --el-bg-color-page: #1a1a1a;
+
+  --el-text-color-primary: #e8e8d3;
+  --el-text-color-regular: #a8a897;
+  --el-text-color-secondary: #686857;
+  --el-text-color-placeholder: #383838;
+  --el-text-color-disabled: #242424;
+
+  --el-border-color: #686857;
+  --el-border-color-light: #383838;
+  --el-border-color-lighter: #242424;
+  --el-border-color-extra-light: #1a1a1a;
+
+  --el-fill-color: #303030;
+  --el-fill-color-light: #242424;
+  --el-fill-color-lighter: #1a1a1a;
+  --el-fill-color-blank: #242424;
+
+  --el-mask-color: rgba(0, 0, 0, 0.5);
+  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.2);
+}

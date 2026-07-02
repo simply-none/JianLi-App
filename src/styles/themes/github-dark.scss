@@ -1,0 +1,121 @@
+/* ========== GitHub Dark 主题 (官方) ========== */
+[data-theme="github-dark"] {
+  --color-primary: #58a6ff;
+  --color-primary-light: rgba(88, 166, 255, 0.12);
+  --color-primary-hover: rgba(88, 166, 255, 0.18);
+  --color-primary-solid: #58a6ff;
+
+  --bg-base: #161b22;
+  --bg-card: #21262d;
+  --bg-sidebar: #0d1117;
+
+  --text-primary: #e6edf3;
+  --text-secondary: #8b949e;
+  --text-muted: #484f58;
+
+  --bg-hover: rgba(255, 255, 255, 0.04);
+  --bg-active-btn: rgba(255, 255, 255, 0.06);
+  --bg-active-btn-hover: rgba(255, 255, 255, 0.10);
+
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-group: rgba(255, 255, 255, 0.04);
+
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.03);
+  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.15);
+
+  --scrollbar-thumb: rgba(255, 255, 255, 0.10);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.20);
+
+  --logo-gradient-from: #58a6ff;
+  --logo-gradient-to: #79c0ff;
+  --logo-shadow: rgba(88, 166, 255, 0.3);
+
+  /* ========== 渐变头部 (GitHub Dark) ========== */
+  --header-gradient-from: #58a6ff;
+  --header-gradient-to: #79c0ff;
+
+  /* ========== 功能状态色 (GitHub Dark) ========== */
+  --color-success: #3fb950;
+  --color-warning: #d29922;
+  --color-error: #f85149;
+  --color-info: #58a6ff;
+
+  /* ========== 标签背景色 (GitHub Dark) ========== */
+  --tag-bg-info: rgba(88, 166, 255, 0.15);
+  --tag-bg-success: rgba(63, 185, 80, 0.15);
+  --tag-bg-warning: rgba(210, 153, 34, 0.15);
+  --tag-bg-danger: rgba(248, 81, 73, 0.15);
+
+  /* ========== 输入框样式 (GitHub Dark) ========== */
+  --input-bg: #161b22;
+  --input-border: #30363d;
+  --input-border-focus: #58a6ff;
+
+  /* ========== 快捷键图标渐变色 (GitHub Dark) ========== */
+  --icon-blue-from: #58a6ff;
+  --icon-blue-to: #79c0ff;
+  --icon-green-from: #3fb950;
+  --icon-green-to: #56d364;
+  --icon-purple-from: #a371f7;
+  --icon-purple-to: #bc8cff;
+  --icon-purple-icon: #a371f7;
+  --icon-orange-from: #db6d28;
+  --icon-orange-to: #f0883e;
+  --icon-yellow-from: #d29922;
+  --icon-yellow-to: #e3b341;
+  --icon-cyan-from: #39c5cf;
+  --icon-cyan-to: #56d4dd;
+  --icon-red-from: #f85149;
+  --icon-red-to: #ff7b72;
+  --icon-red-icon: #f85149;
+  --icon-pink-from: #db61a2;
+  --icon-pink-to: #f778ba;
+  --icon-pink-icon: #db61a2;
+
+  /* ========== 进度条背景 (GitHub Dark) ========== */
+  --progress-bg: rgba(255, 255, 255, 0.08);
+
+  /* ========== 卡片元素边框色 (GitHub Dark) ========== */
+  --card-border: rgba(255, 255, 255, 0.12);
+
+  /* ========== 标题纯色 (GitHub Dark) ========== */
+  --header-solid: #388bfd;
+
+  /* 状态行背景 (GitHub Dark) */
+  --status-work-bg: rgba(34, 197, 94, 0.10);
+  --status-rest-bg: rgba(239, 68, 68, 0.10);
+  --status-screen-bg: rgba(139, 148, 158, 0.10);
+
+  /* Element Plus 覆写 (GitHub Dark) */
+  --el-color-primary: #58a6ff;
+  --el-color-primary-light-3: #488ae6;
+  --el-color-primary-light-5: #3a6fc9;
+  --el-color-primary-light-7: #2d5aab;
+  --el-color-primary-light-8: #264d92;
+  --el-color-primary-light-9: #1e417a;
+  --el-color-primary-dark-2: #79c0ff;
+
+  --el-bg-color: #21262d;
+  --el-bg-color-overlay: #30363d;
+  --el-bg-color-page: #161b22;
+
+  --el-text-color-primary: #e6edf3;
+  --el-text-color-regular: #8b949e;
+  --el-text-color-secondary: #484f58;
+  --el-text-color-placeholder: #30363d;
+  --el-text-color-disabled: #21262d;
+
+  --el-border-color: #30363d;
+  --el-border-color-light: #21262d;
+  --el-border-color-lighter: #1c2128;
+  --el-border-color-extra-light: #161b22;
+
+  --el-fill-color: #30363d;
+  --el-fill-color-light: #21262d;
+  --el-fill-color-lighter: #161b22;
+  --el-fill-color-blank: #21262d;
+
+  --el-mask-color: rgba(0, 0, 0, 0.5);
+  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.2);
+}

@@ -1,0 +1,121 @@
+/* ========== Gruvbox 主题 (温暖复古) ========== */
+[data-theme="gruvbox"] {
+  --color-primary: #fb4934;
+  --color-primary-light: rgba(251, 73, 52, 0.12);
+  --color-primary-hover: rgba(251, 73, 52, 0.18);
+  --color-primary-solid: #fb4934;
+
+  --bg-base: #282828;
+  --bg-card: #3c3836;
+  --bg-sidebar: #1d2021;
+
+  --text-primary: #ebdbb2;
+  --text-secondary: #a89984;
+  --text-muted: #665c54;
+
+  --bg-hover: rgba(255, 255, 255, 0.04);
+  --bg-active-btn: rgba(255, 255, 255, 0.06);
+  --bg-active-btn-hover: rgba(255, 255, 255, 0.10);
+
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-group: rgba(255, 255, 255, 0.04);
+
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.03);
+  --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.15);
+
+  --scrollbar-thumb: rgba(255, 255, 255, 0.10);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.20);
+
+  --logo-gradient-from: #fb4934;
+  --logo-gradient-to: #fabd2f;
+  --logo-shadow: rgba(251, 73, 52, 0.3);
+
+  /* ========== 渐变头部 (Gruvbox) ========== */
+  --header-gradient-from: #fb4934;
+  --header-gradient-to: #fabd2f;
+
+  /* ========== 功能状态色 (Gruvbox) ========== */
+  --color-success: #b8bb26;
+  --color-warning: #fabd2f;
+  --color-error: #fb4934;
+  --color-info: #83a598;
+
+  /* ========== 标签背景色 (Gruvbox) ========== */
+  --tag-bg-info: rgba(131, 165, 152, 0.15);
+  --tag-bg-success: rgba(184, 187, 38, 0.15);
+  --tag-bg-warning: rgba(250, 189, 47, 0.15);
+  --tag-bg-danger: rgba(251, 73, 52, 0.15);
+
+  /* ========== 输入框样式 (Gruvbox) ========== */
+  --input-bg: #282828;
+  --input-border: #665c54;
+  --input-border-focus: #fb4934;
+
+  /* ========== 快捷键图标渐变色 (Gruvbox) ========== */
+  --icon-blue-from: #83a598;
+  --icon-blue-to: #458588;
+  --icon-green-from: #b8bb26;
+  --icon-green-to: #8ec07c;
+  --icon-purple-from: #b16286;
+  --icon-purple-to: #d3869b;
+  --icon-purple-icon: #b16286;
+  --icon-orange-from: #fe8019;
+  --icon-orange-to: #f9241e;
+  --icon-yellow-from: #fabd2f;
+  --icon-yellow-to: #fe8019;
+  --icon-cyan-from: #8ec07c;
+  --icon-cyan-to: #83a598;
+  --icon-red-from: #fb4934;
+  --icon-red-to: #cc241d;
+  --icon-red-icon: #fb4934;
+  --icon-pink-from: #d3869b;
+  --icon-pink-to: #b16286;
+  --icon-pink-icon: #d3869b;
+
+  /* ========== 进度条背景 (Gruvbox) ========== */
+  --progress-bg: rgba(255, 255, 255, 0.08);
+
+  /* ========== 卡片元素边框色 (Gruvbox) ========== */
+  --card-border: rgba(255, 255, 255, 0.12);
+
+  /* ========== 标题纯色 (Gruvbox) ========== */
+  --header-solid: #8a2a1f;
+
+  /* 状态行背景 (Gruvbox) */
+  --status-work-bg: rgba(142, 192, 124, 0.12);
+  --status-rest-bg: rgba(251, 73, 52, 0.12);
+  --status-screen-bg: rgba(168, 153, 132, 0.12);
+
+  /* Element Plus 覆写 (Gruvbox) */
+  --el-color-primary: #fb4934;
+  --el-color-primary-light-3: #c53d31;
+  --el-color-primary-light-5: #9a3128;
+  --el-color-primary-light-7: #782720;
+  --el-color-primary-light-8: #63201a;
+  --el-color-primary-light-9: #4e1915;
+  --el-color-primary-dark-2: #ff604a;
+
+  --el-bg-color: #3c3836;
+  --el-bg-color-overlay: #4a4543;
+  --el-bg-color-page: #282828;
+
+  --el-text-color-primary: #ebdbb2;
+  --el-text-color-regular: #a89984;
+  --el-text-color-secondary: #665c54;
+  --el-text-color-placeholder: #3c3836;
+  --el-text-color-disabled: #282828;
+
+  --el-border-color: #665c54;
+  --el-border-color-light: #3c3836;
+  --el-border-color-lighter: #282828;
+  --el-border-color-extra-light: #282828;
+
+  --el-fill-color: #4a4543;
+  --el-fill-color-light: #3c3836;
+  --el-fill-color-lighter: #282828;
+  --el-fill-color-blank: #3c3836;
+
+  --el-mask-color: rgba(0, 0, 0, 0.5);
+  --el-box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+  --el-box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
