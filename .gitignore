@@ -15,6 +15,9 @@ release
 *.local
 
 # Editor directories and files
+.trae/documents
+.trae/documents/
+.trae/documents/*
 .vscode/.debug.env
 .idea
 .DS_Store
