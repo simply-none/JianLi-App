@@ -134,6 +134,39 @@ onMounted(() => {
     }
   }
 
+  /* 玻璃拟态效果 */
+  [data-theme="glass"] & {
+    .top {
+      background: rgba(30, 30, 50, 0.4);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    &.is-padded {
+      .content {
+        .left {
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .main {
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+      }
+    }
+
+    .bottom {
+      background: rgba(30, 30, 50, 0.4);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+    }
+  }
+
   .bottom {
     flex-shrink: 0;
     padding-top: 12px;

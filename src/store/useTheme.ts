@@ -26,7 +26,8 @@ export type ThemeName =
   | 'cobalt'
   | 'spacemacs'
   | 'tender'
-  | 'brackets-dark';
+  | 'brackets-dark'
+  | 'glass';
 
 export interface ThemeOption {
   name: ThemeName;
@@ -60,6 +61,7 @@ export const themeOptions: ThemeOption[] = [
   { name: 'spacemacs',        label: 'Spacemacs',  preview: ['#282828', '#383838', '#859900'] },
   { name: 'tender',           label: 'Tender',     preview: ['#282828', '#323232', '#f4bf75'] },
   { name: 'brackets-dark',    label: 'Brackets',   preview: ['#111111', '#222222', '#00a8ff'] },
+  { name: 'glass',            label: '玻璃拟态',   preview: ['#0f0f1a', 'rgba(30, 30, 50, 0.6)', '#8b5cf6'] },
 ];
 
 const STORE_KEY = 'appTheme';
