@@ -1,5 +1,5 @@
-@import "@/styles/themes/index.scss";
-@import "@/styles/skins/index.scss";
+@use "@/styles/themes/index.scss" as themes;
+@use "@/styles/skins/index.scss" as skins;
 
 html,
 body {

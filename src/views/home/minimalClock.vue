@@ -1,6 +1,6 @@
 <template>
   <div class="minimal-clock" :style="backgroundStyle">
-    <div class="clock-container">
+    <div class="clock-container" :data-skin="currentSkin" @click="switchSkin">
       <div class="time-display">{{ currentTime }}</div>
       <div class="date-display">{{ currentDate }} {{ weekday }}</div>
       <div class="status-display" :class="curStatusC.value">
@@ -314,6 +314,25 @@ function selectBingImage() {
 const currentTime = ref('');
 const currentDate = ref('');
 const weekday = ref('');
+
+const skins = ['white', 'amber', 'aurora', 'coral', 'dark', 'gray', 'lavender', 'mint', 'sakura', 'sky'];
+const currentSkin = ref('white');
+getInitSkin();
+function getInitSkin () {
+  let skin = localStorage.getItem('skin');
+  console.log('skin', skin);
+  if (skin) {
+    currentSkin.value = skin;
+  } else {
+    currentSkin.value = 'white';
+  }
+}
+
+function switchSkin() {
+  const currentIndex = skins.indexOf(currentSkin.value);
+  currentSkin.value = skins[(currentIndex + 1) % skins.length];
+  localStorage.setItem('skin', currentSkin.value);
+}
 </script>
 
 <style lang="scss" scoped>
@@ -360,22 +379,29 @@ const weekday = ref('');
 
 .clock-container {
   text-align: center;
-  color: #fff;
+  color: var(--skin-text-primary, #4338ca);
+  cursor: pointer;
+  transition: all 0.3s ease;
+
+  &:hover {
+    transform: scale(1.02);
+  }
 }
 
 .time-display {
   font-size: 120px;
-  font-weight: 200;
+  font-weight: 600;
   letter-spacing: -4px;
   line-height: 1;
   font-feature-settings: 'tnum';
-  text-shadow: 0 0 60px rgba(255, 255, 255, 0.1);
+  text-shadow: 0 0 60px rgba(67, 56, 202, 0.15);
 }
 
 .date-display {
   font-size: 24px;
-  font-weight: 300;
+  font-weight: 400;
   margin-top: 20px;
+  color: var(--skin-text-secondary, #6366f1);
   opacity: 0.6;
   letter-spacing: 2px;
 }
