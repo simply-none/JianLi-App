@@ -1,7 +1,7 @@
 <template>
   <div class="pomodoro-mini-window" :class="statusClass">
     <div class="mouse-controls">
-      <div class="mouse-left" @mousemove="enableMouseClickThroughFn"></div>
+      <div class="mouse-left" @mousemove="disableMouseClickThroughFn"></div>
       <div class="mouse-right" @mousemove="disableMouseClickThroughFn"></div>
     </div>
 

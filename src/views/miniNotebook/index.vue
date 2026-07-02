@@ -1,7 +1,7 @@
 <template>
   <div class="pomodoroMiniWindow">
     <div class="move">
-      <div class="move-left" @mousemove="enableMouseClickThroughFn"></div>
+      <div class="move-left" @mousemove="disableMouseClickThroughFn"></div>
       <div class="move-right" @mousemove="disableMouseClickThroughFn"></div>
     </div>
     <div class="drag"></div>
