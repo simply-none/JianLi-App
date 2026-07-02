@@ -471,6 +471,20 @@ const THEME_COLORS: Record<ThemeName, ChartThemeColors> = {
     tooltipText: '#cccccc',
     tooltipBorder: '#666666',
   },
+  glass: {
+    work: '#8b5cf6',
+    rest: '#10b981',
+    screen: '#606080',
+    cardBg: 'rgba(30, 30, 50, 0.6)',
+    cardBorder: 'rgba(255, 255, 255, 0.08)',
+    pieBorder: 'rgba(30, 30, 50, 0.6)',
+    gridLine: 'rgba(255, 255, 255, 0.08)',
+    axisLabel: '#a0a0c0',
+    labelColor: '#ffffff',
+    tooltipBg: 'rgba(25, 25, 40, 0.9)',
+    tooltipText: '#ffffff',
+    tooltipBorder: 'rgba(255, 255, 255, 0.08)',
+  },
 }
 
 const themeColors = computed(() => THEME_COLORS[currentTheme.value] || THEME_COLORS.light)
