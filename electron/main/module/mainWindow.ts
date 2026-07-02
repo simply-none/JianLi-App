@@ -106,11 +106,21 @@ export function initMainWindow() {
     hideApp();
   });
 
-  win.webContents.setWindowOpenHandler(({ url, webContents }) => {
-    if (webContents && webContents.id !== win.webContents.id) {
-      return { action: "allow" };
+  // //监听webview新建的窗口
+  app.on('web-contents-created', (event, contents) => {
+    if (contents.getType() === 'webview') {
+      contents.setWindowOpenHandler(({ url }) => {
+        contents.loadURL(url);
+        return { action: "deny" };
+      });
     }
-    if (url.startsWith("https:")) shell.openExternal(url);
+  })
+
+  win.webContents.setWindowOpenHandler(({ url, webContents }) => {
+    // if (webContents && webContents.id !== win.webContents.id) {
+    //   return { action: "allow" };
+    // }
+    // if (url.startsWith("https:")) shell.openExternal(url);
     return { action: "deny" };
   });
   win.webContents.on("did-finish-load", () => {

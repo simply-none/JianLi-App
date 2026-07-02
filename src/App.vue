@@ -7,6 +7,7 @@ import useOpenWindow from '@/hooks/useOpenWindow';
 import useRuntimeVariables from '@/store/useRuntimeVariables';
 import useTheme from '@/store/useTheme';
 import { layoutRouters } from '@/router';
+import { ElMessageBox } from 'element-plus';
 
 const router = useRouter()
 const route = useRoute()
@@ -41,6 +42,28 @@ window.ipcRenderer.on('open-match-page', (event, url) => {
   })
   updateActiveRouteName(url)
 })
+
+// 监听确认隐藏窗口事件
+window.ipcRenderer.on('confirm-hide-app', (event, confirm) => {
+  if (confirm) {
+    // 使用elMessageBox.confirm
+    ElMessageBox.confirm('确定要隐藏应用吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    }).then(() => {
+      // 确认隐藏应用,发送给主进程处理
+      window.ipcRenderer.send("hide-app");
+    }).catch(() => {
+      // 取消隐藏应用
+    });
+  } else {
+    // 拒绝隐藏应用
+    // ...
+  }
+})
+
+
 
 </script>
 

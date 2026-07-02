@@ -25,7 +25,9 @@ async function showApp() {
         time: Date.now(),
       });
     }
-    hideApp();
+    // 发送给渲染进程确认，是否隐藏窗口
+    win.webContents.send("confirm-hide-app", true);
+    // hideApp();
   } else {
     win.show();
   }

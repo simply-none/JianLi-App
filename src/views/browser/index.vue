@@ -78,9 +78,16 @@
 
           <!-- 网页内容 -->
           <webview
+            ref="webviewRef"
             v-else-if="activeTab?.url && !activeTab.isNewTab"
             :src="activeTab.url"
             class="webview-frame"
+            @did-navigate="didNavigate"
+            @did-navigate-in-page="didNavigateInPage"
+            @will-navigate="willNavigate"
+            @update-target-url="updateTargetUrl"
+            @new-window="newWindow"
+            @page-title-updated="pageTitleUpdated"
             allowpopups
             webpreferences="nodeIntegration=no,contextIsolation=yes"
           />
@@ -107,6 +114,8 @@ const searchQuery = ref("");
 const engineWatch = computed(() => browserStore.defaultEngine);
 currentEngine.value = engineWatch.value;
 
+const webviewRef = ref<any>(null);
+
 const handleEngineChange = (val: string) => {
   setDefaultEngine(val);
 };
@@ -127,76 +136,63 @@ function extractTitleFromUrl(url: string): string {
   }
 }
 
-function handleWebviewEvent(e: Event) {
-  const event = e as any;
-  switch (event.type) {
-    case 'new-window': {
-      const url = event.url;
-      if (url && url.startsWith('http')) {
-        const title = extractTitleFromUrl(url);
-        createTab(url, title);
-      }
-      break;
-    }
-    case 'page-title-updated': {
-      const title = event.title;
-      if (activeTab.value && title) {
-        const tab = tabs.value.find(t => t.id === activeTabId.value);
-        if (tab && tab.title !== title) {
-          tab.title = title.slice(0, 20);
-        }
-      }
-      break;
-    }
-    case 'did-navigate': {
-      if (activeTab.value && event.url !== activeTab.value.url) {
-        updateTabUrl(activeTabId.value, event.url);
-      }
-      break;
-    }
-    case 'did-navigate-in-page': {
-      if (activeTab.value && event.isMainFrame && event.url !== activeTab.value.url) {
-        updateTabUrl(activeTabId.value, event.url);
-      }
-      break;
+function pageTitleUpdated(e: any) {
+  console.error(e, 'pageTitleUpdated')
+  const title = e.title;
+  if (activeTab.value && title) {
+    const tab = tabs.value.find(t => t.id === activeTabId.value);
+    if (tab && tab.title !== title) {
+      tab.title = title.slice(0, 20);
     }
   }
 }
-
-function attachWebviewListeners() {
-  const webview = document.querySelector('webview');
-  if (!webview) return;
-  
-  ['new-window', 'page-title-updated', 'did-navigate', 'did-navigate-in-page'].forEach(eventName => {
-    webview.addEventListener(eventName, handleWebviewEvent);
+function didNavigate(e: any) {
+  console.error(e, 'didNavigate')
+  // 如果url存在于tabs中，则切换到该tab，否则创建一个新的tab
+  const tab = tabs.value.find(t => {
+    // 去掉尾部/
+    let turl = t.url.replace(/\/$/, '');
+    let eurl = e.url.replace(/\/$/, '');
+    return turl === eurl;
   });
+  if (tab) {
+    setActiveTab(tab.id);
+  } else {
+    createTab(e.url);
+  }
+}
+function didNavigateInPage(e: any) {
+  console.error(e, 'didNavigateInPage')
+  const { url, isMainFrame } = e;
+  if (isMainFrame) {
+    updateTabUrl(activeTabId.value, url);
+  }
 }
 
-function detachWebviewListeners() {
-  const webview = document.querySelector('webview');
-  if (!webview) return;
-  
-  ['new-window', 'page-title-updated', 'did-navigate', 'did-navigate-in-page'].forEach(eventName => {
-    webview.removeEventListener(eventName, handleWebviewEvent);
-  });
+function willNavigate(e: any) {
+  console.error(e, 'willNavigate')
+  // const { url } = e;
+  // if (url && url.startsWith('http')) {
+  //   createTab(url);
+  // }
 }
 
-watch(activeTabId, () => {
-  nextTick(() => {
-    detachWebviewListeners();
-    attachWebviewListeners();
-  });
-});
+function updateTargetUrl(e: any) {
+  // console.error(e, 'updateTargetUrl')
+  // const { url } = e;
+  // if (url && url.startsWith('http')) {
+  //   createTab(url);
+  // }
+}
 
-onMounted(() => {
-  nextTick(() => {
-    attachWebviewListeners();
-  });
-});
-
-onUnmounted(() => {
-  detachWebviewListeners();
-});
+function newWindow(e: any) {
+  console.error(e, 'newWindow')
+  const url = e.url;
+  if (url && url.startsWith('http')) {
+    const title = extractTitleFromUrl(url);
+    createTab(url, title);
+  } 
+}
 
 function handleSearch() {
   if (!searchQuery.value.trim()) return;
@@ -209,6 +205,7 @@ function handleSearch() {
 }
 
 function quickSearch(keyword: string, engine: string) {
+  console.error(tabs.value, 'quickSearch')
   const url = engine === "github" 
     ? "https://github.com" 
     : searchEngineList.find((e) => e.value === engine)?.searchUrl.replace("{query}", encodeURIComponent(keyword)) || "";

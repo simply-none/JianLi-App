@@ -33,7 +33,7 @@ process.env.VITE_PUBLIC = vitePublic;
 export let appLogoPng = path.join(process.env.VITE_PUBLIC, "logo.png");
 
 // 应用ICO图标
-export let appLogoIco = path.join(process.env.VITE_PUBLIC, "favicon.ico");
+export let appLogoIco = path.join(process.env.VITE_PUBLIC, "logo.ico");
 
 // 预加载文件
 export const preload = path.join(__dirname, "../preload/index.mjs");
