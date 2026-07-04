@@ -238,22 +238,21 @@ function showContent(row) {
 const onSave = (v, h) => {
   console.log(v);
   h.then(async (html) => {
-    try {
-      let result = await window.ipcRenderer.handlePromise('set-data', {
-        tableName: 'note_book',
-        data: {
-          ...curNote.value,
-          key: curNote.value.key || uuidv4(),
-          excerpt: (v || '').substring(0, 20) + '...',
-          mdText: v,
-          html: html,
-          createTime: curNote.value.createTime || moment().format('YYYY-MM-DD HH:mm:ss'),
-          updateTime: moment().format('YYYY-MM-DD HH:mm:ss'),
-        },
-        config: {
-          primaryKey: 'key',
-        }
-      })
+    window.ipcRenderer.handlePromise('set-data', {
+      tableName: 'note_book',
+      data: {
+        ...curNote.value,
+        key: curNote.value.key || uuidv4(),
+        excerpt: (v || '').substring(0, 20) + '...',
+        mdText: v,
+        html: html,
+        createTime: curNote.value.createTime || moment().format('YYYY-MM-DD HH:mm:ss'),
+        updateTime: moment().format('YYYY-MM-DD HH:mm:ss'),
+      },
+      config: {
+        primaryKey: 'key',
+      }
+    }).then(result => {
       if (result.success) {
         ElMessage.success('保存成功');
         curNote.value = {}
@@ -263,10 +262,10 @@ const onSave = (v, h) => {
         ElMessage.error('保存失败:' + result.error);
         return false;
       }
-    } catch (error) {
-      ElMessage.error('保存失败:' + error);
+    }).catch(err => {
+      ElMessage.error('保存失败:' + err);
       return false;
-    }
+    })
   });
 };
 

@@ -45,14 +45,15 @@
       </div>
     </div>
     <div v-if="loading && notes.length > 0" class="loading-state">
-      <el-loading text="加载中..." />
+      <div class="loading-spinner"></div>
+      <span class="loading-text">加载中...</span>
     </div>
   </el-scrollbar>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
-import { ElMessage, ElMessageBox, ElLoading } from 'element-plus';
+import { ref, computed, onMounted } from 'vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import LucideIcon from '@/components/LucideIcon.vue';
 import moment from 'moment';
 
@@ -79,6 +80,9 @@ const props = defineProps({
 
 const emit = defineEmits(['view', 'edit', 'delete', 'load-more']);
 
+onMounted(() => {
+  console.log(performance.now(), '获取笔记耗时2:')
+});
 function handleScroll() {
   const scrollbar = scrollbarRef.value;
   if (!scrollbar) return;
@@ -138,14 +142,14 @@ async function handleDelete(note) {
       cancelButtonText: '取消',
       type: 'warning'
     });
-    
+
     const result = await window.ipcRenderer.handlePromise('delete-data', {
       tableName: 'note_book',
       condition: {
         key: note.key
       }
     });
-    
+
     if (result.success) {
       ElMessage.success('删除成功');
       emit('delete', note);
@@ -153,6 +157,7 @@ async function handleDelete(note) {
       ElMessage.error('删除失败');
     }
   } catch {
+    // 用户取消
   }
 }
 </script>
@@ -168,6 +173,30 @@ async function handleDelete(note) {
 .loading-state {
   text-align: center;
   padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+
+  .loading-spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border-subtle);
+    border-top-color: var(--color-primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  .loading-text {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .empty-state {

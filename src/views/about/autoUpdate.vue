@@ -118,8 +118,7 @@ async function checkForUpdate() {
   installReady.value = false;
   downloadProgress.value = 0;
 
-  try {
-    const result = await window.ipcRenderer.handlePromise('check-for-update', {});
+  window.ipcRenderer.handlePromise('check-for-update', {}).then(result => {
     currentVersion.value = result.currentVersion;
     latestVersion.value = result.latestVersion;
     releaseName.value = result.releaseName || '';
@@ -143,13 +142,13 @@ async function checkForUpdate() {
     } else {
       ElMessage.info('当前已是最新版本');
     }
-  } catch (err: any) {
+  }).catch(err => {
     console.error('检查更新失败:', err);
     ElMessage.error(err.message || '检查更新失败，请稍后重试');
     checkDone.value = true;
-  } finally {
+  }).finally(() => {
     checkLoading.value = false;
-  }
+  })
 }
 
 // 下载更新
@@ -162,24 +161,22 @@ async function downloadUpdate() {
   downloadLoading.value = true;
   downloadProgress.value = 0;
 
-  try {
-    const result = await window.ipcRenderer.handlePromise('download-update', {
-      downloadUrl: selectedAsset.value.downloadUrl,
-      fileName: selectedAsset.value.name,
-    });
-
+  window.ipcRenderer.handlePromise('download-update', {
+    downloadUrl: selectedAsset.value.downloadUrl,
+    fileName: selectedAsset.value.name,
+  }).then(result => {
     if (result.success) {
       downloadedFilePath.value = result.filePath;
       installReady.value = true;
       downloadProgress.value = 100;
       ElMessage.success('下载完成，可点击安装');
     }
-  } catch (err: any) {
+  }).catch(err => {
     console.error('下载更新失败:', err);
     ElMessage.error(err.message || '下载失败，请稍后重试');
-  } finally {
+  }).finally(() => {
     downloadLoading.value = false;
-  }
+  })
 }
 
 // 安装更新
@@ -189,15 +186,14 @@ async function installUpdate() {
     return;
   }
 
-  try {
-    await window.ipcRenderer.handlePromise('install-update', {
-      filePath: downloadedFilePath.value,
-    });
+  window.ipcRenderer.handlePromise('install-update', {
+    filePath: downloadedFilePath.value,
+  }).then(resule => {
     ElMessage.success('安装包已打开，请在安装完成后手动关闭旧版应用');
-  } catch (err: any) {
+  }).catch(err => {
     console.error('安装更新失败:', err);
     ElMessage.error(err.message || '安装失败');
-  }
+  });
 }
 
 // 打开 GitHub 发布页
@@ -233,12 +229,12 @@ function onDownloadProgress(_event: any, percent: number) {
 
 onMounted(async () => {
   // 初始化获取当前应用版本
-  try {
-    const version = await window.ipcRenderer.handlePromise('get-app-version', {});
+  window.ipcRenderer.handlePromise('get-app-version', {}).then(version => {
     currentVersion.value = version || '';
-  } catch (err) {
+  }).catch(err => {
     console.error('获取应用版本失败:', err);
-  }
+  });
+
   window.ipcRenderer.on('download-progress', onDownloadProgress);
 });
 

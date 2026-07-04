@@ -123,21 +123,20 @@ const curstatusLabel = ref('新内容')
 
 const options = ref({
   onSave: async (content, page, document) => {
-    try {
-      let result = await window.ipcRenderer.handlePromise('set-data', {
-        tableName: 'note_book',
-        data: {
-          ...curNote.value,
-          key: curNote.value.key || key.value,
-          excerpt: editorRef.value?.getContentExcerpt?.() || '',
-          html: content.html,
-          createTime: curNote.value.createTime || moment().format('YYYY-MM-DD HH:mm:ss'),
-          updateTime: moment().format('YYYY-MM-DD HH:mm:ss'),
-        },
-        config: {
-          primaryKey: 'key',
-        }
-      })
+    window.ipcRenderer.handlePromise('set-data', {
+      tableName: 'note_book',
+      data: {
+        ...curNote.value,
+        key: curNote.value.key || key.value,
+        excerpt: editorRef.value?.getContentExcerpt?.() || '',
+        html: content.html,
+        createTime: curNote.value.createTime || moment().format('YYYY-MM-DD HH:mm:ss'),
+        updateTime: moment().format('YYYY-MM-DD HH:mm:ss'),
+      },
+      config: {
+        primaryKey: 'key',
+      }
+    }).then(result => {
       if (result.success) {
         ElMessage.success('保存成功');
         curNote.value = {}
@@ -147,34 +146,33 @@ const options = ref({
         ElMessage.error('保存失败:' + result.error);
         return false;
       }
-    } catch (error) {
-      ElMessage.error('保存失败:' + error);
+    }).catch(err => {
+      ElMessage.error('保存失败:' + err);
       return false;
-    }
+    })
   }
 });
 
 async function saveNoteBook() {
-  try {
-    if (!editorRef.value) {
-      ElMessage.error('编辑器未初始化');
-      return false;
+  if (!editorRef.value) {
+    ElMessage.error('编辑器未初始化');
+    return false;
+  }
+  let content = editorRef.value.getContent('html');
+  window.ipcRenderer.handlePromise('set-data', {
+    tableName: 'note_book',
+    data: {
+      ...curNote.value,
+      key: curNote.value.key || key.value,
+      excerpt: editorRef.value.getContentExcerpt(),
+      html: content,
+      createTime: curNote.value.createTime || moment().format('YYYY-MM-DD HH:mm:ss'),
+      updateTime: moment().format('YYYY-MM-DD HH:mm:ss'),
+    },
+    config: {
+      primaryKey: 'key',
     }
-    let content = editorRef.value.getContent('html');
-    let result = await window.ipcRenderer.handlePromise('set-data', {
-      tableName: 'note_book',
-      data: {
-        ...curNote.value,
-        key: curNote.value.key || key.value,
-        excerpt: editorRef.value.getContentExcerpt(),
-        html: content,
-        createTime: curNote.value.createTime || moment().format('YYYY-MM-DD HH:mm:ss'),
-        updateTime: moment().format('YYYY-MM-DD HH:mm:ss'),
-      },
-      config: {
-        primaryKey: 'key',
-      }
-    })
+  }).then(result => {
     if (result.success) {
       panelChange(new Date());
       ElMessage.success('保存成功');
@@ -184,10 +182,10 @@ async function saveNoteBook() {
       ElMessage.error('保存失败:' + result.error);
       return false;
     }
-  } catch (error) {
-    ElMessage.error('保存失败:' + error);
+  }).catch(err => {
+    ElMessage.error('保存失败:' + err);
     return false;
-  }
+  })
 }
 
 const noteBookData = ref([]);

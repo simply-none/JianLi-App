@@ -252,49 +252,52 @@ async function fetchTags() {
 
 async function fetchNotes(isLoadMore = false) {
   if (loading.value) return;
-  
+
   loading.value = true;
-  try {
-    const offset = (currentPage.value - 1) * pageSize.value;
-    
-    let sql = 'SELECT * FROM note_book';
-    
+  const offset = (currentPage.value - 1) * pageSize.value;
+
+  let sql = 'SELECT * FROM note_book';
+
+  if (searchKeyword.value.trim()) {
+    sql += ` WHERE mdText LIKE '%${searchKeyword.value}%' OR excerpt LIKE '%${searchKeyword.value}%'`;
+  }
+
+  if (selectedFilterTags.value.length > 0) {
+    const tagCondition = selectedFilterTags.value.map(key => `tags LIKE '%${key}%'`).join(' OR ');
     if (searchKeyword.value.trim()) {
-      sql += ` WHERE mdText LIKE '%${searchKeyword.value}%' OR excerpt LIKE '%${searchKeyword.value}%'`;
+      sql += ` AND (${tagCondition})`;
+    } else {
+      sql += ` WHERE ${tagCondition}`;
     }
-    
-    if (selectedFilterTags.value.length > 0) {
-      const tagCondition = selectedFilterTags.value.map(key => `tags LIKE '%${key}%'`).join(' OR ');
-      if (searchKeyword.value.trim()) {
-        sql += ` AND (${tagCondition})`;
-      } else {
-        sql += ` WHERE ${tagCondition}`;
-      }
+  }
+
+  sql += ` ORDER BY updateTime DESC LIMIT ${pageSize.value} OFFSET ${offset}`;
+
+  window.ipcRenderer.handlePromise('query-data', {
+    tableName: 'note_book',
+    conditions: {
+      SqlStr: sql,
     }
-    
-    sql += ` ORDER BY updateTime DESC LIMIT ${pageSize.value} OFFSET ${offset}`;
-    
-    const result = await window.ipcRenderer.handlePromise('query-data', {
-      tableName: 'note_book',
-      conditions: {
-        SqlStr: sql,
-      }
-    });
-    
+  }).then(result => {
+    console.log(performance.now(), '获取笔记耗时:')
     if (result.success) {
       const data = result.data || [];
+      const cleanData = data.filter(item => 
+        item && typeof item === 'object' && !item.$el && !item.$options && !item._componentTag
+      );
       if (isLoadMore) {
-        allNotes.value.push(...data);
+        allNotes.value.push(...cleanData);
       } else {
-        allNotes.value = data;
+        console.log('获取笔记成功:', cleanData);
+        allNotes.value = cleanData;
       }
-      hasMore.value = data.length >= pageSize.value;
+      hasMore.value = cleanData.length >= pageSize.value;
     }
-  } catch (error) {
-    console.error('获取笔记失败:', error);
-  } finally {
+  }).catch(err => {
+    console.error('获取笔记失败:', err);
+  }).finally(() => {
     loading.value = false;
-  }
+  });
 }
 
 function handleSearch() {
@@ -380,60 +383,63 @@ function handleDeleteNote(note) {
 }
 
 async function handleEditorSave(v, h) {
-  try {
-    const html = await (typeof h === 'function' ? h() : Promise.resolve(v));
-    const noteData = {
-      ...currentEditorNote.value,
-      key: currentEditorNote.value.key || uuidv4(),
-      excerpt: (v || '').substring(0, 30) + '...',
-      mdText: v,
-      html: html,
-      tags: JSON.stringify(editorTags.value),
-      createTime: currentEditorNote.value.createTime || moment().format('YYYY-MM-DD HH:mm:ss'),
-      updateTime: moment().format('YYYY-MM-DD HH:mm:ss'),
-    };
+  const html = await (typeof h === 'function' ? h() : Promise.resolve(v));
+  const noteData = {
+    ...currentEditorNote.value,
+    key: currentEditorNote.value.key || uuidv4(),
+    excerpt: (v || '').substring(0, 30) + '...',
+    mdText: v,
+    html: html,
+    tags: JSON.stringify(editorTags.value),
+    createTime: currentEditorNote.value.createTime || moment().format('YYYY-MM-DD HH:mm:ss'),
+    updateTime: moment().format('YYYY-MM-DD HH:mm:ss'),
+  };
 
-    const result = await window.ipcRenderer.handlePromise('set-data', {
-      tableName: 'note_book',
-      data: noteData,
-      config: {
-        primaryKey: 'key'
-      }
-    });
-
+  window.ipcRenderer.handlePromise('set-data', {
+    tableName: 'note_book',
+    data: noteData,
+    config: {
+      primaryKey: 'key'
+    }
+  }).then(result => {
     if (result.success) {
       ElMessage.success('保存成功');
       currentEditorNote.value = noteData;
-      await fetchTags();
-      currentPage.value = 1;
-      hasMore.value = true;
-      await fetchNotes(false);
-      // 保存成功后清空编辑器数据并切换到列表视图
-      resetEditorState();
-      return true;
+      fetchTags().then(() => {
+        currentPage.value = 1;
+        hasMore.value = true;
+        fetchNotes(false).then(() => {
+          // 保存成功后清空编辑器数据并切换到列表视图
+          resetEditorState();
+          return true;
+        })
+      })
     } else {
       ElMessage.error('保存失败:' + result.error);
       return false;
     }
-  } catch (error) {
-    ElMessage.error('保存失败:' + error);
+  }).catch(err => {
+    ElMessage.error('保存失败:' + err);
     return false;
-  }
+  })
 }
 
 async function handleDialogSave(noteData) {
-  await fetchTags();
-  currentPage.value = 1;
-  hasMore.value = true;
-  await fetchNotes(false);
+  fetchTags().then(() => {
+    currentPage.value = 1;
+    hasMore.value = true;
+    fetchNotes(false);
+  })
 }
 
 function handleDialogClose() {
   currentNote.value = {};
 }
 
+console.log(performance.now(), '获取笔记耗时1:')
 onMounted(async () => {
-  await Promise.all([fetchTags(), fetchNotes()]);
+  Promise.all([fetchTags(), fetchNotes()]);
+  console.log('onMounted 执行')
 });
 </script>
 

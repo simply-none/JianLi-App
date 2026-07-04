@@ -359,12 +359,11 @@ function setGlobalFontENC() {
 
 onMounted(async () => {
   await nextTick();
-  try {
-    const result = await window.ipcRenderer.handlePromise('get-fonts', {});
+  window.ipcRenderer.handlePromise('get-fonts', {}).then(result => {
     sysFonts.value = result || [];
-  } catch (err) {
-    console.log('查询系统字体失败:', err);
-  }
+  }).catch(err => {
+    console.log('获取系统字体失败:', err);
+  });
 });
 </script>
 

@@ -234,9 +234,6 @@ watch(() => props.skin, (newSkin) => {
     .icon-btn {
       padding: 4px 8px;
       color: var(--skin-text-secondary);
-      &+& {
-
-      }
 
       &:hover {
         color: var(--skin-text-primary);

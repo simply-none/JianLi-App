@@ -157,26 +157,23 @@ function formatTime(time) {
 }
 
 async function clearAll() {
-  try {
-    await ElMessageBox.confirm('确定要清空所有剪贴板记录吗？此操作不可恢复。', '确认清空', {
-      confirmButtonText: '清空',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
+  ElMessageBox.confirm('确定要清空所有剪贴板记录吗？此操作不可恢复。', '确认清空', {
+    confirmButtonText: '清空',
+    cancelButtonText: '取消',
+    type: 'warning'
+  })
 
-    const result = await window.ipcRenderer.handlePromise('delete-data', {
-      tableName: 'clipboard_history',
-      condition: {}
-    })
-
+  window.ipcRenderer.handlePromise('delete-data', {
+    tableName: 'clipboard_history',
+    condition: {}
+  }).then(result => {
     if (result.success) {
       ElMessage.success('已清空剪贴板历史')
       clipboardItems.value = []
       currentPage.value = 1
       hasMore.value = true
     }
-  } catch {
-  }
+  })
 }
 
 function copyToClipboard(text) {

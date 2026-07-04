@@ -205,25 +205,28 @@ async function handleSave(v, h) {
       updateTime: moment().format('YYYY-MM-DD HH:mm:ss'),
     };
 
-    const result = await window.ipcRenderer.handlePromise('set-data', {
+    window.ipcRenderer.handlePromise('set-data', {
       tableName: 'note_book',
       data: noteData,
       config: {
         primaryKey: 'key'
       }
-    });
-
-    if (result.success) {
-      ElMessage.success('保存成功');
-      currentNote.value = noteData;
-      isEdit.value = false;
-      emit('save', noteData);
-      dialogVisible.value = false;
-      return true;
-    } else {
-      ElMessage.error('保存失败:' + result.error);
+    }).then(result => {
+      if (result.success) {
+        ElMessage.success('保存成功');
+        currentNote.value = noteData;
+        isEdit.value = false;
+        emit('save', noteData);
+        dialogVisible.value = false;
+        return true;
+      } else {
+        ElMessage.error('保存失败:' + result.error);
+        return false;
+      }
+    }).catch(err => {
+      ElMessage.error('保存失败:' + err);
       return false;
-    }
+    })
   } catch (error) {
     ElMessage.error('保存失败:' + error);
     return false;

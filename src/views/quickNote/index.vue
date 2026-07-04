@@ -222,23 +222,21 @@ async function saveNote() {
 
   saveStatus.value = 'saving'
 
-  try {
-    const result = await window.ipcRenderer.handlePromise('set-data', {
-      tableName: 'note_book',
-      data: {
-        ...curNote.value,
-        key: curNote.value.key || uuidv4(),
-        excerpt: (text.value || '').substring(0, 20) + '...',
-        mdText: text.value,
-        html: text.value,
-        createTime: curNote.value.createTime || moment().format('YYYY-MM-DD HH:mm:ss'),
-        updateTime: moment().format('YYYY-MM-DD HH:mm:ss'),
-      },
-      config: {
-        primaryKey: 'key',
-      }
-    })
-
+  window.ipcRenderer.handlePromise('set-data', {
+    tableName: 'note_book',
+    data: {
+      ...curNote.value,
+      key: curNote.value.key || uuidv4(),
+      excerpt: (text.value || '').substring(0, 20) + '...',
+      mdText: text.value,
+      html: text.value,
+      createTime: curNote.value.createTime || moment().format('YYYY-MM-DD HH:mm:ss'),
+      updateTime: moment().format('YYYY-MM-DD HH:mm:ss'),
+    },
+    config: {
+      primaryKey: 'key',
+    }
+  }).then(result => {
     if (result.success) {
       ElMessage.success('保存成功')
       saveStatus.value = 'saved'
@@ -253,11 +251,11 @@ async function saveNote() {
       saveStatus.value = 'error'
       return false
     }
-  } catch (error) {
-    ElMessage.error('保存失败:' + error)
+  }).catch(err => {
+    ElMessage.error('保存失败:' + err)
     saveStatus.value = 'error'
     return false
-  }
+  })
 }
 
 window.ipcRenderer.on('sync-data-to-other-window', (_event: any, arg: any) => {

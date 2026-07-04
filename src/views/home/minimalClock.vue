@@ -267,8 +267,7 @@ function removeCustomBackground() {
 
 // 获取每日必应图片（通过 Electron 主进程）
 async function fetchBingImage() {
-  try {
-    const result = await window.ipcRenderer.handlePromise('get-bing-image');
+  window.ipcRenderer.handlePromise('get-bing-image').then(result => {
     if (result && result.url) {
       bingImageUrl.value = result.url;
       bingImageTitle.value = result.copyright || '';
@@ -289,9 +288,9 @@ async function fetchBingImage() {
         }
       }
     }
-  } catch (err) {
+  }).catch(err => {
     console.error('获取每日必应图片失败:', err);
-  }
+  });
 }
 
 // 选择每日必应图片
