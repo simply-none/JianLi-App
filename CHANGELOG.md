@@ -2,7 +2,18 @@
 
 变更日志
 
-## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.6.28-rc.3...HEAD) (2026-07-02)
+## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.7.2-rc.1...HEAD) (2026-07-04)
+
+### 🐛 Bug Fixes | Bug 修复
+
+* 修复快速笔记主题切换不生效的问题 ([b116a5f](https://github.com/simply-none/JianLi-App/commit/b116a5f628736920f7efe928865d66caa2c5243b))
+* 修复开发模式下任务栏图标问题；隐藏窗口增加确认提示； ([b5cefab](https://github.com/simply-none/JianLi-App/commit/b5cefab2bc459feda9dd0177f09336952f4e642c))
+
+### ♻️ Code Refactoring | 代码重构
+
+* handlePromise改成异步调用的形式 ([55bccb8](https://github.com/simply-none/JianLi-App/commit/55bccb8aa8ce8bea4a548eb194b15f7df9316e1a))
+
+## [v26.7.2-rc.1](https://github.com/simply-none/JianLi-App/compare/v26.6.28-rc.3...v26.7.2-rc.1) (2026-07-02)
 
 ### ✨ Features | 新功能
 
