@@ -1,5 +1,5 @@
 <template>
-  <div class="layout-minimal">
+  <div class="layout-minimal" :data-skin="skin">
     <div class="drag-bar" :class="['drag-' + editorTheme]">
       <div class="drag-left">
         <span class="title-icon">📝</span>

@@ -1,5 +1,5 @@
 <template>
-  <div class="layout-glass">
+  <div class="layout-glass" :data-skin="skin">
     <div class="title-bar">
       <div class="traffic-lights">
         <span class="dot dot-red"></span>

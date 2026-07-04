@@ -1,5 +1,5 @@
 <template>
-  <div class="layout-classic" :class="{ 'theme-dark': editorTheme === 'dark' }">
+  <div class="layout-classic" :data-skin="skin">
     <div class="menu-bar">
       <div class="menu-items">
         <span class="menu-item">文件</span>
@@ -161,7 +161,7 @@ const emit = defineEmits([
 ]);
 
 const viewMode = ref<'edit' | 'split' | 'preview'>('edit');
-const editorTheme = ref<Themes>(props.skin === 'dark' ? 'dark' : 'light');
+const editorTheme = computed<Themes>(() => props.skin === 'dark' ? 'dark' : 'light');
 const previewTheme = ref('default');
 const cursorLine = ref(1);
 const cursorCol = ref(1);
@@ -200,10 +200,6 @@ function handleSave(val: string, htmlPromise: Promise<string>) {
   emit('save');
 }
 
-watch(() => props.skin, (newSkin) => {
-  editorTheme.value = newSkin === 'dark' ? 'dark' : 'light';
-});
-
 watch(() => props.modelValue, (val) => {
   const lines = val.split('\n');
   cursorLine.value = lines.length;
@@ -217,46 +213,10 @@ watch(() => props.modelValue, (val) => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #fafafa;
+  background: var(--skin-bg, #fafafa);
   border-radius: 6px;
   overflow: hidden;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-
-  &.theme-dark {
-    background: #1e1e1e;
-
-    .menu-bar {
-      background: #323233;
-      color: #cccccc;
-      border-bottom: 1px solid #252526;
-
-      .menu-item:hover {
-        background: #094771;
-      }
-    }
-
-    .tab-bar {
-      background: #252526;
-      border-bottom: 1px solid #1e1e1e;
-
-      .tab-item {
-        color: #969696;
-        background: #2d2d2d;
-        border-color: #252526;
-
-        &.active {
-          color: #ffffff;
-          background: #1e1e1e;
-          border-top: 1px solid #007acc;
-        }
-      }
-    }
-
-    .status-bar {
-      background: #007acc;
-      color: #ffffff;
-    }
-  }
 }
 
 .menu-bar {
@@ -265,9 +225,10 @@ watch(() => props.modelValue, (val) => {
   justify-content: space-between;
   padding: 0 10px;
   height: 28px;
-  background: #f3f3f3;
-  border-bottom: 1px solid #e5e5e5;
+  background: var(--skin-bg, #f3f3f3);
+  border-bottom: 1px solid var(--skin-border, #e5e5e5);
   font-size: 12px;
+  color: var(--skin-text-primary, #333);
   -webkit-app-region: drag;
 
   .menu-items {
@@ -278,11 +239,10 @@ watch(() => props.modelValue, (val) => {
       padding: 4px 10px;
       cursor: pointer;
       border-radius: 3px;
-      color: #333;
       -webkit-app-region: no-drag;
 
       &:hover {
-        background: #e5e5e5;
+        background: var(--skin-btn-hover, #e5e5e5);
       }
     }
   }
@@ -294,10 +254,10 @@ watch(() => props.modelValue, (val) => {
 
     .menu-btn {
       padding: 2px 6px;
-      color: #666;
+      color: var(--skin-text-secondary, #666);
 
       &:hover {
-        background: #e5e5e5;
+        background: var(--skin-btn-hover, #e5e5e5);
       }
     }
   }
@@ -309,8 +269,8 @@ watch(() => props.modelValue, (val) => {
   justify-content: space-between;
   padding: 0 4px;
   height: 32px;
-  background: #ececec;
-  border-bottom: 1px solid #ddd;
+  background: var(--skin-bg, #ececec);
+  border-bottom: 1px solid var(--skin-border, #ddd);
   -webkit-app-region: drag;
 
   .tab-item {
@@ -320,18 +280,18 @@ watch(() => props.modelValue, (val) => {
     padding: 0 12px;
     height: 100%;
     font-size: 12px;
-    color: #666;
-    background: #e0e0e0;
-    border: 1px solid #ccc;
+    color: var(--skin-text-secondary, #666);
+    background: var(--skin-btn-bg, #e0e0e0);
+    border: 1px solid var(--skin-border, #ccc);
     border-bottom: none;
     border-radius: 4px 4px 0 0;
     margin-right: 2px;
     -webkit-app-region: no-drag;
 
     &.active {
-      color: #333;
-      background: #fafafa;
-      border-top: 1px solid #0078d4;
+      color: var(--skin-text-primary, #333);
+      background: var(--skin-bg, #fafafa);
+      border-top: 1px solid var(--skin-circle-ring, #0078d4);
       font-weight: 500;
     }
 
@@ -343,7 +303,7 @@ watch(() => props.modelValue, (val) => {
     }
 
     .tab-dirty {
-      color: #0078d4;
+      color: var(--skin-circle-ring, #0078d4);
       font-size: 10px;
     }
   }
@@ -366,7 +326,7 @@ watch(() => props.modelValue, (val) => {
   }
 
   .preview-pane {
-    border-left: 1px solid #e5e5e5;
+    border-left: 1px solid var(--skin-border, #e5e5e5);
   }
 }
 
@@ -376,7 +336,7 @@ watch(() => props.modelValue, (val) => {
   justify-content: space-between;
   padding: 0 10px;
   height: 22px;
-  background: #007acc;
+  background: var(--skin-circle-ring, #007acc);
   color: #fff;
   font-size: 11px;
   -webkit-app-region: drag;
@@ -421,7 +381,7 @@ watch(() => props.modelValue, (val) => {
 }
 
 :deep(.md-editor-light) {
-  --md-color: #333;
-  --md-bk-color: #fafafa;
+  --md-color: var(--skin-text-primary, #333);
+  --md-bk-color: var(--skin-bg, #fafafa);
 }
 </style>

@@ -1,5 +1,5 @@
 <template>
-  <div class="layout-sidebar">
+  <div class="layout-sidebar" :data-skin="skin">
     <div class="sidebar">
       <div class="sidebar-header">
         <div class="sidebar-title">

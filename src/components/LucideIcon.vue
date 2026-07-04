@@ -18,7 +18,7 @@
 </template>
 
 <script setup lang="ts">
-import { AlarmClock, AlarmClockCheck, AlarmClockMinus, AlarmClockPlus, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, BadgeInfo, Battery, BellPlus, BellRing, Bluetooth, BookMarked, BookmarkPlus, BookOpenText, Building2, Check, ChevronRight, CircleAlert, CircleCheck, CircleX, Clock, Clock1, CloudAlert, CloudBackup, CloudSun, CloudSync, CloudUpload, Coffee, Coins, Columns3Cog, Container, Copy, Cpu, Crosshair, Database, EllipsisVertical, Eye, EyeOff, FileBox, FileCheck, Files, FileText, FileType, Folder, FolderCog, FolderOpen, FolderPlus, Folders, Fullscreen, GamepadDirectional, Globe, Hand, HardDrive, Haze, Headset, Hourglass, House, Info, Key, Keyboard, LaptopMinimal, LayoutDashboard, LibraryBig, Lightbulb, List, ListChevronsDownUp, ListChevronsUpDown, ListCollapse, Lock, LogOut, MapPin, Monitor, MonitorCheck, MonitorCloud, MonitorCog, MonitorX, Moon, MousePointerClick, Move, Notebook, Package2, PaintbrushVertical, Palette, Pause, Pen, Pencil, Play, Plug2, PlugZap, Plus, Printer, RefreshCcw, SaveCheck, ScanEye, ScrollText, Search, Server, Settings, Share2, ShieldCog, ShieldCogCorner, ShieldQuestionMark, SquarePen, SquarePlay, StarCheck, StickyNotePlus, Sun, SunIcon, SunMoon, SwatchBook, TagPlus, Tags, Telescope, Timer, Toolbox, Trash, Trash2, TrendingUp, TvMinimal, UnfoldVertical, Upload, UploadCloud, Usb, User, Wand, Webcam, WebcamOff, Wrench, X } from '@lucide/vue';
+import { AlarmClock, AlarmClockCheck, AlarmClockMinus, AlarmClockPlus, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, BadgeInfo, Battery, BellPlus, BellRing, Bluetooth, BookMarked, BookmarkPlus, BookOpenText, Building2, Check, ChevronRight, CircleAlert, CircleCheck, CircleX, Clock, Clock1, CloudAlert, CloudBackup, CloudSun, CloudSync, CloudUpload, Code, Coffee, Coins, Columns3Cog, Container, Copy, Cpu, Crosshair, Database, EllipsisVertical, Eye, EyeOff, FileBox, FileCheck, FileCode, FilePlus, Files, FileText, FileType, Folder, FolderCog, FolderOpen, FolderPlus, Folders, Fullscreen, GamepadDirectional, Globe, Hand, HardDrive, Haze, Heading, Headset, Hourglass, House, Info, Key, Keyboard, LaptopMinimal, LayoutDashboard, LibraryBig, Lightbulb, Link, List, ListChevronsDownUp, ListChevronsUpDown, ListCollapse, ListOrdered, Lock, LogOut, MapPin, Monitor, MonitorCheck, MonitorCloud, MonitorCog, MonitorX, Moon, MousePointerClick, Move, Notebook, NotebookPen, Package2, PaintbrushVertical, Palette, Pause, Pen, Pencil, Play, Plug2, PlugZap, Plus, Printer, Quote, RefreshCcw, Save, SaveCheck, ScanEye, ScrollText, Search, Server, Settings, Share2, ShieldCog, ShieldCogCorner, ShieldQuestionMark, SquarePen, SquarePlay, StarCheck, StickyNotePlus, Sun, SunIcon, SunMoon, SwatchBook, Table, TagPlus, Tags, Telescope, Timer, Toolbox, Trash, Trash2, TrendingUp, TvMinimal, UnfoldVertical, Upload, UploadCloud, Usb, User, Wand, Webcam, WebcamOff, Wrench, X } from '@lucide/vue';
 import { ref } from 'vue';
 import { getLightColor } from '@/utils';
 withDefaults(
@@ -186,6 +186,16 @@ let nameMap = ref<Record<any, any>>({
   TrendingUp,
   SaveCheck,
   CloudAlert,
+  Heading,
+  Quote,
+  ListOrdered,
+  Code,
+  FileCode,
+  Link,
+  Table,
+  FilePlus,
+  Save,
+  NotebookPen,
 })
 
 function getPadding(padding: string | number): string {

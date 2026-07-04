@@ -74,6 +74,8 @@ defineEmits<{
   }
 
   .countdown-section {
+    width: 100%;
+    height: 100%;
     flex: 1;
     display: flex;
     justify-content: center;
@@ -83,10 +85,8 @@ defineEmits<{
 
     .circle-wrapper {
       position: relative;
-      width: 70%;
-      height: 70%;
-      max-width: 70px;
-      max-height: 70px;
+      width: min(100%, 70vh);
+      aspect-ratio: 1 / 1;
       display: flex;
       align-items: center;
       justify-content: center;
