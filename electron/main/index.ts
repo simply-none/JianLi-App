@@ -12,6 +12,7 @@ import { initApiTest } from "./module/apiTest.ts";
 import { initClipboard } from "./module/clipboard.ts";
 import { registerJlocalProtocol, registerJlocalProtocolBefore } from "./module/protocol.ts";
 import { initSqlite } from "./module/sql.ts";
+import { initNewSqlite } from "./module/newSql.ts";
 import { appName } from "./variables.ts";
 import { initRegisterShortcut } from "./module/registerShortcut.ts";
 import { initSys } from "./module/sys.ts";
@@ -47,6 +48,8 @@ async function createWindow() {
   initLog();
   // 数据库
   await initSqlite();
+  // 高性能数据库
+  await initNewSqlite();
   // 诗词数据
   initPoetData();
   // 定时任务（番茄钟）

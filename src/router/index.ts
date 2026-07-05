@@ -21,6 +21,7 @@ export const RouteNames = {
   SAFETY_PROTECTION: "safetyProtection",
   NET_REQUEST: "netRequest",
   SQL_TEST: "sqlTest",
+  HIGH_PERF_SQL: "highPerfSql",
   FLOW: "flow",
   FUNCTION: "function",
   WEATHER: "weather",
@@ -168,6 +169,14 @@ export const layoutRouters: RouteRecordRaw[] = [
     component: () => import("@/views/sqlTest/index.vue"),
     meta: {
       title: "数据库测试",
+    },
+  },
+  {
+    path: "/highPerfSql",
+    name: RouteNames.HIGH_PERF_SQL,
+    component: () => import("@/views/highPerfSql/index.vue"),
+    meta: {
+      title: "高性能数据库查询",
     },
   },
   {
