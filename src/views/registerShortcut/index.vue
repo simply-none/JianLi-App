@@ -98,7 +98,7 @@ watch(() => route.path, (newPath) => {
 
 const registerShortcut = (shortcut) => {
   const curTime = moment().format('YYYY-MM-DD HH:mm:ss')
-  window.ipcRenderer.handlePromise('set-data', {
+  window.ipcRenderer.handlePromise('new-sql:upsert', {
     tableName: tableName.value,
     data: {
       ...shortcut,
@@ -263,10 +263,9 @@ const registerCommonFn = (item) => {
 }
 
 function getShortcut() {
-  window.ipcRenderer.handlePromise('query-data', {
+  window.ipcRenderer.handlePromise('new-sql:query', {
     tableName: tableName.value,
-    conditions: {
-    }
+    conditions: {}
   }).then(result => {
     if (result.success) {
       const r = mergeShortcuts(originShortcuts.value, result.data)

@@ -298,7 +298,7 @@ export async function count(tableName: string, condition?: Record<string, any>):
  */
 export async function insert(options: InsertOptions): Promise<{ lastID: number; changes: number }> {
   const { tableName, data, config } = options;
-  await ensureTableExists(tableName);
+  await ensureTableExists(tableName, undefined, config?.primaryKey);
   const db = myDb.db;
   const newData = Array.isArray(data) ? data : [data];
 
@@ -374,6 +374,7 @@ export async function insert(options: InsertOptions): Promise<{ lastID: number; 
  */
 export async function upsert(options: InsertOptions): Promise<{ lastID: number; changes: number }> {
   const { tableName, data, config } = options;
+  await ensureTableExists(tableName, undefined, config?.primaryKey);
   const db = myDb.db;
   const newData = Array.isArray(data) ? data : [data];
 
@@ -522,13 +523,14 @@ export async function del(options: DeleteOptions): Promise<{ changes: number }> 
  * 
  * @param {string} sql - SQL 语句
  * @param {any[]} [params] - SQL 参数
+ * @param {string} [primaryKey='id'] - 主键字段名，默认为 id
  * @returns {Promise<{ lastID: number; changes: number; rows?: any[] }>} 执行结果
  */
-export async function execute(sql: string, params: any[] = []): Promise<{ lastID: number; changes: number; rows?: any[] }> {
+export async function execute(sql: string, params: any[] = [], primaryKey: string = 'id'): Promise<{ lastID: number; changes: number; rows?: any[] }> {
   const tableName = extractTableName(sql);
   if (tableName) {
     const columns = extractColumnNames(sql);
-    await ensureTableExists(tableName, columns);
+    await ensureTableExists(tableName, columns, primaryKey);
   }
   const db = myDb.db;
 
@@ -679,14 +681,15 @@ export async function transaction(options: TransactionOptions): Promise<{ succes
 /**
  * 确保表存在
  * 
- * 如果表不存在则自动创建，支持指定初始列。
+ * 如果表不存在则自动创建，支持指定初始列和自定义主键。
  * 如果表已存在但缺少指定列，会自动添加。
  * 
  * @param {string} tableName - 表名
  * @param {string[]} [columns] - 需要确保存在的列名数组
+ * @param {string} [primaryKey='id'] - 主键字段名，默认为 id
  * @returns {Promise<void>}
  */
-export async function ensureTableExists(tableName: string, columns?: string[]): Promise<void> {
+export async function ensureTableExists(tableName: string, columns?: string[], primaryKey: string = 'id'): Promise<void> {
   const db = myDb.db;
   return new Promise((resolve, reject) => {
     db.get(
@@ -699,12 +702,16 @@ export async function ensureTableExists(tableName: string, columns?: string[]): 
         }
 
         if (!row) {
-          const defaultColumns = columns || ['name', 'value', 'created_at'];
+          const defaultColumns = (columns?.length ? columns : ['name', 'value', 'created_at']).filter(col => col.toLowerCase() !== primaryKey.toLowerCase());
           const columnDefs = defaultColumns.map(col => `${col} TEXT`).join(', ');
           await new Promise<void>((res, rej) => {
-            const sql = `CREATE TABLE ${tableName} (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
+            const sql = columnDefs
+              ? `CREATE TABLE IF NOT EXISTS ${tableName} (
+              ${primaryKey} INTEGER PRIMARY KEY AUTOINCREMENT,
               ${columnDefs}
+            )`
+              : `CREATE TABLE IF NOT EXISTS ${tableName} (
+              ${primaryKey} INTEGER PRIMARY KEY AUTOINCREMENT
             )`;
             db.run(sql, (createErr) => {
               if (createErr) rej(createErr);
@@ -716,7 +723,7 @@ export async function ensureTableExists(tableName: string, columns?: string[]): 
         }
 
         if (columns && columns.length > 0) {
-          await ensureColumns(db, tableName, columns);
+          await ensureColumns(db, tableName, columns.filter(col => col.toLowerCase() !== primaryKey.toLowerCase()));
         }
 
         resolve();
@@ -847,13 +854,15 @@ async function ensureTableColumns(db: Database, tableName: string, data: Record<
     db.get(`SELECT sql FROM sqlite_master WHERE type='table' AND name='${tableName}'`, async (err, result) => {
       if (err) return reject(err);
 
+      const pk = config?.primaryKey || 'id';
+
       if (!result || !result.sql) {
         const primaryKey = config?.primaryKey
-          ? `${config.primaryKey} PRIMARY KEY`
+          ? `${config.primaryKey} TEXT PRIMARY KEY`
           : "id INTEGER PRIMARY KEY AUTOINCREMENT";
 
         await new Promise<void>((res, rej) => {
-          db.run(`CREATE TABLE ${tableName} (${primaryKey});`, [], (createErr) => {
+          db.run(`CREATE TABLE IF NOT EXISTS ${tableName} (${primaryKey});`, [], (createErr) => {
             if (createErr) rej(createErr);
             else res();
           });
@@ -877,16 +886,21 @@ async function ensureTableColumns(db: Database, tableName: string, data: Record<
         .filter(Boolean);
 
       const newColumns = Object.keys(data[0] || {}).filter(
-        (key) => !existingColumns.includes(key)
+        (key) => !existingColumns.includes(key) && key.toLowerCase() !== pk.toLowerCase()
       );
 
       if (newColumns.length > 0) {
         const alterPromises = newColumns.map(
           (col) =>
-            new Promise<void>((res, rej) => {
+            new Promise<void>((res) => {
               db.run(`ALTER TABLE ${tableName} ADD COLUMN ${col} TEXT`, (alterErr) => {
-                if (alterErr) rej(alterErr);
-                else res();
+                if (alterErr) {
+                  const errMsg = (alterErr as Error).message;
+                  if (!errMsg.includes("duplicate column name")) {
+                    console.warn(`Failed to add column ${col} to ${tableName}:`, errMsg);
+                  }
+                }
+                res();
               });
             })
         );
@@ -1005,12 +1019,12 @@ ipcMain.handle("new-sql:delete", async (event, options: DeleteOptions) => {
  * 
  * 渲染进程调用方式：
  * ```javascript
- * await window.ipcRenderer.handlePromise("new-sql:execute", { sql, params });
+ * await window.ipcRenderer.handlePromise("new-sql:execute", { sql, params, primaryKey });
  * ```
  */
-ipcMain.handle("new-sql:execute", async (event, { sql, params }: { sql: string; params?: any[] }) => {
+ipcMain.handle("new-sql:execute", async (event, { sql, params, primaryKey }: { sql: string; params?: any[]; primaryKey?: string }) => {
   try {
-    const data = await execute(sql, params || []);
+    const data = await execute(sql, params || [], primaryKey);
     return { success: true, data };
   } catch (err) {
     return { success: false, error: (err as Error).message };
