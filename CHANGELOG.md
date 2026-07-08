@@ -2,7 +2,19 @@
 
 变更日志
 
-## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.7.2-rc.1...HEAD) (2026-07-04)
+## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.7.4-rc.1...HEAD) (2026-07-08)
+
+### ✨ Features | 新功能
+
+* 优化一些样式布局 ([2b188f4](https://github.com/simply-none/JianLi-App/commit/2b188f4aa846b3ecd96a6f611f3778ef5169177c))
+* 优化数据库操作 ([363d7f0](https://github.com/simply-none/JianLi-App/commit/363d7f05be3a5dea86edf2c53c2f26ed1b90befe))
+* 新增高性能数据库查询 ([0c76db9](https://github.com/simply-none/JianLi-App/commit/0c76db95ad89c9bf25445fcf2aa846f47799f86e))
+
+### 🐛 Bug Fixes | Bug 修复
+
+* cron表达式错误Unhandled Error: WARNING: Date in past. Will never be fired.问题修复 ([8b3873a](https://github.com/simply-none/JianLi-App/commit/8b3873ad550e00204873c43c6e4ff2af19e48471))
+
+## [v26.7.4-rc.1](https://github.com/simply-none/JianLi-App/compare/v26.7.2-rc.1...v26.7.4-rc.1) (2026-07-04)
 
 ### 🐛 Bug Fixes | Bug 修复
 
