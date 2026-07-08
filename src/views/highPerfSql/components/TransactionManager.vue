@@ -2,10 +2,6 @@
   <div class="transaction-manager">
     <div class="content-area">
       <div class="section-card">
-        <div class="section-title">事务管理</div>
-      </div>
-
-      <div class="section-card">
         <div class="status-bar">
           <span class="status-label">当前状态:</span>
           <span :class="['status-value', transactionStatus]">{{ statusText }}</span>

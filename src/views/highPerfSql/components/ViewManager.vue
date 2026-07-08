@@ -2,10 +2,6 @@
   <div class="view-manager">
     <div class="content-area">
       <div class="section-card">
-        <div class="section-title">视图管理</div>
-      </div>
-
-      <div class="section-card">
         <div class="section-title">创建视图</div>
         <el-input v-model="viewForm.viewName" placeholder="视图名" />
         <el-input
@@ -20,7 +16,7 @@
 
     <div class="bottom-area">
       <div class="section-card">
-        <div class="section-title">生成的 SQL</div>
+        <div class="section-title">SQL 预览</div>
         <div class="sql-preview">{{ generatedSql }}</div>
       </div>
 
@@ -124,17 +120,6 @@ function createView() {
   max-height: 200px;
   overflow-y: auto;
   position: relative;
-
-  &::before {
-    content: "SQL 预览";
-    position: absolute;
-    top: -12px;
-    left: 12px;
-    background: var(--bg-card);
-    padding: 0 8px;
-    font-size: 12px;
-    color: var(--text-muted);
-  }
 }
 
 .bottom-area {

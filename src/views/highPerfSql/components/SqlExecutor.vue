@@ -2,10 +2,6 @@
   <div class="sql-executor">
     <div class="content-area">
       <div class="section-card">
-        <div class="section-title">执行 SQL</div>
-      </div>
-
-      <div class="section-card">
         <div class="section-title">SQL 编辑器</div>
         <el-input
           type="textarea"

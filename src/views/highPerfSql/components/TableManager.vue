@@ -1,9 +1,7 @@
 <template>
   <div class="table-manager">
     <div class="content-area">
-      <div class="section-card" v-if="operation === 'create'">
-        <div class="section-title">创建表</div>
-
+      <template v-if="operation === 'create'">
         <div class="section-card">
           <div class="section-title">表名</div>
           <el-input v-model="tableForm.tableName" placeholder="请输入表名" />
@@ -94,11 +92,9 @@
           </div>
           <button class="add-index" @click="addIndex">+ 添加索引</button>
         </div>
-      </div>
+      </template>
 
-      <div class="section-card" v-else>
-        <div class="section-title">删除表</div>
-
+      <template v-else>
         <div class="section-card">
           <div class="section-title">选择要删除的表</div>
           <el-select v-model="dropForm.tableName" placeholder="请选择表">
@@ -110,12 +106,12 @@
             />
           </el-select>
         </div>
-      </div>
+      </template>
     </div>
 
     <div class="bottom-area">
       <div class="section-card">
-        <div class="section-title">生成的 SQL</div>
+        <div class="section-title">SQL 预览</div>
         <div class="sql-preview">{{ operation === 'create' ? generatedSql : dropSql }}</div>
       </div>
 
@@ -479,17 +475,6 @@ function dropTable() {
   max-height: 200px;
   overflow-y: auto;
   position: relative;
-
-  &::before {
-    content: "SQL 预览";
-    position: absolute;
-    top: -12px;
-    left: 12px;
-    background: var(--bg-card);
-    padding: 0 8px;
-    font-size: 12px;
-    color: var(--text-muted);
-  }
 }
 
 .bottom-area {

@@ -341,7 +341,6 @@ function switchSkin() {
   background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #0a0a0a 100%);
   display: flex;
   justify-content: center;
-  align-items: center;
   user-select: none;
   position: relative;
 }
@@ -377,6 +376,8 @@ function switchSkin() {
 }
 
 .clock-container {
+  height: fit-content;
+  padding-top: 9em;
   text-align: center;
   color: var(--skin-text-primary, #4338ca);
   cursor: pointer;
@@ -388,9 +389,9 @@ function switchSkin() {
 }
 
 .time-display {
-  font-size: 120px;
+  font-size: 9em;
   font-weight: 600;
-  letter-spacing: -4px;
+  letter-spacing: -6px;
   line-height: 1;
   font-feature-settings: 'tnum';
   text-shadow: 0 0 60px rgba(67, 56, 202, 0.15);

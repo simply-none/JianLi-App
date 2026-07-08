@@ -2,10 +2,6 @@
   <div class="concurrency-tester">
     <div class="content-area">
       <div class="section-card">
-        <div class="section-title">并发请求测试</div>
-      </div>
-
-      <div class="section-card">
         <div class="section-title">测试配置</div>
         <div class="config-row">
           <div class="config-item">
@@ -264,11 +260,11 @@ async function startTest() {
 
         try {
           await window.ipcRenderer.handlePromise("new-sql:execute", { sql }).then(res => {
-            console.log(res, '执行结果');
             if (res.success) {
               testStats.success++;
             } else {
               testStats.failed++;
+              console.error(res, '执行失败');
             }
           });
         } catch {

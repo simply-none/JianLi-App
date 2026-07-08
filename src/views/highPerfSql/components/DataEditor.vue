@@ -1,11 +1,6 @@
 <template>
   <div class="data-editor">
     <div class="editor-section-box"> 
-   
-    <div class="editor-section">
-      <div class="section-title">{{ operation === 'insert' ? '插入数据' : operation === 'update' ? '更新数据' : '删除数据' }}</div>
-    </div>
-
     <div class="editor-section">
       <div class="section-title">表选择</div>
       <el-select
@@ -122,7 +117,7 @@
      </div>
      <div class="action-buttons-box"> 
     <div class="editor-section">
-      <div class="section-title">生成的 SQL</div>
+      <div class="section-title">SQL 预览</div>
       <div class="sql-preview">{{ generatedSql }}</div>
     </div>
 
@@ -547,17 +542,6 @@ function importJson() {}
   max-height: 200px;
   overflow-y: auto;
   position: relative;
-
-  &::before {
-    content: "SQL 预览";
-    position: absolute;
-    top: -12px;
-    left: 12px;
-    background: var(--bg-card);
-    padding: 0 8px;
-    font-size: 12px;
-    color: var(--text-muted);
-  }
 }
 
 .action-buttons {

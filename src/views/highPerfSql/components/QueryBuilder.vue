@@ -210,7 +210,7 @@
     </div>
     <div class="action-buttons-box">
     <div class="builder-section">
-      <div class="section-title">生成的 SQL</div>
+      <div class="section-title">SQL 预览</div>
       <div class="sql-preview">{{ generatedSql }}</div>
     </div>
 
@@ -611,17 +611,6 @@ function testConcurrency() {}
   max-height: 200px;
   overflow-y: auto;
   position: relative;
-
-  &::before {
-    content: "SQL 预览";
-    position: absolute;
-    top: -12px;
-    left: 12px;
-    background: var(--bg-card);
-    padding: 0 8px;
-    font-size: 12px;
-    color: var(--text-muted);
-  }
 }
 
 .action-buttons {
