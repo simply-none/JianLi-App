@@ -41,7 +41,7 @@ export function createJob({
       function () {
         onTick();
         if (!isTick) return;
-        win?.webContents.send(msgName, Date.now());
+        win?.webContents.send(msgName, Date.now() + 1000);
       }, // onTick
       null, // onComplete
       true, // start
@@ -53,7 +53,7 @@ export function createJob({
       // 如果是过去的时间，则直接执行
       onTick();
       if (!isTick) return;
-      win?.webContents.send(msgName, Date.now());
+      win?.webContents.send(msgName, Date.now() + 1000);
     } else {
       throw error;
     }

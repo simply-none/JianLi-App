@@ -1,6 +1,7 @@
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import colors from "colors";
+import { app } from "electron";
 
 // 应用名称
 export let appName = "渐离App";
@@ -47,6 +48,9 @@ export const scanWorkerPath = path.join(vitePublic, "worker.mjs");
 
 // 启动文件
 export const indexHtml = path.join(RENDERER_DIST, "index.html");
+
+// electron目录:getPath(name: 'home' | 'appData' | 'userData' | 'sessionData' | 'temp' | 'exe' | 'module' | 'desktop' | 'documents' | 'downloads' | 'music' | 'pictures' | 'videos' | 'recent' | 'logs' | 'crashDumps'): string;
+export const logDir = app.getPath("logs");
 
 console.log(colors.bgGreen("----------------------"));
 console.log(colors.bgGreen("variables.ts"));

@@ -1,9 +1,9 @@
 import log from 'electron-log'
-import { appRoot } from '../variables.ts'
+import { logDir } from '../variables.ts'
 
 export function initLog() {
   log.transports.file.resolvePathFn = () => {
-    return `${appRoot}/logs/main.log`
+    return `${logDir}/main.log`
   }
 
   log.transports.file.format = '[{y}-{m}-{d} {h}:{i}:{s}] [{level}] {text}'
