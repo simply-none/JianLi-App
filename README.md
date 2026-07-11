@@ -23,6 +23,14 @@
 - 发布rc版本：`npm run release -- --prerelease rc`
 - 发布自定义版本：`npm run release -- --release-as 1.1.0`
 
+## 打包
+
+```shell
+set ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/
+set ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/
+npm run build
+```
+
 ## 鸣谢
 
 - [electron-vite-vue]

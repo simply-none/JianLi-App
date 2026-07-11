@@ -197,6 +197,7 @@ function countDown() {
     if (diff < 0) {
       nextDiffTime.value = '等待中...';
       progressPercentValue.value = 0;
+      fetchPomodoroData();
       return;
     }
 
