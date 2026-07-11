@@ -82,6 +82,32 @@ export default defineStore("window-mode", () => {
     }
   });
 
+  const showTodoWindow = ref();
+  const showTodoWindowC = computed(() => showTodoWindow.value);
+  function setShowTodoWindow(value: boolean) {
+    showTodoWindow.value = value;
+    setStore("showTodoWindow", value);
+  }
+
+  const todoWindowConfig = ref({
+    position: 'bottom-right',
+    width: 400,
+    height: 500,
+    gap: 30,
+    x: 0,
+    y: 0,
+    skin: 'white',
+  });
+
+  watch(showTodoWindow, (newValue) => {
+    if (newValue == true) {
+      console.log("打开待办小窗口", todoWindowConfig.value);
+      send("open-new-window", "todoMiniWindow", todoWindowConfig.value);
+    } else {
+      send("close-new-window", "todoMiniWindow");
+    }
+  });
+
   watch(pomodoroMiniWindowConfig, (newVal) => {
     send('sync-data-to-other-window', {
       pomodoroMiniWindowConfig: toRaw(newVal),
@@ -110,6 +136,11 @@ export default defineStore("window-mode", () => {
         field: "showQuickNoteWindow",
         default: false,
         map: showQuickNoteWindow,
+      },
+      {
+        field: "showTodoWindow",
+        default: false,
+        map: showTodoWindow,
       },
     ];
 
@@ -167,6 +198,19 @@ export default defineStore("window-mode", () => {
         },
         map: quickNoteWindowConfig,
       },
+      {
+        field: "window-mode:todoMiniWindow",
+        default: {
+          position: 'bottom-right',
+          width: 400,
+          height: 500,
+          gap: 30,
+          x: 0,
+          y: 0,
+          skin: 'white',
+        },
+        map: todoWindowConfig,
+      },
     ];
 
     const allVars: defaultField[] = [
@@ -215,6 +259,10 @@ export default defineStore("window-mode", () => {
     showQuickNoteWindowC,
     setShowQuickNoteWindow,
     quickNoteWindowConfig,
+    showTodoWindow,
+    showTodoWindowC,
+    setShowTodoWindow,
+    todoWindowConfig,
     $reset,
   };
 });

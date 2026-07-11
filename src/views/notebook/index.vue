@@ -308,27 +308,33 @@ function fetchNoteData(options = {}) {
     endDate = null
   } = options;
 
-  let whereStr;
+  let sql = 'SELECT * FROM note_book';
+  const params = [];
+  const whereClauses = [];
 
   if (specificDate) {
-    whereStr = `createTime BETWEEN '${specificDate}' AND datetime('${specificDate}', '+1 day')`;
+    whereClauses.push('createTime BETWEEN ? AND datetime(?, "+1 day")');
+    params.push(specificDate, specificDate);
   } else if (startDate && endDate) {
-    whereStr = `createTime BETWEEN '${startDate}' AND '${endDate}'`;
+    whereClauses.push('createTime BETWEEN ? AND ?');
+    params.push(startDate, endDate);
   } else {
-    whereStr = `createTime >= DATE('now', '-${days} days')`;
+    whereClauses.push("createTime >= DATE('now', '-? days')");
+    params.push(days);
   }
 
-  return window.ipcRenderer.handlePromise('query-data', {
-    tableName: 'note_book',
-    conditions: {
-      whereStr: whereStr,
-      limit: 100,
-      orderByDesc: false,
-      orderBy: 'createTime'
-    }
+  if (whereClauses.length > 0) {
+    sql += ` WHERE ${whereClauses.join(' AND ')}`;
+  }
+
+  sql += ' ORDER BY createTime ASC LIMIT 100';
+
+  return window.ipcRenderer.handlePromise('new-sql:execute', {
+    sql,
+    params,
   }).then(result => {
     if (result.success) {
-      return result.data;
+      return result.data?.rows || [];
     }
     return [];
   }).catch(err => {

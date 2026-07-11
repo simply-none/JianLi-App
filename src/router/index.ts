@@ -36,6 +36,8 @@ export const RouteNames = {
   ROUTE_SETTING: "routeSetting",
   BROWSER: "browser",
   QUICK_NOTE: "quickNote",
+  TODO_LIST: "todoList",
+  TODO_MINI_WINDOW: "todoMiniWindow",
 } as const;
 
 export type RouteNameType = typeof RouteNames[keyof typeof RouteNames];
@@ -219,6 +221,14 @@ export const layoutRouters: RouteRecordRaw[] = [
       title: "关于",
     },
   },
+  {
+    path: "/todoList",
+    name: RouteNames.TODO_LIST,
+    component: () => import("@/views/todoList/index.vue"),
+    meta: {
+      title: "待办事项",
+    },
+  },
 ];
 
 const routers: RouteRecordRaw[] = [
@@ -261,6 +271,11 @@ const routers: RouteRecordRaw[] = [
     path: "/quickNote",
     name: RouteNames.QUICK_NOTE,
     component: () => import("@/views/quickNote/index.vue"),
+  },
+  {
+    path: "/todoMiniWindow",
+    name: RouteNames.TODO_MINI_WINDOW,
+    component: () => import("@/views/todoMiniWindow/index.vue"),
   },
 ];
 

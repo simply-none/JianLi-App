@@ -142,6 +142,7 @@ export const iconMap: Record<string, string> = {
   weather: 'CloudSun',
   about: 'Info',
   browser: 'Globe',
+  todoList: 'ListTodo',
 };
 
 export { getLightColor, getDarkColor } from './color';

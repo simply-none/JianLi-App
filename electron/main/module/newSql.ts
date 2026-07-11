@@ -704,14 +704,19 @@ export async function ensureTableExists(tableName: string, columns?: string[], p
         if (!row) {
           const defaultColumns = (columns?.length ? columns : ['name', 'value', 'created_at']).filter(col => col.toLowerCase() !== primaryKey.toLowerCase());
           const columnDefs = defaultColumns.map(col => `${col} TEXT`).join(', ');
+          
+          const primaryKeyDef = primaryKey === 'id' 
+            ? `${primaryKey} INTEGER PRIMARY KEY AUTOINCREMENT`
+            : `${primaryKey} TEXT PRIMARY KEY`;
+            
           await new Promise<void>((res, rej) => {
             const sql = columnDefs
               ? `CREATE TABLE IF NOT EXISTS ${tableName} (
-              ${primaryKey} INTEGER PRIMARY KEY AUTOINCREMENT,
+              ${primaryKeyDef},
               ${columnDefs}
             )`
               : `CREATE TABLE IF NOT EXISTS ${tableName} (
-              ${primaryKey} INTEGER PRIMARY KEY AUTOINCREMENT
+              ${primaryKeyDef}
             )`;
             db.run(sql, (createErr) => {
               if (createErr) rej(createErr);
@@ -720,6 +725,41 @@ export async function ensureTableExists(tableName: string, columns?: string[], p
           });
           resolve();
           return;
+        }
+
+        const existingColumns = await new Promise<string[]>((resolve, reject) => {
+          db.all(`PRAGMA table_info(${tableName})`, [], (err, rows) => {
+            if (err) reject(err);
+            else resolve((rows as any[]).map(row => row.name));
+          });
+        });
+
+        const hasPrimaryKey = await new Promise<boolean>((resolve, reject) => {
+          db.all(`PRAGMA table_info(${tableName})`, [], (err, rows) => {
+            if (err) reject(err);
+            else resolve((rows as any[]).some(row => row.pk === 1));
+          });
+        });
+
+        if (!existingColumns.includes(primaryKey) && !hasPrimaryKey) {
+          const alterPromises = [primaryKey].map(
+            (col) =>
+              new Promise<void>((res) => {
+                const colDef = primaryKey === 'id' 
+                  ? 'id INTEGER PRIMARY KEY AUTOINCREMENT'
+                  : `${primaryKey} TEXT PRIMARY KEY`;
+                db.run(`ALTER TABLE ${tableName} ADD COLUMN ${colDef}`, (alterErr) => {
+                  if (alterErr) {
+                    const errMsg = (alterErr as Error).message;
+                    if (!errMsg.includes("duplicate column name")) {
+                      console.warn(`Failed to add column ${col} to ${tableName}:`, errMsg);
+                    }
+                  }
+                  res();
+                });
+              })
+          );
+          await Promise.all(alterPromises);
         }
 
         if (columns && columns.length > 0) {
@@ -867,15 +907,43 @@ async function ensureTableColumns(db: Database, tableName: string, data: Record<
             else res();
           });
         });
+      } else {
+        const existingColumns = await new Promise<string[]>((resolve, reject) => {
+          db.all(`PRAGMA table_info(${tableName})`, [], (err, rows) => {
+            if (err) reject(err);
+            else resolve((rows as any[]).map(row => row.name));
+          });
+        });
+
+        if (!existingColumns.includes(pk)) {
+          const alterPromises = [pk].map(
+            (col) =>
+              new Promise<void>((res) => {
+                const colDef = pk === 'id' 
+                  ? 'id INTEGER PRIMARY KEY AUTOINCREMENT'
+                  : `${pk} TEXT PRIMARY KEY`;
+                db.run(`ALTER TABLE ${tableName} ADD COLUMN ${colDef}`, (alterErr) => {
+                  if (alterErr) {
+                    const errMsg = (alterErr as Error).message;
+                    if (!errMsg.includes("duplicate column name")) {
+                      console.warn(`Failed to add column ${col} to ${tableName}:`, errMsg);
+                    }
+                  }
+                  res();
+                });
+              })
+          );
+          await Promise.all(alterPromises);
+        }
       }
 
-      const createSQL = result ? result.sql : "";
-      const columnsPart = createSQL
+      const newCreateSQL = result ? result.sql : "";
+      const newColumnsPart = newCreateSQL
         .replace(/^CREATE\s+TABLE\s+\w+\s*\(/i, "")
         .replace(/\)[^)]*$/, "")
         .trim();
 
-      const existingColumns = columnsPart
+      const newExistingColumns = newColumnsPart
         .split(/,(?![^(]*\))/)
         .map((col) => col.trim())
         .filter((col) => col && !/^(CONSTRAINT|PRIMARY KEY|FOREIGN KEY|CHECK)/i.test(col))
@@ -886,7 +954,7 @@ async function ensureTableColumns(db: Database, tableName: string, data: Record<
         .filter(Boolean);
 
       const newColumns = Object.keys(data[0] || {}).filter(
-        (key) => !existingColumns.includes(key) && key.toLowerCase() !== pk.toLowerCase()
+        (key) => !newExistingColumns.includes(key) && key.toLowerCase() !== pk.toLowerCase()
       );
 
       if (newColumns.length > 0) {

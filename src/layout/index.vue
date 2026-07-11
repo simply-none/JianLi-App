@@ -98,7 +98,7 @@ interface MenuGroup {
 const groupDefs: MenuGroup[] = [
   { label: '通用', names: ['setting', 'homeMode', 'windowMode'] },
   { label: '系统与资源', names: ['systemInfo', 'routeSetting', 'appCache', 'fileRela', 'resourceManage', 'safetyProtection'] },
-  { label: '效率工具', names: ['pomodoroRecord', 'clipboard', 'notebookApp', 'categorizableNotes', 'registerShortcut', 'function', 'weather', 'browser'] },
+  { label: '效率工具', names: ['pomodoroRecord', 'clipboard', 'notebookApp', 'categorizableNotes', 'todoList', 'registerShortcut', 'function', 'weather', 'browser'] },
   { label: '开发工具', names: ['netRequest', 'sqlTest', 'highPerfSql', 'flow'] },
   { label: '关于', names: ['about'] },
 ];

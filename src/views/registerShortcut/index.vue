@@ -127,6 +127,7 @@ const iconMap = {
   systemInfoShortcut: 'Toolbox',
   flowShortcut: 'Notebook',
   quickNoteShortcut: 'SquarePen',
+  todoWindowShortcut: 'ListTodo',
 }
 
 const iconClassMap = {
@@ -139,6 +140,7 @@ const iconClassMap = {
   systemInfoShortcut: 'icon-red',
   flowShortcut: 'icon-pink',
   quickNoteShortcut: 'icon-indigo',
+  todoWindowShortcut: 'icon-green',
 }
 
 const descriptionMap = {
@@ -151,6 +153,7 @@ const descriptionMap = {
   systemInfoShortcut: '快速查看系统信息',
   flowShortcut: '快速打开流程图工具',
   quickNoteShortcut: '快速打开/关闭快速记录小窗口',
+  todoWindowShortcut: '快速打开/关闭待办小窗口',
 }
 
 const getIcon = (key) => {
@@ -227,6 +230,13 @@ const originShortcuts = ref([
     url: '',
     name: '快速记录',
     key: 'quickNoteShortcut',
+    shortcut: ['', '', ''],
+  },
+  {
+    type: 'open_todo_window',
+    url: '',
+    name: '待办小窗口',
+    key: 'todoWindowShortcut',
     shortcut: ['', '', ''],
   },
 ])
