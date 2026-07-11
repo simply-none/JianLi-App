@@ -2,7 +2,17 @@
 
 变更日志
 
-## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.7.4-rc.1...HEAD) (2026-07-08)
+## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.7.8-rc.1...HEAD) (2026-07-11)
+
+### ✨ Features | 新功能
+
+* 新增待办功能 ([17bcc6d](https://github.com/simply-none/JianLi-App/commit/17bcc6d003ceca29092d7ed83593be38cf359e64))
+
+### 🐛 Bug Fixes | Bug 修复
+
+* 修复一些体验性问题 ([d0a071d](https://github.com/simply-none/JianLi-App/commit/d0a071df4ff92a94ffa488d75f7514aee67a16ff))
+
+## [v26.7.8-rc.1](https://github.com/simply-none/JianLi-App/compare/v26.7.4-rc.1...v26.7.8-rc.1) (2026-07-08)
 
 ### ✨ Features | 新功能
 
