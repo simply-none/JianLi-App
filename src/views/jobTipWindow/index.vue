@@ -147,6 +147,9 @@ input {
 
 <style lang="scss" scoped>
 .pomodoroMiniWindow {
+  // 禁止复制
+  -webkit-user-select: none;
+  user-select: none;
   position: relative;
   overflow: auto;
   width: 100%;

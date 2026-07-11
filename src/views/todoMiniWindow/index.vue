@@ -293,6 +293,7 @@ html, body {
 <style lang="scss" scoped>
 .todo-mini-window {
   // 禁止复制
+  -webkit-user-select: none;
   user-select: none;
   width: 100%;
   height: 100%;

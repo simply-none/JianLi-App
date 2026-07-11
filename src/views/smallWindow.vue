@@ -136,6 +136,9 @@ function toSetting() {
 
 <style lang="scss" scoped>
 .small-window {
+  // 禁止复制
+  -webkit-user-select: none;
+  user-select: none;
   width: 280px;
   min-height: 180px;
   display: flex;

@@ -186,6 +186,7 @@ function countDown() {
     if (!nextTime.value) {
       nextDiffTime.value = '等待中...';
       progressPercentValue.value = 0;
+      fetchPomodoroData();
       return;
     }
 
@@ -245,12 +246,18 @@ onMounted(() => {
 
 async function fetchPomodoroData() {
   try {
-    // 使用 get-store-all 获取 base-info 表的所有数据
-    const data = await window.ipcRenderer.invoke('get-store-all', 'base-info')
-    
-    if (data && typeof data === 'object') {
-      // 处理数据并更新状态
-      handlePomodoroData(data)
+    const result = await window.ipcRenderer.handlePromise('new-sql:execute', {
+      sql: 'SELECT * FROM basic_info',
+      params: [],
+    });
+    if (result.success && result.data && result.data.rows) {
+      let rows = result.data.rows || [];
+      rows = rows.reduce((acc: any, row: any) => {
+        acc[row.key] = typeof row.value == 'string' ? JSON.parse(row.value) : row.value;
+        return acc
+      }, {})
+
+      handlePomodoroData(rows);
     }
   } catch (e) {
     console.log('获取番茄钟数据失败:', e)
@@ -259,17 +266,17 @@ async function fetchPomodoroData() {
 
 function handlePomodoroData(data: any) {
   // 设置当前状态
-  curStatusC.value = { value: data.curStatus?.value || 'work' }
+  curStatusC.value = { value: data.curStatus?.value || data.curStatus || 'work' }
   
   // 计算下一个状态切换时间
-  if (data.curStatus?.value === 'work') {
+  if (data.curStatus?.value === 'work' || data.curStatus === 'work') {
     nextTime.value = moment(data.startWorkTime + data.workTimeGapUnit * data.workTimeGap).format('YYYY-MM-DD HH:mm:ss')
   } else {
     nextTime.value = moment(data.closeWorkTime + data.restTimeGapUnit * data.restTimeGap).format('YYYY-MM-DD HH:mm:ss')
   }
   
   // 计算进度
-  if (data.curStatus?.value === 'work') {
+  if (data.curStatus?.value === 'work' || data.curStatus === 'work') {
     const startTime = data.startWorkTime
     const duration = data.workTimeGapUnit * data.workTimeGap
     if (startTime && duration && duration > 0) {
@@ -309,6 +316,9 @@ html, body {
 
 <style lang="scss" scoped>
 .pomodoro-mini-window {
+  // 禁止复制
+  -webkit-user-select: none;
+  user-select: none;
   width: 100%;
   height: 100%;
   box-sizing: border-box;

@@ -291,6 +291,9 @@ html, body {
 
 <style lang="scss" scoped>
 .quick-note-window {
+  // 禁止复制
+  -webkit-user-select: none;
+  user-select: none;
   width: 100%;
   height: 100%;
   box-sizing: border-box;
