@@ -128,6 +128,7 @@ const iconMap = {
   flowShortcut: 'Notebook',
   quickNoteShortcut: 'SquarePen',
   todoWindowShortcut: 'ListTodo',
+  pomodoroWindowShortcut: 'Timer',
 }
 
 const iconClassMap = {
@@ -141,6 +142,7 @@ const iconClassMap = {
   flowShortcut: 'icon-pink',
   quickNoteShortcut: 'icon-indigo',
   todoWindowShortcut: 'icon-green',
+  pomodoroWindowShortcut: 'icon-orange',
 }
 
 const descriptionMap = {
@@ -154,6 +156,7 @@ const descriptionMap = {
   flowShortcut: '快速打开流程图工具',
   quickNoteShortcut: '快速打开/关闭快速记录小窗口',
   todoWindowShortcut: '快速打开/关闭待办小窗口',
+  pomodoroWindowShortcut: '快速打开/关闭番茄钟小窗口',
 }
 
 const getIcon = (key) => {
@@ -237,6 +240,13 @@ const originShortcuts = ref([
     url: '',
     name: '待办小窗口',
     key: 'todoWindowShortcut',
+    shortcut: ['', '', ''],
+  },
+  {
+    type: 'open_pomodoro_window',
+    url: '',
+    name: '番茄钟小窗口',
+    key: 'pomodoroWindowShortcut',
     shortcut: ['', '', ''],
   },
 ])

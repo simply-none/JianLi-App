@@ -111,6 +111,45 @@ function getTodoWindow() {
   });
 }
 
+function togglePomodoroWindow() {
+  const pomodoroWin = getPomodoroWindow();
+  if (pomodoroWin && pomodoroWin.isVisible()) {
+    hideOtherWindow("pomodoro");
+  } else {
+    queryByConditions({
+      db: myDb.db,
+      tableName: "basic_info",
+      conditions: {
+        whereStr: "key = 'window-mode:pomodoro'",
+      },
+      callback: (err, data) => {
+        if (err) {
+          console.log(err, "err");
+          createOtherWindow("pomodoro", { mouseEvents: true });
+          return;
+        }
+        let config = {};
+        if (data && data.length > 0) {
+          try {
+            config = JSON.parse(data[0].value);
+          } catch (e) {
+            console.log(e, "parse error");
+          }
+        }
+        createOtherWindow("pomodoro", { ...config, mouseEvents: true });
+      },
+    });
+  }
+}
+
+function getPomodoroWindow() {
+  const allWindows = BrowserWindow.getAllWindows();
+  return allWindows.find((w) => {
+    const url = w.webContents.getURL();
+    return url.includes("pomodoro") && url.includes("isSecondWindow=true");
+  });
+}
+
 export function initRegisterShortcut() {
   createTable({
     db: myDb.db,
@@ -160,6 +199,9 @@ function globalShortcutFn(item) {
     }
     else if (item.type == 'open_todo_window') {
       toggleTodoWindow();
+    }
+    else if (item.type == 'open_pomodoro_window') {
+      togglePomodoroWindow();
     }
     console.log("Electron loves global shortcuts!");
   });
