@@ -248,10 +248,15 @@ export function initNewWindow() {
     // 根据id匹配窗口
     allWindows.map((item) => {
       if (item.id != sendId && !item.isDestroyed()) {
+        // 判断是否show，未展示继续隐藏
+        let isShow = item.isVisible();
         // 保持窗口处于活跃状态，避免假卡死
         item.showInactive();
         // 向匹配的窗口发送消息，同步数据
         item.webContents.send("sync-data-to-other-window", arg);
+        if (!isShow) {
+          item.hide();
+        }
       }
     });
   });
