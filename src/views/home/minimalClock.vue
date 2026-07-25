@@ -1,11 +1,15 @@
 <template>
   <div class="minimal-clock" :style="backgroundStyle">
-    <div class="clock-container" :data-skin="currentSkin" @click="switchSkin">
+    <div class="clock-container" :style="themeStyle" @click="switchSkin">
       <div class="time-display">{{ currentTime }}</div>
       <div class="date-display">{{ currentDate }} {{ weekday }}</div>
       <div class="status-display" :class="curStatusC.value">
         <span class="status-dot"></span>
         <span class="status-text">{{ curStatusC.value === 'work' ? '正在专注' : '休息中' }}</span>
+      </div>
+      <div class="skin-indicator" :title="`当前主题: ${skinLabel} (点击切换)`">
+        <span class="skin-dot" :style="{ background: currentSkin.timeColor }"></span>
+        <span class="skin-name">{{ skinLabel }}</span>
       </div>
     </div>
 
@@ -314,23 +318,157 @@ const currentTime = ref('');
 const currentDate = ref('');
 const weekday = ref('');
 
-const skins = ['white', 'amber', 'aurora', 'coral', 'dark', 'gray', 'lavender', 'mint', 'sakura', 'sky'];
-const currentSkin = ref('white');
-getInitSkin();
-function getInitSkin () {
-  let skin = localStorage.getItem('skin');
-  console.log('skin', skin);
-  if (skin) {
-    currentSkin.value = skin;
-  } else {
-    currentSkin.value = 'white';
+/**
+ * 高对比度主题配置
+ * 每个主题包含: 时间颜色、日期颜色、阴影颜色、光晕背景颜色、状态卡片颜色
+ */
+const skinThemes = [
+  {
+    name: '雪白',
+    key: 'white',
+    timeColor: '#ffffff',
+    dateColor: '#ffffff',
+    shadowColor: 'rgba(0, 0, 0, 0.9)',
+    glowColor: 'rgba(0, 0, 0, 0.5)',
+    cardBg: 'rgba(0, 0, 0, 0.45)',
+    cardBorder: 'rgba(255, 255, 255, 0.2)',
+    workDot: '#ff6b6b',
+    restDot: '#51cf66',
+  },
+  {
+    name: '墨黑',
+    key: 'ink',
+    timeColor: '#1a1a2e',
+    dateColor: '#2d2d44',
+    shadowColor: 'rgba(255, 255, 255, 0.9)',
+    glowColor: 'rgba(255, 255, 255, 0.5)',
+    cardBg: 'rgba(255, 255, 255, 0.5)',
+    cardBorder: 'rgba(0, 0, 0, 0.15)',
+    workDot: '#e03131',
+    restDot: '#2f9e44',
+  },
+  {
+    name: '琥珀',
+    key: 'amber',
+    timeColor: '#ffd43b',
+    dateColor: '#ffa94d',
+    shadowColor: 'rgba(0, 0, 0, 0.9)',
+    glowColor: 'rgba(255, 180, 0, 0.4)',
+    cardBg: 'rgba(0, 0, 0, 0.45)',
+    cardBorder: 'rgba(255, 200, 0, 0.3)',
+    workDot: '#ff6b6b',
+    restDot: '#51cf66',
+  },
+  {
+    name: '青蓝',
+    key: 'azure',
+    timeColor: '#74c0fc',
+    dateColor: '#4dabf7',
+    shadowColor: 'rgba(0, 40, 80, 0.9)',
+    glowColor: 'rgba(30, 100, 200, 0.4)',
+    cardBg: 'rgba(0, 30, 60, 0.5)',
+    cardBorder: 'rgba(100, 180, 255, 0.3)',
+    workDot: '#ff8787',
+    restDot: '#8ce99a',
+  },
+  {
+    name: '翠绿',
+    key: 'emerald',
+    timeColor: '#69db7c',
+    dateColor: '#51cf66',
+    shadowColor: 'rgba(0, 50, 30, 0.9)',
+    glowColor: 'rgba(30, 150, 80, 0.4)',
+    cardBg: 'rgba(0, 40, 20, 0.5)',
+    cardBorder: 'rgba(100, 220, 130, 0.3)',
+    workDot: '#ffa8a8',
+    restDot: '#d3f9d8',
+  },
+  {
+    name: '艳红',
+    key: 'crimson',
+    timeColor: '#ff6b6b',
+    dateColor: '#fa5252',
+    shadowColor: 'rgba(80, 0, 0, 0.9)',
+    glowColor: 'rgba(200, 40, 40, 0.4)',
+    cardBg: 'rgba(60, 0, 0, 0.5)',
+    cardBorder: 'rgba(255, 100, 100, 0.3)',
+    workDot: '#ffd43b',
+    restDot: '#69db7c',
+  },
+  {
+    name: '紫罗兰',
+    key: 'violet',
+    timeColor: '#b197fc',
+    dateColor: '#9775fa',
+    shadowColor: 'rgba(40, 0, 80, 0.9)',
+    glowColor: 'rgba(130, 60, 200, 0.4)',
+    cardBg: 'rgba(30, 0, 60, 0.5)',
+    cardBorder: 'rgba(180, 140, 255, 0.3)',
+    workDot: '#ff8787',
+    restDot: '#8ce99a',
+  },
+  {
+    name: '日落',
+    key: 'sunset',
+    timeColor: '#ff8c42',
+    dateColor: '#ff6b6b',
+    shadowColor: 'rgba(80, 20, 0, 0.9)',
+    glowColor: 'rgba(255, 120, 60, 0.4)',
+    cardBg: 'rgba(60, 20, 0, 0.5)',
+    cardBorder: 'rgba(255, 150, 80, 0.3)',
+    workDot: '#ffd43b',
+    restDot: '#69db7c',
+  },
+];
+
+/**
+ * 当前皮肤主题
+ */
+const currentSkinKey = ref('white');
+const currentSkin = computed(() => skinThemes.find(s => s.key === currentSkinKey.value) || skinThemes[0]);
+
+/**
+ * 皮肤标签（显示在时钟上的小提示）
+ */
+const skinLabel = computed(() => currentSkin.value.name);
+
+/**
+ * 主题样式计算属性，将主题配置转换为 CSS 变量
+ */
+const themeStyle = computed(() => {
+  const theme = currentSkin.value;
+  return {
+    '--time-color': theme.timeColor,
+    '--date-color': theme.dateColor,
+    '--shadow-color': theme.shadowColor,
+    '--glow-color': theme.glowColor,
+    '--card-bg': theme.cardBg,
+    '--card-border': theme.cardBorder,
+    '--work-dot': theme.workDot,
+    '--rest-dot': theme.restDot,
+  };
+});
+
+/**
+ * 初始化皮肤配置
+ */
+function getInitSkin() {
+  const stored = localStorage.getItem('clockSkin');
+  if (stored && skinThemes.some(s => s.key === stored)) {
+    currentSkinKey.value = stored;
   }
 }
+getInitSkin();
 
+/**
+ * 切换皮肤主题
+ */
 function switchSkin() {
-  const currentIndex = skins.indexOf(currentSkin.value);
-  currentSkin.value = skins[(currentIndex + 1) % skins.length];
-  localStorage.setItem('skin', currentSkin.value);
+  const currentIndex = skinThemes.findIndex(s => s.key === currentSkinKey.value);
+  const nextIndex = (currentIndex + 1) % skinThemes.length;
+  currentSkinKey.value = skinThemes[nextIndex].key;
+  localStorage.setItem('clockSkin', currentSkinKey.value);
+  ElMessage.info(`已切换至「${skinThemes[nextIndex].name}」主题`);
 }
 </script>
 
@@ -379,13 +517,29 @@ function switchSkin() {
   height: fit-content;
   padding-top: 9em;
   text-align: center;
-  color: var(--skin-text-primary, #4338ca);
+  color: var(--date-color);
   cursor: pointer;
   transition: all 0.3s ease;
+  position: relative;
+  z-index: 2;
 
   &:hover {
     transform: scale(1.02);
   }
+}
+
+.clock-container::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 120%;
+  height: 80%;
+  background: radial-gradient(ellipse at center, var(--glow-color) 0%, transparent 70%);
+  filter: blur(30px);
+  z-index: -1;
+  pointer-events: none;
 }
 
 .time-display {
@@ -394,16 +548,27 @@ function switchSkin() {
   letter-spacing: -6px;
   line-height: 1;
   font-feature-settings: 'tnum';
-  text-shadow: 0 0 60px rgba(67, 56, 202, 0.15);
+  color: var(--time-color);
+  text-shadow:
+    0 0 2px var(--shadow-color),
+    0 0 4px var(--shadow-color),
+    0 2px 8px var(--shadow-color),
+    0 4px 16px var(--shadow-color),
+    0 8px 32px var(--shadow-color);
 }
 
 .date-display {
   font-size: 24px;
-  font-weight: 400;
+  font-weight: 500;
   margin-top: 20px;
-  color: var(--skin-text-secondary, #6366f1);
-  opacity: 0.6;
+  color: var(--date-color);
+  opacity: 0.95;
   letter-spacing: 2px;
+  text-shadow:
+    0 0 2px var(--shadow-color),
+    0 0 4px var(--shadow-color),
+    0 2px 8px var(--shadow-color),
+    0 4px 12px var(--shadow-color);
 }
 
 .status-display {
@@ -414,11 +579,14 @@ function switchSkin() {
   margin-top: 40px;
   padding: 12px 24px;
   border-radius: 50px;
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(10px);
+  background: var(--card-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--card-border);
   width: fit-content;
   margin-left: auto;
   margin-right: auto;
+  box-shadow: 0 4px 16px var(--shadow-color);
 
   .status-dot {
     width: 10px;
@@ -428,31 +596,67 @@ function switchSkin() {
 
   .status-text {
     font-size: 16px;
-    font-weight: 400;
+    font-weight: 500;
+    color: var(--date-color);
+    text-shadow: 0 1px 4px var(--shadow-color);
   }
 
   &.work {
     .status-dot {
-      background: #ff6b6b;
-      box-shadow: 0 0 12px #ff6b6b;
+      background: var(--work-dot);
+      box-shadow: 0 0 12px var(--work-dot);
       animation: pulse 2s infinite;
     }
 
     .status-text {
-      color: #ff6b6b;
+      color: var(--work-dot);
     }
   }
 
   &.rest {
     .status-dot {
-      background: #51cf66;
-      box-shadow: 0 0 12px #51cf66;
+      background: var(--rest-dot);
+      box-shadow: 0 0 12px var(--rest-dot);
     }
 
     .status-text {
-      color: #51cf66;
+      color: var(--rest-dot);
     }
   }
+}
+
+.skin-indicator {
+  position: absolute;
+  top: 10px;
+  right: -60px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  opacity: 0;
+  font-size: 12px;
+
+  .skin-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+
+  .skin-name {
+    color: var(--date-color);
+    text-shadow: 0 1px 2px var(--shadow-color);
+  }
+}
+
+.clock-container:hover .skin-indicator {
+  opacity: 1;
 }
 
 @keyframes pulse {
