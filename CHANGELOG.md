@@ -2,7 +2,20 @@
 
 变更日志
 
-## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.7.8-rc.1...HEAD) (2026-07-11)
+## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.7.11-rc.1...HEAD) (2026-07-25)
+
+### ✨ Features | 新功能
+
+* 极简时钟主题文字显示优化 ([8d180e6](https://github.com/simply-none/JianLi-App/commit/8d180e66f606ec1d0b80a2cfe0d6951f1d089fad))
+* 新增语音播报功能 ([cb2648d](https://github.com/simply-none/JianLi-App/commit/cb2648d8a9fe63d1be014285c4f9e52bbbf9c7ff))
+* 新增番茄钟小窗口快捷键打开 ([ccac811](https://github.com/simply-none/JianLi-App/commit/ccac81123e040e4c17eaba86fa12b89138947bce))
+
+### 🐛 Bug Fixes | Bug 修复
+
+* 修复切换皮肤会展示其他窗口的问题 ([c624a78](https://github.com/simply-none/JianLi-App/commit/c624a78262deed6402f1294a84d2ea582beb240d))
+* 优化部分内容 ([8d80e45](https://github.com/simply-none/JianLi-App/commit/8d80e4556f45335fe92dd37a37b5cdcb83db1e10))
+
+## [v26.7.11-rc.1](https://github.com/simply-none/JianLi-App/compare/v26.7.8-rc.1...v26.7.11-rc.1) (2026-07-11)
 
 ### ✨ Features | 新功能
 
