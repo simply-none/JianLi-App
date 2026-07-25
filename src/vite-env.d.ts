@@ -11,6 +11,26 @@ interface Window {
   // expose in the `electron/preload/index.ts`
   ipcRenderer: import('electron').IpcRenderer & {
     handlePromise: <T = any>(onName: string, args: ObjectType) => Promise<T>;
+    // 剪贴板 API
+    clipboard: {
+      readText: () => string;
+      writeText: (text: string) => void;
+    };
+    // TTS 语音合成 API
+    tts: {
+      // 通用接口
+      speak: (text: string, options?: any) => Promise<{ success: boolean; error?: string }>;
+      stop: () => Promise<{ success: boolean }>;
+      getVoices: () => Promise<any>;
+      isAvailable: () => Promise<any>;
+      // 系统 TTS
+      system: {
+        speak: (text: string, options?: any) => Promise<{ success: boolean; error?: string }>;
+        stop: () => Promise<{ success: boolean }>;
+        getVoices: () => Promise<string[]>;
+        isAvailable: () => Promise<boolean>;
+      };
+    };
   }
 }
 

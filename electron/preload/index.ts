@@ -14,6 +14,42 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
       clipboard.writeText(text)
     },
   },
+  // TTS 语音合成 API
+  tts: {
+    // ============ 通用接口 ============
+    /** 朗读文本（默认系统 TTS） */
+    speak(text: string, options?: any) {
+      return ipcRenderer.invoke('tts:speak', text, options)
+    },
+    /** 停止朗读 */
+    stop() {
+      return ipcRenderer.invoke('tts:stop')
+    },
+    /** 获取所有语音列表 */
+    getVoices() {
+      return ipcRenderer.invoke('tts:get-voices')
+    },
+    /** 检测所有 TTS 是否可用 */
+    isAvailable() {
+      return ipcRenderer.invoke('tts:is-available')
+    },
+
+    // ============ 系统 TTS ============
+    system: {
+      speak(text: string, options?: any) {
+        return ipcRenderer.invoke('tts:system:speak', text, options)
+      },
+      stop() {
+        return ipcRenderer.invoke('tts:system:stop')
+      },
+      getVoices() {
+        return ipcRenderer.invoke('tts:system:get-voices')
+      },
+      isAvailable() {
+        return ipcRenderer.invoke('tts:system:is-available')
+      },
+    },
+  },
   on(...args: Parameters<typeof ipcRenderer.on>) {
     const [channel, listener] = args
     return ipcRenderer.on(channel, (event, ...args) => listener(event, ...args))
@@ -30,7 +66,7 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     const [channel, ...omit] = args
     return ipcRenderer.send(channel, ...omit)
   },
-  sendSync(...args: Parameters<typeof ipcRenderer.send>) {
+  sendSync(...args: Parameters<typeof ipcRenderer.sendSync>) {
     const [channel, ...omit] = args
     return ipcRenderer.sendSync(channel, ...omit)
   },

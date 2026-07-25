@@ -21,6 +21,7 @@ import { initAutoUpdate } from "./module/autoUpdate.ts";
 import { initWeather } from "./module/weather.ts";
 import { initLocation } from "./module/location.ts";
 import { initBing } from "./module/bing.ts";
+import { initTTS } from "./module/tts.ts";
 
 registerJlocalProtocolBefore()
 
@@ -82,6 +83,8 @@ async function createWindow() {
   initLocation();
   // Bing 图片模块
   initBing();
+  // TTS 语音合成模块
+  initTTS();
 }
 
 app.whenReady().then(async () => {

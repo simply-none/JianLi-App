@@ -143,6 +143,7 @@ export const iconMap: Record<string, string> = {
   about: 'Info',
   browser: 'Globe',
   todoList: 'ListTodo',
+  ttsTest: 'AudioLines',
 };
 
 export { getLightColor, getDarkColor } from './color';

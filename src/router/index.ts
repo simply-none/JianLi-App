@@ -38,6 +38,7 @@ export const RouteNames = {
   QUICK_NOTE: "quickNote",
   TODO_LIST: "todoList",
   TODO_MINI_WINDOW: "todoMiniWindow",
+  TTS_TEST: "ttsTest",
 } as const;
 
 export type RouteNameType = typeof RouteNames[keyof typeof RouteNames];
@@ -227,6 +228,14 @@ export const layoutRouters: RouteRecordRaw[] = [
     component: () => import("@/views/todoList/index.vue"),
     meta: {
       title: "待办事项",
+    },
+  },
+  {
+    path: "/ttsTest",
+    name: RouteNames.TTS_TEST,
+    component: () => import("@/views/ttsTest/index.vue"),
+    meta: {
+      title: "语音合成测试",
     },
   },
 ];
