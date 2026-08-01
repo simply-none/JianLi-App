@@ -144,6 +144,7 @@ export const iconMap: Record<string, string> = {
   browser: 'Globe',
   todoList: 'ListTodo',
   ttsTest: 'AudioLines',
+  ebookReader: 'BookOpenText',
 };
 
 export { getLightColor, getDarkColor } from './color';

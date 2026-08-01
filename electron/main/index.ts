@@ -22,6 +22,7 @@ import { initWeather } from "./module/weather.ts";
 import { initLocation } from "./module/location.ts";
 import { initBing } from "./module/bing.ts";
 import { initTTS } from "./module/tts.ts";
+import { initEbook } from "./module/ebook.ts";
 
 registerJlocalProtocolBefore()
 
@@ -85,6 +86,8 @@ async function createWindow() {
   initBing();
   // TTS 语音合成模块
   initTTS();
+  // 电子书阅读模块
+  await initEbook();
 }
 
 app.whenReady().then(async () => {

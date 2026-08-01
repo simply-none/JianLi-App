@@ -50,6 +50,125 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
       },
     },
   },
+  // 电子书阅读 API
+  ebook: {
+    /**
+     * 读取 txt 文件内容（自动检测并转换编码）
+     *
+     * @param filePath - 必填参数，txt 文件的绝对路径
+     * @returns 成功返回 Promise<{ content: string; encoding: string; size: number }>；
+     *          失败返回 Promise<{ error: string }>（error 为中文错误信息）
+     */
+    readTxt(filePath: string) {
+      return ipcRenderer.invoke('ebook:read-txt', filePath)
+    },
+    /**
+     * 获取指定电子书文件的阅读进度
+     *
+     * @param filePath - 必填参数，电子书文件的绝对路径
+     * @returns 成功返回 Promise<{ success: boolean; data?: EbookProgress; error?: string }>；
+     *          失败返回 Promise 中 success 为 false，并附带 error 错误信息
+     */
+    getProgress(filePath: string) {
+      return ipcRenderer.invoke('ebook:get-progress', filePath)
+    },
+    /**
+     * 保存电子书阅读进度
+     *
+     * @param data - 必填参数，阅读进度数据对象
+     *   - filePath: 文件绝对路径
+     *   - format: 文件格式（如 'epub'、'txt'）
+     *   - cfi: epub.js 的 cfi 定位信息（仅 epub 格式有效）
+     *   - percent: 阅读进度百分比，范围 0-100
+     * @returns 成功返回 Promise<{ success: boolean; error?: string }>；
+     *          失败返回 Promise 中 success 为 false，并附带 error 错误信息
+     */
+    saveProgress(data: { filePath: string; format: string; cfi: string; percent: number }) {
+      return ipcRenderer.invoke('ebook:save-progress', data)
+    },
+    /**
+     * 获取书架列表（按上次阅读时间倒序）
+     *
+     * @returns 成功返回 Promise<{ success: true; data: BookshelfRecord[] }>（无记录时 data 为空数组）；
+     *          失败返回 Promise<{ success: false; error: string }>
+     */
+    getBookshelf() {
+      return ipcRenderer.invoke('ebook:get-bookshelf')
+    },
+    /**
+     * 添加或更新书架记录（upsert，保留首次添加时间）
+     *
+     * @param data - 必填参数，书架记录数据对象
+     *   - filePath: 文件绝对路径
+     *   - name: 文件名（含扩展名）
+     *   - format: 文件格式（'txt' 或 'epub'）
+     *   - percent: 阅读百分比 0-100
+     * @returns 成功返回 Promise<{ success: boolean; error?: string }>；
+     *          失败返回 Promise 中 success 为 false，并附带 error 错误信息
+     */
+    addToBookshelf(data: { filePath: string; name: string; format: string; percent: number }) {
+      return ipcRenderer.invoke('ebook:add-to-bookshelf', data)
+    },
+    /**
+     * 按 file_path 删除书架记录
+     *
+     * @param filePath - 必填参数，电子书文件绝对路径
+     * @returns 成功返回 Promise<{ success: boolean; error?: string }>；
+     *          失败返回 Promise 中 success 为 false，并附带 error 错误信息
+     */
+    removeFromBookshelf(filePath: string) {
+      return ipcRenderer.invoke('ebook:remove-from-bookshelf', filePath)
+    },
+    /**
+     * 获取指定电子书文件的笔记与划线列表（按创建时间升序）
+     *
+     * @param filePath - 必填参数，电子书文件绝对路径
+     * @returns 成功返回 Promise<{ success: true; data: AnnotationRecord[] }>（无记录时 data 为空数组）；
+     *          失败返回 Promise<{ success: false; error: string }>
+     */
+    getAnnotations(filePath: string) {
+      return ipcRenderer.invoke('ebook:get-annotations', filePath)
+    },
+    /**
+     * 新增一条笔记与划线记录
+     *
+     * @param data - 必填参数，笔记数据对象
+     *   - filePath: 文件绝对路径
+     *   - format: 文件格式（'txt' 或 'epub'）
+     *   - anchor: 定位锚点（EPUB 用 cfiRange 字符串；TXT 用 "start-end" 字符偏移字符串）
+     *   - text: 选中的原文摘录
+     *   - note: 笔记内容，可空
+     *   - color: 高亮颜色标识，默认 'yellow'
+     * @returns 成功返回 Promise<{ success: true; id: number }>（id 为新记录自增主键）；
+     *          失败返回 Promise<{ success: false; error: string }>
+     */
+    addAnnotation(data: { filePath: string; format: string; anchor: string; text: string; note?: string | null; color?: string }) {
+      return ipcRenderer.invoke('ebook:add-annotation', data)
+    },
+    /**
+     * 按 id 更新笔记内容与高亮颜色（同时刷新 updated_at）
+     *
+     * @param data - 必填参数，更新数据对象
+     *   - id: 笔记记录主键 id
+     *   - note: 笔记内容，可空
+     *   - color: 高亮颜色标识
+     * @returns 成功返回 Promise<{ success: boolean; error?: string }>；
+     *          失败返回 Promise 中 success 为 false，并附带 error 错误信息
+     */
+    updateAnnotation(data: { id: number; note?: string | null; color?: string }) {
+      return ipcRenderer.invoke('ebook:update-annotation', data)
+    },
+    /**
+     * 按 id 删除笔记与划线记录
+     *
+     * @param id - 必填参数，笔记记录主键 id
+     * @returns 成功返回 Promise<{ success: boolean; error?: string }>；
+     *          失败返回 Promise 中 success 为 false，并附带 error 错误信息
+     */
+    removeAnnotation(id: number) {
+      return ipcRenderer.invoke('ebook:remove-annotation', id)
+    },
+  },
   on(...args: Parameters<typeof ipcRenderer.on>) {
     const [channel, listener] = args
     return ipcRenderer.on(channel, (event, ...args) => listener(event, ...args))

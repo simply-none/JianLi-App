@@ -328,8 +328,8 @@ const skinThemes = [
     key: 'white',
     timeColor: '#ffffff',
     dateColor: '#ffffff',
-    shadowColor: 'rgba(0, 0, 0, 0.9)',
-    glowColor: 'rgba(0, 0, 0, 0.5)',
+    shadowColor: 'rgba(0, 0, 0, 0.5)',
+    glowColor: 'rgba(0, 0, 0, 0.25)',
     cardBg: 'rgba(0, 0, 0, 0.45)',
     cardBorder: 'rgba(255, 255, 255, 0.2)',
     workDot: '#ff6b6b',
@@ -340,8 +340,8 @@ const skinThemes = [
     key: 'ink',
     timeColor: '#1a1a2e',
     dateColor: '#2d2d44',
-    shadowColor: 'rgba(255, 255, 255, 0.9)',
-    glowColor: 'rgba(255, 255, 255, 0.5)',
+    shadowColor: 'rgba(255, 255, 255, 0.5)',
+    glowColor: 'rgba(255, 255, 255, 0.25)',
     cardBg: 'rgba(255, 255, 255, 0.5)',
     cardBorder: 'rgba(0, 0, 0, 0.15)',
     workDot: '#e03131',
@@ -352,8 +352,8 @@ const skinThemes = [
     key: 'amber',
     timeColor: '#ffd43b',
     dateColor: '#ffa94d',
-    shadowColor: 'rgba(0, 0, 0, 0.9)',
-    glowColor: 'rgba(255, 180, 0, 0.4)',
+    shadowColor: 'rgba(0, 0, 0, 0.5)',
+    glowColor: 'rgba(255, 180, 0, 0.2)',
     cardBg: 'rgba(0, 0, 0, 0.45)',
     cardBorder: 'rgba(255, 200, 0, 0.3)',
     workDot: '#ff6b6b',
@@ -364,8 +364,8 @@ const skinThemes = [
     key: 'azure',
     timeColor: '#74c0fc',
     dateColor: '#4dabf7',
-    shadowColor: 'rgba(0, 40, 80, 0.9)',
-    glowColor: 'rgba(30, 100, 200, 0.4)',
+    shadowColor: 'rgba(0, 40, 80, 0.5)',
+    glowColor: 'rgba(30, 100, 200, 0.2)',
     cardBg: 'rgba(0, 30, 60, 0.5)',
     cardBorder: 'rgba(100, 180, 255, 0.3)',
     workDot: '#ff8787',
@@ -376,8 +376,8 @@ const skinThemes = [
     key: 'emerald',
     timeColor: '#69db7c',
     dateColor: '#51cf66',
-    shadowColor: 'rgba(0, 50, 30, 0.9)',
-    glowColor: 'rgba(30, 150, 80, 0.4)',
+    shadowColor: 'rgba(0, 50, 30, 0.5)',
+    glowColor: 'rgba(30, 150, 80, 0.2)',
     cardBg: 'rgba(0, 40, 20, 0.5)',
     cardBorder: 'rgba(100, 220, 130, 0.3)',
     workDot: '#ffa8a8',
@@ -388,8 +388,8 @@ const skinThemes = [
     key: 'crimson',
     timeColor: '#ff6b6b',
     dateColor: '#fa5252',
-    shadowColor: 'rgba(80, 0, 0, 0.9)',
-    glowColor: 'rgba(200, 40, 40, 0.4)',
+    shadowColor: 'rgba(80, 0, 0, 0.5)',
+    glowColor: 'rgba(200, 40, 40, 0.2)',
     cardBg: 'rgba(60, 0, 0, 0.5)',
     cardBorder: 'rgba(255, 100, 100, 0.3)',
     workDot: '#ffd43b',
@@ -400,8 +400,8 @@ const skinThemes = [
     key: 'violet',
     timeColor: '#b197fc',
     dateColor: '#9775fa',
-    shadowColor: 'rgba(40, 0, 80, 0.9)',
-    glowColor: 'rgba(130, 60, 200, 0.4)',
+    shadowColor: 'rgba(40, 0, 80, 0.5)',
+    glowColor: 'rgba(130, 60, 200, 0.2)',
     cardBg: 'rgba(30, 0, 60, 0.5)',
     cardBorder: 'rgba(180, 140, 255, 0.3)',
     workDot: '#ff8787',
@@ -412,8 +412,8 @@ const skinThemes = [
     key: 'sunset',
     timeColor: '#ff8c42',
     dateColor: '#ff6b6b',
-    shadowColor: 'rgba(80, 20, 0, 0.9)',
-    glowColor: 'rgba(255, 120, 60, 0.4)',
+    shadowColor: 'rgba(80, 20, 0, 0.5)',
+    glowColor: 'rgba(255, 120, 60, 0.2)',
     cardBg: 'rgba(60, 20, 0, 0.5)',
     cardBorder: 'rgba(255, 150, 80, 0.3)',
     workDot: '#ffd43b',
@@ -534,10 +534,10 @@ function switchSkin() {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 120%;
-  height: 80%;
-  background: radial-gradient(ellipse at center, var(--glow-color) 0%, transparent 70%);
-  filter: blur(30px);
+  width: 100%;
+  height: 70%;
+  background: radial-gradient(ellipse at center, var(--glow-color) 0%, transparent 60%);
+  filter: blur(20px);
   z-index: -1;
   pointer-events: none;
 }
@@ -550,11 +550,9 @@ function switchSkin() {
   font-feature-settings: 'tnum';
   color: var(--time-color);
   text-shadow:
-    0 0 2px var(--shadow-color),
-    0 0 4px var(--shadow-color),
+    0 1px 3px var(--shadow-color),
     0 2px 8px var(--shadow-color),
-    0 4px 16px var(--shadow-color),
-    0 8px 32px var(--shadow-color);
+    0 4px 16px var(--shadow-color);
 }
 
 .date-display {
@@ -586,7 +584,7 @@ function switchSkin() {
   width: fit-content;
   margin-left: auto;
   margin-right: auto;
-  box-shadow: 0 4px 16px var(--shadow-color);
+  box-shadow: 0 2px 12px var(--shadow-color);
 
   .status-dot {
     width: 10px;

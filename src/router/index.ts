@@ -39,6 +39,7 @@ export const RouteNames = {
   TODO_LIST: "todoList",
   TODO_MINI_WINDOW: "todoMiniWindow",
   TTS_TEST: "ttsTest",
+  EBOOK_READER: "ebookReader",
 } as const;
 
 export type RouteNameType = typeof RouteNames[keyof typeof RouteNames];
@@ -236,6 +237,14 @@ export const layoutRouters: RouteRecordRaw[] = [
     component: () => import("@/views/ttsTest/index.vue"),
     meta: {
       title: "语音合成测试",
+    },
+  },
+  {
+    path: "/ebookReader",
+    name: RouteNames.EBOOK_READER,
+    component: () => import("@/views/ebookReader/index.vue"),
+    meta: {
+      title: "电子书阅读器",
     },
   },
 ];

@@ -1,0 +1,887 @@
+/**
+ * 电子书模块
+ * 提供电子书（epub、txt 等）的解析、阅读、进度保存等功能
+ * 支持的格式：epub（通过 epubjs 解析）、txt（通过 iconv-lite 与 chardet 进行编码检测和转换）
+ *
+ * 本模块复用 newSql.ts 中的主数据库实例（db.sqlite），不新建独立数据库文件。
+ */
+
+import { ipcMain } from 'electron';
+import fs from 'node:fs';
+import log from 'electron-log';
+import chardet from 'chardet';
+import iconv from 'iconv-lite';
+import type { Database } from 'sqlite3';
+import { myDb } from './newSql.ts';
+
+/** 电子书阅读进度表名（复用主数据库 db.sqlite） */
+const EBOOK_PROGRESS_TABLE = 'ebook_progress';
+
+/** 电子书书架表名（存储打开过的电子书记录，便于快速打开） */
+const EBOOK_BOOKSHELF_TABLE = 'ebook_bookshelf';
+
+/** 电子书笔记与划线表名（存储高亮、摘录、笔记记录） */
+const EBOOK_ANNOTATION_TABLE = 'ebook_annotation';
+
+/**
+ * 电子书阅读进度数据结构
+ */
+interface EbookProgress {
+  /** 文件绝对路径 */
+  filePath: string;
+  /** 文件格式，如 'epub'、'txt' */
+  format: string;
+  /** epub.js 的 cfi 定位信息（仅 epub 格式有效） */
+  cfi?: string;
+  /** 阅读进度百分比，范围 0-100 */
+  percent: number;
+}
+
+/**
+ * read-txt 成功返回结构
+ */
+interface ReadTxtSuccess {
+  /** 解码后的 UTF-8 文本内容 */
+  content: string;
+  /** 检测到的文件编码名称（如 'UTF-8'、'GB18030'、'UTF-16LE'） */
+  encoding: string;
+  /** 文件字节数 */
+  size: number;
+}
+
+/**
+ * read-txt 失败返回结构
+ */
+interface ReadTxtError {
+  /** 中文错误信息 */
+  error: string;
+}
+
+/**
+ * save-progress 入参结构
+ */
+interface SaveProgressData {
+  /** 文件绝对路径 */
+  filePath: string;
+  /** 文件格式，'txt' 或 'epub' */
+  format: string;
+  /** EPUB 的 cfi 或 TXT 的字符位置 */
+  cfi: string;
+  /** 阅读百分比 0-100 */
+  percent: number;
+}
+
+/**
+ * 数据库中的阅读进度记录结构
+ */
+interface ProgressRecord {
+  /** 文件绝对路径（主键） */
+  file_path: string;
+  /** 文件格式 */
+  format: string;
+  /** EPUB 的 cfi 或 TXT 的字符位置 */
+  cfi: string;
+  /** 阅读百分比 0-100 */
+  percent: number;
+  /** 更新时间（ISO 字符串） */
+  updated_at: string;
+}
+
+/**
+ * 数据库中的书架记录结构（对应 ebook_bookshelf 表的每一行）
+ */
+interface BookshelfRecord {
+  /** 文件绝对路径（主键） */
+  file_path: string;
+  /** 文件名（含扩展名） */
+  name: string;
+  /** 文件格式：'txt' 或 'epub' */
+  format: string;
+  /** 阅读百分比 0-100 */
+  percent: number;
+  /** 上次阅读时间（ISO 字符串） */
+  last_read_at: string;
+  /** 首次添加时间（ISO 字符串） */
+  added_at: string;
+}
+
+/**
+ * add-to-bookshelf 入参结构
+ */
+interface AddBookshelfData {
+  /** 文件绝对路径 */
+  filePath: string;
+  /** 文件名（含扩展名） */
+  name: string;
+  /** 文件格式：'txt' 或 'epub' */
+  format: string;
+  /** 阅读百分比 0-100 */
+  percent: number;
+}
+
+/**
+ * 数据库中的笔记与划线记录结构（对应 ebook_annotation 表的每一行）
+ */
+interface AnnotationRecord {
+  /** 自增主键 */
+  id: number;
+  /** 文件绝对路径 */
+  file_path: string;
+  /** 文件格式：'txt' 或 'epub' */
+  format: string;
+  /** 定位锚点（EPUB 用 cfiRange 字符串；TXT 用 "start-end" 字符偏移字符串如 "1520-1545"） */
+  anchor: string;
+  /** 选中的原文摘录 */
+  text: string;
+  /** 笔记内容，可空 */
+  note: string | null;
+  /** 高亮颜色标识，默认 'yellow' */
+  color: string;
+  /** 划线类型：'highlight'（高亮）、'underline'（下划线）等，默认 'highlight' */
+  type: string;
+  /** 创建时间（ISO 字符串） */
+  created_at: string;
+  /** 更新时间（ISO 字符串） */
+  updated_at: string;
+}
+
+/**
+ * add-annotation 入参结构
+ */
+interface AddAnnotationData {
+  /** 文件绝对路径 */
+  filePath: string;
+  /** 文件格式：'txt' 或 'epub' */
+  format: string;
+  /** 定位锚点（EPUB 用 cfiRange 字符串；TXT 用 "start-end" 字符偏移字符串） */
+  anchor: string;
+  /** 选中的原文摘录 */
+  text: string;
+  /** 笔记内容，可空 */
+  note?: string | null;
+  /** 高亮颜色标识，默认 'yellow' */
+  color?: string;
+  /** 划线类型：'highlight'（高亮）、'underline'（下划线）等，默认 'highlight' */
+  type?: string;
+}
+
+/**
+ * update-annotation 入参结构
+ */
+interface UpdateAnnotationData {
+  /** 笔记记录主键 id */
+  id: number;
+  /** 笔记内容，可空 */
+  note?: string | null;
+  /** 高亮颜色标识 */
+  color?: string;
+  /** 划线类型：'highlight'（高亮）、'underline'（下划线）等 */
+  type?: string;
+}
+
+/**
+ * 规范化编码名称并确保 iconv-lite 支持
+ *
+ * 将 chardet 返回的编码名映射到 iconv-lite 支持的编码名：
+ * - chardet 可能返回 'GB2312'/'GBK'，iconv-lite 均支持，但统一归一到 'GB18030' 以兼容更广字符集
+ * - 若 iconv-lite 不支持该编码则降级为 'UTF-8'
+ *
+ * @param detected - chardet 检测到的编码名，如 'UTF-8'、'GB18030'、'UTF-16LE'；可能为 null
+ * @returns iconv-lite 一定支持的编码名；无法识别时返回 'UTF-8'
+ */
+function resolveEncoding(detected: string | null | undefined): string {
+  // chardet 检测失败时默认 UTF-8
+  if (!detected) {
+    return 'UTF-8';
+  }
+  const upper = detected.toUpperCase();
+  // 中文编码兜底：GB2312/GBK 统一用 GB18030 解码（向下兼容且覆盖更全）
+  const candidates: string[] = [upper, detected];
+  if (upper === 'GB2312' || upper === 'GBK') {
+    candidates.push('GB18030');
+  }
+  for (const candidate of candidates) {
+    if (iconv.encodingExists(candidate)) {
+      return candidate;
+    }
+  }
+  log.warn(`Unsupported encoding detected: ${detected}, fallback to UTF-8`);
+  return 'UTF-8';
+}
+
+/**
+ * 去除字符串首部的 BOM 字符（U+FEFF）
+ *
+ * UTF-8 带 BOM 文件解码后字符串首个字符为 U+FEFF，需手动去除。
+ *
+ * @param text - 已解码的字符串
+ * @returns 去除 BOM 后的字符串；无 BOM 时原样返回
+ */
+function stripBom(text: string): string {
+  if (text.charCodeAt(0) === 0xfeff) {
+    return text.slice(1);
+  }
+  return text;
+}
+
+/**
+ * 包装 sqlite3 的 db.run 为 Promise
+ *
+ * @param db - sqlite3 数据库实例
+ * @param sql - SQL 语句
+ * @param params - 绑定参数数组，默认为空数组
+ * @returns 成功 resolve { lastID, changes }；失败 reject Error
+ */
+function dbRunAsync(
+  db: Database,
+  sql: string,
+  params: any[] = []
+): Promise<{ lastID: number; changes: number }> {
+  return new Promise((resolve, reject) => {
+    db.run(sql, params, function (err) {
+      if (err) {
+        reject(err);
+      } else {
+        resolve({ lastID: this.lastID, changes: this.changes });
+      }
+    });
+  });
+}
+
+/**
+ * 包装 sqlite3 的 db.get 为 Promise
+ *
+ * @param db - sqlite3 数据库实例
+ * @param sql - SQL 语句
+ * @param params - 绑定参数数组，默认为空数组
+ * @returns 成功 resolve 单行记录（可能为 undefined）；失败 reject Error
+ */
+function dbGetAsync<T = any>(
+  db: Database,
+  sql: string,
+  params: any[] = []
+): Promise<T | undefined> {
+  return new Promise((resolve, reject) => {
+    db.get(sql, params, (err, row) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(row as T);
+      }
+    });
+  });
+}
+
+/**
+ * 包装 sqlite3 的 db.all 为 Promise
+ *
+ * @param db - sqlite3 数据库实例
+ * @param sql - SQL 语句
+ * @param params - 绑定参数数组，默认为空数组
+ * @returns 成功 resolve 行记录数组（无记录时为空数组）；失败 reject Error
+ */
+function dbAllAsync<T = any>(
+  db: Database,
+  sql: string,
+  params: any[] = []
+): Promise<T[]> {
+  return new Promise((resolve, reject) => {
+    db.all(sql, params, (err, rows) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve((rows as T[]) ?? []);
+      }
+    });
+  });
+}
+
+/**
+ * 创建电子书阅读进度表（IF NOT EXISTS）
+ *
+ * 表结构：
+ * - file_path TEXT PRIMARY KEY  文件绝对路径（主键）
+ * - format    TEXT              文件格式（'txt' 或 'epub'）
+ * - cfi       TEXT              EPUB 的 cfi 或 TXT 的字符位置
+ * - percent   REAL              阅读百分比 0-100
+ * - updated_at TEXT             更新时间（ISO 字符串）
+ *
+ * @returns 成功 resolve void；失败 reject Error（如数据库未初始化）
+ */
+async function createProgressTable(): Promise<void> {
+  const db = myDb.db;
+  if (!db) {
+    throw new Error('数据库未初始化');
+  }
+  const sql = `CREATE TABLE IF NOT EXISTS ${EBOOK_PROGRESS_TABLE} (
+    file_path TEXT PRIMARY KEY,
+    format TEXT,
+    cfi TEXT,
+    percent REAL,
+    updated_at TEXT
+  )`;
+  await dbRunAsync(db, sql);
+}
+
+/**
+ * 创建电子书书架表（IF NOT EXISTS）
+ *
+ * 表结构：
+ * - file_path   TEXT PRIMARY KEY  文件绝对路径（主键）
+ * - name        TEXT              文件名（含扩展名）
+ * - format      TEXT              文件格式（'txt' 或 'epub'）
+ * - percent     REAL              阅读百分比 0-100
+ * - last_read_at TEXT             上次阅读时间（ISO 字符串）
+ * - added_at    TEXT              首次添加时间（ISO 字符串）
+ *
+ * @returns 成功 resolve void；失败 reject Error（如数据库未初始化）
+ */
+async function createBookshelfTable(): Promise<void> {
+  const db = myDb.db;
+  if (!db) {
+    throw new Error('数据库未初始化');
+  }
+  const sql = `CREATE TABLE IF NOT EXISTS ${EBOOK_BOOKSHELF_TABLE} (
+    file_path TEXT PRIMARY KEY,
+    name TEXT,
+    format TEXT,
+    percent REAL,
+    last_read_at TEXT,
+    added_at TEXT
+  )`;
+  await dbRunAsync(db, sql);
+}
+
+/**
+ * 创建电子书笔记与划线表（IF NOT EXISTS）
+ *
+ * 表结构：
+ * - id         INTEGER PRIMARY KEY AUTOINCREMENT  自增主键
+ * - file_path  TEXT                               文件绝对路径
+ * - format     TEXT                               文件格式（'txt' 或 'epub'）
+ * - anchor     TEXT                               定位锚点（EPUB 用 cfiRange；TXT 用 "start-end" 字符偏移）
+ * - text       TEXT                               选中的原文摘录
+ * - note       TEXT                               笔记内容，可空
+ * - color      TEXT                               高亮颜色标识，默认 'yellow'
+ * - created_at TEXT                               创建时间（ISO 字符串）
+ * - updated_at TEXT                               更新时间（ISO 字符串）
+ *
+ * @returns 成功 resolve void；失败 reject Error（如数据库未初始化）
+ */
+async function createAnnotationTable(): Promise<void> {
+  const db = myDb.db;
+  if (!db) {
+    throw new Error('数据库未初始化');
+  }
+  const sql = `CREATE TABLE IF NOT EXISTS ${EBOOK_ANNOTATION_TABLE} (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_path TEXT,
+    format TEXT,
+    anchor TEXT,
+    text TEXT,
+    note TEXT,
+    color TEXT DEFAULT 'yellow',
+    type TEXT DEFAULT 'highlight',
+    created_at TEXT,
+    updated_at TEXT
+  )`;
+  await dbRunAsync(db, sql);
+}
+
+/**
+ * 电子书模块初始化
+ * 注册所有 ebook 相关 IPC 监听：
+ * - ebook:read-txt           读取 txt 文件内容（自动检测编码并转为 UTF-8）
+ * - ebook:get-progress       获取指定文件的阅读进度
+ * - ebook:save-progress      保存阅读进度（upsert）
+ * - ebook:get-bookshelf      获取书架列表（按上次阅读时间倒序）
+ * - ebook:add-to-bookshelf   添加或更新书架记录（upsert，保留首次添加时间）
+ * - ebook:remove-from-bookshelf 按 file_path 删除书架记录
+ * - ebook:get-annotations    获取指定文件的笔记与划线列表（按创建时间升序）
+ * - ebook:add-annotation     新增笔记与划线记录（返回自增 id）
+ * - ebook:update-annotation  更新笔记内容与高亮颜色（按 id）
+ * - ebook:remove-annotation  删除指定 id 的笔记与划线记录
+ *
+ * 建表失败不会中断 handler 注册，handler 内部对数据库异常做容错处理。
+ *
+ * @returns 无返回值（Promise）
+ * @throws 不会抛出异常，所有异常由 ipcMain.handle 内部捕获并通过返回值传递
+ */
+export async function initEbook(): Promise<void> {
+  log.info('Initializing ebook module...');
+
+  // 1. 创建阅读进度表（复用主数据库 db.sqlite，不新建独立数据库文件）
+  try {
+    await createProgressTable();
+  } catch (err) {
+    log.error('Failed to create ebook_progress table:', err);
+  }
+
+  // 2. 创建书架表（与阅读进度表并列，独立 try/catch，互不影响）
+  try {
+    await createBookshelfTable();
+  } catch (err) {
+    log.error('Failed to create ebook_bookshelf table:', err);
+  }
+
+  // 3. 创建笔记与划线表（与上述表并列，独立 try/catch，互不影响）
+  try {
+    await createAnnotationTable();
+  } catch (err) {
+    log.error('Failed to create ebook_annotation table:', err);
+  }
+
+  // ============ ebook:read-txt 读取 txt 文件 ============
+  /**
+   * 读取 txt 文件并自动检测编码转换为 UTF-8
+   *
+   * @param _event - IPC 事件对象（未使用）
+   * @param filePath - 必填参数，txt 文件的绝对路径
+   * @returns 成功返回 ReadTxtSuccess（含 content/encoding/size）；
+   *          失败返回 ReadTxtError（含 error 中文错误信息）
+   */
+  ipcMain.handle(
+    'ebook:read-txt',
+    async (_event, filePath: string): Promise<ReadTxtSuccess | ReadTxtError> => {
+      try {
+        if (!filePath || typeof filePath !== 'string') {
+          return { error: '文件路径不能为空' };
+        }
+        // 以 Buffer 形式读取原始字节，便于编码检测
+        const buffer: Buffer = fs.readFileSync(filePath);
+        const size = buffer.length;
+        // chardet 检测编码
+        const detected = chardet.detect(buffer);
+        const encoding = resolveEncoding(detected);
+        // iconv-lite 按检测到的编码解码为 UTF-8 字符串
+        let content: string;
+        // 用 encodingExists 做类型收窄，确保 encoding 为 iconv 支持的编码
+        if (iconv.encodingExists(encoding)) {
+          content = iconv.decode(buffer, encoding);
+        } else {
+          content = iconv.decode(buffer, 'UTF-8');
+        }
+        // 去除可能存在的 BOM 字符（U+FEFF）
+        content = stripBom(content);
+        log.info(
+          `Read txt file: ${filePath}, size=${size}, encoding=${encoding}`
+        );
+        return { content, encoding, size };
+      } catch (err: any) {
+        log.error('Failed to read txt file:', err);
+        return {
+          error: `读取 txt 文件失败：${err?.message || String(err)}`
+        };
+      }
+    }
+  );
+
+  // ============ ebook:get-progress 获取阅读进度 ============
+  /**
+   * 按 file_path 查询阅读进度
+   *
+   * @param _event - IPC 事件对象（未使用）
+   * @param filePath - 必填参数，电子书文件绝对路径
+   * @returns 成功返回 { success: true, data: ProgressRecord | null }（无记录时 data 为 null）；
+   *          失败返回 { success: false, error: string }
+   */
+  ipcMain.handle(
+    'ebook:get-progress',
+    async (
+      _event,
+      filePath: string
+    ): Promise<{
+      success: boolean;
+      data?: ProgressRecord | null;
+      error?: string;
+    }> => {
+      try {
+        const db = myDb.db;
+        if (!db) {
+          return { success: false, error: '数据库未初始化' };
+        }
+        if (!filePath || typeof filePath !== 'string') {
+          return { success: false, error: '文件路径不能为空' };
+        }
+        const row = await dbGetAsync<ProgressRecord>(
+          db,
+          `SELECT file_path, format, cfi, percent, updated_at FROM ${EBOOK_PROGRESS_TABLE} WHERE file_path = ?`,
+          [filePath]
+        );
+        return { success: true, data: row ?? null };
+      } catch (err: any) {
+        log.error('Failed to get ebook progress:', err);
+        return {
+          success: false,
+          error: `获取阅读进度失败：${err?.message || String(err)}`
+        };
+      }
+    }
+  );
+
+  // ============ ebook:save-progress 保存阅读进度 ============
+  /**
+   * 保存阅读进度（upsert：使用 INSERT OR REPLACE，存在则替换，不存在则插入）
+   *
+   * @param _event - IPC 事件对象（未使用）
+   * @param data - 必填参数，阅读进度数据 { filePath, format, cfi, percent }
+   * @returns 成功返回 { success: true }；失败返回 { success: false, error: string }
+   */
+  ipcMain.handle(
+    'ebook:save-progress',
+    async (
+      _event,
+      data: SaveProgressData
+    ): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const db = myDb.db;
+        if (!db) {
+          return { success: false, error: '数据库未初始化' };
+        }
+        if (!data || !data.filePath) {
+          return { success: false, error: '文件路径不能为空' };
+        }
+        const updatedAt = new Date().toISOString();
+        await dbRunAsync(
+          db,
+          `INSERT OR REPLACE INTO ${EBOOK_PROGRESS_TABLE} (file_path, format, cfi, percent, updated_at) VALUES (?, ?, ?, ?, ?)`,
+          [
+            data.filePath,
+            data.format ?? '',
+            data.cfi ?? '',
+            Number(data.percent) || 0,
+            updatedAt
+          ]
+        );
+        return { success: true };
+      } catch (err: any) {
+        log.error('Failed to save ebook progress:', err);
+        return {
+          success: false,
+          error: `保存阅读进度失败：${err?.message || String(err)}`
+        };
+      }
+    }
+  );
+
+  // ============ ebook:get-bookshelf 获取书架列表 ============
+  /**
+   * 查询全部书架记录，按 last_read_at 倒序返回
+   *
+   * @param _event - IPC 事件对象（未使用）
+   * @returns 成功返回 { success: true, data: BookshelfRecord[] }（无记录时 data 为空数组）；
+   *          失败返回 { success: false, error: string }
+   */
+  ipcMain.handle(
+    'ebook:get-bookshelf',
+    async (): Promise<{
+      success: boolean;
+      data?: BookshelfRecord[];
+      error?: string;
+    }> => {
+      try {
+        const db = myDb.db;
+        if (!db) {
+          return { success: false, error: '数据库未初始化' };
+        }
+        const rows = await dbAllAsync<BookshelfRecord>(
+          db,
+          `SELECT file_path, name, format, percent, last_read_at, added_at FROM ${EBOOK_BOOKSHELF_TABLE} ORDER BY last_read_at DESC`
+        );
+        return { success: true, data: rows };
+      } catch (err: any) {
+        log.error('Failed to get ebook bookshelf:', err);
+        return {
+          success: false,
+          error: `获取书架列表失败：${err?.message || String(err)}`
+        };
+      }
+    }
+  );
+
+  // ============ ebook:add-to-bookshelf 添加/更新书架记录 ============
+  /**
+   * 添加或更新书架记录（upsert）
+   *
+   * 实现策略：先查原记录的 added_at，存在则保留原值，不存在则用当前时间；
+   * 然后用 INSERT OR REPLACE 写入（保证 last_read_at 总是更新为当前时间）。
+   *
+   * @param _event - IPC 事件对象（未使用）
+   * @param data - 必填参数，书架记录数据 { filePath, name, format, percent }
+   * @returns 成功返回 { success: true }；失败返回 { success: false, error: string }
+   */
+  ipcMain.handle(
+    'ebook:add-to-bookshelf',
+    async (
+      _event,
+      data: AddBookshelfData
+    ): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const db = myDb.db;
+        if (!db) {
+          return { success: false, error: '数据库未初始化' };
+        }
+        if (!data || !data.filePath) {
+          return { success: false, error: '文件路径不能为空' };
+        }
+        const now = new Date().toISOString();
+        // 查询原记录以保留首次添加时间 added_at
+        const existing = await dbGetAsync<{ added_at: string }>(
+          db,
+          `SELECT added_at FROM ${EBOOK_BOOKSHELF_TABLE} WHERE file_path = ?`,
+          [data.filePath]
+        );
+        const addedAt = existing?.added_at ?? now;
+        // upsert：主键冲突时整体替换，added_at 保留原值
+        await dbRunAsync(
+          db,
+          `INSERT OR REPLACE INTO ${EBOOK_BOOKSHELF_TABLE} (file_path, name, format, percent, last_read_at, added_at) VALUES (?, ?, ?, ?, ?, ?)`,
+          [
+            data.filePath,
+            data.name ?? '',
+            data.format ?? '',
+            Number(data.percent) || 0,
+            now,
+            addedAt
+          ]
+        );
+        return { success: true };
+      } catch (err: any) {
+        log.error('Failed to add to ebook bookshelf:', err);
+        return {
+          success: false,
+          error: `添加书架记录失败：${err?.message || String(err)}`
+        };
+      }
+    }
+  );
+
+  // ============ ebook:remove-from-bookshelf 删除书架记录 ============
+  /**
+   * 按 file_path 删除书架记录
+   *
+   * @param _event - IPC 事件对象（未使用）
+   * @param filePath - 必填参数，电子书文件绝对路径
+   * @returns 成功返回 { success: true }；失败返回 { success: false, error: string }
+   */
+  ipcMain.handle(
+    'ebook:remove-from-bookshelf',
+    async (
+      _event,
+      filePath: string
+    ): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const db = myDb.db;
+        if (!db) {
+          return { success: false, error: '数据库未初始化' };
+        }
+        if (!filePath || typeof filePath !== 'string') {
+          return { success: false, error: '文件路径不能为空' };
+        }
+        await dbRunAsync(
+          db,
+          `DELETE FROM ${EBOOK_BOOKSHELF_TABLE} WHERE file_path = ?`,
+          [filePath]
+        );
+        return { success: true };
+      } catch (err: any) {
+        log.error('Failed to remove from ebook bookshelf:', err);
+        return {
+          success: false,
+          error: `删除书架记录失败：${err?.message || String(err)}`
+        };
+      }
+    }
+  );
+
+  // ============ ebook:get-annotations 获取笔记与划线列表 ============
+  /**
+   * 按 file_path 查询笔记与划线记录，按 created_at 升序返回
+   *
+   * @param _event - IPC 事件对象（未使用）
+   * @param filePath - 必填参数，电子书文件绝对路径
+   * @returns 成功返回 { success: true, data: AnnotationRecord[] }（无记录时 data 为空数组）；
+   *          失败返回 { success: false, error: string }
+   */
+  ipcMain.handle(
+    'ebook:get-annotations',
+    async (
+      _event,
+      filePath: string
+    ): Promise<{
+      success: boolean;
+      data?: AnnotationRecord[];
+      error?: string;
+    }> => {
+      try {
+        const db = myDb.db;
+        if (!db) {
+          return { success: false, error: '数据库未初始化' };
+        }
+        if (!filePath || typeof filePath !== 'string') {
+          return { success: false, error: '文件路径不能为空' };
+        }
+        const rows = await dbAllAsync<AnnotationRecord>(
+          db,
+          `SELECT id, file_path, format, anchor, text, note, color, type, created_at, updated_at FROM ${EBOOK_ANNOTATION_TABLE} WHERE file_path = ? ORDER BY created_at ASC`,
+          [filePath]
+        );
+        return { success: true, data: rows };
+      } catch (err: any) {
+        log.error('Failed to get ebook annotations:', err);
+        return {
+          success: false,
+          error: `获取笔记列表失败：${err?.message || String(err)}`
+        };
+      }
+    }
+  );
+
+  // ============ ebook:add-annotation 新增笔记与划线 ============
+  /**
+   * 新增一条笔记与划线记录
+   *
+   * @param _event - IPC 事件对象（未使用）
+   * @param data - 必填参数，笔记数据 { filePath, format, anchor, text, note, color, type }
+   * @returns 成功返回 { success: true, id: number }（id 为新记录自增主键）；
+   *          失败返回 { success: false, error: string }
+   */
+  ipcMain.handle(
+    'ebook:add-annotation',
+    async (
+      _event,
+      data: AddAnnotationData
+    ): Promise<{ success: boolean; id?: number; error?: string }> => {
+      try {
+        const db = myDb.db;
+        if (!db) {
+          return { success: false, error: '数据库未初始化' };
+        }
+        if (!data || !data.filePath) {
+          return { success: false, error: '文件路径不能为空' };
+        }
+        const now = new Date().toISOString();
+        const result = await dbRunAsync(
+          db,
+          `INSERT INTO ${EBOOK_ANNOTATION_TABLE} (file_path, format, anchor, text, note, color, type, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            data.filePath,
+            data.format ?? '',
+            data.anchor ?? '',
+            data.text ?? '',
+            data.note ?? null,
+            data.color ?? 'yellow',
+            data.type ?? 'highlight',
+            now,
+            now
+          ]
+        );
+        return { success: true, id: result.lastID };
+      } catch (err: any) {
+        log.error('Failed to add ebook annotation:', err);
+        return {
+          success: false,
+          error: `添加笔记失败：${err?.message || String(err)}`
+        };
+      }
+    }
+  );
+
+  // ============ ebook:update-annotation 更新笔记与划线 ============
+  /**
+   * 按 id 更新笔记内容、高亮颜色与类型，同时刷新 updated_at
+   *
+   * @param _event - IPC 事件对象（未使用）
+   * @param data - 必填参数，更新数据 { id, note, color, type }
+   * @returns 成功返回 { success: true }；失败返回 { success: false, error: string }
+   */
+  ipcMain.handle(
+    'ebook:update-annotation',
+    async (
+      _event,
+      data: UpdateAnnotationData
+    ): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const db = myDb.db;
+        if (!db) {
+          return { success: false, error: '数据库未初始化' };
+        }
+        if (!data || typeof data.id !== 'number') {
+          return { success: false, error: '笔记 id 不能为空' };
+        }
+        const updatedAt = new Date().toISOString();
+        await dbRunAsync(
+          db,
+          `UPDATE ${EBOOK_ANNOTATION_TABLE} SET note=?, color=?, type=?, updated_at=? WHERE id=?`,
+          [
+            data.note ?? null,
+            data.color ?? 'yellow',
+            data.type ?? 'highlight',
+            updatedAt,
+            data.id
+          ]
+        );
+        return { success: true };
+      } catch (err: any) {
+        log.error('Failed to update ebook annotation:', err);
+        return {
+          success: false,
+          error: `更新笔记失败：${err?.message || String(err)}`
+        };
+      }
+    }
+  );
+
+  // ============ ebook:remove-annotation 删除笔记与划线 ============
+  /**
+   * 按 id 删除笔记与划线记录
+   *
+   * @param _event - IPC 事件对象（未使用）
+   * @param id - 必填参数，笔记记录主键 id
+   * @returns 成功返回 { success: true }；失败返回 { success: false, error: string }
+   */
+  ipcMain.handle(
+    'ebook:remove-annotation',
+    async (
+      _event,
+      id: number
+    ): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const db = myDb.db;
+        if (!db) {
+          return { success: false, error: '数据库未初始化' };
+        }
+        if (typeof id !== 'number') {
+          return { success: false, error: '笔记 id 不能为空' };
+        }
+        await dbRunAsync(
+          db,
+          `DELETE FROM ${EBOOK_ANNOTATION_TABLE} WHERE id=?`,
+          [id]
+        );
+        return { success: true };
+      } catch (err: any) {
+        log.error('Failed to remove ebook annotation:', err);
+        return {
+          success: false,
+          error: `删除笔记失败：${err?.message || String(err)}`
+        };
+      }
+    }
+  );
+
+  log.info('Ebook module initialized successfully');
+}
+
+export type {
+  EbookProgress,
+  ReadTxtSuccess,
+  ReadTxtError,
+  SaveProgressData,
+  ProgressRecord,
+  BookshelfRecord,
+  AddBookshelfData,
+  AnnotationRecord,
+  AddAnnotationData,
+  UpdateAnnotationData
+};

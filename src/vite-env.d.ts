@@ -31,10 +31,77 @@ interface Window {
         isAvailable: () => Promise<boolean>;
       };
     };
+    // 电子书阅读 API
+    ebook: {
+      // 读取 txt 文件内容（自动检测编码）
+      readTxt: (filePath: string) => Promise<any>;
+      // 获取电子书阅读进度
+      getProgress: (filePath: string) => Promise<any>;
+      // 保存电子书阅读进度
+      saveProgress: (data: { filePath: string; format: string; cfi: string; percent: number }) => Promise<any>;
+      // 获取书架列表（按上次阅读时间倒序）
+      getBookshelf: () => Promise<{ success: boolean; data?: BookshelfRecord[]; error?: string }>;
+      // 添加或更新书架记录（upsert，保留首次添加时间）
+      addToBookshelf: (data: { filePath: string; name: string; format: string; percent: number }) => Promise<{ success: boolean; error?: string }>;
+      // 按 file_path 删除书架记录
+      removeFromBookshelf: (filePath: string) => Promise<{ success: boolean; error?: string }>;
+      // 获取指定文件的笔记与划线列表（按创建时间升序）
+      getAnnotations: (filePath: string) => Promise<{ success: boolean; data?: AnnotationRecord[]; error?: string }>;
+      // 新增一条笔记与划线记录（返回新记录自增 id）
+      addAnnotation: (data: { filePath: string; format: string; anchor: string; text: string; note?: string | null; color?: string; type?: string }) => Promise<{ success: boolean; id?: number; error?: string }>;
+      // 按 id 更新笔记内容、高亮颜色与类型
+      updateAnnotation: (data: { id: number; note?: string | null; color?: string; type?: string }) => Promise<{ success: boolean; error?: string }>;
+      // 按 id 删除笔记与划线记录
+      removeAnnotation: (id: number) => Promise<{ success: boolean; error?: string }>;
+    };
   }
 }
 
 type ShowContentType = { error: boolean }
+
+/**
+ * 书架记录结构（对应主进程 ebook_bookshelf 表的行字段，snake_case 与数据库一致）
+ */
+type BookshelfRecord = {
+  /** 文件绝对路径（主键） */
+  file_path: string;
+  /** 文件名（含扩展名） */
+  name: string;
+  /** 文件格式：'txt' 或 'epub' */
+  format: string;
+  /** 阅读百分比 0-100 */
+  percent: number;
+  /** 上次阅读时间（ISO 字符串） */
+  last_read_at: string;
+  /** 首次添加时间（ISO 字符串） */
+  added_at: string;
+};
+
+/**
+ * 笔记与划线记录结构（对应主进程 ebook_annotation 表的行字段，snake_case 与数据库一致）
+ */
+type AnnotationRecord = {
+  /** 自增主键 */
+  id: number;
+  /** 文件绝对路径 */
+  file_path: string;
+  /** 文件格式：'txt' 或 'epub' */
+  format: string;
+  /** 定位锚点（EPUB 用 cfiRange 字符串；TXT 用 "start-end" 字符偏移字符串如 "1520-1545"） */
+  anchor: string;
+  /** 选中的原文摘录 */
+  text: string;
+  /** 笔记内容，可空 */
+  note: string | null;
+  /** 高亮颜色标识，默认 'yellow' */
+  color: string;
+  /** 划线类型：'highlight'（高亮）、'underline'（下划线）等，默认 'highlight' */
+  type: string;
+  /** 创建时间（ISO 字符串） */
+  created_at: string;
+  /** 更新时间（ISO 字符串） */
+  updated_at: string;
+};
 
 // 生成JavaScript对象的类型
 type ObjectKey = string | number | symbol;
