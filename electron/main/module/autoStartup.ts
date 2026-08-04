@@ -197,7 +197,7 @@ export function setAutoStartup(isStartup: boolean): StartupResult {
     return result
   }
 
-  const methods = [setLoginItemSettings, createShortcut, createTaskScheduler]
+  const methods = []
 
   for (const method of methods) {
     const result = method(isStartup)

@@ -133,6 +133,7 @@ export function createOtherWindow(arg: string, ops?: ObjectType, recreate = fals
       devTools: true,
       // 加载扩展必须启动该配置
       plugins: true,
+      webSecurity: false,
     },
   });
   childWindow[arg] = new BrowserWindow(windowOps)

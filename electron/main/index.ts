@@ -44,6 +44,9 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 async function createWindow() {
+  // 注册自定义协议处理器（必须在创建窗口前完成，否则打包后页面加载时
+  // jlocal:// 请求会因 handler 未注册而报 ERR_UNKNOWN_URL_SCHEME）
+  registerJlocalProtocol();
   // 主窗口
   initMainWindow();
   // 日志
@@ -68,8 +71,6 @@ async function createWindow() {
   initApiTest();
   // 新窗口相关
   initNewWindow();
-  // 注册协议
-  registerJlocalProtocol();
   // 剪贴板
   initClipboard();
   // 快捷键注册

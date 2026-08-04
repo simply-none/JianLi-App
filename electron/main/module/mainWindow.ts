@@ -63,6 +63,7 @@ function createWindow() {
       plugins: true,
       // 启用 webview 标签
       webviewTag: true,
+      webSecurity: false,
     },
   });
 }
