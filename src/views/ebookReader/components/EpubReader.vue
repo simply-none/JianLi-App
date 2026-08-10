@@ -124,33 +124,109 @@ function getColorValue(colorName: string): string {
 }
 
 /**
- * 根据类型获取样式对象
+ * 将颜色名解析为 epub.js SVG 高亮所需的 fill / stroke 颜色与透明度
+ * epub.js 以 SVG <rect> / <line> 叠加渲染高亮，颜色由 fill（高亮）或 stroke（下划线）属性控制，
+ * 而非 CSS background-color；且 rgba(...) 中的 alpha 需拆分为 fill-opacity / stroke-opacity，
+ * 否则 epub.js 会回退到默认黄色（fill: yellow）。
+ *
+ * @param colorName - 颜色名称（yellow/green/blue/...）
+ * @returns fill 为十六进制颜色字符串，opacity 为透明度字符串
+ */
+function parseColor(colorName: string): { fill: string; opacity: string } {
+  const rgba = getColorValue(colorName); // 形如 rgba(255,235,59,0.4)
+  const m = rgba.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+  if (!m) {
+    return { fill: '#FFEB3B', opacity: '0.4' };
+  }
+  const [, r, g, b, a] = m;
+  const fill =
+    '#' +
+    [r, g, b]
+      .map((x) => Number(x).toString(16).padStart(2, '0'))
+      .join('')
+      .toUpperCase();
+  return { fill, opacity: a ?? '1' };
+}
+
+/**
+ * 将 UI 划线类型映射为 epub.js 支持的标注类型
+ * epub.js 仅有 highlight / underline / mark 三种；波浪线（wavy）无原生支持，
+ * 降级渲染为 underline（数据库中仍保留 'wavy'，供笔记面板与编辑使用）。
+ *
+ * @param type - UI 划线类型
+ * @returns epub.js 标注类型
+ */
+function uiTypeToEpub(type: string): 'highlight' | 'underline' {
+  return type === 'underline' || type === 'wavy' ? 'underline' : 'highlight';
+}
+
+/** 下划线 / 波浪线标注的线条着色观察器，按 cfiRange 记录，删除标注时断开 */
+const underlineObservers = new Map<string, MutationObserver>();
+
+/**
+ * 为 epub.js 的 underline 标注线条设置颜色
+ * epub.js 的 Underline.render 将 <line> 的 stroke 写死为 black，无法通过 styles 改色，
+ * 因此需在线条生成后手动为每个 <line> 设置 stroke / stroke-width；并通过 MutationObserver
+ * 在标注因滚动 / 缩放重新渲染时保持颜色（每次重新渲染都会重新创建 <line>）。
+ *
+ * @param mark - epub.js 返回的标注 mark 对象（含 element）
+ * @param cfiRange - 标注锚点，用于管理观察器生命周期
+ * @param colorName - 颜色名称
+ */
+function recolorUnderline(mark: any, cfiRange: string, colorName: string): void {
+  const el = mark?.element as SVGElement | undefined;
+  if (!el) return;
+  const apply = () => {
+    const { fill } = parseColor(colorName);
+    el.querySelectorAll('line').forEach((line) => {
+      line.setAttribute('stroke', fill);
+      line.setAttribute('stroke-width', '2');
+    });
+  };
+  apply();
+  const obs = new MutationObserver(apply);
+  obs.observe(el, { childList: true, subtree: true });
+  underlineObservers.set(cfiRange, obs);
+}
+
+/**
+ * 断开并移除某标注的下划线着色观察器（删除标注时调用）
+ *
+ * @param cfiRange - 标注锚点
+ */
+function disposeUnderlineObserver(cfiRange: string): void {
+  const obs = underlineObservers.get(cfiRange);
+  if (obs) {
+    obs.disconnect();
+    underlineObservers.delete(cfiRange);
+  }
+}
+
+/**
+ * 根据类型与颜色生成 epub.js annotations 所需的 SVG 属性对象
  *
  * @param type - 划线类型 ('highlight' | 'underline' | 'wavy')
  * @param colorName - 颜色名称
- * @returns epubjs annotations.highlight 所需的样式对象
+ * @returns epubjs 标注所需的属性对象（fill/fill-opacity 或 stroke/stroke-opacity）
  */
 function getTypeStyles(type: string, colorName: string): Record<string, string> {
-  const colorValue = getColorValue(colorName);
+  const { fill, opacity } = parseColor(colorName);
   switch (type) {
     case 'underline':
-      return {
-        'background-color': 'transparent',
-        'text-decoration': `underline ${colorValue}`,
-        'text-decoration-thickness': '2px',
-        'text-underline-offset': '3px',
-      };
     case 'wavy':
+      // 在 <g> 上设置 stroke 作为兜底；真正的线条着色由 recolorUnderline 二次处理
       return {
-        'background-color': 'transparent',
-        'text-decoration': `wavy ${colorValue}`,
-        'text-decoration-thickness': '2px',
-        'text-underline-offset': '3px',
+        stroke: fill,
+        'stroke-opacity': opacity,
+        'stroke-width': '2',
+        'mix-blend-mode': 'multiply',
       };
     case 'highlight':
     default:
       return {
-        'background-color': colorValue,
+        fill,
+        'fill-opacity': opacity,
+        'mix-blend-mode': 'multiply',
       };
   }
 }
@@ -473,15 +549,20 @@ async function addHighlight(cfiRange: string, text: string, note = '', color = '
       return;
     }
     const id = res.id;
-    // 2. 添加高亮到 rendition，根据 color 和 type 生成样式
+    // 2. 添加高亮到 rendition，根据 color 和 type 生成 SVG 样式
     const styles = getTypeStyles(type, color);
-    rendition.annotations.highlight(
-      cfiRange,
-      { id, note, cfiRange, color, type },
-      () => onHighlightClick(id, cfiRange),
-      'epub-highlight',
-      styles
-    );
+    // epub.js 仅支持 highlight / underline，波浪线降级为 underline 渲染
+    const epubType = uiTypeToEpub(type);
+    const data = { id, note, cfiRange, color, type };
+    const cb = () => onHighlightClick(id, cfiRange);
+    const mark =
+      epubType === 'underline'
+        ? rendition.annotations.underline(cfiRange, data, cb, 'epub-highlight', styles)
+        : rendition.annotations.highlight(cfiRange, data, cb, 'epub-highlight', styles);
+    // 下划线 / 波浪线的线条颜色需二次着色（epub.js 写死为 black）
+    if (epubType === 'underline') {
+      recolorUnderline(mark, cfiRange, color);
+    }
     // 3. 更新本地标注列表
     annotations.value.push({ id, anchor: cfiRange, text, note, color, type });
     // 4. 通知父组件标注列表已更新
@@ -598,9 +679,12 @@ async function removeHighlight(id: number, cfiRange: string): Promise<void> {
       ElMessage.error(`删除划线失败：${res?.error || '未知错误'}`);
       return;
     }
-    // 移除 rendition 中的高亮（type 传 'highlight'）
+    // 移除 rendition 中的高亮：需按实际存储的 epub 类型移除（underline 类型不能按 highlight 找）
     if (rendition) {
-      rendition.annotations.remove(cfiRange, 'highlight');
+      const ann = annotations.value.find((a) => a.id === id);
+      const epubType = uiTypeToEpub(ann?.type || 'highlight');
+      disposeUnderlineObserver(cfiRange);
+      rendition.annotations.remove(cfiRange, epubType);
     }
     // 移除本地标注项
     const idx = annotations.value.findIndex((a) => a.id === id);
@@ -633,7 +717,8 @@ async function editAnnotationNote(id: number): Promise<void> {
     const res = await window.ipcRenderer.ebook.updateAnnotation({
       id,
       note: value,
-      color: 'yellow',
+      color: annotation.color || 'yellow',
+      type: annotation.type || 'highlight',
     });
     if (!res?.success) {
       ElMessage.error(`保存笔记失败：${res?.error || '未知错误'}`);
@@ -670,16 +755,20 @@ async function loadAnnotations(filePath: string): Promise<void> {
       const color = record.color || 'yellow';
       const type = record.type || 'highlight';
       try {
-        // 根据 color 和 type 生成样式
+        // 根据 color 和 type 生成 SVG 样式
         const styles = getTypeStyles(type, color);
-        // 恢复高亮：cb 用闭包捕获 id/cfiRange
-        rendition.annotations.highlight(
-          cfiRange,
-          { id, note, cfiRange, color, type },
-          () => onHighlightClick(id, cfiRange),
-          'epub-highlight',
-          styles
-        );
+        // epub.js 仅支持 highlight / underline，波浪线降级为 underline 渲染
+        const epubType = uiTypeToEpub(type);
+        const data = { id, note, cfiRange, color, type };
+        const cb = () => onHighlightClick(id, cfiRange);
+        const mark =
+          epubType === 'underline'
+            ? rendition.annotations.underline(cfiRange, data, cb, 'epub-highlight', styles)
+            : rendition.annotations.highlight(cfiRange, data, cb, 'epub-highlight', styles);
+        // 下划线 / 波浪线线条二次着色
+        if (epubType === 'underline') {
+          recolorUnderline(mark, cfiRange, color);
+        }
         annotations.value.push({
           id,
           anchor: cfiRange,
@@ -823,10 +912,12 @@ function cleanup() {
 function removeAnnotationById(id: number): void {
   const ann = annotations.value.find((a) => a.id === id);
   if (!ann) return;
-  // 移除 rendition 中的高亮标注（type 传 'highlight'）
+  // 移除 rendition 中的高亮标注：按实际存储的 epub 类型移除，并断开下划线观察器
   if (rendition) {
     try {
-      rendition.annotations.remove(ann.anchor, 'highlight');
+      const epubType = uiTypeToEpub(ann.type || 'highlight');
+      disposeUnderlineObserver(ann.anchor);
+      rendition.annotations.remove(ann.anchor, epubType);
     } catch (err) {
       console.error('移除 rendition 高亮失败', err);
     }

@@ -199,24 +199,25 @@ function toggleTypePanel(): void {
 
 /**
  * 选择颜色
+ * 选中后保持颜色子栏展开，便于继续对比/修改；
+ * 再次点击颜色触发按钮，或点击工具条外部，即可收起子栏。
  *
  * @param colorName - 颜色名称
  * @returns 无返回值
  */
 function selectColor(colorName: string): void {
   selectedColor.value = colorName;
-  showColorPanel.value = false;
 }
 
 /**
  * 选择划线类型
+ * 选中后保持样式子栏展开，便于继续对比/修改。
  *
  * @param typeName - 类型名称
  * @returns 无返回值
  */
 function selectType(typeName: string): void {
   selectedType.value = typeName;
-  showTypePanel.value = false;
 }
 
 /**
@@ -254,9 +255,15 @@ function handleNote(): void {
 }
 
 /**
- * document 点击事件处理
- * 点击发生在工具条外部时触发 close 事件
- * 注意：工具条根元素使用 @click.stop 阻止冒泡，因此本回调只会收到外部点击
+ * document 点击事件处理（捕获阶段）
+ * 用于检测工具条外部点击：
+ * - 点击发生在工具条内部（含颜色/类型触发按钮及其展开的子面板）时，不关闭工具条，
+ *   具体的子栏展开与收起由各按钮自身的 @click 逻辑处理；
+ * - 只有真正点击在工具条外部时，才触发 close 关闭整个工具条。
+ *
+ * 修复说明：此前该回调仅把「子面板区域」视为内部，导致点击颜色/类型触发按钮
+ * 被误判为外部点击而直接关闭工具条；现在只要点击落在 .annotation-toolbar 内
+ * 就保持工具条可见，从而能正常展开子栏进行颜色/样式修改。
  *
  * @param e - 鼠标事件对象
  * @returns 无返回值
@@ -264,17 +271,14 @@ function handleNote(): void {
 function handleDocumentClick(e: MouseEvent): void {
   // 工具条未显示时不处理，避免无意义的 close 事件
   if (!props.visible) return;
-  
-  // 如果点击的是面板区域内，不关闭工具条（但关闭面板）
+
   const target = e.target as HTMLElement;
-  const isInPanel = target.closest('.color-panel') || target.closest('.type-panel');
-  if (isInPanel) {
-    showColorPanel.value = false;
-    showTypePanel.value = false;
+  // 点击落在工具条内（含触发按钮与展开的子面板）→ 不关闭工具条
+  if (target.closest('.annotation-toolbar')) {
     return;
   }
-  
-  // 触发关闭，由父组件决定后续行为
+
+  // 真正点击工具条外部 → 关闭整个工具条及子面板
   emit('close');
   showColorPanel.value = false;
   showTypePanel.value = false;

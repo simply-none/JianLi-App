@@ -12,7 +12,15 @@ import log from 'electron-log';
 import chardet from 'chardet';
 import iconv from 'iconv-lite';
 import type { Database } from 'sqlite3';
-import { myDb } from './newSql.ts';
+import {
+  myDb,
+  query,
+  insert,
+  upsert,
+  update,
+  del,
+  ensureTableExists
+} from './newSql.ts';
 
 /** 电子书阅读进度表名（复用主数据库 db.sqlite） */
 const EBOOK_PROGRESS_TABLE = 'ebook_progress';
@@ -249,54 +257,6 @@ function dbRunAsync(
 }
 
 /**
- * 包装 sqlite3 的 db.get 为 Promise
- *
- * @param db - sqlite3 数据库实例
- * @param sql - SQL 语句
- * @param params - 绑定参数数组，默认为空数组
- * @returns 成功 resolve 单行记录（可能为 undefined）；失败 reject Error
- */
-function dbGetAsync<T = any>(
-  db: Database,
-  sql: string,
-  params: any[] = []
-): Promise<T | undefined> {
-  return new Promise((resolve, reject) => {
-    db.get(sql, params, (err, row) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(row as T);
-      }
-    });
-  });
-}
-
-/**
- * 包装 sqlite3 的 db.all 为 Promise
- *
- * @param db - sqlite3 数据库实例
- * @param sql - SQL 语句
- * @param params - 绑定参数数组，默认为空数组
- * @returns 成功 resolve 行记录数组（无记录时为空数组）；失败 reject Error
- */
-function dbAllAsync<T = any>(
-  db: Database,
-  sql: string,
-  params: any[] = []
-): Promise<T[]> {
-  return new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve((rows as T[]) ?? []);
-      }
-    });
-  });
-}
-
-/**
  * 创建电子书阅读进度表（IF NOT EXISTS）
  *
  * 表结构：
@@ -431,6 +391,29 @@ export async function initEbook(): Promise<void> {
     log.error('Failed to create ebook_annotation table:', err);
   }
 
+  // 4. 与 newSql.ts 保持一致：确保各表列完整，自动补齐旧库中缺失的列
+  //    （例如老版本建表时还没有 type 列，这里会 ALTER TABLE ADD COLUMN 补齐，
+  //      否则后续 INSERT/UPDATE 引用 type 会报 SQLITE_ERROR: no column named type）
+  try {
+    await ensureTableExists(
+      EBOOK_PROGRESS_TABLE,
+      ['format', 'cfi', 'percent', 'updated_at'],
+      'file_path'
+    );
+    await ensureTableExists(
+      EBOOK_BOOKSHELF_TABLE,
+      ['name', 'format', 'percent', 'last_read_at', 'added_at'],
+      'file_path'
+    );
+    await ensureTableExists(
+      EBOOK_ANNOTATION_TABLE,
+      ['file_path', 'format', 'anchor', 'text', 'note', 'color', 'type', 'created_at', 'updated_at'],
+      'id'
+    );
+  } catch (err) {
+    log.error('Failed to ensure ebook tables columns:', err);
+  }
+
   // ============ ebook:read-txt 读取 txt 文件 ============
   /**
    * 读取 txt 文件并自动检测编码转换为 UTF-8
@@ -503,12 +486,12 @@ export async function initEbook(): Promise<void> {
         if (!filePath || typeof filePath !== 'string') {
           return { success: false, error: '文件路径不能为空' };
         }
-        const row = await dbGetAsync<ProgressRecord>(
-          db,
-          `SELECT file_path, format, cfi, percent, updated_at FROM ${EBOOK_PROGRESS_TABLE} WHERE file_path = ?`,
-          [filePath]
-        );
-        return { success: true, data: row ?? null };
+        const rows = await query({
+          tableName: EBOOK_PROGRESS_TABLE,
+          columns: ['file_path', 'format', 'cfi', 'percent', 'updated_at'],
+          conditions: { file_path: filePath }
+        });
+        return { success: true, data: (rows[0] as ProgressRecord) ?? null };
       } catch (err: any) {
         log.error('Failed to get ebook progress:', err);
         return {
@@ -542,17 +525,17 @@ export async function initEbook(): Promise<void> {
           return { success: false, error: '文件路径不能为空' };
         }
         const updatedAt = new Date().toISOString();
-        await dbRunAsync(
-          db,
-          `INSERT OR REPLACE INTO ${EBOOK_PROGRESS_TABLE} (file_path, format, cfi, percent, updated_at) VALUES (?, ?, ?, ?, ?)`,
-          [
-            data.filePath,
-            data.format ?? '',
-            data.cfi ?? '',
-            Number(data.percent) || 0,
-            updatedAt
-          ]
-        );
+        await upsert({
+          tableName: EBOOK_PROGRESS_TABLE,
+          data: {
+            file_path: data.filePath,
+            format: data.format ?? '',
+            cfi: data.cfi ?? '',
+            percent: Number(data.percent) || 0,
+            updated_at: updatedAt
+          },
+          config: { primaryKey: 'file_path' }
+        });
         return { success: true };
       } catch (err: any) {
         log.error('Failed to save ebook progress:', err);
@@ -584,11 +567,13 @@ export async function initEbook(): Promise<void> {
         if (!db) {
           return { success: false, error: '数据库未初始化' };
         }
-        const rows = await dbAllAsync<BookshelfRecord>(
-          db,
-          `SELECT file_path, name, format, percent, last_read_at, added_at FROM ${EBOOK_BOOKSHELF_TABLE} ORDER BY last_read_at DESC`
-        );
-        return { success: true, data: rows };
+        const rows = await query({
+          tableName: EBOOK_BOOKSHELF_TABLE,
+          columns: ['file_path', 'name', 'format', 'percent', 'last_read_at', 'added_at'],
+          orderBy: 'last_read_at',
+          orderByDesc: true
+        });
+        return { success: true, data: rows as BookshelfRecord[] };
       } catch (err: any) {
         log.error('Failed to get ebook bookshelf:', err);
         return {
@@ -626,25 +611,25 @@ export async function initEbook(): Promise<void> {
         }
         const now = new Date().toISOString();
         // 查询原记录以保留首次添加时间 added_at
-        const existing = await dbGetAsync<{ added_at: string }>(
-          db,
-          `SELECT added_at FROM ${EBOOK_BOOKSHELF_TABLE} WHERE file_path = ?`,
-          [data.filePath]
-        );
-        const addedAt = existing?.added_at ?? now;
+        const existing = await query({
+          tableName: EBOOK_BOOKSHELF_TABLE,
+          columns: ['added_at'],
+          conditions: { file_path: data.filePath }
+        });
+        const addedAt = (existing[0] as { added_at: string } | undefined)?.added_at ?? now;
         // upsert：主键冲突时整体替换，added_at 保留原值
-        await dbRunAsync(
-          db,
-          `INSERT OR REPLACE INTO ${EBOOK_BOOKSHELF_TABLE} (file_path, name, format, percent, last_read_at, added_at) VALUES (?, ?, ?, ?, ?, ?)`,
-          [
-            data.filePath,
-            data.name ?? '',
-            data.format ?? '',
-            Number(data.percent) || 0,
-            now,
-            addedAt
-          ]
-        );
+        await upsert({
+          tableName: EBOOK_BOOKSHELF_TABLE,
+          data: {
+            file_path: data.filePath,
+            name: data.name ?? '',
+            format: data.format ?? '',
+            percent: Number(data.percent) || 0,
+            last_read_at: now,
+            added_at: addedAt
+          },
+          config: { primaryKey: 'file_path' }
+        });
         return { success: true };
       } catch (err: any) {
         log.error('Failed to add to ebook bookshelf:', err);
@@ -678,11 +663,10 @@ export async function initEbook(): Promise<void> {
         if (!filePath || typeof filePath !== 'string') {
           return { success: false, error: '文件路径不能为空' };
         }
-        await dbRunAsync(
-          db,
-          `DELETE FROM ${EBOOK_BOOKSHELF_TABLE} WHERE file_path = ?`,
-          [filePath]
-        );
+        await del({
+          tableName: EBOOK_BOOKSHELF_TABLE,
+          condition: { file_path: filePath }
+        });
         return { success: true };
       } catch (err: any) {
         log.error('Failed to remove from ebook bookshelf:', err);
@@ -721,12 +705,14 @@ export async function initEbook(): Promise<void> {
         if (!filePath || typeof filePath !== 'string') {
           return { success: false, error: '文件路径不能为空' };
         }
-        const rows = await dbAllAsync<AnnotationRecord>(
-          db,
-          `SELECT id, file_path, format, anchor, text, note, color, type, created_at, updated_at FROM ${EBOOK_ANNOTATION_TABLE} WHERE file_path = ? ORDER BY created_at ASC`,
-          [filePath]
-        );
-        return { success: true, data: rows };
+        const rows = await query({
+          tableName: EBOOK_ANNOTATION_TABLE,
+          columns: ['id', 'file_path', 'format', 'anchor', 'text', 'note', 'color', 'type', 'created_at', 'updated_at'],
+          conditions: { file_path: filePath },
+          orderBy: 'created_at',
+          orderByDesc: false
+        });
+        return { success: true, data: rows as AnnotationRecord[] };
       } catch (err: any) {
         log.error('Failed to get ebook annotations:', err);
         return {
@@ -761,21 +747,20 @@ export async function initEbook(): Promise<void> {
           return { success: false, error: '文件路径不能为空' };
         }
         const now = new Date().toISOString();
-        const result = await dbRunAsync(
-          db,
-          `INSERT INTO ${EBOOK_ANNOTATION_TABLE} (file_path, format, anchor, text, note, color, type, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            data.filePath,
-            data.format ?? '',
-            data.anchor ?? '',
-            data.text ?? '',
-            data.note ?? null,
-            data.color ?? 'yellow',
-            data.type ?? 'highlight',
-            now,
-            now
-          ]
-        );
+        const result = await insert({
+          tableName: EBOOK_ANNOTATION_TABLE,
+          data: {
+            file_path: data.filePath,
+            format: data.format ?? '',
+            anchor: data.anchor ?? '',
+            text: data.text ?? '',
+            note: data.note ?? null,
+            color: data.color ?? 'yellow',
+            type: data.type ?? 'highlight',
+            created_at: now,
+            updated_at: now
+          }
+        });
         return { success: true, id: result.lastID };
       } catch (err: any) {
         log.error('Failed to add ebook annotation:', err);
@@ -810,17 +795,16 @@ export async function initEbook(): Promise<void> {
           return { success: false, error: '笔记 id 不能为空' };
         }
         const updatedAt = new Date().toISOString();
-        await dbRunAsync(
-          db,
-          `UPDATE ${EBOOK_ANNOTATION_TABLE} SET note=?, color=?, type=?, updated_at=? WHERE id=?`,
-          [
-            data.note ?? null,
-            data.color ?? 'yellow',
-            data.type ?? 'highlight',
-            updatedAt,
-            data.id
-          ]
-        );
+        await update({
+          tableName: EBOOK_ANNOTATION_TABLE,
+          data: {
+            note: data.note ?? null,
+            color: data.color ?? 'yellow',
+            type: data.type ?? 'highlight',
+            updated_at: updatedAt
+          },
+          condition: { id: data.id }
+        });
         return { success: true };
       } catch (err: any) {
         log.error('Failed to update ebook annotation:', err);
@@ -854,11 +838,10 @@ export async function initEbook(): Promise<void> {
         if (typeof id !== 'number') {
           return { success: false, error: '笔记 id 不能为空' };
         }
-        await dbRunAsync(
-          db,
-          `DELETE FROM ${EBOOK_ANNOTATION_TABLE} WHERE id=?`,
-          [id]
-        );
+        await del({
+          tableName: EBOOK_ANNOTATION_TABLE,
+          condition: { id }
+        });
         return { success: true };
       } catch (err: any) {
         log.error('Failed to remove ebook annotation:', err);

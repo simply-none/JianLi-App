@@ -1,7 +1,7 @@
 <template>
   <layout-vue>
     <template #main>
-      <div class="ebook-reader-page">
+      <div class="ebook-reader-page" :class="themeClass">
         <!-- 顶部工具栏 -->
         <header class="reader-toolbar">
           <div class="toolbar-left">
@@ -190,6 +190,7 @@
           title="目录"
           direction="ltr"
           size="300px"
+          :append-to-body="false"
         >
           <div class="toc-list">
             <div
@@ -213,6 +214,7 @@
           title="笔记与划线"
           direction="ltr"
           size="320px"
+          :append-to-body="false"
         >
           <div class="annotation-list">
             <div
@@ -382,6 +384,9 @@ const themeIcon = computed(() => THEME_ICON_MAP[settings.value.theme]);
 
 /** 当前主题中文标签 */
 const themeLabel = computed(() => THEME_LABEL_MAP[settings.value.theme]);
+
+/** 当前主题对应的 class（作用于整个电子书阅读页，使工具栏/书架/抽屉等区域跟随切换） */
+const themeClass = computed(() => `theme-${settings.value.theme}`);
 
 /** 根据文件格式动态计算渲染组件 */
 const readerComponent = computed(() => {
@@ -811,6 +816,94 @@ watch(
         white-space: nowrap;
       }
     }
+  }
+
+  /* ========== 电子书主题：让工具栏 / 书架 / 抽屉等所有区域跟随 day/night/eye 切换 ==========
+     之前 cycleTheme 只切换了阅读区（TxtReader/EpubReader 内部），外层区域仍使用全局主题变量，
+     导致「阅读区变深/变绿、工具栏仍是亮色」的主题错乱。这里把同名 class 作用到整页并覆盖变量。 */
+  &.theme-day {
+    --bg-base: #f5f6fa;
+    --bg-card: #ffffff;
+    --border-subtle: rgba(0, 0, 0, 0.06);
+    --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.03);
+    --text-primary: #1a1a1a;
+    --text-secondary: #4b5563;
+    --text-muted: #9ca3af;
+    --color-primary: #6366f1;
+    --bg-hover: rgba(0, 0, 0, 0.04);
+    --radius-card: 12px;
+
+    --el-bg-color: #ffffff;
+    --el-bg-color-overlay: #ffffff;
+    --el-bg-color-page: #f5f6fa;
+    --el-text-color-primary: #1a1a1a;
+    --el-text-color-regular: #4b5563;
+    --el-text-color-secondary: #9ca3af;
+    --el-border-color: #dcdfe6;
+    --el-border-color-light: #e4e7ed;
+    --el-border-color-lighter: #ebeef5;
+    --el-fill-color: #f0f2f5;
+    --el-fill-color-light: #f5f7fa;
+    --el-fill-color-lighter: #fafafa;
+    --el-fill-color-blank: #ffffff;
+    --el-color-primary: #6366f1;
+  }
+
+  &.theme-night {
+    --bg-base: #1a1a1a;
+    --bg-card: #2a2a2a;
+    --border-subtle: #3a3a3a;
+    --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.3);
+    --text-primary: #cccccc;
+    --text-secondary: #aaaaaa;
+    --text-muted: #888888;
+    --color-primary: #6366f1;
+    --bg-hover: rgba(255, 255, 255, 0.06);
+    --radius-card: 12px;
+
+    --el-bg-color: #2a2a2a;
+    --el-bg-color-overlay: #2a2a2a;
+    --el-bg-color-page: #1a1a1a;
+    --el-text-color-primary: #cccccc;
+    --el-text-color-regular: #aaaaaa;
+    --el-text-color-secondary: #888888;
+    --el-border-color: #3a3a3a;
+    --el-border-color-light: #3a3a3a;
+    --el-border-color-lighter: #3a3a3a;
+    --el-fill-color: #2a2a2a;
+    --el-fill-color-light: #2a2a2a;
+    --el-fill-color-lighter: #242424;
+    --el-fill-color-blank: #2a2a2a;
+    --el-color-primary: #6366f1;
+    --el-mask-color: rgba(0, 0, 0, 0.5);
+  }
+
+  &.theme-eye {
+    --bg-base: #c7edcc;
+    --bg-card: #e3f5e6;
+    --border-subtle: rgba(44, 62, 80, 0.12);
+    --shadow-top: 0 1px 4px rgba(44, 62, 80, 0.08);
+    --text-primary: #2c3e50;
+    --text-secondary: #4a5d6e;
+    --text-muted: #7a8a96;
+    --color-primary: #2f8f5b;
+    --bg-hover: rgba(44, 62, 80, 0.06);
+    --radius-card: 12px;
+
+    --el-bg-color: #e3f5e6;
+    --el-bg-color-overlay: #e3f5e6;
+    --el-bg-color-page: #c7edcc;
+    --el-text-color-primary: #2c3e50;
+    --el-text-color-regular: #4a5d6e;
+    --el-text-color-secondary: #7a8a96;
+    --el-border-color: rgba(44, 62, 80, 0.2);
+    --el-border-color-light: rgba(44, 62, 80, 0.15);
+    --el-border-color-lighter: rgba(44, 62, 80, 0.1);
+    --el-fill-color: #d4efd8;
+    --el-fill-color-light: #dcf3df;
+    --el-fill-color-lighter: #e8f7ea;
+    --el-fill-color-blank: #e3f5e6;
+    --el-color-primary: #2f8f5b;
   }
 
   .reader-content {
