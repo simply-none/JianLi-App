@@ -20,6 +20,7 @@
         上一页
       </el-button>
       <span class="progress-text">{{ progressText }}</span>
+      <span class="page-text">{{ pageText }}</span>
       <el-button size="small" :disabled="loading" @click="nextPage">
         下一页
         <LucideIcon name="ArrowRight" :size="14" />
@@ -97,6 +98,10 @@ const readerRef = ref<HTMLElement | null>(null);
 const loading = ref(false);
 /** 当前阅读百分比文本 */
 const progressText = ref('0%');
+/** 当前页码信息：当前章节内的页码 / 本章总页数（epub.js 分页，随字体/字号变化） */
+const pageInfo = ref<{ current: number; total: number }>({ current: 1, total: 1 });
+/** 页码展示文本，如 "3 / 12" */
+const pageText = computed(() => `${pageInfo.value.current} / ${pageInfo.value.total}`);
 /** 记录最后一次 relocated 得到的 CFI，供 locations 生成完成后补算精确进度 */
 const currentCfi = ref('');
 
@@ -407,6 +412,8 @@ function handleRelocated(location: any) {
   // 记录当前 CFI，供 locations 生成完成后补算精确进度
   currentCfi.value = cfi;
   applyProgress(location);
+  // 翻页/重排版后刷新页码信息（页码随字体/字号变化）
+  updatePageInfo();
 }
 
 /**
@@ -470,6 +477,43 @@ function refreshProgressAfterLocations() {
     progressText.value = `${percent}%`;
     // 立即同步一次书架进度（不防抖），保证打开即显示正确百分比
     emit('progress-update', { cfi, percent });
+  }
+  // locations 就绪后页码信息也已可用，刷新一次
+  updatePageInfo();
+}
+
+/**
+ * 从 rendition.currentLocation() 解析出的 located 对象更新页码信息
+ * epub.js 在分页模式（paginated）下，located.start.displayed 提供
+ * 当前章节内的 { page, total }，会随字体/字号变化而重新分页
+ *
+ * @param loc - rendition.currentLocation() 解析后的 located 对象
+ * @returns 无返回值
+ */
+function applyPageInfo(loc: any) {
+  const start = loc?.start;
+  if (!start || !start.displayed) return;
+  const current = typeof start.displayed.page === 'number' ? start.displayed.page : 1;
+  const total = typeof start.displayed.total === 'number' ? start.displayed.total : 1;
+  if (total > 0) {
+    pageInfo.value = { current, total };
+  }
+}
+
+/**
+ * 更新当前页码信息
+ * rendition.currentLocation() 可能同步返回 located 对象，也可能返回 Promise，
+ * 此处统一兼容两种情形
+ *
+ * @returns 无返回值
+ */
+function updatePageInfo() {
+  if (!rendition) return;
+  const loc = rendition.currentLocation();
+  if (loc && typeof (loc as any).then === 'function') {
+    (loc as any).then((result: any) => applyPageInfo(result)).catch(() => {});
+  } else {
+    applyPageInfo(loc);
   }
 }
 
@@ -968,6 +1012,8 @@ async function refreshAnnotations(): Promise<void> {
     }
   } finally {
     isRefreshing = false;
+    // 重排完成，刷新页码（字体/字号变化会改变分页，导致总页数变化）
+    updatePageInfo();
     if (pendingRefresh) {
       pendingRefresh = false;
       // 刷新期间又发生了字体变更，补一次以应用最新样式
@@ -1093,6 +1139,7 @@ watch(
   (newPath) => {
     cleanup();
     progressText.value = '0%';
+    pageInfo.value = { current: 1, total: 1 };
     if (newPath) {
       renderEpub(newPath);
     }
@@ -1114,6 +1161,8 @@ watch(
     applyFontSize(newSize);
     // 字体大小改变会导致正文重排，已注册标注需重新定位，否则划线移位
     void refreshAnnotations();
+    // 重排后分页变化，下一帧刷新页码（epub.js 重新分页后 relocated 也会再次校正）
+    requestAnimationFrame(() => updatePageInfo());
   }
 );
 
@@ -1124,6 +1173,8 @@ watch(
     applyFont();
     // 字体改变会导致正文重排，已注册标注需重新定位，否则划线移位
     void refreshAnnotations();
+    // 重排后分页变化，下一帧刷新页码
+    requestAnimationFrame(() => updatePageInfo());
   }
 );
 
@@ -1171,6 +1222,13 @@ onUnmounted(() => {
       font-size: 13px;
       color: var(--text-secondary);
       min-width: 50px;
+      text-align: center;
+    }
+
+    .page-text {
+      font-size: 13px;
+      color: var(--text-secondary);
+      min-width: 56px;
       text-align: center;
     }
   }
