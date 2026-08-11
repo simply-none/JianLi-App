@@ -36,6 +36,14 @@ export interface EbookSettings {
   fontFamilyEN: string;
   /** 阅读主题：day 白天、night 夜间、eye 护眼 */
   theme: EbookTheme;
+  /** 行距倍率（作用于正文 line-height），如 1.8 表示 1.8 倍行距 */
+  lineHeight: number;
+  /** 分栏数：1 单栏、2 双栏（epub 由 spread 控制，txt 由 CSS column-count 控制） */
+  columnCount: number;
+  /** 翻页模式：false=翻页（paginated），true=滚动（scrolled），仅 epub 生效 */
+  scrollMode: boolean;
+  /** 页边距，单位 px（作用于正文外边距） */
+  margin: number;
 }
 
 /** 书架条目信息（前端使用 camelCase，对应数据库 ebook_bookshelf 表的一行） */
@@ -67,6 +75,10 @@ const DEFAULT_SETTINGS: EbookSettings = {
   fontFamily: '',
   fontFamilyEN: '',
   theme: 'day',
+  lineHeight: 1.8,
+  columnCount: 1,
+  scrollMode: false,
+  margin: 24,
 };
 
 export default defineStore('ebook-reader', () => {
@@ -152,6 +164,46 @@ export default defineStore('ebook-reader', () => {
    */
   function setFontFamilyEN(value: string) {
     settings.value.fontFamilyEN = value;
+    setStore(SETTINGS_KEY, settings.value);
+  }
+
+  /**
+   * 设置正文行距倍率，并同步持久化到本地存储
+   * @param value 行距倍率（如 1.8）
+   * @returns 无返回值
+   */
+  function setLineHeight(value: number) {
+    settings.value.lineHeight = value;
+    setStore(SETTINGS_KEY, settings.value);
+  }
+
+  /**
+   * 设置分栏数（1 单栏 / 2 双栏），并同步持久化到本地存储
+   * @param value 分栏数
+   * @returns 无返回值
+   */
+  function setColumnCount(value: number) {
+    settings.value.columnCount = value;
+    setStore(SETTINGS_KEY, settings.value);
+  }
+
+  /**
+   * 设置翻页模式，并同步持久化到本地存储
+   * @param value true=滚动，false=翻页
+   * @returns 无返回值
+   */
+  function setScrollMode(value: boolean) {
+    settings.value.scrollMode = value;
+    setStore(SETTINGS_KEY, settings.value);
+  }
+
+  /**
+   * 设置页边距（px），并同步持久化到本地存储
+   * @param value 页边距数值
+   * @returns 无返回值
+   */
+  function setMargin(value: number) {
+    settings.value.margin = value;
     setStore(SETTINGS_KEY, settings.value);
   }
 
@@ -244,6 +296,14 @@ export default defineStore('ebook-reader', () => {
     setFontFamily,
     // 设置英文正文字体
     setFontFamilyEN,
+    // 设置正文行距
+    setLineHeight,
+    // 设置分栏数
+    setColumnCount,
+    // 设置翻页模式
+    setScrollMode,
+    // 设置页边距
+    setMargin,
     // 加载书架列表
     loadBookshelf,
     // 添加或更新书架记录

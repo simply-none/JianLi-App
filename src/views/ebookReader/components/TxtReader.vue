@@ -1,8 +1,12 @@
 <template>
   <div class="txt-reader" :class="themeClass" v-loading="loading" element-loading-text="正在加载文件...">
     <!-- 阅读内容区：按页展示 txt 文本，分段 span 渲染以支持划线高亮 -->
-    <div class="txt-content" :style="{ fontSize: fontSize + 'px', fontFamily: fontFamilyValue }" @mouseup="onMouseUp">
-      <div class="txt-page">
+    <div
+      class="txt-content"
+      :style="{ fontSize: fontSize + 'px', fontFamily: fontFamilyValue, padding: margin + 'px' }"
+      @mouseup="onMouseUp"
+    >
+      <div class="txt-page" :style="{ lineHeight: lineHeight, columnCount: columnCount }">
         <span
           v-for="(seg, i) in pageSegments"
           :key="i"
@@ -125,6 +129,12 @@ const props = defineProps<{
   fontFamilyEn?: string;
   /** 阅读主题：day 白天、night 夜间、eye 护眼 */
   theme: EbookTheme;
+  /** 正文行距倍率（作用于 .txt-page line-height） */
+  lineHeight?: number;
+  /** 分栏数：1 单栏、2 双栏（作用于 .txt-page column-count） */
+  columnCount?: number;
+  /** 页边距，单位 px（作用于 .txt-content padding） */
+  margin?: number;
 }>();
 
 /** 组件 Emits 定义 */
@@ -308,6 +318,13 @@ const fontFamilyValue = computed(() => {
   const en = props.fontFamilyEn || 'sans-serif';
   return `${cn}, ${en}`;
 });
+
+/** 正文本地行距倍率（缺省 1.8，与默认设置一致） */
+const lineHeight = computed(() => props.lineHeight ?? 1.8);
+/** 分栏数（缺省 1 单栏） */
+const columnCount = computed(() => props.columnCount ?? 1);
+/** 页边距 px（缺省 24，与默认设置一致） */
+const margin = computed(() => props.margin ?? 24);
 
 /**
  * 按段落边界对文本进行分页

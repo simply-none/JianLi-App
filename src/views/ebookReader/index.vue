@@ -112,6 +112,16 @@
                 controls-position="right"
               />
             </div>
+
+            <!-- 更多阅读设置按钮：点击打开右侧弹窗（分栏/翻页模式/行距/页边距等） -->
+            <el-button
+              size="small"
+              @click="settingsDrawerVisible = true"
+              :title="'更多阅读设置'"
+            >
+              <LucideIcon name="Settings" :size="16" />
+              设置
+            </el-button>
           </div>
         </header>
 
@@ -209,6 +219,10 @@
               :font-family="settings.fontFamily"
               :font-family-en="settings.fontFamilyEN"
               :theme="settings.theme"
+              :line-height="settings.lineHeight"
+              :column-count="settings.columnCount"
+              :scroll-mode="settings.scrollMode"
+              :margin="settings.margin"
               @progress-update="onProgressUpdate"
               @toc-loaded="onTocLoaded"
               @annotations-updated="onAnnotationsUpdated"
@@ -276,12 +290,76 @@
                 </el-button>
               </div>
             </div>
-            <!-- 空状态提示 -->
-            <div v-if="annotations.length === 0" class="annotation-empty">
-              暂无笔记与划线
-            </div>
+          <!-- 空状态提示 -->
+          <div v-if="annotations.length === 0" class="annotation-empty">
+            暂无笔记与划线
           </div>
-        </el-drawer>
+        </div>
+      </el-drawer>
+
+      <!-- 更多阅读设置抽屉（右侧弹出）：分栏、翻页模式、行距、页边距等主流电子书功能 -->
+      <el-drawer
+        v-model="settingsDrawerVisible"
+        title="阅读设置"
+        direction="rtl"
+        size="320px"
+        :append-to-body="false"
+      >
+        <div class="reader-settings">
+          <!-- 翻页模式：仅 epub 支持（txt 天然为滚动模式） -->
+          <div class="setting-row" v-if="currentFile.format === 'epub'">
+            <div class="setting-head">
+              <span class="setting-label">翻页模式</span>
+            </div>
+            <el-radio-group v-model="scrollModeModel">
+              <el-radio-button :value="false">翻页</el-radio-button>
+              <el-radio-button :value="true">滚动</el-radio-button>
+            </el-radio-group>
+            <div class="setting-tip">滚动模式下「分栏」不生效</div>
+          </div>
+
+          <!-- 分栏：单栏 / 双栏 -->
+          <div class="setting-row">
+            <div class="setting-head">
+              <span class="setting-label">分栏</span>
+            </div>
+            <el-radio-group v-model="columnCountModel">
+              <el-radio-button :value="1">单栏</el-radio-button>
+              <el-radio-button :value="2" :disabled="currentFile.format === 'epub' && scrollModeModel">双栏</el-radio-button>
+            </el-radio-group>
+          </div>
+
+          <!-- 行距：紧凑 ~ 宽松 -->
+          <div class="setting-row column">
+            <div class="setting-head">
+              <span class="setting-label">行距</span>
+              <span class="setting-value">{{ lineHeightModel.toFixed(1) }}</span>
+            </div>
+            <el-slider
+              v-model="lineHeightModel"
+              :min="1.2"
+              :max="2.4"
+              :step="0.1"
+              :show-tooltip="false"
+            />
+          </div>
+
+          <!-- 页边距 -->
+          <div class="setting-row column">
+            <div class="setting-head">
+              <span class="setting-label">页边距</span>
+              <span class="setting-value">{{ marginModel }}px</span>
+            </div>
+            <el-slider
+              v-model="marginModel"
+              :min="0"
+              :max="80"
+              :step="4"
+              :show-tooltip="false"
+            />
+          </div>
+        </div>
+      </el-drawer>
       </div>
     </template>
   </layout-vue>
@@ -373,6 +451,10 @@ const {
   setTheme,
   setFontFamily,
   setFontFamilyEN,
+  setLineHeight,
+  setColumnCount,
+  setScrollMode,
+  setMargin,
   loadBookshelf,
   addToBookshelf,
   removeFromBookshelf,
@@ -407,6 +489,9 @@ const annotations = ref<AnnotationDisplayItem[]>([]);
 /** 笔记抽屉显示状态 */
 const annotationDrawerVisible = ref(false);
 
+/** 更多阅读设置抽屉显示状态 */
+const settingsDrawerVisible = ref(false);
+
 /**
  * 上次刷新书架进度的时间戳（毫秒）
  * 用于 onProgressUpdate 中节流 addToBookshelf，避免每次翻页都触发数据库写入
@@ -440,6 +525,38 @@ const fontFamilyModel = computed({
 const fontFamilyENModel = computed({
   get: () => settings.value.fontFamilyEN,
   set: (val: string | undefined) => setFontFamilyEN(val ?? ''),
+});
+
+/** 正文行距双向绑定 */
+const lineHeightModel = computed({
+  get: () => settings.value.lineHeight,
+  set: (val: number | undefined) => {
+    if (typeof val === 'number') setLineHeight(val);
+  },
+});
+
+/** 分栏数双向绑定（1 单栏 / 2 双栏） */
+const columnCountModel = computed({
+  get: () => settings.value.columnCount,
+  set: (val: number | undefined) => {
+    if (typeof val === 'number') setColumnCount(val);
+  },
+});
+
+/** 翻页模式双向绑定（false 翻页 / true 滚动） */
+const scrollModeModel = computed({
+  get: () => settings.value.scrollMode,
+  set: (val: boolean | undefined) => {
+    if (typeof val === 'boolean') setScrollMode(val);
+  },
+});
+
+/** 页边距双向绑定 */
+const marginModel = computed({
+  get: () => settings.value.margin,
+  set: (val: number | undefined) => {
+    if (typeof val === 'number') setMargin(val);
+  },
 });
 
 /** 当前主题图标名称 */
@@ -1139,6 +1256,48 @@ watch(
         :deep(.lucide-icon-box) {
           color: var(--text-muted);
         }
+      }
+    }
+  }
+
+  /* 更多阅读设置抽屉内容 */
+  .reader-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 4px 2px;
+
+    .setting-row {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+
+      &.column {
+        gap: 6px;
+      }
+
+      .setting-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+
+        .setting-label {
+          font-size: 14px;
+          font-weight: 500;
+          color: var(--text-primary);
+        }
+
+        .setting-value {
+          font-size: 13px;
+          color: var(--color-primary);
+          font-variant-numeric: tabular-nums;
+        }
+      }
+
+      .setting-tip {
+        font-size: 12px;
+        color: var(--text-muted);
+        line-height: 1.4;
       }
     }
   }

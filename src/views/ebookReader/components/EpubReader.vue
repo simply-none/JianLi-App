@@ -75,6 +75,14 @@ const props = defineProps<{
   fontFamilyEn?: string;
   /** 阅读主题：day 白天、night 夜间、eye 护眼 */
   theme: EbookTheme;
+  /** 正文行距倍率（作用于 epub body line-height） */
+  lineHeight?: number;
+  /** 分栏数：1 单栏、2 双栏（通过 rendition.spread 控制） */
+  columnCount?: number;
+  /** 翻页模式：true=滚动（scrolled），false=翻页（paginated） */
+  scrollMode?: boolean;
+  /** 页边距，单位 px（作用于 epub body margin） */
+  margin?: number;
 }>();
 
 /** 组件 Emits 定义 */
@@ -317,11 +325,13 @@ async function renderEpub(filePath: string) {
     const arrayBuffer = await loadFileAsArrayBuffer(filePath);
     // 创建 Book 实例
     book = ePub(arrayBuffer);
-    // 渲染到容器
+    // 渲染到容器：初始即应用翻页模式与分栏设置（flow/spread 在创建时设置最稳）
     rendition = book.renderTo(readerRef.value, {
       width: '100%',
       height: '100%',
       allowScriptedContent: true,
+      flow: props.scrollMode ? 'scrolled' : 'paginated',
+      spread: spreadValue(props.columnCount ?? 1),
     });
 
     // 注册并应用主题
@@ -329,6 +339,8 @@ async function renderEpub(filePath: string) {
     applyTheme(props.theme);
     applyFontSize(props.fontSize);
     applyFont();
+    applyLineHeight();
+    applyMargin();
 
     // 加载目录并通知父组件
     book.loaded.navigation
@@ -947,6 +959,56 @@ function applyFont() {
   rendition.themes.font(list.join(', '));
 }
 
+/**
+ * 将分栏数映射为 epub.js 的 spread 取值
+ * - 1（单栏）→ 'none'：始终单页呈现
+ * - ≥2（双栏）→ 'always'：在足够宽度下并排显示两页
+ * 注：滚动模式（scrolled flow）下 spread 不生效，epub.js 强制单栏
+ *
+ * @param count - 分栏数
+ * @returns epub.js spread 取值
+ */
+function spreadValue(count: number): 'none' | 'always' {
+  return count >= 2 ? 'always' : 'none';
+}
+
+/**
+ * 应用正文行距（line-height）
+ * 通过 rendition.themes.override 注入 body 样式；行距变化会改变正文布局高度，
+ * 调用方需随后 refreshAnnotations 以重新定位 SVG 标注
+ *
+ * @returns 无返回值
+ */
+function applyLineHeight() {
+  if (!rendition) return;
+  rendition.themes.override('line-height', `${props.lineHeight ?? 1.8}`);
+}
+
+/**
+ * 应用页边距（margin）
+ * 通过 rendition.themes.override 注入 body 样式；页边距变化会改变正文内容盒宽度与行数，
+ * 调用方需随后 refreshAnnotations 以重新定位 SVG 标注
+ *
+ * @returns 无返回值
+ */
+function applyMargin() {
+  if (!rendition) return;
+  rendition.themes.override('margin', `${props.margin ?? 24}px`);
+}
+
+/**
+ * 应用翻页模式与分栏（flow / spread）
+ * 切换 flow（scrolled/paginated）或 spread（none/always）会触发 epub.js 整体重排版，
+ * epub.js 会自行恢复当前阅读位置并重新注入 SVG 标注，因此此处无需手动 refreshAnnotations。
+ *
+ * @returns 无返回值
+ */
+function applyLayout() {
+  if (!rendition) return;
+  rendition.flow(props.scrollMode ? 'scrolled' : 'paginated');
+  rendition.spread(spreadValue(props.columnCount ?? 1));
+}
+
 /** 重入保护标记：刷新标注过程中防止并发重入 */
 let isRefreshing = false;
 /** 刷新期间是否再次发生字体 / 字号变更，用于补一次刷新 */
@@ -1174,6 +1236,44 @@ watch(
     // 字体改变会导致正文重排，已注册标注需重新定位，否则划线移位
     void refreshAnnotations();
     // 重排后分页变化，下一帧刷新页码
+    requestAnimationFrame(() => updatePageInfo());
+  }
+);
+
+// 监听行距变化：改变布局高度，需重新定位已有标注
+watch(
+  () => props.lineHeight,
+  (val) => {
+    applyLineHeight();
+    void refreshAnnotations();
+    requestAnimationFrame(() => updatePageInfo());
+  }
+);
+
+// 监听页边距变化：改变内容盒宽度与行数，需重新定位已有标注
+watch(
+  () => props.margin,
+  (val) => {
+    applyMargin();
+    void refreshAnnotations();
+    requestAnimationFrame(() => updatePageInfo());
+  }
+);
+
+// 监听分栏变化：切换 spread，触发整体重排版（epub.js 自动恢复位置与标注）
+watch(
+  () => props.columnCount,
+  () => {
+    applyLayout();
+  }
+);
+
+// 监听翻页模式变化：切换 flow，触发整体重排版（epub.js 自动恢复位置与标注）
+watch(
+  () => props.scrollMode,
+  () => {
+    applyLayout();
+    // 滚动/翻页切换后分页信息可能不可用（滚动无页码），刷新一次页码状态
     requestAnimationFrame(() => updatePageInfo());
   }
 );
