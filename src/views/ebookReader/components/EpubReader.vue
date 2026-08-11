@@ -68,6 +68,10 @@ const props = defineProps<{
   filePath: string;
   /** 字体大小，单位 px */
   fontSize: number;
+  /** 中文正文字体（CSS font-family 值，可为空表示使用默认字体） */
+  fontFamily?: string;
+  /** 英文正文字体（CSS font-family 值，可为空表示使用默认字体） */
+  fontFamilyEn?: string;
   /** 阅读主题：day 白天、night 夜间、eye 护眼 */
   theme: EbookTheme;
 }>();
@@ -93,6 +97,8 @@ const readerRef = ref<HTMLElement | null>(null);
 const loading = ref(false);
 /** 当前阅读百分比文本 */
 const progressText = ref('0%');
+/** 记录最后一次 relocated 得到的 CFI，供 locations 生成完成后补算精确进度 */
+const currentCfi = ref('');
 
 /** epubjs Book 实例 */
 let book: Book | null = null;
@@ -317,6 +323,7 @@ async function renderEpub(filePath: string) {
     registerThemes(rendition);
     applyTheme(props.theme);
     applyFontSize(props.fontSize);
+    applyFont();
 
     // 加载目录并通知父组件
     book.loaded.navigation
@@ -334,6 +341,8 @@ async function renderEpub(filePath: string) {
       })
       .then(() => {
         locationsReady = true;
+        // locations 就绪后，用当前 CFI 补算一次精确进度（初始 display 时可能算出 0%）
+        refreshProgressAfterLocations();
       })
       .catch((err) => {
         console.error('生成 locations 失败', err);
@@ -395,13 +404,43 @@ async function restoreProgress(filePath: string): Promise<string> {
 function handleRelocated(location: any) {
   const cfi = location?.start?.cfi;
   if (!cfi) return;
+  // 记录当前 CFI，供 locations 生成完成后补算精确进度
+  currentCfi.value = cfi;
+  applyProgress(location);
+}
 
-  // 计算百分比：locations 已生成时用 percentageFromCfi，否则用 location 自带 percentage
+/**
+ * 计算并应用阅读进度（进度文本 + 防抖写库）
+ *
+ * 百分比计算优先级：
+ * 1) epub.js 自带 percentage（locations 就绪时由 rendition 直接算出，最可靠）
+ * 2) 否则用 locations.percentageFromCfi 自行计算（需 locations 就绪）
+ * 3) 兜底：locations 未就绪（生成失败/尚未完成）时，用当前章节序号大致估算，
+ *    避免出现「进度恒为 0%」的问题（否则底部进度与书架进度都会卡在 0）
+ *
+ * @param location - epubjs Location 对象
+ * @returns 无返回值
+ */
+function applyProgress(location: any) {
+  const cfi = location?.start?.cfi;
+  if (!cfi) return;
+
   let percent = 0;
-  if (locationsReady && book) {
-    percent = Math.round(book.locations.percentageFromCfi(cfi) * 100);
-  } else if (typeof location?.start?.percentage === 'number') {
+  if (typeof location?.start?.percentage === 'number') {
     percent = Math.round(location.start.percentage * 100);
+  } else if (locationsReady && book) {
+    const p = book.locations.percentageFromCfi(cfi);
+    if (typeof p === 'number') {
+      percent = Math.round(p * 100);
+    }
+  }
+  if (percent === 0 && !locationsReady && book?.spine) {
+    // 注意：book.spine.length 是数值属性（非函数），需直接取值
+    const total = typeof book.spine.length === 'number' ? book.spine.length : 0;
+    const idx = typeof location?.start?.index === 'number' ? location.start.index : -1;
+    if (total > 0 && idx >= 0) {
+      percent = Math.round(((idx + 1) / total) * 100);
+    }
   }
   percent = Math.max(0, Math.min(100, percent));
   progressText.value = `${percent}%`;
@@ -411,6 +450,27 @@ function handleRelocated(location: any) {
   saveTimer = setTimeout(() => {
     emit('progress-update', { cfi, percent });
   }, 500);
+}
+
+/**
+ * locations 生成完成后，用当前 CFI 重新计算精确进度。
+ *
+ * 初始 rendition.display(cfi) 在 locations 尚未就绪时即触发 relocated，
+ * 此时拿不到 percentage，进度会暂显 0%。此处待 locations 就绪后补算一次，
+ * 确保打开书时底部进度与书架进度显示真实百分比。
+ *
+ * @returns 无返回值
+ */
+function refreshProgressAfterLocations() {
+  const cfi = currentCfi.value;
+  if (!cfi || !book) return;
+  const p = book.locations.percentageFromCfi(cfi);
+  if (typeof p === 'number') {
+    const percent = Math.max(0, Math.min(100, Math.round(p * 100)));
+    progressText.value = `${percent}%`;
+    // 立即同步一次书架进度（不防抖），保证打开即显示正确百分比
+    emit('progress-update', { cfi, percent });
+  }
 }
 
 /**
@@ -823,6 +883,100 @@ function applyFontSize(size: number) {
 }
 
 /**
+ * 应用正文（中/英文）字体
+ * 将中文与英文字体合并为 font-family 列表后传给 epub.js；
+ * 两个字体均为空时清除覆盖，回退到 epub 默认字体
+ *
+ * @returns 无返回值
+ */
+function applyFont() {
+  if (!rendition) return;
+  const cn = props.fontFamily || '';
+  const en = props.fontFamilyEn || '';
+  const list = [cn, en].filter(Boolean);
+  if (list.length === 0) {
+    // 无自定义字体：移除覆盖以使用 epub 默认字体
+    rendition.themes.removeOverride('font-family');
+    return;
+  }
+  list.push('sans-serif');
+  rendition.themes.font(list.join(', '));
+}
+
+/** 重入保护标记：刷新标注过程中防止并发重入 */
+let isRefreshing = false;
+/** 刷新期间是否再次发生字体 / 字号变更，用于补一次刷新 */
+let pendingRefresh = false;
+
+/**
+ * 字体大小 / 字体切换后重新载入标注
+ * epub.js 仅对 <body> 设置 CSS 覆盖，正文重排后已注册的 SVG 标注（基于旧布局定位）不会自动重定位，
+ * 导致划线与笔记移位；此处先移除全部旧标注，待浏览器完成重排后依据 cfiRange 重新定位添加。
+ * 不会改动 annotations.value（数据数组），仅重绘 SVG，避免笔记抽屉闪烁。
+ *
+ * @returns 无返回值
+ */
+async function refreshAnnotations(): Promise<void> {
+  if (!rendition) return;
+  const list = annotations.value.slice();
+  if (list.length === 0) return;
+  // 防止切换期间的并发重入；若刷新过程中又发生了字体变更，标记 pending 以补一次刷新
+  if (isRefreshing) {
+    pendingRefresh = true;
+    return;
+  }
+  isRefreshing = true;
+  try {
+    // 1. 移除全部旧 SVG 标注（同步），并断开其着色观察器
+    for (const ann of list) {
+      const epubType = uiTypeToEpub(ann.type);
+      disposeUnderlineObserver(ann.anchor);
+      try {
+        rendition.annotations.remove(ann.anchor, epubType);
+      } catch (err) {
+        console.error('移除旧划线失败', ann.anchor, err);
+      }
+    }
+    // 2. 等待浏览器完成重排（字体 / 字号改变后布局需在下一帧才稳定）
+    await new Promise<void>((resolve) => {
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(() => requestAnimationFrame(resolve));
+      } else {
+        setTimeout(resolve, 60);
+      }
+    });
+    if (!rendition) return;
+    // 3. 依据 cfiRange 重新定位并添加标注
+    for (const ann of list) {
+      // 刷新期间若用户已删除该标注，跳过以免复活已删项
+      if (!annotations.value.some((a) => a.id === ann.id)) continue;
+      try {
+        const styles = getTypeStyles(ann.type, ann.color);
+        const epubType = uiTypeToEpub(ann.type);
+        const data = { id: ann.id, note: ann.note, cfiRange: ann.anchor, color: ann.color, type: ann.type };
+        const cb = () => onHighlightClick(ann.id, ann.anchor);
+        const mark =
+          epubType === 'underline'
+            ? rendition.annotations.underline(ann.anchor, data, cb, 'epub-highlight', styles)
+            : rendition.annotations.highlight(ann.anchor, data, cb, 'epub-highlight', styles);
+        if (epubType === 'underline') {
+          recolorUnderline(mark, ann.anchor, ann.color);
+        }
+      } catch (err) {
+        console.error('重新添加划线失败', ann, err);
+      }
+    }
+  } finally {
+    isRefreshing = false;
+    if (pendingRefresh) {
+      pendingRefresh = false;
+      // 刷新期间又发生了字体变更，补一次以应用最新样式
+      void refreshAnnotations();
+    }
+  }
+}
+
+/**
  * 翻到上一页
  *
  * @returns 无返回值
@@ -958,6 +1112,18 @@ watch(
   () => props.fontSize,
   (newSize) => {
     applyFontSize(newSize);
+    // 字体大小改变会导致正文重排，已注册标注需重新定位，否则划线移位
+    void refreshAnnotations();
+  }
+);
+
+// 监听中/英文正文字体变化
+watch(
+  () => [props.fontFamily, props.fontFamilyEn],
+  () => {
+    applyFont();
+    // 字体改变会导致正文重排，已注册标注需重新定位，否则划线移位
+    void refreshAnnotations();
   }
 );
 

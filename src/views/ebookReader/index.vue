@@ -61,6 +61,45 @@
               <LucideIcon :name="themeIcon" :size="16" />
               {{ themeLabel }}
             </el-button>
+            <!-- 字体设置：中文 / 英文（选项参考设置页「字体设置」） -->
+            <div class="font-control">
+              <span class="control-label">字体</span>
+              <el-select-v2
+                v-model="fontFamilyModel"
+                :options="fontOptions"
+                filterable
+                clearable
+                placeholder="中文"
+                popper-class="font-select-popper"
+                :item-height="72"
+                style="width: 150px"
+              >
+                <template #default="{ item }">
+                  <span class="font-box" :style="{ fontFamily: item.value }">
+                    <span class="font-name">{{ item.label }}</span>
+                    <span class="font-preview">预览：中文English 123</span>
+                  </span>
+                </template>
+              </el-select-v2>
+              <el-select-v2
+                v-model="fontFamilyENModel"
+                :options="fontOptions"
+                filterable
+                clearable
+                placeholder="英文"
+                popper-class="font-select-popper"
+                :item-height="72"
+                style="width: 150px"
+              >
+                <template #default="{ item }">
+                  <span class="font-box" :style="{ fontFamily: item.value }">
+                    <span class="font-name">{{ item.label }}</span>
+                    <span class="font-preview">Preview: 中文English 123</span>
+                  </span>
+                </template>
+              </el-select-v2>
+            </div>
+
             <!-- 字体大小调整 -->
             <div class="font-size-control">
               <span class="control-label">字号</span>
@@ -167,6 +206,8 @@
               ref="readerRef"
               :file-path="currentFile.path"
               :font-size="settings.fontSize"
+              :font-family="settings.fontFamily"
+              :font-family-en="settings.fontFamilyEN"
               :theme="settings.theme"
               @progress-update="onProgressUpdate"
               @toc-loaded="onTocLoaded"
@@ -255,6 +296,7 @@ import LayoutVue from '@/components/layout.vue';
 import LucideIcon from '@/components/LucideIcon.vue';
 import useEbookReader from '@/store/useEbookReader';
 import type { EbookTheme, BookshelfItem } from '@/store/useEbookReader';
+import useGlobalSetting from '@/store/useGlobalSetting';
 import TxtReader from './components/TxtReader.vue';
 import EpubReader from './components/EpubReader.vue';
 
@@ -329,6 +371,8 @@ const {
   setProgress,
   setFontSize,
   setTheme,
+  setFontFamily,
+  setFontFamilyEN,
   loadBookshelf,
   addToBookshelf,
   removeFromBookshelf,
@@ -377,6 +421,25 @@ const fontSizeModel = computed({
       setFontSize(val);
     }
   },
+});
+
+/** 字体选项来源（与设置页「字体设置」保持一致）：内置字体列表 + 系统已安装字体 */
+const { globalFontOpsC } = storeToRefs(useGlobalSetting());
+/** 系统字体列表（由主进程 get-fonts 返回，结构 { label, value }） */
+const sysFonts = ref<{ label: string; value: string }[]>([]);
+/** 合并后的字体下拉选项 */
+const fontOptions = computed(() => [...(globalFontOpsC.value || []), ...sysFonts.value]);
+
+/** 中文正文字体双向绑定 */
+const fontFamilyModel = computed({
+  get: () => settings.value.fontFamily,
+  set: (val: string | undefined) => setFontFamily(val ?? ''),
+});
+
+/** 英文正文字体双向绑定 */
+const fontFamilyENModel = computed({
+  get: () => settings.value.fontFamilyEN,
+  set: (val: string | undefined) => setFontFamilyEN(val ?? ''),
 });
 
 /** 当前主题图标名称 */
@@ -455,12 +518,14 @@ function loadFile(filePath: string, name: string, format: 'txt' | 'epub') {
   // 清除上一本书的笔记列表，避免抽屉中残留旧数据
   annotations.value = [];
   annotationDrawerVisible.value = false;
-  // 写入书架记录并刷新书架列表（lastReadAt/addedAt 由数据库维护，此处传入占位时间）
+  // 写入书架记录并刷新书架列表；percent 优先沿用该书已有的书架进度，
+  // 避免用全局 progress 覆盖掉每本书各自保存的真实阅读进度
+  const existingItem = bookshelf.value.find((b) => b.path === filePath);
   addToBookshelf({
     path: filePath,
     name,
     format,
-    percent: progress.value.percent || 0,
+    percent: existingItem ? existingItem.percent : progress.value.percent || 0,
     lastReadAt: new Date().toISOString(),
     addedAt: new Date().toISOString(),
   });
@@ -741,9 +806,17 @@ async function onAnnotationDelete(item: AnnotationDisplayItem) {
   }
 }
 
-// 组件挂载时加载书架列表（从数据库读取）
+// 组件挂载时加载书架列表（从数据库读取）并拉取系统字体供字体选择使用
 onMounted(() => {
   loadBookshelf();
+  window.ipcRenderer
+    .handlePromise('get-fonts', {})
+    .then((result) => {
+      sysFonts.value = result || [];
+    })
+    .catch((err) => {
+      console.error('获取系统字体失败', err);
+    });
 });
 
 // 监听文件路径变化，切换文件时清除目录状态与笔记列表
@@ -806,6 +879,18 @@ watch(
     }
 
     .font-size-control {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+
+      .control-label {
+        font-size: 13px;
+        color: var(--text-secondary);
+        white-space: nowrap;
+      }
+    }
+
+    .font-control {
       display: flex;
       align-items: center;
       gap: 6px;
@@ -1137,6 +1222,44 @@ watch(
       text-align: center;
       color: var(--text-muted);
       font-size: 13px;
+    }
+  }
+}
+</style>
+
+<!-- 字体下拉面板样式（与设置页字体选择保持一致），非 scoped 以便作用于 body 下的 popper -->
+<style lang="scss">
+.font-select-popper {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border-subtle) !important;
+
+  .el-select-dropdown__item {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    height: fit-content;
+    color: var(--text-primary) !important;
+
+    &:hover {
+      background: var(--bg-hover) !important;
+    }
+
+    .font-box {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      height: 72px;
+    }
+
+    .font-name {
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .font-preview {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
     }
   }
 }

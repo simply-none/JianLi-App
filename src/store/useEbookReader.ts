@@ -30,6 +30,10 @@ export interface EbookProgress {
 export interface EbookSettings {
   /** 字体大小，单位 px */
   fontSize: number;
+  /** 中文正文字体（CSS font-family 值，可为空字符串表示使用默认字体） */
+  fontFamily: string;
+  /** 英文正文字体（CSS font-family 值，可为空字符串表示使用默认字体） */
+  fontFamilyEN: string;
   /** 阅读主题：day 白天、night 夜间、eye 护眼 */
   theme: EbookTheme;
 }
@@ -60,6 +64,8 @@ const PROGRESS_KEY = 'ebookReaderProgress';
 /** 阅读设置默认值 */
 const DEFAULT_SETTINGS: EbookSettings = {
   fontSize: 16,
+  fontFamily: '',
+  fontFamilyEN: '',
   theme: 'day',
 };
 
@@ -82,7 +88,7 @@ export default defineStore('ebook-reader', () => {
   const storedSettings = getStore(SETTINGS_KEY) as EbookSettings | undefined;
   const settings = ref<EbookSettings>(
     storedSettings && typeof storedSettings.fontSize === 'number' && storedSettings.theme
-      ? storedSettings
+      ? { ...DEFAULT_SETTINGS, ...storedSettings }
       : { ...DEFAULT_SETTINGS }
   );
 
@@ -126,6 +132,26 @@ export default defineStore('ebook-reader', () => {
    */
   function setTheme(theme: EbookTheme) {
     settings.value.theme = theme;
+    setStore(SETTINGS_KEY, settings.value);
+  }
+
+  /**
+   * 设置中文正文字体，并同步持久化到本地存储
+   * @param value CSS font-family 值（空字符串表示使用默认字体）
+   * @returns 无返回值
+   */
+  function setFontFamily(value: string) {
+    settings.value.fontFamily = value;
+    setStore(SETTINGS_KEY, settings.value);
+  }
+
+  /**
+   * 设置英文正文字体，并同步持久化到本地存储
+   * @param value CSS font-family 值（空字符串表示使用默认字体）
+   * @returns 无返回值
+   */
+  function setFontFamilyEN(value: string) {
+    settings.value.fontFamilyEN = value;
     setStore(SETTINGS_KEY, settings.value);
   }
 
@@ -214,6 +240,10 @@ export default defineStore('ebook-reader', () => {
     setFontSize,
     // 设置阅读主题
     setTheme,
+    // 设置中文正文字体
+    setFontFamily,
+    // 设置英文正文字体
+    setFontFamilyEN,
     // 加载书架列表
     loadBookshelf,
     // 添加或更新书架记录

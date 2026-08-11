@@ -1,7 +1,7 @@
 <template>
   <div class="txt-reader" :class="themeClass" v-loading="loading" element-loading-text="正在加载文件...">
     <!-- 阅读内容区：按页展示 txt 文本，分段 span 渲染以支持划线高亮 -->
-    <div class="txt-content" :style="{ fontSize: fontSize + 'px' }" @mouseup="onMouseUp">
+    <div class="txt-content" :style="{ fontSize: fontSize + 'px', fontFamily: fontFamilyValue }" @mouseup="onMouseUp">
       <div class="txt-page">
         <span
           v-for="(seg, i) in pageSegments"
@@ -119,6 +119,10 @@ const props = defineProps<{
   filePath: string;
   /** 字体大小，单位 px */
   fontSize: number;
+  /** 中文正文字体（CSS font-family 值，可为空表示使用默认字体） */
+  fontFamily?: string;
+  /** 英文正文字体（CSS font-family 值，可为空表示使用默认字体） */
+  fontFamilyEn?: string;
   /** 阅读主题：day 白天、night 夜间、eye 护眼 */
   theme: EbookTheme;
 }>();
@@ -294,6 +298,16 @@ const pageSegments = computed<Segment[]>(() => {
 
 /** 主题 class 计算属性 */
 const themeClass = computed(() => `theme-${props.theme}`);
+
+/**
+ * 合并中文/英文正文字体为 CSS font-family 值
+ * 任一字体为空时回退到组件默认字体，保证未设置时仍有良好排版
+ */
+const fontFamilyValue = computed(() => {
+  const cn = props.fontFamily || "'Microsoft YaHei', 'PingFang SC'";
+  const en = props.fontFamilyEn || 'sans-serif';
+  return `${cn}, ${en}`;
+});
 
 /**
  * 按段落边界对文本进行分页
