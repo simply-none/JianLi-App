@@ -59,8 +59,9 @@ export function useWorkOrRest() {
     // hideApp 触发强制开始工作（不限次数）
     window.ipcRenderer.on("force-start-work", (e, data) => {
       // 判断如果当前是工作状态，则不进行开始工作
-      if (curStatusC.value?.value === "work") return;
-      startForceWorkFn({ isUpdateStartTime: true });
+      if (curStatusC.value?.value === "rest" || curStatusC.value?.value === 'screen') {
+        startForceWorkFn({ isUpdateStartTime: true });
+      }
     });
   }
   // 软件初始化 - 取消注册全局侦听事件
