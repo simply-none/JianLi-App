@@ -1,7 +1,12 @@
 <template>
   <div class="epub-reader" :class="themeClass" v-loading="loading" element-loading-text="正在加载电子书...">
     <!-- epub 渲染容器：epubjs 会将内容渲染到此元素；监听 mouseup 记录鼠标坐标，用于浮动工具条定位 -->
-    <div ref="readerRef" class="epub-viewer" @mouseup="onReaderMouseup"></div>
+    <div class="epub-viewport">
+      <div ref="readerRef" class="epub-viewer" @mouseup="onReaderMouseup"></div>
+      <!-- 阅读区左右边缘 10% 点击区：点击上一页 / 下一页，便于沉浸式翻页 -->
+      <div class="edge-turn-zone edge-turn-zone--left" @click="onEdgePrev" title="上一页"></div>
+      <div class="edge-turn-zone edge-turn-zone--right" @click="onEdgeNext" title="下一页"></div>
+    </div>
 
     <!-- 选中文本后弹出的浮动工具条：提供「划线」「笔记」两个操作 -->
     <AnnotationToolbar
@@ -12,6 +17,36 @@
       @note="onToolbarNote"
       @close="toolbarVisible = false"
     />
+
+    <!-- 笔记编辑弹窗：编辑笔记时可在底部直接删除对应划线 -->
+    <el-dialog
+      v-model="noteDialogVisible"
+      title="编辑笔记"
+      width="400px"
+      :close-on-click-modal="false"
+      append-to-body
+      class="annotation-note-dialog"
+      @closed="onNoteDialogClosed"
+    >
+      <el-input
+        v-model="noteInput"
+        type="textarea"
+        :rows="4"
+        placeholder="请输入笔记内容"
+        resize="none"
+      />
+      <template #footer>
+        <div class="annotation-note-dialog-footer">
+          <el-button type="danger" plain size="small" @click="deleteCurrentAnnotation">
+            删除划线
+          </el-button>
+          <div class="dialog-footer-right">
+            <el-button size="small" @click="noteDialogVisible = false">取消</el-button>
+            <el-button type="primary" size="small" @click="saveNote">保存</el-button>
+          </div>
+        </div>
+      </template>
+    </el-dialog>
 
     <!-- 底部翻页控制区 -->
     <div class="epub-footer">
@@ -53,15 +88,23 @@ export interface EpubAnnotation {
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { storeToRefs } from 'pinia';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import LucideIcon from '@/components/LucideIcon.vue';
 // 浮动工具条组件：选中文本后弹出，提供「划线」「笔记」两个操作
 import AnnotationToolbar from './AnnotationToolbar.vue';
+// 划线颜色/类型统一配置（颜色映射、默认值等）
+import { HIGHLIGHT_COLOR_MAP } from '../highlightConfig';
+import { resolveReadingBg, resolveReadingText } from '../themePresets';
 // epubjs 默认导出 ePub 工厂函数，命名导出 Book/Rendition/NavItem/Contents 类型
 import ePub, { Book, Rendition, NavItem, Contents } from 'epubjs';
+// 阅读设置 store：划线颜色/类型由右上角「阅读设置」预设
+import useEbookReader from '@/store/useEbookReader';
 
 /** 阅读主题类型：day 白天、night 夜间、eye 护眼 */
 type EbookTheme = 'day' | 'night' | 'eye';
+/** 阅读区背景类型：preset 跟随主题 / color 纯色 / image 背景图 */
+type EbookBgType = 'preset' | 'color' | 'image';
 
 /** 组件 Props 定义 */
 const props = defineProps<{
@@ -75,6 +118,14 @@ const props = defineProps<{
   fontFamilyEn?: string;
   /** 阅读主题：day 白天、night 夜间、eye 护眼 */
   theme: EbookTheme;
+  /** 阅读区背景类型：preset 跟随主题 / color 纯色 / image 背景图 */
+  bgType?: EbookBgType;
+  /** 阅读区背景色（bgType 为 'color' 时生效） */
+  bgColor?: string;
+  /** 阅读区背景图 data URL（bgType 为 'image' 时生效） */
+  bgImage?: string;
+  /** 阅读区文字颜色（空字符串表示跟随主题预设文字色） */
+  textColor?: string;
   /** 正文行距倍率（作用于 epub body line-height） */
   lineHeight?: number;
   /** 分栏数：1 单栏、2 双栏（通过 rendition.spread 控制） */
@@ -112,6 +163,18 @@ const pageInfo = ref<{ current: number; total: number }>({ current: 1, total: 1 
 const pageText = computed(() => `${pageInfo.value.current} / ${pageInfo.value.total}`);
 /** 记录最后一次 relocated 得到的 CFI，供 locations 生成完成后补算精确进度 */
 const currentCfi = ref('');
+/**
+ * 翻页动画方向：用户点击上一页/下一页时设置；
+ * relocated 回调消费后清空（初始加载、目录跳转、笔记跳转均不触发动画）。
+ * 取值 'forward' | 'back' | null
+ */
+const turnDirection = ref<'forward' | 'back' | null>(null);
+/** 笔记编辑弹窗显示状态 */
+const noteDialogVisible = ref(false);
+/** 当前正在编辑的标注记录 id */
+const currentEditAnnotationId = ref<number | null>(null);
+/** 笔记编辑弹窗中的输入内容 */
+const noteInput = ref('');
 
 /** epubjs Book 实例 */
 let book: Book | null = null;
@@ -122,24 +185,18 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null;
 /** locations 是否已生成（用于判断百分比是否可用） */
 let locationsReady = false;
 
-/** 高亮颜色映射：颜色名称到 CSS 颜色值的映射 */
-const COLOR_MAP: Record<string, string> = {
-  yellow: 'rgba(255,235,59,0.4)',
-  green: 'rgba(129,199,132,0.4)',
-  blue: 'rgba(100,181,246,0.4)',
-  pink: 'rgba(244,143,177,0.4)',
-  orange: 'rgba(255,183,77,0.4)',
-  purple: 'rgba(186,160,227,0.4)',
-};
+/** 阅读设置 store：划线颜色/类型由右上角「阅读设置」预设，此处直接读取 */
+const ebookStore = useEbookReader();
+const { settings } = storeToRefs(ebookStore);
 
 /**
- * 根据颜色名称获取 CSS 颜色值
+ * 根据颜色名称获取 CSS 颜色值（颜色映射来自统一配置）
  *
  * @param colorName - 颜色名称
  * @returns CSS 颜色值
  */
 function getColorValue(colorName: string): string {
-  return COLOR_MAP[colorName] || COLOR_MAP.yellow;
+  return HIGHLIGHT_COLOR_MAP[colorName] || HIGHLIGHT_COLOR_MAP.yellow;
 }
 
 /**
@@ -269,26 +326,98 @@ let lastMouseY = 0;
 /** 主题 class 计算属性 */
 const themeClass = computed(() => `theme-${props.theme}`);
 
+/** 所有 epub 阅读主题名（与 EbookTheme 一致），用于兜底清理 body 上的残留主题 class */
+const EPUB_THEME_NAMES: EbookTheme[] = ['day', 'night', 'eye'];
+
 /**
- * 注册 epubjs 主题
- * day：白底黑字；night：深色背景浅色字；eye：护眼绿底深色字
+ * epub 正文（iframe）内「与背景/文字色无关」的兜底规则，注册到 epubjs 的 `default` 主题。
+ *
+ * 背景色 / 文字色不放在这里——它们现在是**随设置动态变化**的（纯色 / 背景图 / 自定义文字色），
+ * 通过 `applyReadingStyle()` 用 `themes.override()` 注入（见下）。这里仅保留：
+ *   - body 过渡动画（切换主题时不生硬）；
+ *   - 夜间主题下链接单独着色（文字色由 override 控制，a 标签需额外保证对比度）。
+ *
+ * 关键设计（沿用此前修复「反复切换后正文配色不一致」的经验）：
+ * 合并进 `default` 主题一次性注入。epubjs 的 content 钩子 `inject()` 只注入 `_current`
+ * 与 `default` 两个主题，挂在 `default` 上可保证**每个新渲染的章节 iframe** 都自带这些规则。
+ *
+ * 背景/文字色的动态注入之所以用 `themes.override(name, value, true)` 而非 `default` 重写：
+ * `override()` 在 epubjs 内部按 `name` 复用同一个 `<style>` 节点（innerHTML 整体替换，
+ * 不追加），因此反复修改背景/文字色**不会堆积重复规则**；同时 epubjs 的 `overrides`
+ * content 钩子会在每个新章节渲染时自动重新套用当前所有 override，无需手动重注入。
+ */
+const EPUB_THEME_RULES: Record<string, Record<string, string>> = {
+  // body 过渡：背景/文字色切换时平滑过渡，避免生硬闪烁
+  body: { transition: 'background-color 0.3s ease, color 0.3s ease' },
+  // 夜间主题下链接用浅蓝，保证深色背景上的对比度（文字色由 override 控制，此处仅对 a 标签单独着色）
+  'body.night a': { color: '#88aaff !important' },
+};
+
+/**
+ * 注册 epubjs 主题样式（class 限定的兜底规则，见 EPUB_THEME_RULES 注释）
+ *
+ * 注意：这里注册的是 `default` 主题（而非三个独立主题）。
+ * 「独立注册三个主题 + select() 切换」的官方用法存在样式表插入顺序缺陷
+ * （详见 EPUB_THEME_RULES 注释），且每次 `select()` 都会通过 `insertRule`
+ * 往对应节点**追加**规则，反复切换会无限堆积重复规则。
+ * 合并到 `default` 后：规则每个 iframe 只注入一次，主题切换退化为纯 class 切换。
+ *
+ * 阅读区的背景色 / 背景图 / 文字色是随设置动态变化的，不在这里注册，
+ * 改由 `applyReadingStyle()` 通过 `themes.override()` 注入。
  *
  * @param rend - epubjs Rendition 实例
  * @returns 无返回值
  */
 function registerThemes(rend: Rendition) {
-  // 白天主题
-  rend.themes.register('day', {
-    body: { background: '#ffffff', color: '#333333' },
-  });
-  // 夜间主题
-  rend.themes.register('night', {
-    body: { background: '#1a1a1a', color: '#cccccc' },
-    a: { color: '#88aaff' },
-  });
-  // 护眼主题
-  rend.themes.register('eye', {
-    body: { background: '#c7edcc', color: '#2c3e50' },
+  rend.themes.default(EPUB_THEME_RULES);
+}
+
+/**
+ * 按当前设置把「背景色 / 背景图 / 文字色」注入 epub 正文（iframe body）
+ *
+ * 通过 `themes.override('background'|'color', value, true)` 实现：
+ * - epubjs 内部按 `name` 复用同一个 `<style>` 节点（innerHTML 整体替换），反复修改**不会堆积**规则；
+ * - 第三个参数 `true` 让规则带 `!important`，稳稳压过电子书自带样式与 `body.<主题>` 兜底规则；
+ * - epubjs 的 `overrides` content 钩子会在每个新章节渲染时自动重新套用当前 override，
+ *   因此切章节无需手动重注入。
+ *
+ * 背景取值优先级：image 且已选图 → 背景图；color 且已选色 → 纯色；否则回退主题预设。
+ * 文字色：自定义非空则用自定义，否则回退主题预设。
+ *
+ * @returns 无返回值
+ */
+function applyReadingStyle() {
+  if (!rendition) return;
+  const bg = resolveReadingBg(
+    props.bgType ?? 'preset',
+    props.bgColor ?? '',
+    props.bgImage ?? '',
+    props.theme
+  );
+  const text = resolveReadingText(props.textColor ?? '', props.theme);
+  rendition.themes.override('background', bg, true);
+  rendition.themes.override('color', text, true);
+}
+
+/**
+ * 兜底同步 iframe body 上的主题 class：只保留当前主题，移除其余主题 class
+ *
+ * epubjs 的 `themes.select()` 只会移除「紧邻的上一个」主题 class；
+ * 若切换与分节渲染时序错位（例如切主题的同时新章节正在渲染），
+ * body 上可能同时残留两个主题 class，导致两条 `body.<主题>` 规则同时命中。
+ * 此处显式做一次归一化，保证任意时刻 body 上有且仅有当前主题 class。
+ *
+ * @param theme - 当前阅读主题
+ * @returns 无返回值
+ */
+function syncThemeClass(theme: EbookTheme) {
+  const frames = readerRef.value?.querySelectorAll('iframe');
+  frames?.forEach((frame) => {
+    const body = frame.contentDocument?.body;
+    if (!body) return;
+    EPUB_THEME_NAMES.forEach((name) => {
+      body.classList.toggle(name, name === theme);
+    });
   });
 }
 
@@ -372,6 +501,9 @@ async function renderEpub(filePath: string) {
     // 监听 iframe 内 mouseup：epubjs 会将 iframe 的 DOM 事件转发到 rendition，
     // 用于记录鼠标坐标（需换算为外层视口坐标）以便定位浮动工具条
     rendition.on('mouseup', handleRenditionMouseup);
+    // 监听章节渲染完成：新章节会创建新的 iframe，此处再归一化一次主题 class，
+    // 兜底 content 钩子与主题切换的时序竞态，保证新章节配色与当前所选主题一致
+    rendition.on('rendered', () => syncThemeClass(props.theme));
 
     // 恢复上次阅读进度
     const savedCfi = await restoreProgress(filePath);
@@ -412,6 +544,45 @@ async function restoreProgress(filePath: string): Promise<string> {
 }
 
 /**
+ * 触发翻页过渡动画
+ * 在 relocated 中、epubjs 已完成内容切换后调用。通过给阅读容器临时添加一次性
+ * CSS 动画类实现「滑动 / 覆盖 / 3D 仿真」翻页效果。
+ * - 仅当用户主动 prev/next（turnDirection 已设置）且 pageEffect !== 'none' 时生效；
+ * - 滚动模式（scrolled）下分页不存在，跳过动画；
+ * - 初始加载 / 目录跳转 / 笔记跳转不设置 turnDirection，故不触发动画。
+ *
+ * @returns 无返回值
+ */
+function playPageTurn(): void {
+  const effect = settings.value.pageEffect;
+  const dir = turnDirection.value;
+  // 消费方向标记（无论是否触发动画都清空，避免下次 relocated 误用）
+  turnDirection.value = null;
+  if (effect === 'none' || !dir || props.scrollMode || !readerRef.value) return;
+
+  const el = readerRef.value;
+  // 所有可能的动画类，先统一移除并强制重排，确保动画可重复触发
+  const allClasses = [
+    'page-turn-slide-forward',
+    'page-turn-slide-back',
+    'page-turn-cover-forward',
+    'page-turn-cover-back',
+    'page-turn-flip3d-forward',
+    'page-turn-flip3d-back',
+  ];
+  allClasses.forEach((c) => el.classList.remove(c));
+  // 强制 reflow，使后续添加的类能重新触发动画
+  void el.offsetWidth;
+  const cls = `page-turn-${effect}-${dir}`;
+  el.classList.add(cls);
+  const onEnd = () => {
+    el.classList.remove(cls);
+    el.removeEventListener('animationend', onEnd);
+  };
+  el.addEventListener('animationend', onEnd);
+}
+
+/**
  * relocated 事件回调：位置变化时更新进度
  * 防抖处理避免频繁写库
  *
@@ -426,6 +597,8 @@ function handleRelocated(location: any) {
   applyProgress(location);
   // 翻页/重排版后刷新页码信息（页码随字体/字号变化）
   updatePageInfo();
+  // 触发翻页过渡动画（仅用户主动 prev/next 且开启了翻页效果时）
+  playPageTurn();
 }
 
 /**
@@ -670,7 +843,7 @@ async function addHighlight(cfiRange: string, text: string, note = '', color = '
     // epub.js 仅支持 highlight / underline，波浪线降级为 underline 渲染
     const epubType = uiTypeToEpub(type);
     const data = { id, note, cfiRange, color, type };
-    const cb = () => onHighlightClick(id, cfiRange);
+    const cb = () => onHighlightClick(id, cfiRange, note);
     const mark =
       epubType === 'underline'
         ? rendition.annotations.underline(cfiRange, data, cb, 'epub-highlight', styles)
@@ -691,33 +864,37 @@ async function addHighlight(cfiRange: string, text: string, note = '', color = '
 
 /**
  * 点击「划线」按钮处理：对当前选区执行纯划线流程（note 为空），关闭工具条
+ * 颜色与样式取自阅读设置 store（右上角「阅读设置」预设），无需在工具条上选择
  *
- * @param payload - 工具条传递的参数，包含 color 和 type
  * @returns 无返回值
  */
-async function onToolbarHighlight(payload?: { color?: string; type?: string }): Promise<void> {
+async function onToolbarHighlight(): Promise<void> {
   const sel = currentSelection.value;
   if (!sel) return;
   // 先清空选区状态并关闭工具条，避免 await 期间状态被重复使用
+  const color = settings.value.highlightColor;
+  const type = settings.value.highlightType;
   currentSelection.value = null;
   toolbarVisible.value = false;
-  await addHighlight(sel.cfiRange, sel.text, '', payload?.color || 'yellow', payload?.type || 'highlight');
+  await addHighlight(sel.cfiRange, sel.text, '', color, type);
 }
 
 /**
  * 点击「笔记」按钮处理：先划线保存（note 为空），再弹输入框录入笔记
  * 用户取消输入则保留为纯划线；保存则调 updateAnnotation 更新 note
+ * 颜色与样式取自阅读设置 store（右上角「阅读设置」预设）
  *
- * @param payload - 工具条传递的参数，包含 color 和 type
  * @returns 无返回值
  */
-async function onToolbarNote(payload?: { color?: string; type?: string }): Promise<void> {
+async function onToolbarNote(): Promise<void> {
   const sel = currentSelection.value;
   if (!sel) return;
+  const color = settings.value.highlightColor;
+  const type = settings.value.highlightType;
   currentSelection.value = null;
   toolbarVisible.value = false;
   // 先执行划线流程保存到数据库
-  await addHighlight(sel.cfiRange, sel.text, '', payload?.color || 'yellow', payload?.type || 'highlight');
+  await addHighlight(sel.cfiRange, sel.text, '', color, type);
   // 取最新创建的标注项（addHighlight 成功后会 push 到 annotations 末尾）
   const created = annotations.value[annotations.value.length - 1];
   if (!created) return;
@@ -732,8 +909,8 @@ async function onToolbarNote(payload?: { color?: string; type?: string }): Promi
     const res = await window.ipcRenderer.ebook.updateAnnotation({
       id: created.id,
       note: value,
-      color: payload?.color || 'yellow',
-      type: payload?.type || 'highlight',
+      color,
+      type,
     });
     if (!res?.success) {
       ElMessage.error(`保存笔记失败：${res?.error || '未知错误'}`);
@@ -747,38 +924,29 @@ async function onToolbarNote(payload?: { color?: string; type?: string }): Promi
 }
 
 /**
- * 点击已有高亮的回调：弹窗展示笔记并提供「删除」「编辑笔记」选项
+ * 点击已有高亮的回调
+ * - 带笔记：直接打开笔记编辑弹窗（可在弹窗内删除划线）
+ * - 纯划线：直接删除划线，无需连续弹窗
  * 由 addHighlight / loadAnnotations 中的高亮闭包调用
  *
  * @param id - 标注记录主键 id
  * @param cfiRange - 标注定位锚点（cfiRange）
  * @returns 无返回值
  */
-function onHighlightClick(id: number, cfiRange: string): void {
+function onHighlightClick(id: number, cfiRange: string, noteFromCb?: string): void {
   const annotation = annotations.value.find((a) => a.id === id);
-  const note = annotation?.note ?? '';
-  // confirm：确认=删除，取消=编辑笔记
-  ElMessageBox.confirm(
-    `${note ? '笔记：' + note : '无笔记'}\n是否删除该划线？`,
-    '划线',
-    {
-      confirmButtonText: '删除',
-      cancelButtonText: '编辑笔记',
-      type: 'info',
-    }
-  )
-    .then(() => {
-      // 用户点击「删除」
-      removeHighlight(id, cfiRange);
-    })
-    .catch((action) => {
-      // 仅「编辑笔记」按钮（action === 'cancel'）触发编辑；
-      // 关闭弹窗（action === 'close'）不处理
-      // 注：catch 变量类型只能为 any/unknown，故不做类型注解，用 === 比较收窄
-      if (action === 'cancel') {
-        editAnnotationNote(id);
-      }
-    });
+  if (!annotation) return;
+  // 优先用本地标注的 note，其次用点击回调携带的 note（创建高亮时即传入，
+  // 防止本地 note 因刷新/重排等意外丢失时被误判为纯划线而直接删除）
+  const hasNote = !!(annotation.note || noteFromCb);
+
+  if (hasNote) {
+    // 带笔记：直接进入笔记编辑弹窗
+    editAnnotationNote(id);
+  } else {
+    // 纯划线：直接删除
+    void removeHighlight(id, cfiRange);
+  }
 }
 
 /**
@@ -789,6 +957,17 @@ function onHighlightClick(id: number, cfiRange: string): void {
  * @returns 无返回值；失败弹出错误提示
  */
 async function removeHighlight(id: number, cfiRange: string): Promise<void> {
+  try {
+    // 阅读区划线删除前二次确认，避免误删（纯划线直接删除、笔记弹窗内删除均走此路径）
+    await ElMessageBox.confirm('确认删除该划线？', '提示', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+    });
+  } catch {
+    // 用户取消删除，直接返回，不执行后续删除逻辑
+    return;
+  }
   try {
     const res = await window.ipcRenderer.ebook.removeAnnotation(id);
     if (!res?.success) {
@@ -815,24 +994,36 @@ async function removeHighlight(id: number, cfiRange: string): Promise<void> {
 }
 
 /**
- * 编辑笔记：弹出输入框（预填当前笔记）→ 调用 IPC 更新 → 同步本地 → 通知父组件
+ * 打开笔记编辑弹窗
+ * 供阅读区内点击带笔记的高亮、以及父组件笔记抽屉「编辑」按钮共用
  *
  * @param id - 标注记录主键 id
- * @returns 无返回值；用户取消时不做任何操作
+ * @returns 无返回值
  */
-async function editAnnotationNote(id: number): Promise<void> {
+function editAnnotationNote(id: number): void {
   const annotation = annotations.value.find((a) => a.id === id);
   if (!annotation) return;
+  currentEditAnnotationId.value = id;
+  noteInput.value = annotation.note || '';
+  noteDialogVisible.value = true;
+}
+
+/**
+ * 保存当前弹窗中的笔记内容
+ * 调用 IPC 更新数据库 → 同步本地 → 通知父组件 → 关闭弹窗
+ *
+ * @returns 无返回值
+ */
+async function saveNote(): Promise<void> {
+  const id = currentEditAnnotationId.value;
+  if (id === null) return;
+  const annotation = annotations.value.find((a) => a.id === id);
+  if (!annotation) return;
+
   try {
-    const { value } = await ElMessageBox.prompt('请输入笔记内容', '编辑笔记', {
-      confirmButtonText: '保存',
-      cancelButtonText: '取消',
-      inputValue: annotation.note || '',
-      inputType: 'textarea',
-    });
     const res = await window.ipcRenderer.ebook.updateAnnotation({
       id,
-      note: value,
+      note: noteInput.value,
       color: annotation.color || 'yellow',
       type: annotation.type || 'highlight',
     });
@@ -840,11 +1031,39 @@ async function editAnnotationNote(id: number): Promise<void> {
       ElMessage.error(`保存笔记失败：${res?.error || '未知错误'}`);
       return;
     }
-    annotation.note = value;
+    annotation.note = noteInput.value;
     emit('annotations-updated', annotations.value);
-  } catch {
-    // 用户取消，不处理
+    ElMessage.success('笔记已保存');
+    noteDialogVisible.value = false;
+  } catch (err) {
+    console.error('保存笔记异常', err);
+    ElMessage.error('保存笔记失败');
   }
+}
+
+/**
+ * 删除当前正在编辑的标注（笔记弹窗底部「删除划线」按钮）
+ * 移除数据库记录与 rendition 高亮 → 同步本地 → 通知父组件 → 关闭弹窗
+ *
+ * @returns 无返回值
+ */
+async function deleteCurrentAnnotation(): Promise<void> {
+  const id = currentEditAnnotationId.value;
+  if (id === null) return;
+  const annotation = annotations.value.find((a) => a.id === id);
+  if (!annotation) return;
+  await removeHighlight(id, annotation.anchor);
+  noteDialogVisible.value = false;
+}
+
+/**
+ * 笔记编辑弹窗关闭后的清理工作
+ *
+ * @returns 无返回值
+ */
+function onNoteDialogClosed(): void {
+  currentEditAnnotationId.value = null;
+  noteInput.value = '';
 }
 
 /**
@@ -876,7 +1095,7 @@ async function loadAnnotations(filePath: string): Promise<void> {
         // epub.js 仅支持 highlight / underline，波浪线降级为 underline 渲染
         const epubType = uiTypeToEpub(type);
         const data = { id, note, cfiRange, color, type };
-        const cb = () => onHighlightClick(id, cfiRange);
+        const cb = () => onHighlightClick(id, cfiRange, note);
         const mark =
           epubType === 'underline'
             ? rendition.annotations.underline(cfiRange, data, cb, 'epub-highlight', styles)
@@ -924,7 +1143,17 @@ function jumpToAnnotation(anchor: string): void {
  */
 function applyTheme(theme: EbookTheme) {
   if (!rendition) return;
+  // 主题规则已随 default 主题注入（见 registerThemes），此处 select 的作用有两点：
+  // 1. 把 epubjs 内部 _current 更新为当前主题，使后续新章节 iframe 在 content 钩子
+  //    inject() 里自动获得 `contents.addClass(_current)`，避免翻章时闪一下无主题样式；
+  // 2. 顺带在已渲染的 body 上完成 class 切换。
+  // 由于 day/night/eye 并未作为独立主题注册，select 内部的 add() 会直接 return，
+  // 因此不会重复注入 CSS，也不存在规则堆积。
   rendition.themes.select(theme);
+  // 兜底归一化 body 主题 class，避免残留多个主题 class 造成两条规则同时命中
+  syncThemeClass(theme);
+  // 注入随设置动态变化的背景色 / 背景图 / 文字色（见 applyReadingStyle）
+  applyReadingStyle();
 }
 
 /**
@@ -1060,7 +1289,7 @@ async function refreshAnnotations(): Promise<void> {
         const styles = getTypeStyles(ann.type, ann.color);
         const epubType = uiTypeToEpub(ann.type);
         const data = { id: ann.id, note: ann.note, cfiRange: ann.anchor, color: ann.color, type: ann.type };
-        const cb = () => onHighlightClick(ann.id, ann.anchor);
+        const cb = () => onHighlightClick(ann.id, ann.anchor, ann.note);
         const mark =
           epubType === 'underline'
             ? rendition.annotations.underline(ann.anchor, data, cb, 'epub-highlight', styles)
@@ -1091,6 +1320,8 @@ async function refreshAnnotations(): Promise<void> {
  */
 function prevPage() {
   if (!rendition) return;
+  // 标记翻页方向，供 relocated 触发翻页动画（后/上一页）
+  turnDirection.value = 'back';
   rendition.prev?.();
 }
 
@@ -1101,7 +1332,31 @@ function prevPage() {
  */
 function nextPage() {
   if (!rendition) return;
+  // 标记翻页方向，供 relocated 触发翻页动画（前/下一页）
+  turnDirection.value = 'forward';
   rendition.next?.();
+}
+
+/**
+ * 阅读区左侧边缘（10%）点击：上一页
+ * 加载中或已无上一页时由底层 prevPage 内部处理
+ *
+ * @returns 无返回值
+ */
+function onEdgePrev() {
+  if (loading.value) return;
+  prevPage();
+}
+
+/**
+ * 阅读区右侧边缘（10%）点击：下一页
+ * 加载中或已无下一页时由底层 nextPage 内部处理
+ *
+ * @returns 无返回值
+ */
+function onEdgeNext() {
+  if (loading.value) return;
+  nextPage();
 }
 
 /**
@@ -1193,7 +1448,8 @@ function removeAnnotationById(id: number): void {
 // - displayTarget：跳转到指定 cfi 或 href（目录跳转）
 // - jumpToAnnotation：跳转到指定划线位置（笔记抽屉点击调用）
 // - removeAnnotationById：按 id 移除本地划线（笔记抽屉删除后同步高亮）
-defineExpose({ displayTarget, jumpToAnnotation, removeAnnotationById });
+// - editAnnotationNote：按 id 弹出输入框编辑笔记（笔记抽屉「编辑」调用）
+defineExpose({ displayTarget, jumpToAnnotation, removeAnnotationById, editAnnotationNote });
 
 // 监听文件路径变化，重新渲染
 watch(
@@ -1213,6 +1469,15 @@ watch(
   () => props.theme,
   (newTheme) => {
     applyTheme(newTheme);
+  }
+);
+
+// 监听阅读区背景 / 文字色变化：重新注入动态背景色、背景图与文字色
+// （override 按 name 复用同一节点，反复修改不堆积规则；新章节由 epubjs overrides 钩子自动重套用）
+watch(
+  () => [props.bgType, props.bgColor, props.bgImage, props.textColor],
+  () => {
+    applyReadingStyle();
   }
 );
 
@@ -1299,13 +1564,124 @@ onUnmounted(() => {
   flex-direction: column;
   height: 100%;
   width: 100%;
+  /* 裁剪翻页动画（覆盖/3D 平移可能暂时超出容器），不裁剪 fixed 定位的浮动工具条 */
+  overflow: hidden;
   box-sizing: border-box;
   transition: background-color 0.3s;
 
-  .epub-viewer {
+  /* 阅读区视口：包裹渲染容器与左右边缘点击区，作为定位上下文 */
+  .epub-viewport {
+    position: relative;
     flex: 1;
-    overflow: hidden;
     min-height: 0;
+    overflow: hidden;
+  }
+
+  .epub-viewer {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    /* 翻页动画基类：开启 GPU 合成，避免动画时重排抖动 */
+    will-change: transform, opacity;
+  }
+
+  /* 阅读区左右边缘 10% 点击翻页区：透明覆盖层，点击上一页 / 下一页 */
+  .edge-turn-zone {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 10%;
+    z-index: 10;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+
+    /* 悬停时显示淡淡的提示渐变，增强可发现性 */
+    &::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      width: 28px;
+      height: 48px;
+      transform: translateY(-50%);
+      border-radius: 6px;
+      opacity: 0;
+      transition: opacity 0.18s ease;
+      background: var(--bg-hover, rgba(0, 0, 0, 0.06));
+      pointer-events: none;
+    }
+
+    &:hover::after {
+      opacity: 1;
+    }
+  }
+
+  .edge-turn-zone--left {
+    left: 0;
+
+    &::after {
+      left: 8px;
+    }
+  }
+
+  .edge-turn-zone--right {
+    right: 0;
+
+    &::after {
+      right: 8px;
+    }
+  }
+
+  /* ===== 翻页过渡动画（仅 epub 阅读器：滑动 / 覆盖 / 3D 仿真） ===== */
+  /* 滑动：新页面从一侧滑入 */
+  .page-turn-slide-forward {
+    animation: page-slide-forward 0.32s cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+  .page-turn-slide-back {
+    animation: page-slide-back 0.32s cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+  /* 覆盖：新页面从一侧覆盖进来（带左/右侧阴影模拟页缘） */
+  .page-turn-cover-forward {
+    animation: page-cover-forward 0.36s cubic-bezier(0.22, 0.61, 0.36, 1);
+    box-shadow: -18px 0 28px -10px rgba(0, 0, 0, 0.28);
+  }
+  .page-turn-cover-back {
+    animation: page-cover-back 0.36s cubic-bezier(0.22, 0.61, 0.36, 1);
+    box-shadow: 18px 0 28px -10px rgba(0, 0, 0, 0.28);
+  }
+  /* 3D 仿真：绕 Y 轴翻入（仿纸质书翻页） */
+  .page-turn-flip3d-forward {
+    animation: page-flip3d-forward 0.42s cubic-bezier(0.22, 0.61, 0.36, 1);
+    transform-origin: left center;
+  }
+  .page-turn-flip3d-back {
+    animation: page-flip3d-back 0.42s cubic-bezier(0.22, 0.61, 0.36, 1);
+    transform-origin: right center;
+  }
+
+  @keyframes page-slide-forward {
+    from { transform: translateX(56px); opacity: 0; }
+    to   { transform: translateX(0); opacity: 1; }
+  }
+  @keyframes page-slide-back {
+    from { transform: translateX(-56px); opacity: 0; }
+    to   { transform: translateX(0); opacity: 1; }
+  }
+  @keyframes page-cover-forward {
+    from { transform: translateX(100%); }
+    to   { transform: translateX(0); }
+  }
+  @keyframes page-cover-back {
+    from { transform: translateX(-100%); }
+    to   { transform: translateX(0); }
+  }
+  @keyframes page-flip3d-forward {
+    from { transform: perspective(1500px) rotateY(-38deg) translateX(40px); opacity: 0.35; }
+    to   { transform: perspective(1500px) rotateY(0) translateX(0); opacity: 1; }
+  }
+  @keyframes page-flip3d-back {
+    from { transform: perspective(1500px) rotateY(38deg) translateX(-40px); opacity: 0.35; }
+    to   { transform: perspective(1500px) rotateY(0) translateX(0); opacity: 1; }
   }
 
   .epub-footer {
@@ -1351,6 +1727,21 @@ onUnmounted(() => {
   /* 护眼主题 */
   &.theme-eye {
     background-color: #c7edcc;
+  }
+}
+
+/* 笔记编辑弹窗底部按钮布局：删除划线靠左，保存/取消靠右 */
+:deep(.annotation-note-dialog) {
+  .annotation-note-dialog-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+
+    .dialog-footer-right {
+      display: flex;
+      gap: 8px;
+    }
   }
 }
 </style>

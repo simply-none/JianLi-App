@@ -48,7 +48,7 @@ export function exitApp() {
 
 function createWindow() {
   win = new BrowserWindow({
-    title: "Main window",
+    title: appName,
     icon: appLogoIco,
     transparent: true,
     resizable: false,

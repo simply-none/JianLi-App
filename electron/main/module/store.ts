@@ -165,7 +165,7 @@ export function initStore() {
     //   e.returnValue = store.set(key, value);
     // }
     // 插入数据
-    console.log(colors.bgYellow(key), colors.red(value))
+    // console.log(colors.bgYellow(key), colors.red(value))
     await upsertData({
       db: myDb.db,
       tableName: tableName,

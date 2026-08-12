@@ -4,6 +4,7 @@ import { getAllStore, tableName } from "./store.ts";
 import { myDb } from "./sql.ts";
 import {
   appLogoIco,
+  appName,
   indexHtml,
   preload,
   VITE_DEV_SERVER_URL,
@@ -117,7 +118,7 @@ export function createOtherWindow(arg: string, ops?: ObjectType, recreate = fals
     }
   }
   let windowOps = ({
-    title: "second window",
+    title: appName,
     icon: appLogoIco,
     transparent: ops?.transparent || true,
     center: ops?.center || false,

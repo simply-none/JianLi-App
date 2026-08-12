@@ -1,21 +1,32 @@
 <template>
-  <div class="txt-reader" :class="themeClass" v-loading="loading" element-loading-text="正在加载文件...">
+  <div
+    class="txt-reader"
+    :class="themeClass"
+    :style="{ background: readerBg, color: readerText }"
+    v-loading="loading"
+    element-loading-text="正在加载文件..."
+  >
     <!-- 阅读内容区：按页展示 txt 文本，分段 span 渲染以支持划线高亮 -->
-    <div
-      class="txt-content"
-      :style="{ fontSize: fontSize + 'px', fontFamily: fontFamilyValue, padding: margin + 'px' }"
-      @mouseup="onMouseUp"
-    >
-      <div class="txt-page" :style="{ lineHeight: lineHeight, columnCount: columnCount }">
-        <span
-          v-for="(seg, i) in pageSegments"
-          :key="i"
-          :data-start="seg.globalStart"
-          :class="seg.isHighlight ? getTypeClass(seg.type) : ''"
-          :style="getSegmentStyle(seg)"
-          @click="seg.isHighlight && onHighlightClick(seg.annotationId)"
-        >{{ seg.text }}</span>
+    <div class="txt-viewport">
+      <div
+        class="txt-content"
+        :style="{ fontSize: fontSize + 'px', fontFamily: fontFamilyValue, padding: margin + 'px' }"
+        @mouseup="onMouseUp"
+      >
+        <div class="txt-page" :style="{ lineHeight: lineHeight, columnCount: columnCount }">
+          <span
+            v-for="(seg, i) in pageSegments"
+            :key="i"
+            :data-start="seg.globalStart"
+            :class="seg.isHighlight ? getTypeClass(seg.type) : ''"
+            :style="getSegmentStyle(seg)"
+            @click="seg.isHighlight && onHighlightClick(seg.annotationId, seg.note)"
+          >{{ seg.text }}</span>
+        </div>
       </div>
+      <!-- 阅读区左右边缘 10% 点击区：点击上一页 / 下一页，便于沉浸式翻页 -->
+      <div class="edge-turn-zone edge-turn-zone--left" @click="onEdgePrev" title="上一页"></div>
+      <div class="edge-turn-zone edge-turn-zone--right" @click="onEdgeNext" title="下一页"></div>
     </div>
 
     <!-- 底部翻页与进度控制区 -->
@@ -63,17 +74,55 @@
       @note="onToolbarNote"
       @close="toolbarVisible = false"
     />
+
+    <!-- 笔记编辑弹窗：编辑笔记时可在底部直接删除对应划线 -->
+    <el-dialog
+      v-model="noteDialogVisible"
+      title="编辑笔记"
+      width="400px"
+      :close-on-click-modal="false"
+      append-to-body
+      class="annotation-note-dialog"
+      @closed="onNoteDialogClosed"
+    >
+      <el-input
+        v-model="noteInput"
+        type="textarea"
+        :rows="4"
+        placeholder="请输入笔记内容"
+        resize="none"
+      />
+      <template #footer>
+        <div class="annotation-note-dialog-footer">
+          <el-button type="danger" plain size="small" @click="deleteCurrentAnnotation">
+            删除划线
+          </el-button>
+          <div class="dialog-footer-right">
+            <el-button size="small" @click="noteDialogVisible = false">取消</el-button>
+            <el-button type="primary" size="small" @click="saveNote">保存</el-button>
+          </div>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue';
+import { storeToRefs } from 'pinia';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import LucideIcon from '@/components/LucideIcon.vue';
 import AnnotationToolbar from './AnnotationToolbar.vue';
+// 划线颜色/类型统一配置（颜色映射、默认值等）
+import { HIGHLIGHT_COLOR_MAP } from '../highlightConfig';
+import { resolveReadingBg, resolveReadingText } from '../themePresets';
+// 阅读设置 store：划线颜色/类型由右上角「阅读设置」预设
+import useEbookReader from '@/store/useEbookReader';
 
 /** 阅读主题类型：day 白天、night 夜间、eye 护眼 */
 type EbookTheme = 'day' | 'night' | 'eye';
+/** 阅读区背景类型：preset 跟随主题 / color 纯色 / image 背景图 */
+type EbookBgType = 'preset' | 'color' | 'image';
 
 /** 单页数据结构 */
 interface TxtPage {
@@ -115,6 +164,8 @@ interface Segment {
   color: string;
   /** 划线类型：'highlight'、'underline'、'wavy'；普通段为空字符串 */
   type: string;
+  /** 笔记内容，仅高亮段携带（点击时用于判断进编辑弹窗还是直接删除）；普通段为空字符串 */
+  note: string;
 }
 
 /** 组件 Props 定义 */
@@ -129,6 +180,14 @@ const props = defineProps<{
   fontFamilyEn?: string;
   /** 阅读主题：day 白天、night 夜间、eye 护眼 */
   theme: EbookTheme;
+  /** 阅读区背景类型：preset 跟随主题 / color 纯色 / image 背景图 */
+  bgType?: EbookBgType;
+  /** 阅读区背景色（bgType 为 'color' 时生效） */
+  bgColor?: string;
+  /** 阅读区背景图 data URL（bgType 为 'image' 时生效） */
+  bgImage?: string;
+  /** 阅读区文字颜色（空字符串表示跟随主题预设文字色） */
+  textColor?: string;
   /** 正文行距倍率（作用于 .txt-page line-height） */
   lineHeight?: number;
   /** 分栏数：1 单栏、2 双栏（作用于 .txt-page column-count） */
@@ -151,24 +210,18 @@ const emit = defineEmits<{
 /** 每页目标字符数（按段落边界切分，实际会略有浮动） */
 const PAGE_CHAR_SIZE = 1500;
 
-/** 高亮颜色映射：颜色名称到 CSS 颜色值的映射 */
-const COLOR_MAP: Record<string, string> = {
-  yellow: 'rgba(255,235,59,0.4)',
-  green: 'rgba(129,199,132,0.4)',
-  blue: 'rgba(100,181,246,0.4)',
-  pink: 'rgba(244,143,177,0.4)',
-  orange: 'rgba(255,183,77,0.4)',
-  purple: 'rgba(186,160,227,0.4)',
-};
+/** 阅读设置 store：划线颜色/类型由右上角「阅读设置」预设，此处直接读取 */
+const ebookStore = useEbookReader();
+const { settings } = storeToRefs(ebookStore);
 
 /**
- * 根据颜色名称获取 CSS 颜色值
+ * 根据颜色名称获取 CSS 颜色值（颜色映射来自统一配置）
  *
  * @param colorName - 颜色名称
  * @returns CSS 颜色值
  */
 function getColorValue(colorName: string): string {
-  return COLOR_MAP[colorName] || COLOR_MAP.yellow;
+  return HIGHLIGHT_COLOR_MAP[colorName] || HIGHLIGHT_COLOR_MAP.yellow;
 }
 
 /**
@@ -242,6 +295,13 @@ const toolbarY = ref(0);
 /** 临时存储当前选区信息（mouseup 后存入，工具条按钮点击时消费） */
 const currentSelection = ref<{ start: number; end: number; text: string } | null>(null);
 
+/** 笔记编辑弹窗显示状态 */
+const noteDialogVisible = ref(false);
+/** 当前正在编辑的标注记录 id */
+const currentEditAnnotationId = ref<number | null>(null);
+/** 笔记编辑弹窗中的输入内容 */
+const noteInput = ref('');
+
 /** 总页数 */
 const totalPages = computed(() => pages.value.length);
 
@@ -275,6 +335,7 @@ const pageSegments = computed<Segment[]>(() => {
       end: Math.min(a.end, pageEnd),
       color: a.color,
       type: a.type,
+      note: a.note,
     }))
     .sort((x, y) => x.start - y.start);
 
@@ -291,23 +352,36 @@ const pageSegments = computed<Segment[]>(() => {
     // 普通文本段（高亮段之前的未高亮文本）
     if (segStart > cursor) {
       const text = content.substring(cursor - pageStart, segStart - pageStart);
-      segments.push({ text, isHighlight: false, annotationId: null, globalStart: cursor, color: '', type: '' });
+      segments.push({ text, isHighlight: false, annotationId: null, globalStart: cursor, color: '', type: '', note: '' });
     }
     // 高亮段（携带 color 和 type 信息）
     const highlightText = content.substring(segStart - pageStart, a.end - pageStart);
-    segments.push({ text: highlightText, isHighlight: true, annotationId: a.id, globalStart: segStart, color: a.color, type: a.type });
+    segments.push({ text: highlightText, isHighlight: true, annotationId: a.id, globalStart: segStart, color: a.color, type: a.type, note: a.note });
     cursor = a.end;
   }
   // 末尾普通文本段
   if (cursor < pageEnd) {
     const text = content.substring(cursor - pageStart);
-    segments.push({ text, isHighlight: false, annotationId: null, globalStart: cursor, color: '', type: '' });
+    segments.push({ text, isHighlight: false, annotationId: null, globalStart: cursor, color: '', type: '', note: '' });
   }
   return segments;
 });
 
 /** 主题 class 计算属性 */
 const themeClass = computed(() => `theme-${props.theme}`);
+
+/**
+ * 阅读区实际背景 CSS 值：image 优先用背景图，color 用背景色，其余回退主题预设背景
+ * （背景类型/颜色/图片均来自设置，见 themePresets.resolveReadingBg）
+ */
+const readerBg = computed(() =>
+  resolveReadingBg(props.bgType ?? 'preset', props.bgColor ?? '', props.bgImage ?? '', props.theme)
+);
+
+/**
+ * 阅读区实际文字颜色：自定义非空则用自定义，否则回退主题预设文字色
+ */
+const readerText = computed(() => resolveReadingText(props.textColor ?? '', props.theme));
 
 /**
  * 合并中文/英文正文字体为 CSS font-family 值
@@ -616,14 +690,14 @@ function onMouseUp(_e: MouseEvent) {
 /**
  * 工具条「划线」按钮事件处理
  * 对 currentSelection 执行纯划线（无笔记），完成后关闭工具条并清除浏览器选区
+ * 颜色与样式取自阅读设置 store（右上角「阅读设置」预设），无需在工具条上选择
  *
- * @param payload - 工具条传递的参数，包含 color 和 type
  * @returns 无返回值
  */
-async function onToolbarHighlight(payload?: { color?: string; type?: string }): Promise<void> {
+async function onToolbarHighlight(): Promise<void> {
   if (!currentSelection.value) return;
   const { start, end, text } = currentSelection.value;
-  await addHighlight(start, end, text, '', payload?.color || 'yellow', payload?.type || 'highlight');
+  await addHighlight(start, end, text, '', settings.value.highlightColor, settings.value.highlightType);
   toolbarVisible.value = false;
   window.getSelection()?.removeAllRanges();
   currentSelection.value = null;
@@ -632,15 +706,15 @@ async function onToolbarHighlight(payload?: { color?: string; type?: string }): 
 /**
  * 工具条「笔记」按钮事件处理
  * 先保存纯划线得到 id，再弹窗输入笔记内容并更新；取消输入则保留纯划线
+ * 颜色与样式取自阅读设置 store（右上角「阅读设置」预设）
  *
- * @param payload - 工具条传递的参数，包含 color 和 type
  * @returns 无返回值
  */
-async function onToolbarNote(payload?: { color?: string; type?: string }): Promise<void> {
+async function onToolbarNote(): Promise<void> {
   if (!currentSelection.value) return;
   const { start, end, text } = currentSelection.value;
-  const color = payload?.color || 'yellow';
-  const type = payload?.type || 'highlight';
+  const color = settings.value.highlightColor;
+  const type = settings.value.highlightType;
   const id = await addHighlight(start, end, text, '', color, type);
   if (id !== null) {
     try {
@@ -668,13 +742,112 @@ async function onToolbarNote(payload?: { color?: string; type?: string }): Promi
 }
 
 /**
+ * 打开笔记编辑弹窗
+ * 供阅读区内点击带笔记的高亮、以及父组件笔记抽屉「编辑」按钮共用
+ *
+ * @param annotationId - 被编辑的标注记录 id
+ * @returns 无返回值
+ */
+function editAnnotationNote(annotationId: number): void {
+  const ann = annotations.value.find((a) => a.id === annotationId);
+  if (!ann) return;
+  currentEditAnnotationId.value = annotationId;
+  noteInput.value = ann.note || '';
+  noteDialogVisible.value = true;
+}
+
+/**
+ * 保存当前弹窗中的笔记内容
+ * 调用 IPC 更新数据库 → 同步本地 → 通知父组件
+ *
+ * @returns 无返回值
+ */
+async function saveNote(): Promise<void> {
+  const id = currentEditAnnotationId.value;
+  if (id === null) return;
+  const ann = annotations.value.find((a) => a.id === id);
+  if (!ann) return;
+
+  const note = noteInput.value.trim();
+  try {
+    const res = await window.ipcRenderer.ebook.updateAnnotation({ id: ann.id, note });
+    if (res?.success) {
+      ann.note = note;
+      emit('annotations-updated', annotations.value);
+      ElMessage.success('笔记已保存');
+      noteDialogVisible.value = false;
+    } else {
+      ElMessage.error('笔记保存失败');
+    }
+  } catch (err: any) {
+    ElMessage.error(`笔记保存失败：${err?.message || String(err)}`);
+  }
+}
+
+/**
+ * 删除当前正在编辑的标注（笔记弹窗底部「删除划线」按钮）
+ * 调用 IPC 删除数据库记录 → 同步本地 → 通知父组件 → 关闭弹窗
+ *
+ * @returns 无返回值
+ */
+async function deleteCurrentAnnotation(): Promise<void> {
+  const id = currentEditAnnotationId.value;
+  if (id === null) return;
+  await deleteAnnotationById(id);
+  noteDialogVisible.value = false;
+}
+
+/**
+ * 按 id 删除本地划线：调用 IPC 删除数据库记录并同步本地列表
+ *
+ * @param annotationId - 要删除的标注记录 id
+ * @returns 无返回值
+ */
+async function deleteAnnotationById(annotationId: number): Promise<void> {
+  try {
+    // 阅读区划线删除前二次确认，避免误删（纯划线直接删除、笔记弹窗内删除均走此路径）
+    await ElMessageBox.confirm('确认删除该划线？', '提示', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+    });
+  } catch {
+    // 用户取消删除，直接返回，不执行后续删除逻辑
+    return;
+  }
+  try {
+    const res = await window.ipcRenderer.ebook.removeAnnotation(annotationId);
+    if (res?.success) {
+      annotations.value = annotations.value.filter((a) => a.id !== annotationId);
+      emit('annotations-updated', annotations.value);
+      ElMessage.success('已删除划线');
+    } else {
+      ElMessage.error('删除划线失败');
+    }
+  } catch (err: any) {
+    ElMessage.error(`删除划线失败：${err?.message || String(err)}`);
+  }
+}
+
+/**
+ * 笔记编辑弹窗关闭后的清理工作
+ *
+ * @returns 无返回值
+ */
+function onNoteDialogClosed(): void {
+  currentEditAnnotationId.value = null;
+  noteInput.value = '';
+}
+
+/**
  * 点击已有高亮段处理
- * 弹出确认框：确认「删除」则移除划线；取消（点击「编辑笔记」）则弹窗编辑笔记
+ * - 带笔记：直接打开笔记编辑弹窗（可在弹窗内删除划线）
+ * - 纯划线：直接删除划线，无需连续弹窗
  *
  * @param annotationId - 被点击的划线记录 id；为 null 时不处理
  * @returns 无返回值
  */
-async function onHighlightClick(annotationId: number | null) {
+async function onHighlightClick(annotationId: number | null, noteFromSeg?: string) {
   if (annotationId === null) return;
   // 用户正在选文本时（存在非折叠选区）不触发点击高亮逻辑，避免与选区操作冲突
   const sel = window.getSelection();
@@ -682,47 +855,15 @@ async function onHighlightClick(annotationId: number | null) {
 
   const ann = annotations.value.find((a) => a.id === annotationId);
   if (!ann) return;
+  // 优先用本地标注的 note，其次用点击段携带的 note（防止本地 note 意外丢失时被误判为纯划线直接删除）
+  const hasNote = !!(ann.note || noteFromSeg);
 
-  try {
-    await ElMessageBox.confirm(
-      `${ann.note ? '笔记：' + ann.note : '无笔记'}\n是否删除该划线？`,
-      '划线',
-      { confirmButtonText: '删除', cancelButtonText: '编辑笔记' }
-    );
-    // 用户点击「删除」
-    try {
-      const res = await window.ipcRenderer.ebook.removeAnnotation(ann.id);
-      if (res?.success) {
-        annotations.value = annotations.value.filter((a) => a.id !== ann.id);
-        emit('annotations-updated', annotations.value);
-        ElMessage.success('已删除划线');
-      } else {
-        ElMessage.error('删除划线失败');
-      }
-    } catch (err: any) {
-      ElMessage.error(`删除划线失败：${err?.message || String(err)}`);
-    }
-  } catch {
-    // 用户点击「编辑笔记」
-    try {
-      const { value } = await ElMessageBox.prompt('请输入新笔记', '编辑笔记', {
-        confirmButtonText: '保存',
-        cancelButtonText: '取消',
-        inputType: 'textarea',
-        inputValue: ann.note || '',
-      });
-      const note = (value || '').trim();
-      const res = await window.ipcRenderer.ebook.updateAnnotation({ id: ann.id, note });
-      if (res?.success) {
-        ann.note = note;
-        emit('annotations-updated', annotations.value);
-        ElMessage.success('笔记已更新');
-      } else {
-        ElMessage.error('笔记更新失败');
-      }
-    } catch {
-      // 用户取消编辑，不做操作
-    }
+  if (hasNote) {
+    // 有笔记：直接进入笔记编辑弹窗
+    editAnnotationNote(ann.id);
+  } else {
+    // 纯划线：直接删除
+    await deleteAnnotationById(ann.id);
   }
 }
 
@@ -750,6 +891,28 @@ function nextPage() {
   currentPage.value++;
   sliderValue.value = currentPage.value + 1;
   emitProgress();
+}
+
+/**
+ * 阅读区左侧边缘（10%）点击：上一页
+ * 加载中或已在第一页时由底层 prevPage 内部处理
+ *
+ * @returns 无返回值
+ */
+function onEdgePrev() {
+  if (loading.value) return;
+  prevPage();
+}
+
+/**
+ * 阅读区右侧边缘（10%）点击：下一页
+ * 加载中或已在最后一页时由底层 nextPage 内部处理
+ *
+ * @returns 无返回值
+ */
+function onEdgeNext() {
+  if (loading.value) return;
+  nextPage();
 }
 
 /**
@@ -797,8 +960,8 @@ function removeAnnotationById(id: number): void {
   emit('annotations-updated', annotations.value);
 }
 
-// 暴露跳转到划线方法供父组件通过 ref 调用
-defineExpose({ jumpToAnnotation, removeAnnotationById });
+// 暴露跳转到划线、移除本地划线、编辑笔记方法供父组件通过 ref 调用
+defineExpose({ jumpToAnnotation, removeAnnotationById, editAnnotationNote });
 
 // 监听文件路径变化，重新加载内容并清理划线相关状态
 watch(
@@ -837,8 +1000,17 @@ onMounted(() => {
   box-sizing: border-box;
   transition: background-color 0.3s, color 0.3s;
 
-  .txt-content {
+  /* 阅读区视口：包裹内容区与左右边缘点击区，作为定位上下文 */
+  .txt-viewport {
+    position: relative;
     flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .txt-content {
+    width: 100%;
+    height: 100%;
     overflow: auto;
     padding: 24px 32px;
     box-sizing: border-box;
@@ -894,7 +1066,7 @@ onMounted(() => {
     color: #333333;
 
     .txt-content .txt-page {
-      color: #333333;
+      color: inherit;
     }
   }
 
@@ -904,7 +1076,7 @@ onMounted(() => {
     color: #cccccc;
 
     .txt-content .txt-page {
-      color: #cccccc;
+      color: inherit;
     }
 
     .txt-footer {
@@ -918,13 +1090,75 @@ onMounted(() => {
     }
   }
 
+  /* 阅读区左右边缘 10% 点击翻页区：透明覆盖层，点击上一页 / 下一页 */
+  .edge-turn-zone {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 10%;
+    z-index: 10;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+
+    /* 悬停时显示淡淡的提示渐变，增强可发现性 */
+    &::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      width: 28px;
+      height: 48px;
+      transform: translateY(-50%);
+      border-radius: 6px;
+      opacity: 0;
+      transition: opacity 0.18s ease;
+      background: var(--bg-hover, rgba(0, 0, 0, 0.06));
+      pointer-events: none;
+    }
+
+    &:hover::after {
+      opacity: 1;
+    }
+  }
+
+  .edge-turn-zone--left {
+    left: 0;
+
+    &::after {
+      left: 8px;
+    }
+  }
+
+  .edge-turn-zone--right {
+    right: 0;
+
+    &::after {
+      right: 8px;
+    }
+  }
+
   /* 护眼主题：护眼绿底深色字 */
   &.theme-eye {
     background-color: #c7edcc;
     color: #2c3e50;
 
     .txt-content .txt-page {
-      color: #2c3e50;
+      color: inherit;
+    }
+  }
+}
+
+/* 笔记编辑弹窗底部按钮布局：删除划线靠左，保存/取消靠右 */
+:deep(.annotation-note-dialog) {
+  .annotation-note-dialog-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+
+    .dialog-footer-right {
+      display: flex;
+      gap: 8px;
     }
   }
 }

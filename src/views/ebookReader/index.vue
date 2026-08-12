@@ -56,11 +56,6 @@
                 笔记
               </el-button>
             </el-badge>
-            <!-- 主题切换按钮（循环切换：日间 → 夜间 → 护眼） -->
-            <el-button size="small" @click="cycleTheme" :title="`当前：${themeLabel}，点击切换`">
-              <LucideIcon :name="themeIcon" :size="16" />
-              {{ themeLabel }}
-            </el-button>
             <!-- 字体设置：中文 / 英文（选项参考设置页「字体设置」） -->
             <div class="font-control">
               <span class="control-label">字体</span>
@@ -219,6 +214,10 @@
               :font-family="settings.fontFamily"
               :font-family-en="settings.fontFamilyEN"
               :theme="settings.theme"
+              :bg-type="settings.bgType"
+              :bg-color="settings.bgColor"
+              :bg-image="settings.bgImage"
+              :text-color="settings.textColor"
               :line-height="settings.lineHeight"
               :column-count="settings.columnCount"
               :scroll-mode="settings.scrollMode"
@@ -263,39 +262,105 @@
           </div>
         </el-drawer>
 
-        <!-- 笔记与划线抽屉：点击某项跳转到对应位置，可删除 -->
+        <!-- 笔记与划线抽屉：分「笔记」与「划线」两个标签页，点击项跳转到对应位置 -->
         <el-drawer
           v-model="annotationDrawerVisible"
           title="笔记与划线"
           direction="ltr"
-          size="320px"
+          size="340px"
           :append-to-body="false"
         >
-          <div class="annotation-list">
-            <div
-              v-for="item in annotations"
-              :key="item.id"
-              class="annotation-item"
-              @click="onAnnotationClick(item)"
-            >
-              <!-- 原文摘录：最多 3 行截断 -->
-              <div class="annotation-text">{{ item.text }}</div>
-              <!-- 笔记内容：仅有笔记时显示 -->
-              <div class="annotation-note" v-if="item.note">{{ item.note }}</div>
-              <!-- 操作区：删除按钮阻止冒泡，避免触发跳转 -->
-              <div class="annotation-actions">
-                <el-button size="small" text @click.stop="onAnnotationDelete(item)">
-                  <LucideIcon name="Trash2" :size="13" />
-                  删除
-                </el-button>
+          <div class="annotation-drawer">
+            <!-- 标签页：区分「笔记」（带笔记内容）与「划线」（纯高亮），避免二者混杂 -->
+            <div class="annotation-tabs">
+              <button
+                class="tab-btn"
+                :class="{ active: annotationTab === 'note' }"
+                type="button"
+                @click="annotationTab = 'note'"
+              >
+                <LucideIcon name="NotebookPen" :size="14" />
+                <span>笔记</span>
+                <span class="tab-count">{{ noteItems.length }}</span>
+              </button>
+              <button
+                class="tab-btn"
+                :class="{ active: annotationTab === 'highlight' }"
+                type="button"
+                @click="annotationTab = 'highlight'"
+              >
+                <LucideIcon name="Pen" :size="14" />
+                <span>划线</span>
+                <span class="tab-count">{{ highlightItems.length }}</span>
+              </button>
+            </div>
+
+            <!-- 笔记标签页：展示带笔记内容的标注，点击笔记图标可展开/收起笔记 -->
+            <div v-show="annotationTab === 'note'" class="annotation-list">
+              <div
+                v-for="item in noteItems"
+                :key="item.id"
+                class="annotation-item note-item"
+                @click="onAnnotationClick(item)"
+              >
+                <div class="annotation-main">
+                  <!-- 原文摘录：最多 3 行截断 -->
+                  <div class="annotation-text">{{ item.text }}</div>
+                  <!-- 笔记图标按钮：点击展开/收起笔记内容 -->
+                  <button
+                    class="note-toggle"
+                    type="button"
+                    :title="expandedNoteId === item.id ? '收起笔记' : '查看笔记'"
+                    @click.stop="toggleNote(item.id)"
+                  >
+                    <LucideIcon name="NotebookPen" :size="15" />
+                  </button>
+                </div>
+                <!-- 展开的笔记内容 -->
+                <div v-if="expandedNoteId === item.id" class="annotation-note">
+                  {{ item.note }}
+                </div>
+                <!-- 操作区：笔记可编辑与删除，删除按钮阻止冒泡避免触发跳转 -->
+                <div class="annotation-actions">
+                  <el-button size="small" text @click.stop="onAnnotationEdit(item)">
+                    <LucideIcon name="SquarePen" :size="13" />
+                    编辑
+                  </el-button>
+                  <el-button size="small" text @click.stop="onAnnotationDelete(item)">
+                    <LucideIcon name="Trash2" :size="13" />
+                    删除
+                  </el-button>
+                </div>
+              </div>
+              <div v-if="noteItems.length === 0" class="annotation-empty">
+                暂无笔记
               </div>
             </div>
-          <!-- 空状态提示 -->
-          <div v-if="annotations.length === 0" class="annotation-empty">
-            暂无笔记与划线
+
+            <!-- 划线标签页：展示纯高亮标注，仅可删除 -->
+            <div v-show="annotationTab === 'highlight'" class="annotation-list">
+              <div
+                v-for="item in highlightItems"
+                :key="item.id"
+                class="annotation-item"
+                @click="onAnnotationClick(item)"
+              >
+                <!-- 原文摘录：最多 3 行截断 -->
+                <div class="annotation-text">{{ item.text }}</div>
+                <!-- 操作区：删除按钮阻止冒泡，避免触发跳转 -->
+                <div class="annotation-actions">
+                  <el-button size="small" text @click.stop="onAnnotationDelete(item)">
+                    <LucideIcon name="Trash2" :size="13" />
+                    删除
+                  </el-button>
+                </div>
+              </div>
+              <div v-if="highlightItems.length === 0" class="annotation-empty">
+                暂无划线
+              </div>
+            </div>
           </div>
-        </div>
-      </el-drawer>
+        </el-drawer>
 
       <!-- 更多阅读设置抽屉（右侧弹出）：分栏、翻页模式、行距、页边距等主流电子书功能 -->
       <el-drawer
@@ -306,6 +371,86 @@
         :append-to-body="false"
       >
         <div class="reader-settings">
+          <!-- 主题：日间 / 夜间 / 护眼 预设，点击切换整体主题并重置自定义背景/文字为跟随主题 -->
+          <div class="setting-row">
+            <div class="setting-head">
+              <span class="setting-label">主题</span>
+            </div>
+            <div class="theme-preset-list">
+              <button
+                v-for="t in THEME_PRESETS"
+                :key="t.name"
+                class="theme-preset-card"
+                :class="{ active: themeModel === t.name }"
+                :style="{ background: t.bg, color: t.text }"
+                type="button"
+                @click="selectThemePreset(t.name)"
+              >
+                <LucideIcon :name="t.icon" :size="16" />
+                <span>{{ t.label }}</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 背景：跟随主题 / 纯色 / 图片 -->
+          <div class="setting-row">
+            <div class="setting-head">
+              <span class="setting-label">背景</span>
+            </div>
+            <el-radio-group v-model="bgTypeModel" @change="onBgTypeChange">
+              <el-radio-button value="preset">跟随主题</el-radio-button>
+              <el-radio-button value="color">纯色</el-radio-button>
+              <el-radio-button value="image">图片</el-radio-button>
+            </el-radio-group>
+          </div>
+
+          <!-- 纯色背景：背景色选择 -->
+          <div class="setting-row" v-if="bgTypeModel === 'color'">
+            <div class="setting-head">
+              <span class="setting-label">背景色</span>
+              <span class="setting-value" v-if="bgColorModel">{{ bgColorModel }}</span>
+            </div>
+            <el-color-picker v-model="bgColorModel" />
+          </div>
+
+          <!-- 图片背景：上传本地图片作为阅读区背景 -->
+          <div class="setting-row" v-if="bgTypeModel === 'image'">
+            <div class="setting-head">
+              <span class="setting-label">背景图</span>
+            </div>
+            <div class="bg-image-control">
+              <input
+                ref="bgImageInput"
+                type="file"
+                accept="image/*"
+                style="display: none"
+                @change="onPickBgImage"
+              />
+              <el-button size="small" @click="bgImageInput?.click()">选择图片</el-button>
+              <el-button size="small" type="danger" text v-if="bgImageModel" @click="bgImageModel = ''">
+                清除
+              </el-button>
+              <div
+                v-if="bgImageModel"
+                class="bg-image-preview"
+                :style="{ backgroundImage: `url(${bgImageModel})` }"
+              ></div>
+            </div>
+            <div class="setting-tip">图片以平铺方式作为阅读区背景（存储为 data URL，过大图片会占用较多本地空间）</div>
+          </div>
+
+          <!-- 文字颜色：自定义前景色，空值回退到主题默认 -->
+          <div class="setting-row" v-if="bgTypeModel !== 'preset'">
+            <div class="setting-head">
+              <span class="setting-label">文字颜色</span>
+              <span class="setting-value" v-if="textColorModel">{{ textColorModel }}</span>
+            </div>
+            <div class="text-color-control">
+              <el-color-picker v-model="textColorModel" />
+              <el-button size="small" text @click="textColorModel = ''">使用主题默认</el-button>
+            </div>
+          </div>
+
           <!-- 翻页模式：仅 epub 支持（txt 天然为滚动模式） -->
           <div class="setting-row" v-if="currentFile.format === 'epub'">
             <div class="setting-head">
@@ -358,6 +503,57 @@
               :show-tooltip="false"
             />
           </div>
+
+          <!-- 划线样式：颜色 + 类型，由右上角设置统一预设，选中文本后直接套用，便于沉浸式阅读 -->
+          <div class="setting-row">
+            <div class="setting-head">
+              <span class="setting-label">划线颜色</span>
+            </div>
+            <div class="highlight-color-list">
+              <button
+                v-for="c in HIGHLIGHT_COLORS"
+                :key="c.name"
+                class="highlight-color-dot"
+                :class="{ active: highlightColorModel === c.name }"
+                :style="{ background: c.value }"
+                :title="c.label"
+                type="button"
+                @click="highlightColorModel = c.name"
+              ></button>
+            </div>
+            <div class="setting-tip">选中文本后点击「划线 / 笔记」即按此颜色与样式标注</div>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-head">
+              <span class="setting-label">划线样式</span>
+            </div>
+            <el-radio-group v-model="highlightTypeModel">
+              <el-radio-button
+                v-for="t in HIGHLIGHT_TYPES"
+                :key="t.name"
+                :value="t.name"
+              >
+                {{ t.label }}
+              </el-radio-button>
+            </el-radio-group>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-head">
+              <span class="setting-label">翻页效果</span>
+            </div>
+            <el-radio-group v-model="pageEffectModel" :disabled="currentFile.format !== 'epub'">
+              <el-radio-button
+                v-for="p in PAGE_EFFECT_OPTIONS"
+                :key="p.name"
+                :value="p.name"
+              >
+                {{ p.label }}
+              </el-radio-button>
+            </el-radio-group>
+            <div class="setting-tip">滑动 / 覆盖 / 3D 仿真翻页，仅 EPUB 阅读器生效</div>
+          </div>
         </div>
       </el-drawer>
       </div>
@@ -373,10 +569,12 @@ import moment from 'moment';
 import LayoutVue from '@/components/layout.vue';
 import LucideIcon from '@/components/LucideIcon.vue';
 import useEbookReader from '@/store/useEbookReader';
-import type { EbookTheme, BookshelfItem } from '@/store/useEbookReader';
+import type { EbookTheme, EbookBgType, BookshelfItem } from '@/store/useEbookReader';
 import useGlobalSetting from '@/store/useGlobalSetting';
 import TxtReader from './components/TxtReader.vue';
 import EpubReader from './components/EpubReader.vue';
+import { HIGHLIGHT_COLORS, HIGHLIGHT_TYPES } from './highlightConfig';
+import { THEME_PRESETS, READING_PRESET_BG } from './themePresets';
 
 /** 目录项数据结构（与 epubjs NavItem 兼容） */
 interface TocItem {
@@ -404,6 +602,8 @@ interface ReaderComponentInstance {
   jumpToAnnotation?: (anchor: string) => void;
   /** 按 id 移除本地划线（笔记抽屉删除后同步子组件高亮），两种阅读组件均实现 */
   removeAnnotationById?: (id: number) => void;
+  /** 按 id 编辑笔记（弹出输入框），两种阅读组件均实现 */
+  editAnnotationNote?: (id: number) => void;
 }
 
 /** 笔记抽屉展示用的统一标注项（兼容 epub 与 txt 两种子组件 payload） */
@@ -418,23 +618,6 @@ interface AnnotationDisplayItem {
   note: string;
 }
 
-/** 主题循环顺序：日间 → 夜间 → 护眼 */
-const THEME_ORDER: EbookTheme[] = ['day', 'night', 'eye'];
-
-/** 主题对应的图标名称（需与 LucideIcon 组件中已导入的图标匹配） */
-const THEME_ICON_MAP: Record<EbookTheme, string> = {
-  day: 'Sun',
-  night: 'Moon',
-  eye: 'Eye',
-};
-
-/** 主题对应的中文标签 */
-const THEME_LABEL_MAP: Record<EbookTheme, string> = {
-  day: '日间',
-  night: '夜间',
-  eye: '护眼',
-};
-
 /** 书架进度刷新节流间隔（毫秒），500ms 内最多触发一次 addToBookshelf */
 const BOOKSHELF_THROTTLE_MS = 500;
 
@@ -443,18 +626,26 @@ const ebookStore = useEbookReader();
 // 解构响应式状态：currentFile 当前文件、progress 阅读进度、settings 设置、bookshelf 书架列表
 const { currentFile, progress, settings, bookshelf } = storeToRefs(ebookStore);
 // 解构 actions：setCurrentFile 设置当前文件、setProgress 设置进度、setFontSize 设置字号、
-// setTheme 设置主题、loadBookshelf 加载书架、addToBookshelf 写入书架、removeFromBookshelf 删除书架
+// setTheme 设置主题、setBgType/setBgColor/setBgImage/setTextColor 设置阅读区背景与文字色、
+// loadBookshelf 加载书架、addToBookshelf 写入书架、removeFromBookshelf 删除书架
 const {
   setCurrentFile,
   setProgress,
   setFontSize,
   setTheme,
+  setBgType,
+  setBgColor,
+  setBgImage,
+  setTextColor,
   setFontFamily,
   setFontFamilyEN,
   setLineHeight,
   setColumnCount,
   setScrollMode,
   setMargin,
+  setHighlightColor,
+  setHighlightType,
+  setPageEffect,
   loadBookshelf,
   addToBookshelf,
   removeFromBookshelf,
@@ -486,8 +677,21 @@ const unsupportedTip = ref('');
  */
 const annotations = ref<AnnotationDisplayItem[]>([]);
 
+/** 仅含笔记内容的标注列表（note 非空） */
+const noteItems = computed(() =>
+  annotations.value.filter((a) => (a.note || '').trim().length > 0)
+);
+/** 仅含纯高亮的标注列表（note 为空） */
+const highlightItems = computed(() =>
+  annotations.value.filter((a) => !(a.note || '').trim())
+);
+
 /** 笔记抽屉显示状态 */
 const annotationDrawerVisible = ref(false);
+/** 笔记抽屉当前标签页：note 笔记 / highlight 划线 */
+const annotationTab = ref<'note' | 'highlight'>('note');
+/** 当前展开笔记内容的标注 id（同一时间仅展开一条，null 表示全部收起） */
+const expandedNoteId = ref<number | null>(null);
 
 /** 更多阅读设置抽屉显示状态 */
 const settingsDrawerVisible = ref(false);
@@ -559,14 +763,117 @@ const marginModel = computed({
   },
 });
 
-/** 当前主题图标名称 */
-const themeIcon = computed(() => THEME_ICON_MAP[settings.value.theme]);
+/** 划线默认颜色双向绑定（右上角设置预设，划线/笔记时直接套用） */
+const highlightColorModel = computed({
+  get: () => settings.value.highlightColor,
+  set: (val: string) => setHighlightColor(val),
+});
 
-/** 当前主题中文标签 */
-const themeLabel = computed(() => THEME_LABEL_MAP[settings.value.theme]);
+/** 划线默认类型双向绑定（高亮 / 下划线 / 波浪线） */
+const highlightTypeModel = computed({
+  get: () => settings.value.highlightType,
+  set: (val: string) => setHighlightType(val),
+});
+
+/** 翻页效果双向绑定（仅 epub 阅读器生效：none / slide / cover / flip3d） */
+const pageEffectModel = computed({
+  get: () => settings.value.pageEffect,
+  set: (val: 'none' | 'slide' | 'cover' | 'flip3d') => setPageEffect(val),
+});
+
+/** 翻页效果选项（仅 epub 生效） */
+const PAGE_EFFECT_OPTIONS = [
+  { name: 'none', label: '无' },
+  { name: 'slide', label: '滑动' },
+  { name: 'cover', label: '覆盖' },
+  { name: 'flip3d', label: '3D 仿真' },
+] as const;
 
 /** 当前主题对应的 class（作用于整个电子书阅读页，使工具栏/书架/抽屉等区域跟随切换） */
 const themeClass = computed(() => `theme-${settings.value.theme}`);
+
+/** 主题（预设）双向绑定：写入 store 并持久化 */
+const themeModel = computed<EbookTheme>({
+  get: () => settings.value.theme,
+  set: (v) => setTheme(v),
+});
+
+/** 阅读区背景类型双向绑定 */
+const bgTypeModel = computed<EbookBgType>({
+  get: () => settings.value.bgType,
+  set: (v) => setBgType(v),
+});
+
+/** 阅读区背景色双向绑定 */
+const bgColorModel = computed({
+  get: () => settings.value.bgColor,
+  set: (v: string) => setBgColor(v),
+});
+
+/** 阅读区背景图（data URL）双向绑定 */
+const bgImageModel = computed({
+  get: () => settings.value.bgImage,
+  set: (v: string) => setBgImage(v),
+});
+
+/** 阅读区文字颜色双向绑定 */
+const textColorModel = computed({
+  get: () => settings.value.textColor,
+  set: (v: string) => setTextColor(v),
+});
+
+/** 背景图文件选择 input 引用 */
+const bgImageInput = ref<HTMLInputElement | null>(null);
+
+/**
+ * 选择主题预设（日间 / 夜间 / 护眼）
+ * 切换预设的同时将自定义背景类型/颜色/图片/文字色重置为「跟随主题」，
+ * 保证点选预设即呈现该预设的默认阅读配色，避免与之前残留的自定义配置叠加。
+ *
+ * @param name - 主题标识
+ * @returns 无返回值
+ */
+function selectThemePreset(name: EbookTheme) {
+  themeModel.value = name;
+  bgTypeModel.value = 'preset';
+  bgColorModel.value = '';
+  bgImageModel.value = '';
+  textColorModel.value = '';
+}
+
+/**
+ * 背景类型切换时的兜底初始化
+ * 切到「纯色」且尚未选背景色时，用当前主题的预设背景色预填，避免空背景；
+ * 其余类型无需处理。
+ *
+ * @param val - 新选中的背景类型
+ * @returns 无返回值
+ */
+function onBgTypeChange(val: EbookBgType) {
+  if (val === 'color' && !settings.value.bgColor) {
+    setBgColor(READING_PRESET_BG[settings.value.theme]);
+  }
+}
+
+/**
+ * 选择本地图片作为阅读区背景图
+ * 读取为 data URL 存入 settings.bgImage（背景类型需为 image 才生效）。
+ *
+ * @param e - input change 事件
+ * @returns 无返回值
+ */
+function onPickBgImage(e: Event) {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    bgImageModel.value = reader.result as string;
+  };
+  reader.readAsDataURL(file);
+  // 重置 input，保证再次选择同一文件也会触发 change
+  input.value = '';
+}
 
 /** 根据文件格式动态计算渲染组件 */
 const readerComponent = computed(() => {
@@ -781,17 +1088,6 @@ function openFile() {
 }
 
 /**
- * 循环切换阅读主题：日间 → 夜间 → 护眼 → 日间
- *
- * @returns 无返回值
- */
-function cycleTheme() {
-  const currentIdx = THEME_ORDER.indexOf(settings.value.theme);
-  const nextIdx = (currentIdx + 1) % THEME_ORDER.length;
-  setTheme(THEME_ORDER[nextIdx]);
-}
-
-/**
  * 子组件进度更新事件处理
  * 同步到 store 并通过 IPC 持久化到数据库
  * 同时按 500ms 节流刷新书架进度（addToBookshelf）
@@ -890,6 +1186,29 @@ function onAnnotationClick(item: AnnotationDisplayItem) {
 }
 
 /**
+ * 切换某条笔记的展开/收起状态
+ * 点击笔记图标按钮时调用，同一时间仅展开一条以节省空间
+ *
+ * @param id - 标注 id
+ * @returns 无返回值
+ */
+function toggleNote(id: number): void {
+  expandedNoteId.value = expandedNoteId.value === id ? null : id;
+}
+
+/**
+ * 编辑某条标注的笔记
+ * 调用子组件暴露的 editAnnotationNote 方法弹出输入框，编辑成功后由子组件 emit
+ * annotations-updated 同步父组件列表（展开的笔记内容会随之刷新）
+ *
+ * @param item - 被编辑的笔记项
+ * @returns 无返回值
+ */
+function onAnnotationEdit(item: AnnotationDisplayItem): void {
+  readerRef.value?.editAnnotationNote?.(item.id);
+}
+
+/**
  * 笔记抽屉项删除事件处理
  * 弹出确认框，确认后调用 IPC 删除数据库记录，成功后同步移除子组件本地高亮与父组件展示列表
  *
@@ -913,6 +1232,10 @@ async function onAnnotationDelete(item: AnnotationDisplayItem) {
     // 更新父组件展示列表（子组件 removeAnnotationById 会 emit annotations-updated，
     // 但为保险起见此处也直接同步父组件列表）
     annotations.value = annotations.value.filter((a) => a.id !== item.id);
+    // 若删除的正是当前展开笔记的项，收起展开状态，避免空内容残留
+    if (expandedNoteId.value === item.id) {
+      expandedNoteId.value = null;
+    }
     ElMessage.success('已删除划线');
   } catch (err) {
     // 用户点击取消时 ElMessageBox.reject 抛出 'cancel'，此处统一忽略
@@ -944,6 +1267,8 @@ watch(
     tocVisible.value = false;
     annotations.value = [];
     annotationDrawerVisible.value = false;
+    annotationTab.value = 'note';
+    expandedNoteId.value = null;
   }
 );
 </script>
@@ -1021,8 +1346,8 @@ watch(
   }
 
   /* ========== 电子书主题：让工具栏 / 书架 / 抽屉等所有区域跟随 day/night/eye 切换 ==========
-     之前 cycleTheme 只切换了阅读区（TxtReader/EpubReader 内部），外层区域仍使用全局主题变量，
-     导致「阅读区变深/变绿、工具栏仍是亮色」的主题错乱。这里把同名 class 作用到整页并覆盖变量。 */
+     主题（日间 / 夜间 / 护眼）由设置抽屉中的预设卡片切换，作用到整页并覆盖变量，保证外层区域
+     与阅读区预设一致；阅读区的「背景（纯色/图片）/ 文字色」可在同一抽屉里进一步自定义（仅作用于正文）。 */
   &.theme-day {
     --bg-base: #f5f6fa;
     --bg-card: #ffffff;
@@ -1300,6 +1625,89 @@ watch(
         line-height: 1.4;
       }
     }
+
+    /* 划线颜色色板 */
+    .highlight-color-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+
+      .highlight-color-dot {
+        width: 26px;
+        height: 26px;
+        padding: 0;
+        border-radius: 50%;
+        border: 2px solid transparent;
+        cursor: pointer;
+        transition: transform 0.15s, box-shadow 0.15s;
+        box-shadow: 0 0 0 1px var(--border-subtle);
+
+        &:hover {
+          transform: scale(1.08);
+        }
+
+        &.active {
+          border-color: var(--color-primary);
+          box-shadow: 0 0 0 2px var(--bg-card), 0 0 0 4px var(--color-primary);
+        }
+      }
+    }
+
+    /* 主题预设卡片：日间 / 夜间 / 护眼，点击切换 */
+    .theme-preset-list {
+      display: flex;
+      gap: 10px;
+
+      .theme-preset-card {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 12px 8px;
+        border-radius: 10px;
+        border: 2px solid var(--border-subtle);
+        cursor: pointer;
+        font-size: 13px;
+        transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+
+        &:hover {
+          transform: translateY(-1px);
+        }
+
+        &.active {
+          border-color: var(--color-primary);
+          box-shadow: 0 0 0 2px var(--bg-card), 0 0 0 4px var(--color-primary);
+        }
+      }
+    }
+
+    /* 背景图上传控件 */
+    .bg-image-control {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+
+      .bg-image-preview {
+        width: 100%;
+        height: 64px;
+        margin-top: 4px;
+        border-radius: 8px;
+        border: 1px solid var(--border-subtle);
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+      }
+    }
+
+    /* 文字颜色控件：取色器 + 恢复默认 */
+    .text-color-control {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
   }
 
   .toc-list {
@@ -1329,8 +1737,68 @@ watch(
     }
   }
 
+  /* 笔记与划线抽屉：标签页切换，区分「笔记」与「划线」 */
+  .annotation-drawer {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+
+    .annotation-tabs {
+      display: flex;
+      gap: 8px;
+      padding: 0 4px 12px;
+      border-bottom: 1px solid var(--border-subtle);
+      margin-bottom: 8px;
+
+      .tab-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border: 1px solid var(--border-subtle);
+        border-radius: calc(var(--radius-card, 6px) - 2px);
+        background: transparent;
+        color: var(--text-secondary);
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.15s;
+
+        .tab-count {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 18px;
+          height: 18px;
+          padding: 0 5px;
+          border-radius: 9px;
+          background: var(--bg-hover, rgba(0, 0, 0, 0.06));
+          font-size: 11px;
+          font-variant-numeric: tabular-nums;
+        }
+
+        &:hover {
+          color: var(--text-primary);
+          border-color: var(--color-primary);
+        }
+
+        &.active {
+          color: #fff;
+          background: var(--color-primary);
+          border-color: var(--color-primary);
+
+          .tab-count {
+            background: rgba(255, 255, 255, 0.25);
+            color: #fff;
+          }
+        }
+      }
+    }
+  }
+
   /* 笔记与划线列表：参考 .toc-list 风格 */
   .annotation-list {
+    flex: 1;
+    overflow: auto;
     padding: 8px 0;
 
     /* 单条笔记项：hover 高亮、点击跳转 */
@@ -1342,6 +1810,18 @@ watch(
 
       &:hover {
         background: var(--bg-hover, var(--bg-base));
+      }
+
+      .annotation-main {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 8px;
+
+        .annotation-text {
+          flex: 1;
+          min-width: 0;
+        }
       }
 
       /* 原文摘录：最多 3 行截断 */
@@ -1356,22 +1836,47 @@ watch(
         text-overflow: ellipsis;
       }
 
-      /* 笔记内容：左侧竖线区分，主题色突出 */
-      .annotation-note {
-        margin-top: 4px;
-        padding-left: 8px;
-        font-size: 12px;
-        line-height: 1.5;
+      /* 笔记图标按钮：点击展开/收起笔记 */
+      .note-toggle {
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 26px;
+        padding: 0;
+        border: none;
+        border-radius: 6px;
+        background: transparent;
         color: var(--color-primary);
+        cursor: pointer;
+        transition: background-color 0.15s;
+
+        &:hover {
+          background: var(--bg-hover, rgba(0, 0, 0, 0.06));
+        }
+      }
+
+      /* 展开的笔记内容：左侧竖线区分，主题色突出 */
+      .annotation-note {
+        margin-top: 6px;
+        padding: 8px 10px;
+        font-size: 12px;
+        line-height: 1.6;
+        color: var(--text-secondary);
+        background: var(--bg-base);
         border-left: 2px solid var(--color-primary);
+        border-radius: 4px;
+        white-space: pre-wrap;
         word-break: break-word;
       }
 
-      /* 操作区：删除按钮靠右 */
+      /* 操作区：按钮靠右 */
       .annotation-actions {
         display: flex;
         justify-content: flex-end;
-        margin-top: 4px;
+        gap: 4px;
+        margin-top: 6px;
       }
     }
 

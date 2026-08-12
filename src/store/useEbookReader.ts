@@ -5,8 +5,11 @@ import { getStore, setStore } from '@/utils/common';
 /** 电子书文件格式类型：txt 文本、epub 电子书，空字符串表示未打开任何文件 */
 export type EbookFormat = 'txt' | 'epub' | '';
 
-/** 电子书阅读主题类型：day 白天、night 夜间、eye 护眼 */
+/** 电子书阅读主题类型：day 白天、night 夜间、eye 护眼（控制外层工具栏/抽屉主题） */
 export type EbookTheme = 'day' | 'night' | 'eye';
+
+/** 阅读区背景类型：preset 跟随主题预设 / color 纯色 / image 背景图 */
+export type EbookBgType = 'preset' | 'color' | 'image';
 
 /** 当前打开的电子书文件信息 */
 export interface EbookFile {
@@ -34,8 +37,16 @@ export interface EbookSettings {
   fontFamily: string;
   /** 英文正文字体（CSS font-family 值，可为空字符串表示使用默认字体） */
   fontFamilyEN: string;
-  /** 阅读主题：day 白天、night 夜间、eye 护眼 */
+  /** 阅读主题：day 白天、night 夜间、eye 护眼（控制外层工具栏/抽屉主题） */
   theme: EbookTheme;
+  /** 阅读区背景类型：preset 跟随主题预设 / color 纯色 / image 背景图 */
+  bgType: EbookBgType;
+  /** 阅读区背景色（bgType 为 'color' 时生效，空字符串表示使用主题预设背景） */
+  bgColor: string;
+  /** 阅读区背景图 data URL（bgType 为 'image' 时生效，空字符串表示使用主题预设背景） */
+  bgImage: string;
+  /** 阅读区文字颜色（空字符串表示使用主题预设文字色） */
+  textColor: string;
   /** 行距倍率（作用于正文 line-height），如 1.8 表示 1.8 倍行距 */
   lineHeight: number;
   /** 分栏数：1 单栏、2 双栏（epub 由 spread 控制，txt 由 CSS column-count 控制） */
@@ -44,6 +55,12 @@ export interface EbookSettings {
   scrollMode: boolean;
   /** 页边距，单位 px（作用于正文外边距） */
   margin: number;
+  /** 划线默认颜色标识（如 'yellow'、'green'、'blue' 等），由右上角「阅读设置」预设 */
+  highlightColor: string;
+  /** 划线默认类型：'highlight'（高亮）、'underline'（下划线）、'wavy'（波浪线），由右上角「阅读设置」预设 */
+  highlightType: string;
+  /** 翻页效果：'none'（瞬时）、'slide'（滑动）、'cover'（覆盖）、'flip3d'（3D 仿真），仅 epub 生效 */
+  pageEffect: 'none' | 'slide' | 'cover' | 'flip3d';
 }
 
 /** 书架条目信息（前端使用 camelCase，对应数据库 ebook_bookshelf 表的一行） */
@@ -75,10 +92,17 @@ const DEFAULT_SETTINGS: EbookSettings = {
   fontFamily: '',
   fontFamilyEN: '',
   theme: 'day',
+  bgType: 'preset',
+  bgColor: '',
+  bgImage: '',
+  textColor: '',
   lineHeight: 1.8,
   columnCount: 1,
   scrollMode: false,
   margin: 24,
+  highlightColor: 'yellow',
+  highlightType: 'highlight',
+  pageEffect: 'none',
 };
 
 export default defineStore('ebook-reader', () => {
@@ -148,6 +172,46 @@ export default defineStore('ebook-reader', () => {
   }
 
   /**
+   * 设置阅读区背景类型（preset 跟随主题 / color 纯色 / image 背景图）并持久化
+   * @param value 背景类型
+   * @returns 无返回值
+   */
+  function setBgType(value: EbookBgType) {
+    settings.value.bgType = value;
+    setStore(SETTINGS_KEY, settings.value);
+  }
+
+  /**
+   * 设置阅读区背景色（bgType 为 'color' 时生效）并持久化
+   * @param value CSS 颜色字符串（空字符串表示使用主题预设背景）
+   * @returns 无返回值
+   */
+  function setBgColor(value: string) {
+    settings.value.bgColor = value;
+    setStore(SETTINGS_KEY, settings.value);
+  }
+
+  /**
+   * 设置阅读区背景图（bgType 为 'image' 时生效，存储为 data URL）并持久化
+   * @param value 背景图 data URL（空字符串表示使用主题预设背景）
+   * @returns 无返回值
+   */
+  function setBgImage(value: string) {
+    settings.value.bgImage = value;
+    setStore(SETTINGS_KEY, settings.value);
+  }
+
+  /**
+   * 设置阅读区文字颜色并持久化
+   * @param value CSS 颜色字符串（空字符串表示使用主题预设文字色）
+   * @returns 无返回值
+   */
+  function setTextColor(value: string) {
+    settings.value.textColor = value;
+    setStore(SETTINGS_KEY, settings.value);
+  }
+
+  /**
    * 设置中文正文字体，并同步持久化到本地存储
    * @param value CSS font-family 值（空字符串表示使用默认字体）
    * @returns 无返回值
@@ -204,6 +268,38 @@ export default defineStore('ebook-reader', () => {
    */
   function setMargin(value: number) {
     settings.value.margin = value;
+    setStore(SETTINGS_KEY, settings.value);
+  }
+
+  /**
+   * 设置划线默认颜色，并同步持久化到本地存储
+   * 选中文本后点击「划线/笔记」即按此颜色标注
+   * @param value 颜色标识（如 'yellow'、'green'）
+   * @returns 无返回值
+   */
+  function setHighlightColor(value: string) {
+    settings.value.highlightColor = value;
+    setStore(SETTINGS_KEY, settings.value);
+  }
+
+  /**
+   * 设置划线默认类型，并同步持久化到本地存储
+   * 选中文本后点击「划线/笔记」即按此样式标注
+   * @param value 划线类型（'highlight' | 'underline' | 'wavy'）
+   * @returns 无返回值
+   */
+  function setHighlightType(value: string) {
+    settings.value.highlightType = value;
+    setStore(SETTINGS_KEY, settings.value);
+  }
+
+  /**
+   * 设置翻页效果并持久化到本地存储，仅 epub 阅读器生效
+   * @param value 翻页效果（'none' | 'slide' | 'cover' | 'flip3d'）
+   * @returns 无返回值
+   */
+  function setPageEffect(value: 'none' | 'slide' | 'cover' | 'flip3d') {
+    settings.value.pageEffect = value;
     setStore(SETTINGS_KEY, settings.value);
   }
 
@@ -292,6 +388,11 @@ export default defineStore('ebook-reader', () => {
     setFontSize,
     // 设置阅读主题
     setTheme,
+    // 设置阅读区背景类型 / 背景色 / 背景图 / 文字颜色
+    setBgType,
+    setBgColor,
+    setBgImage,
+    setTextColor,
     // 设置中文正文字体
     setFontFamily,
     // 设置英文正文字体
@@ -304,6 +405,12 @@ export default defineStore('ebook-reader', () => {
     setScrollMode,
     // 设置页边距
     setMargin,
+    // 设置划线默认颜色
+    setHighlightColor,
+    // 设置划线默认类型
+    setHighlightType,
+    // 设置翻页效果（仅 epub 生效）
+    setPageEffect,
     // 加载书架列表
     loadBookshelf,
     // 添加或更新书架记录
