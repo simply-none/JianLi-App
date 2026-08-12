@@ -28,6 +28,8 @@ async function showApp() {
     // 发送给渲染进程确认，是否隐藏窗口
     // win.webContents.send("confirm-hide-app", true);
     hideApp();
+    // 隐藏应用时强制开始工作（不限次数）
+    win?.webContents.send("force-start-work");
   } else {
     win.show();
   }

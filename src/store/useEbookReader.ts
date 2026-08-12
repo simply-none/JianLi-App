@@ -61,6 +61,10 @@ export interface EbookSettings {
   highlightType: string;
   /** 翻页效果：'none'（瞬时）、'slide'（滑动）、'cover'（覆盖）、'flip3d'（3D 仿真），仅 epub 生效 */
   pageEffect: 'none' | 'slide' | 'cover' | 'flip3d';
+  /** 是否显示阅读页顶部工具栏 */
+  readerTopbarVisible: boolean;
+  /** 是否显示阅读页底部翻页栏 */
+  readerBottomBarVisible: boolean;
 }
 
 /** 书架条目信息（前端使用 camelCase，对应数据库 ebook_bookshelf 表的一行） */
@@ -103,6 +107,8 @@ const DEFAULT_SETTINGS: EbookSettings = {
   highlightColor: 'yellow',
   highlightType: 'highlight',
   pageEffect: 'none',
+  readerTopbarVisible: true,
+  readerBottomBarVisible: true,
 };
 
 export default defineStore('ebook-reader', () => {
@@ -303,6 +309,18 @@ export default defineStore('ebook-reader', () => {
     setStore(SETTINGS_KEY, settings.value);
   }
 
+  /** 设置阅读页顶部工具栏显隐 */
+  function setReaderTopbarVisible(value: boolean) {
+    settings.value.readerTopbarVisible = value;
+    setStore(SETTINGS_KEY, settings.value);
+  }
+
+  /** 设置阅读页底部翻页栏显隐 */
+  function setReaderBottomBarVisible(value: boolean) {
+    settings.value.readerBottomBarVisible = value;
+    setStore(SETTINGS_KEY, settings.value);
+  }
+
   /**
    * 从数据库加载书架列表，把数据库记录（snake_case）映射为 BookshelfItem（camelCase）
    * 失败时打印错误日志，bookshelf 保持原值（空数组）
@@ -411,6 +429,10 @@ export default defineStore('ebook-reader', () => {
     setHighlightType,
     // 设置翻页效果（仅 epub 生效）
     setPageEffect,
+    // 设置阅读页顶部工具栏显隐
+    setReaderTopbarVisible,
+    // 设置阅读页底部翻页栏显隐
+    setReaderBottomBarVisible,
     // 加载书架列表
     loadBookshelf,
     // 添加或更新书架记录

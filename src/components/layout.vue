@@ -1,7 +1,11 @@
 <template>
   <div
     class="layout"
-    :class="{ 'is-padded': props.isPadding }"
+    :class="{
+      'is-padded': props.isPadding,
+      'no-top': !props.showTop,
+      'no-left': !props.showLeft,
+    }"
     :style="{
       padding: props.isPadding ? '16px' : '0px',
       backgroundColor: props.isPadding ? (props.paddingColor || 'var(--bg-base)') : 'unset',
@@ -45,7 +49,15 @@ const props = defineProps({
   paddingColor: {
     type: String,
     default: '',
-  }
+  },
+  showTop: {
+    type: Boolean,
+    default: true,
+  },
+  showLeft: {
+    type: Boolean,
+    default: true,
+  },
 });
 const top = ref<HTMLElement>();
 const bottom = ref<HTMLElement>();
@@ -171,6 +183,22 @@ onMounted(() => {
     flex-shrink: 0;
     padding-top: 12px;
     border-top: 1px solid var(--border-subtle);
+  }
+}
+
+/* 隐藏顶部栏 */
+.layout.no-top {
+  .top {
+    display: none;
+  }
+}
+
+/* 隐藏侧边栏 */
+.layout.no-left {
+  .content {
+    .left {
+      display: none;
+    }
   }
 }
 </style>

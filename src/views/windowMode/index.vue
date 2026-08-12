@@ -67,6 +67,7 @@
                 >
                   <LucideIcon name="Columns3Cog" :size="14" />
                   自定义
+                  <span v-if="customDisplay.pomodoro.position" class="custom-value">{{ customDisplay.pomodoro.position }}</span>
                 </el-button>
               </div>
             </div>
@@ -95,6 +96,7 @@
                 >
                   <LucideIcon name="Columns3Cog" :size="14" />
                   自定义
+                  <span v-if="customDisplay.pomodoro.size" class="custom-value">{{ customDisplay.pomodoro.size }}</span>
                 </el-button>
               </div>
             </div>
@@ -123,6 +125,7 @@
                 >
                   <LucideIcon name="Columns3Cog" :size="14" />
                   自定义
+                  <span v-if="customDisplay.pomodoro.gap" class="custom-value">{{ customDisplay.pomodoro.gap }}</span>
                 </el-button>
               </div>
             </div>
@@ -232,6 +235,7 @@
                 >
                   <LucideIcon name="Columns3Cog" :size="14" />
                   自定义
+                  <span v-if="customDisplay.notebook.position" class="custom-value">{{ customDisplay.notebook.position }}</span>
                 </el-button>
               </div>
             </div>
@@ -260,6 +264,7 @@
                 >
                   <LucideIcon name="Columns3Cog" :size="14" />
                   自定义
+                  <span v-if="customDisplay.notebook.size" class="custom-value">{{ customDisplay.notebook.size }}</span>
                 </el-button>
               </div>
             </div>
@@ -288,6 +293,7 @@
                 >
                   <LucideIcon name="Columns3Cog" :size="14" />
                   自定义
+                  <span v-if="customDisplay.notebook.gap" class="custom-value">{{ customDisplay.notebook.gap }}</span>
                 </el-button>
               </div>
             </div>
@@ -359,6 +365,7 @@
                 >
                   <LucideIcon name="Columns3Cog" :size="14" />
                   自定义
+                  <span v-if="customDisplay.quickNote.position" class="custom-value">{{ customDisplay.quickNote.position }}</span>
                 </el-button>
               </div>
             </div>
@@ -387,6 +394,7 @@
                 >
                   <LucideIcon name="Columns3Cog" :size="14" />
                   自定义
+                  <span v-if="customDisplay.quickNote.size" class="custom-value">{{ customDisplay.quickNote.size }}</span>
                 </el-button>
               </div>
             </div>
@@ -415,6 +423,7 @@
                 >
                   <LucideIcon name="Columns3Cog" :size="14" />
                   自定义
+                  <span v-if="customDisplay.quickNote.gap" class="custom-value">{{ customDisplay.quickNote.gap }}</span>
                 </el-button>
               </div>
             </div>
@@ -524,6 +533,7 @@
                 >
                   <LucideIcon name="Columns3Cog" :size="14" />
                   自定义
+                  <span v-if="customDisplay.todo.position" class="custom-value">{{ customDisplay.todo.position }}</span>
                 </el-button>
               </div>
             </div>
@@ -552,6 +562,7 @@
                 >
                   <LucideIcon name="Columns3Cog" :size="14" />
                   自定义
+                  <span v-if="customDisplay.todo.size" class="custom-value">{{ customDisplay.todo.size }}</span>
                 </el-button>
               </div>
             </div>
@@ -580,6 +591,7 @@
                 >
                   <LucideIcon name="Columns3Cog" :size="14" />
                   自定义
+                  <span v-if="customDisplay.todo.gap" class="custom-value">{{ customDisplay.todo.gap }}</span>
                 </el-button>
               </div>
             </div>
@@ -937,6 +949,54 @@ const showModal = ref(false);
 const modalType = ref<'position' | 'size' | 'gap'>('position');
 const modalTarget = ref<'pomodoro' | 'notebook' | 'quickNote' | 'todo'>('pomodoro');
 
+// 判断各窗口类型的各字段是否为自定义模式，并返回展示值
+const customDisplay = computed(() => {
+  const getPositionCustom = (config: any) => {
+    if (config.position === 'custom') {
+      return `(${config.x || 0}, ${config.y || 0})`;
+    }
+    return '';
+  };
+
+  const getSizeCustom = (config: any, presetSizes: { width: number; height: number }[]) => {
+    const isPreset = presetSizes.some(s => s.width === config.width && s.height === config.height);
+    if (!isPreset) {
+      return `${config.width || 0}×${config.height || 0}`;
+    }
+    return '';
+  };
+
+  const getGapCustom = (config: any) => {
+    if (!gapOptions.includes(config.gap)) {
+      return `${config.gap || 0}px`;
+    }
+    return '';
+  };
+
+  return {
+    pomodoro: {
+      position: getPositionCustom(pomodoroConfig.value),
+      size: getSizeCustom(pomodoroConfig.value, sizeOptions),
+      gap: getGapCustom(pomodoroConfig.value),
+    },
+    notebook: {
+      position: getPositionCustom(notebookConfig.value),
+      size: getSizeCustom(notebookConfig.value, notebookSizeOptions),
+      gap: getGapCustom(notebookConfig.value),
+    },
+    quickNote: {
+      position: getPositionCustom(quickNoteConfig.value),
+      size: getSizeCustom(quickNoteConfig.value, quickNoteSizeOptions),
+      gap: getGapCustom(quickNoteConfig.value),
+    },
+    todo: {
+      position: getPositionCustom(todoConfig.value),
+      size: getSizeCustom(todoConfig.value, quickNoteSizeOptions),
+      gap: getGapCustom(todoConfig.value),
+    },
+  };
+});
+
 const customPosition = ref({ x: 0, y: 0 });
 const customSize = ref({ width: 0, height: 0 });
 const customGap = ref(30);
@@ -1216,6 +1276,13 @@ function confirmCustom() {
     &.custom-option {
       color: var(--color-primary);
     }
+  }
+
+  .custom-value {
+    margin-left: 4px;
+    font-size: 12px;
+    opacity: 0.75;
+    font-weight: 400;
   }
 }
 

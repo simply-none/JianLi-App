@@ -55,6 +55,13 @@ export function useWorkOrRest() {
     window.ipcRenderer.on("close-screen-saver", (e, data) => {
       startForceWorkFn({ isUpdateStartTime: true });
     });
+
+    // hideApp 触发强制开始工作（不限次数）
+    window.ipcRenderer.on("force-start-work", (e, data) => {
+      // 判断如果当前是工作状态，则不进行开始工作
+      if (curStatusC.value?.value === "work") return;
+      startForceWorkFn({ isUpdateStartTime: true });
+    });
   }
   // 软件初始化 - 取消注册全局侦听事件
   function unregisterGlobalListener() {
@@ -62,6 +69,7 @@ export function useWorkOrRest() {
     window.ipcRenderer.removeAllListeners("close-work");
     window.ipcRenderer.removeAllListeners("close-rest");
     window.ipcRenderer.removeAllListeners("close-screen-saver");
+    window.ipcRenderer.removeAllListeners("force-start-work");
   }
 
   // 软件初始化

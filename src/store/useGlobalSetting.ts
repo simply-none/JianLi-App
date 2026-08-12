@@ -120,6 +120,22 @@ export default defineStore("global-setting", () => {
     send("set-startup", value);
   }
 
+  // 侧边栏 / 顶部栏 可见性
+  const sidebarVisible = ref();
+  const topbarVisible = ref();
+  const sidebarVisibleC = computed(() => sidebarVisible.value);
+  const topbarVisibleC = computed(() => topbarVisible.value);
+
+  function setSidebarVisible(value: boolean) {
+    sidebarVisible.value = value;
+    setStore("sidebarVisible", value);
+  }
+
+  function setTopbarVisible(value: boolean) {
+    topbarVisible.value = value;
+    setStore("topbarVisible", value);
+  }
+
   // 系统样式布局设置
   // 应用内颜色
   const appInnerColor = ref();
@@ -189,7 +205,11 @@ export default defineStore("global-setting", () => {
   // pinia状态初始化
   function init() {
     // 布尔值变量
-    const boolVars = [{ field: "isStartup", default: false, map: isStartup }];
+    const boolVars = [
+      { field: "isStartup", default: false, map: isStartup },
+      { field: "sidebarVisible", default: true, map: sidebarVisible },
+      { field: "topbarVisible", default: true, map: topbarVisible },
+    ];
     // 数字值变量
     const numberVars = [
       { field: "forceWorkTimes", default: 3, map: forceWorkTimes },
@@ -402,6 +422,8 @@ export default defineStore("global-setting", () => {
     forceWorkTimes,
     todayForceWorkTimes,
     isStartup,
+    sidebarVisible,
+    topbarVisible,
     appInnerColor,
     appBgColor,
     globalFont,
@@ -414,6 +436,8 @@ export default defineStore("global-setting", () => {
     setForceWorkTimes,
     setTodayForceWorkTimes,
     setIsStartup,
+    setSidebarVisible,
+    setTopbarVisible,
     setAppInnerColor,
     setAppBgColor,
     setGlobalFont,
@@ -426,6 +450,8 @@ export default defineStore("global-setting", () => {
     forceWorkTimesC,
     todayForceWorkTimesC,
     isStartupC,
+    sidebarVisibleC,
+    topbarVisibleC,
     appInnerColorC,
     appBgColorC,
     globalFontC,

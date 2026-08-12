@@ -49,7 +49,7 @@
     </el-dialog>
 
     <!-- 底部翻页控制区 -->
-    <div class="epub-footer">
+    <div class="epub-footer" v-show="props.bottomBarVisible !== false">
       <el-button size="small" :disabled="loading" @click="prevPage">
         <LucideIcon name="ArrowLeft" :size="14" />
         上一页
@@ -100,6 +100,8 @@ import { resolveReadingBg, resolveReadingText } from '../themePresets';
 import ePub, { Book, Rendition, NavItem, Contents } from 'epubjs';
 // 阅读设置 store：划线颜色/类型由右上角「阅读设置」预设
 import useEbookReader from '@/store/useEbookReader';
+// 全局设置 store：sidebarVisible / topbarVisible 变化时阅读区域尺寸改变，需重载
+import useGlobalSetting from '@/store/useGlobalSetting';
 
 /** 阅读主题类型：day 白天、night 夜间、eye 护眼 */
 type EbookTheme = 'day' | 'night' | 'eye';
@@ -134,6 +136,8 @@ const props = defineProps<{
   scrollMode?: boolean;
   /** 页边距，单位 px（作用于 epub body margin） */
   margin?: number;
+  /** 是否显示底部翻页控制栏 */
+  bottomBarVisible?: boolean;
 }>();
 
 /** 组件 Emits 定义 */
@@ -188,6 +192,10 @@ let locationsReady = false;
 /** 阅读设置 store：划线颜色/类型由右上角「阅读设置」预设，此处直接读取 */
 const ebookStore = useEbookReader();
 const { settings } = storeToRefs(ebookStore);
+
+/** 全局设置 store：侧边栏/顶部栏显隐改变阅读区尺寸，触发重载 */
+const globalSettingStore = useGlobalSetting();
+const { sidebarVisible, topbarVisible } = storeToRefs(globalSettingStore);
 
 /**
  * 根据颜色名称获取 CSS 颜色值（颜色映射来自统一配置）
@@ -1419,6 +1427,48 @@ function cleanup() {
   currentSelection.value = null;
 }
 
+/** 重载防抖定时器 */
+let reloadTimer: ReturnType<typeof setTimeout> | null = null;
+/** ResizeObserver 实例 */
+let resizeObserver: ResizeObserver | null = null;
+/** 是否已完成首次渲染（跳过初始挂载时的尺寸检测） */
+let initialRenderDone = false;
+
+/**
+ * 阅读区尺寸/布局变化时重新加载电子书。
+ * 侧边栏/顶部栏显隐、窗口缩放等场景会改变阅读区容器尺寸，
+ * 触发 epubjs 重渲染以保持排版正确、避免数据错乱。
+ *
+ * 采用防抖（300ms）避免频繁重建；保存当前 CFI 并在重建后恢复阅读位置。
+ */
+function scheduleReload() {
+  if (reloadTimer) clearTimeout(reloadTimer);
+  reloadTimer = setTimeout(async () => {
+    if (!props.filePath || !readerRef.value) return;
+    const currentCfi = rendition?.location?.start?.cfi || '';
+    // 销毁旧的 epubjs 实例（仅 book/rendition，标注/工具条状态由 renderEpub 内重新加载）
+    if (rendition) {
+      try { rendition.destroy(); } catch (e) { console.error(e); }
+    }
+    if (book) {
+      try { book.destroy(); } catch (e) { console.error(e); }
+    }
+    rendition = null;
+    book = null;
+    locationsReady = false;
+    // 重新渲染（内部完成主题、字号、翻页模式、标记等全部注册与恢复）
+    await renderEpub(props.filePath);
+    // 恢复到重载前的阅读位置（renderEpub 会重新给 rendition 赋值，但 TS 无法追踪，需断言）
+    if (currentCfi && rendition) {
+      try {
+        (rendition as Rendition).display(currentCfi);
+      } catch {
+        (rendition as Rendition).display();
+      }
+    }
+  }, 300);
+}
+
 /**
  * 按 id 移除本地划线（不调 IPC，持久化由父组件负责）
  * 供父组件笔记抽屉删除后同步子组件高亮渲染，避免高亮残留
@@ -1545,13 +1595,35 @@ watch(
 
 onMounted(() => {
   if (props.filePath) {
-    renderEpub(props.filePath);
+    renderEpub(props.filePath).then(() => { initialRenderDone = true; });
   }
   // 注册键盘翻页监听
   window.addEventListener('keydown', handleKeydown);
+  // ResizeObserver：监听阅读区容器尺寸变化（窗口缩放、侧边栏/顶部栏显隐等触发重载）
+  resizeObserver = new ResizeObserver(() => {
+    if (!initialRenderDone) return; // 跳过首次挂载时的尺寸检测
+    scheduleReload();
+  });
+  if (readerRef.value) resizeObserver.observe(readerRef.value);
+});
+
+// 监听侧边栏和顶部栏的显隐：它们变化时阅读区容器尺寸改变，需重载排版
+watch([sidebarVisible, topbarVisible], () => {
+  if (!initialRenderDone) return;
+  scheduleReload();
 });
 
 onUnmounted(() => {
+  // 断开 ResizeObserver
+  if (resizeObserver) {
+    resizeObserver.disconnect();
+    resizeObserver = null;
+  }
+  // 清除重载防抖定时器
+  if (reloadTimer) {
+    clearTimeout(reloadTimer);
+    reloadTimer = null;
+  }
   // 移除键盘监听并销毁 epubjs 资源
   window.removeEventListener('keydown', handleKeydown);
   cleanup();

@@ -1,9 +1,27 @@
 <template>
   <div class="layout-vue">
-    <Layout isPadding>
+    <Layout isPadding :showTop="topbarVisible" :showLeft="sidebarVisible">
       <template #top>
-        <div>
+        <div class="header-row">
           <Header :title="title" @back="toHome" />
+          <div class="header-toggles">
+            <button
+              class="toggle-btn"
+              :class="{ 'is-off': !topbarVisible }"
+              :title="topbarVisible ? '隐藏顶部栏' : '显示顶部栏'"
+              @click="setTopbarVisible(!topbarVisible)"
+            >
+              <LucideIcon :name="topbarVisible ? 'PanelTop' : 'PanelTopClose'" :size="16" />
+            </button>
+            <button
+              class="toggle-btn"
+              :class="{ 'is-off': !sidebarVisible }"
+              :title="sidebarVisible ? '隐藏侧边栏' : '显示侧边栏'"
+              @click="setSidebarVisible(!sidebarVisible)"
+            >
+              <LucideIcon :name="sidebarVisible ? 'PanelLeft' : 'PanelLeftClose'" :size="16" />
+            </button>
+          </div>
         </div>
       </template>
       <template #left>
@@ -66,6 +84,18 @@
         <RouterView />
       </template>
     </Layout>
+
+    <!-- 顶部栏隐藏时显示的浮动恢复按钮 -->
+    <Transition name="float-fade">
+      <button
+        v-if="!topbarVisible"
+        class="float-restore-top"
+        title="显示顶部栏"
+        @click="setTopbarVisible(true)"
+      >
+        <LucideIcon name="PanelTopClose" :size="15" />
+      </button>
+    </Transition>
   </div>
 </template>
 
@@ -82,6 +112,7 @@ import useTheme, { themeOptions, type ThemeName } from '@/store/useTheme';
 import { watch } from 'vue';
 import { getStore } from '@/utils/common';
 import { iconMap } from '@/utils';
+import useGlobalSetting from '@/store/useGlobalSetting';
 
 // 为每个路由注入图标到 meta
 const enrichedRouters = layoutRouters.map(r => ({
@@ -230,12 +261,100 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside);
 });
+
+// ========== 侧边栏 / 顶部栏 可见性控制 ==========
+const globalSettingStore = useGlobalSetting();
+const { sidebarVisible, topbarVisible } = storeToRefs(globalSettingStore);
+const { setSidebarVisible, setTopbarVisible } = globalSettingStore;
 </script>
 
 <style scoped lang="scss">
 .layout-vue {
   height: 100%;
   width: 100%;
+  position: relative;
+}
+
+/* ========== 顶部栏布局 ========== */
+.header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.header-toggles {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-btn);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+
+  &:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+
+  &.is-off {
+    color: var(--text-disabled);
+    background: var(--bg-active-btn);
+  }
+}
+
+/* 浮动恢复按钮 */
+.float-restore-top {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 50;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-btn);
+  background: var(--bg-card);
+  color: var(--text-muted);
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+  transition: background 0.2s, color 0.2s, transform 0.15s;
+
+  &:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    transform: scale(1.1);
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+.float-fade-enter-active,
+.float-fade-leave-active {
+  transition: all 0.2s ease;
+}
+
+.float-fade-enter-from,
+.float-fade-leave-to {
+  opacity: 0;
+  transform: scale(0.8);
 }
 
 /* ========== 侧边栏菜单 ========== */

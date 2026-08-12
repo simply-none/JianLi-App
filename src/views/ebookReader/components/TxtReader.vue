@@ -1,5 +1,6 @@
 <template>
   <div
+    ref="txtContainer"
     class="txt-reader"
     :class="themeClass"
     :style="{ background: readerBg, color: readerText }"
@@ -30,7 +31,7 @@
     </div>
 
     <!-- 底部翻页与进度控制区 -->
-    <div class="txt-footer">
+    <div class="txt-footer" v-show="props.bottomBarVisible !== false">
       <div class="page-nav">
         <el-button
           size="small"
@@ -108,7 +109,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import LucideIcon from '@/components/LucideIcon.vue';
@@ -118,6 +119,8 @@ import { HIGHLIGHT_COLOR_MAP } from '../highlightConfig';
 import { resolveReadingBg, resolveReadingText } from '../themePresets';
 // 阅读设置 store：划线颜色/类型由右上角「阅读设置」预设
 import useEbookReader from '@/store/useEbookReader';
+// 全局设置 store：sidebarVisible / topbarVisible 变化时阅读区域尺寸改变，需重载
+import useGlobalSetting from '@/store/useGlobalSetting';
 
 /** 阅读主题类型：day 白天、night 夜间、eye 护眼 */
 type EbookTheme = 'day' | 'night' | 'eye';
@@ -194,6 +197,8 @@ const props = defineProps<{
   columnCount?: number;
   /** 页边距，单位 px（作用于 .txt-content padding） */
   margin?: number;
+  /** 是否显示底部翻页控制栏 */
+  bottomBarVisible?: boolean;
 }>();
 
 /** 组件 Emits 定义 */
@@ -213,6 +218,10 @@ const PAGE_CHAR_SIZE = 1500;
 /** 阅读设置 store：划线颜色/类型由右上角「阅读设置」预设，此处直接读取 */
 const ebookStore = useEbookReader();
 const { settings } = storeToRefs(ebookStore);
+
+/** 全局设置 store：侧边栏/顶部栏显隐改变阅读区尺寸，触发重载 */
+const globalSettingStore = useGlobalSetting();
+const { sidebarVisible, topbarVisible } = storeToRefs(globalSettingStore);
 
 /**
  * 根据颜色名称获取 CSS 颜色值（颜色映射来自统一配置）
@@ -301,6 +310,9 @@ const noteDialogVisible = ref(false);
 const currentEditAnnotationId = ref<number | null>(null);
 /** 笔记编辑弹窗中的输入内容 */
 const noteInput = ref('');
+
+/** TXT 阅读器根容器（供 ResizeObserver 监听尺寸变化） */
+const txtContainer = ref<HTMLElement | null>(null);
 
 /** 总页数 */
 const totalPages = computed(() => pages.value.length);
@@ -984,9 +996,59 @@ watch(
   }
 );
 
+/** 重载防抖定时器 */
+let reloadTimer: ReturnType<typeof setTimeout> | null = null;
+/** ResizeObserver 实例 */
+let resizeObserver: ResizeObserver | null = null;
+/** 是否已完成首次渲染（跳过初始挂载时的尺寸检测） */
+let initialRenderDone = false;
+
+/**
+ * 阅读区尺寸/布局变化时重新分页。
+ * 侧边栏/顶部栏显隐、窗口缩放等场景会改变阅读区容器尺寸，
+ * 触发重新分页以保持排版正确、避免数据错乱。
+ */
+function scheduleReload() {
+  if (reloadTimer) clearTimeout(reloadTimer);
+  reloadTimer = setTimeout(async () => {
+    if (!props.filePath || !txtContainer.value) return;
+    const savedPage = currentPage.value;
+    await loadContent(props.filePath);
+    // 恢复到重载前的页码（不超出新分页总页数）
+    const maxPage = Math.max(0, totalPages.value - 1);
+    currentPage.value = Math.min(savedPage, maxPage);
+    sliderValue.value = currentPage.value + 1;
+  }, 300);
+}
+
+// 监听侧边栏和顶部栏的显隐：它们变化时阅读区容器尺寸改变，需重载排版
+watch([sidebarVisible, topbarVisible], () => {
+  if (!initialRenderDone) return;
+  scheduleReload();
+});
+
 onMounted(() => {
   if (props.filePath) {
-    loadContent(props.filePath);
+    loadContent(props.filePath).then(() => { initialRenderDone = true; });
+  }
+  // ResizeObserver：监听阅读区容器尺寸变化（窗口缩放、侧边栏/顶部栏显隐等触发重载）
+  resizeObserver = new ResizeObserver(() => {
+    if (!initialRenderDone) return;
+    scheduleReload();
+  });
+  if (txtContainer.value) resizeObserver.observe(txtContainer.value);
+});
+
+onUnmounted(() => {
+  // 断开 ResizeObserver
+  if (resizeObserver) {
+    resizeObserver.disconnect();
+    resizeObserver = null;
+  }
+  // 清除重载防抖定时器
+  if (reloadTimer) {
+    clearTimeout(reloadTimer);
+    reloadTimer = null;
   }
 });
 </script>

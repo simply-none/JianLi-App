@@ -25,6 +25,8 @@ export function initTray() {
       click: () => {
         if (win) {
           hideApp();
+          // 隐藏应用时强制开始工作（不限次数）
+          win?.webContents.send("force-start-work");
         }
       },
     },

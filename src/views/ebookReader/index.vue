@@ -3,7 +3,7 @@
     <template #main>
       <div class="ebook-reader-page" :class="themeClass">
         <!-- 顶部工具栏 -->
-        <header class="reader-toolbar">
+        <header class="reader-toolbar" v-show="settings.readerTopbarVisible">
           <div class="toolbar-left">
             <!-- 书架按钮：仅在阅读视图显示，点击切回书架视图 -->
             <el-button
@@ -120,6 +120,20 @@
           </div>
         </header>
 
+        <!-- 当顶部栏隐藏时，显示浮动设置按钮以便重新打开设置抽屉 -->
+        <transition name="fade">
+          <el-button
+            v-if="view === 'reader' && !settings.readerTopbarVisible"
+            class="floating-settings-btn"
+            size="small"
+            circle
+            @click="settingsDrawerVisible = true"
+            title="设置"
+          >
+            <LucideIcon name="Settings" :size="16" />
+          </el-button>
+        </transition>
+
         <!-- 内容区：根据 view 状态切换「书架视图」与「阅读视图」 -->
         <div class="reader-content">
           <!-- 书架视图 -->
@@ -218,6 +232,7 @@
               :bg-color="settings.bgColor"
               :bg-image="settings.bgImage"
               :text-color="settings.textColor"
+              :bottom-bar-visible="settings.readerBottomBarVisible"
               :line-height="settings.lineHeight"
               :column-count="settings.columnCount"
               :scroll-mode="settings.scrollMode"
@@ -410,6 +425,18 @@
               <span class="setting-label">背景色</span>
               <span class="setting-value" v-if="bgColorModel">{{ bgColorModel }}</span>
             </div>
+            <!-- 预设色块：点击快速切换 -->
+            <div class="color-preset-list">
+              <button
+                v-for="preset in BG_COLOR_PRESETS"
+                :key="preset.color"
+                :title="preset.label"
+                class="color-preset-dot"
+                :class="{ active: bgColorModel === preset.color }"
+                :style="{ backgroundColor: preset.color }"
+                @click="bgColorModel = preset.color"
+              ></button>
+            </div>
             <el-color-picker v-model="bgColorModel" />
           </div>
 
@@ -444,6 +471,18 @@
             <div class="setting-head">
               <span class="setting-label">文字颜色</span>
               <span class="setting-value" v-if="textColorModel">{{ textColorModel }}</span>
+            </div>
+            <!-- 预设色块：点击快速切换 -->
+            <div class="color-preset-list">
+              <button
+                v-for="preset in TEXT_COLOR_PRESETS"
+                :key="preset.color"
+                :title="preset.label"
+                class="color-preset-dot"
+                :class="{ active: textColorModel === preset.color }"
+                :style="{ backgroundColor: preset.color }"
+                @click="textColorModel = preset.color"
+              ></button>
             </div>
             <div class="text-color-control">
               <el-color-picker v-model="textColorModel" />
@@ -554,6 +593,22 @@
             </el-radio-group>
             <div class="setting-tip">滑动 / 覆盖 / 3D 仿真翻页，仅 EPUB 阅读器生效</div>
           </div>
+
+          <!-- 显示：控制阅读页顶部工具栏和底部翻页栏的显隐 -->
+          <div class="setting-row">
+            <div class="setting-head">
+              <span class="setting-label">顶部栏</span>
+            </div>
+            <el-switch v-model="readerTopbarVisibleModel" />
+            <div class="setting-tip">显示/隐藏阅读页顶部工具栏（书架、打开、目录、字体、字号、设置等）</div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-head">
+              <span class="setting-label">底部栏</span>
+            </div>
+            <el-switch v-model="readerBottomBarVisibleModel" />
+            <div class="setting-tip">显示/隐藏阅读页底部翻页控制栏（上一页、进度、页码、下一页）</div>
+          </div>
         </div>
       </el-drawer>
       </div>
@@ -646,6 +701,8 @@ const {
   setHighlightColor,
   setHighlightType,
   setPageEffect,
+  setReaderTopbarVisible,
+  setReaderBottomBarVisible,
   loadBookshelf,
   addToBookshelf,
   removeFromBookshelf,
@@ -781,12 +838,48 @@ const pageEffectModel = computed({
   set: (val: 'none' | 'slide' | 'cover' | 'flip3d') => setPageEffect(val),
 });
 
+/** 顶部栏显隐双向绑定 */
+const readerTopbarVisibleModel = computed({
+  get: () => settings.value.readerTopbarVisible,
+  set: (val: boolean) => setReaderTopbarVisible(val),
+});
+
+/** 底部栏显隐双向绑定 */
+const readerBottomBarVisibleModel = computed({
+  get: () => settings.value.readerBottomBarVisible,
+  set: (val: boolean) => setReaderBottomBarVisible(val),
+});
+
 /** 翻页效果选项（仅 epub 生效） */
 const PAGE_EFFECT_OPTIONS = [
   { name: 'none', label: '无' },
   { name: 'slide', label: '滑动' },
   { name: 'cover', label: '覆盖' },
   { name: 'flip3d', label: '3D 仿真' },
+] as const;
+
+/** 纯色背景预设色板：8 种常用阅读背景色 */
+const BG_COLOR_PRESETS = [
+  { label: '纯白', color: '#FFFFFF' },
+  { label: '米白', color: '#F5F0E8' },
+  { label: '浅灰', color: '#E8E8E8' },
+  { label: '浅绿', color: '#C8E6C9' },
+  { label: '浅蓝', color: '#BBDEFB' },
+  { label: '浅紫', color: '#E1BEE7' },
+  { label: '深灰', color: '#2D2D2D' },
+  { label: '纯黑', color: '#1A1A1A' },
+] as const;
+
+/** 文字颜色预设色板：8 种常用阅读文字色 */
+const TEXT_COLOR_PRESETS = [
+  { label: '深灰', color: '#333333' },
+  { label: '中灰', color: '#555555' },
+  { label: '暖棕', color: '#4A3728' },
+  { label: '藏蓝', color: '#1A237E' },
+  { label: '墨绿', color: '#2E7D32' },
+  { label: '橙棕', color: '#E65100' },
+  { label: '深红', color: '#880E4F' },
+  { label: '浅灰白', color: '#EEEEEE' },
 ] as const;
 
 /** 当前主题对应的 class（作用于整个电子书阅读页，使工具栏/书架/抽屉等区域跟随切换） */
@@ -1585,6 +1678,30 @@ watch(
     }
   }
 
+  /* 顶部栏隐藏时右下角浮动设置按钮（淡入动画） */
+  .floating-settings-btn {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    opacity: 0.85;
+    transition: opacity 0.2s;
+
+    &:hover {
+      opacity: 1;
+    }
+  }
+
+  .fade-enter-active,
+  .fade-leave-active {
+    transition: opacity 0.3s;
+  }
+  .fade-enter-from,
+  .fade-leave-to {
+    opacity: 0;
+  }
+
   /* 更多阅读设置抽屉内容 */
   .reader-settings {
     display: flex;
@@ -1707,6 +1824,34 @@ watch(
       display: flex;
       align-items: center;
       gap: 10px;
+    }
+
+    /* 背景色 / 文字颜色预设色板 */
+    .color-preset-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .color-preset-dot {
+      width: 26px;
+      height: 26px;
+      padding: 0;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+      box-shadow: 0 0 0 1px var(--border-subtle);
+      outline: none;
+
+      &:hover {
+        transform: scale(1.12);
+      }
+
+      &.active {
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 2px var(--bg-card), 0 0 0 4px var(--color-primary);
+      }
     }
   }
 
