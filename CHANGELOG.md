@@ -2,7 +2,23 @@
 
 变更日志
 
-## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.7.11-rc.1...HEAD) (2026-07-25)
+## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.7.25-rc.1...HEAD) (2026-08-12)
+
+### ✨ Features | 新功能
+
+* 新增隐藏展示边栏；电子书设置优化；番茄钟在隐藏时直接开始工作； ([471af6d](https://github.com/simply-none/JianLi-App/commit/471af6d53262ffc1397d6281aced7ea7e1207b91))
+* 电子书丰富扩展设置，增加主题、文字、背景 ([522f22f](https://github.com/simply-none/JianLi-App/commit/522f22fe8728fce5f4452a3cd9190ae1cce0934c))
+* 电子书增加其他设置（翻页、分栏、边距等） ([38f747c](https://github.com/simply-none/JianLi-App/commit/38f747c25e533fcdcc3157d0393cfe3a03724570))
+* 增加当前页数/总页数 ([6ea2ad6](https://github.com/simply-none/JianLi-App/commit/6ea2ad674cd1504aa5e23f36ea168062fe914708))
+* 添加电子书功能 ([12d571a](https://github.com/simply-none/JianLi-App/commit/12d571a4710cf2ac71e8a2c69389c62f8a9936ab))
+
+### 🐛 Bug Fixes | Bug 修复
+
+* 修复阅读进度百分比为0的问题 ([9f31b8b](https://github.com/simply-none/JianLi-App/commit/9f31b8b4f766670a0a99e34a652b1e60cece7a10))
+* 电子书功能优化修复 ([46fea06](https://github.com/simply-none/JianLi-App/commit/46fea060c8963efabd24a978ceecb61c9aaea409))
+* 修复加载本地资源失败的问题 ([3e9ff4d](https://github.com/simply-none/JianLi-App/commit/3e9ff4dd14148407b9f5c27074d71091ed2190f7))
+
+## [v26.7.25-rc.1](https://github.com/simply-none/JianLi-App/compare/v26.7.11-rc.1...v26.7.25-rc.1) (2026-07-25)
 
 ### ✨ Features | 新功能
 
