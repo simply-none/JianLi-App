@@ -75,7 +75,130 @@ export function stopJob(type?: string) {
   }
 }
 
+// 定时提醒任务管理
+let reminderJobs: Record<string, CronJob> = {};
+
+// 根据定点提醒生成 cron 表达式
+function buildReminderCronExpr(reminder: any): string {
+  const [hour, minute] = (reminder.time || '09:00').split(':').map(Number);
+  if (reminder.repeat === 'hourly') {
+    // 每小时的第 X 分钟
+    const m = reminder.minute ?? minute;
+    return `${m} * * * *`;
+  }
+  if (reminder.repeat === 'daily') {
+    return `${minute} ${hour} * * *`;
+  }
+  if (reminder.repeat === 'weekly') {
+    const days = (reminder.weekDays || []).join(',');
+    return `${minute} ${hour} * * ${days || '*'}`;
+  }
+  if (reminder.repeat === 'monthly') {
+    // 每月 X 号 HH:mm
+    const dom = reminder.dayOfMonth || 1;
+    return `${minute} ${hour} ${dom} * *`;
+  }
+  if (reminder.repeat === 'yearly') {
+    // 每年 X 月 Y 日 HH:mm
+    const mon = reminder.month || 1;
+    const dom = reminder.dayOfMonth || 1;
+    return `${minute} ${hour} ${dom} ${mon} *`;
+  }
+  // 仅一次：具体日期
+  const parts = (reminder.date || '').split('-').map(Number);
+  if (parts.length < 3 || parts.some(isNaN)) return '';
+  const [y, m, d] = parts;
+  return `${minute} ${hour} ${d} ${m} *`;
+}
+
+// 到点触发提醒
+function triggerReminder(reminder: any) {
+  win?.webContents.send('reminder-trigger', {
+    ...reminder,
+    triggerTime: Date.now(),
+  });
+}
+
+// 调度单条提醒
+function scheduleReminder(reminder: any) {
+  if (reminder.mode === 'interval') {
+    // 周期提醒：间隔触发后重新调度下一次
+    const gap = Number(reminder.interval) * Number(reminder.unit);
+    if (isNaN(gap) || gap <= 0) return;
+    const job = new CronJob(
+      new Date(Date.now() + gap),
+      () => {
+        triggerReminder(reminder);
+        scheduleReminder(reminder);
+      },
+      null,
+      true,
+      'Asia/Shanghai'
+    );
+    reminderJobs[reminder.id] = job;
+  } else {
+    // 定点提醒：cron 表达式
+    const cronExpr = buildReminderCronExpr(reminder);
+    if (!cronExpr) return;
+    try {
+      const job = new CronJob(
+        cronExpr,
+        () => triggerReminder(reminder),
+        null,
+        true,
+        'Asia/Shanghai'
+      );
+      reminderJobs[reminder.id] = job;
+    } catch (error) {
+      console.error('创建定点提醒失败:', reminder, error);
+    }
+  }
+}
+
+// 清除所有提醒任务
+function clearReminderJobs() {
+  for (const id in reminderJobs) {
+    reminderJobs[id]?.stop();
+    delete reminderJobs[id];
+  }
+}
+
+// 全量应用提醒配置
+function applyReminders(reminders: any[]) {
+  clearReminderJobs();
+  (reminders || []).forEach(reminder => {
+    if (!reminder.enabled) return;
+    scheduleReminder(reminder);
+  });
+}
+
+// 应用启动时从数据库恢复定时提醒
+function restoreReminders() {
+  queryByConditions({
+    db: myDb.db,
+    tableName: tableName,
+    conditions: { key: 'reminders' },
+    callback: (err, data) => {
+      if (err || !data || data.length === 0) return;
+      try {
+        const reminders = JSON.parse(data[0].value);
+        applyReminders(reminders);
+      } catch (e) {
+        console.error('恢复定时提醒失败:', e);
+      }
+    },
+  });
+}
+
 export function initJob() {
+  // 启动时恢复已启用的定时提醒
+  restoreReminders();
+
+  // 同步定时提醒配置
+  ipcMain.on("update-reminders", (e, reminders: any[]) => {
+    applyReminders(reminders);
+  });
+
   ipcMain.on("start-work", (e, workTimeGap: number) => {
     hideApp();
     createJob({

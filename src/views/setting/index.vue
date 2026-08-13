@@ -145,6 +145,16 @@
 
         <div class="section">
           <h2 class="section-title">
+            <LucideIcon name="BellRing" />
+            定时提醒
+          </h2>
+          <div class="reminder-card">
+            <Reminder />
+          </div>
+        </div>
+
+        <div class="section">
+          <h2 class="section-title">
             <LucideIcon name="FolderCog" />
             缓存设置
           </h2>
@@ -262,6 +272,7 @@ import { timeUnit } from '@/utils/time';
 import confirmDialog from '@/utils/confirmDialog';
 import CacheSet from '@/views/setting/cacheSet.vue';
 import Pomodoro from '@/views/setting/pomodoro.vue';
+import Reminder from '@/views/setting/reminder.vue';
 
 const { clearStore } = useClearStore();
 const { startWorkFn, startRestFn, changeEffectFn, forceWorkWithTimes } = useWorkOrRest();
@@ -762,6 +773,13 @@ onMounted(async () => {
   }
 
   .cache-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-card);
+    padding: 20px;
+  }
+
+  .reminder-card {
     background: var(--bg-card);
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-card);
