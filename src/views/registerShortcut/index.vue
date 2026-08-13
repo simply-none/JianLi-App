@@ -251,7 +251,8 @@ const originShortcuts = ref([
   },
 ])
 
-const allShortcuts = ref([])
+// 初始即用默认快捷键列表渲染，避免等待异步查询导致卡片区域延迟出现
+const allShortcuts = ref(JSON.parse(JSON.stringify(originShortcuts.value)))
 
 const updateShortcut = (index, val) => {
   allShortcuts.value[index].shortcut = val
@@ -328,8 +329,6 @@ onMounted(() => {
     display: flex;
     align-items: center;
     gap: 16px;
-    max-width: 1400px;
-    margin: 0 auto;
   }
 
   .header-icon {
@@ -366,8 +365,6 @@ onMounted(() => {
 .page-content {
   flex: 1;
   padding: 0 24px 24px;
-  max-width: 1400px;
-  margin: 0 auto;
   width: 100%;
   box-sizing: border-box;
   overflow-y: auto;
@@ -514,8 +511,6 @@ onMounted(() => {
 
 .tips-section {
   padding: 24px;
-  max-width: 1400px;
-  margin: 0 auto;
   width: 100%;
   box-sizing: border-box;
   border-top: 1px solid var(--border-subtle);
