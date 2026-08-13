@@ -120,10 +120,11 @@ const applyTheme = (theme: string) => {
 
 const saveConfig = (key: string, value: string) => {
   try {
-    const configStr = window.ipcRenderer.sendSync('get-store', 'window-mode:todo');
+    const configStr = window.ipcRenderer.sendSync('get-store', 'window-mode:todoMiniWindow');
     const config = configStr && typeof configStr === 'string' ? JSON.parse(configStr) : (configStr || {});
     config[key] = value;
-    window.ipcRenderer.sendSync('set-store', 'window-mode:todo', JSON.stringify(config));
+    // 直接传对象，避免二次 JSON.stringify 导致双重序列化
+    window.ipcRenderer.sendSync('set-store', 'window-mode:todoMiniWindow', config);
     window.ipcRenderer.send('sync-data-to-other-window', {
       todoMiniWindowConfig: { ...config },
     });
@@ -134,7 +135,7 @@ const saveConfig = (key: string, value: string) => {
 
 const loadConfig = () => {
   try {
-    const configStr = window.ipcRenderer.sendSync('get-store', 'window-mode:todo');
+    const configStr = window.ipcRenderer.sendSync('get-store', 'window-mode:todoMiniWindow');
     const config = configStr && typeof configStr === 'string' ? JSON.parse(configStr) : (configStr || {});
     if (config.skin) {
       applyTheme(config.skin);

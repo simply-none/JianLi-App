@@ -48,7 +48,15 @@ function assignDefaultValue<T>(
   defaultValue: T,
   map: Ref<any>
 ): void {
-  const storeValue = getStore(key);
+  let storeValue = getStore(key);
+  // 容错：对象/数组字段的历史数据可能因双重序列化被存成了 JSON 字符串，尝试解析
+  if (typeof storeValue === 'string' && isObjectOrArray(defaultValue)) {
+    try {
+      storeValue = JSON.parse(storeValue);
+    } catch (e) {
+      // 解析失败，保持原字符串，走后续默认逻辑
+    }
+  }
   // 判断是否是对象类型
   const isObjType = isObject(storeValue)
   const isArrayType = isArray(storeValue)

@@ -144,7 +144,17 @@
                 <LucideIcon name="LibraryBig" :size="18" />
                 我的书架
               </h2>
-              <span class="book-count">共 {{ bookshelf.length }} 本书</span>
+              <div class="bookshelf-header-right">
+                <span class="book-count">共 {{ bookshelf.length }} 本书</span>
+                <el-button
+                  v-if="bookshelf.length > 0"
+                  size="small"
+                  @click="exportAllAnnotations"
+                >
+                  <LucideIcon name="Download" :size="14" />
+                  导出全部笔记
+                </el-button>
+              </div>
             </div>
 
             <!-- 空书架提示 -->
@@ -206,6 +216,36 @@
                 <div class="book-meta">
                   <LucideIcon name="Clock" :size="12" />
                   <span>{{ formatBookTime(item.lastReadAt) }}</span>
+                </div>
+
+                <!-- 笔记/划线数量徽标 -->
+                <div class="book-stats">
+                  <span class="stat-badge note">
+                    <LucideIcon name="NotebookPen" :size="12" />
+                    笔记 {{ annotationCountMap[item.path]?.noteCount || 0 }}
+                  </span>
+                  <span class="stat-badge highlight">
+                    <LucideIcon name="Pen" :size="12" />
+                    划线 {{ annotationCountMap[item.path]?.highlightCount || 0 }}
+                  </span>
+                </div>
+
+                <!-- 卡片操作按钮：笔记（查看/管理）、导出，阻止冒泡避免触发打开 -->
+                <div class="book-actions">
+                  <el-button
+                    size="small"
+                    @click.stop="openShelfAnnotations(item)"
+                  >
+                    <LucideIcon name="NotebookPen" :size="13" />
+                    笔记
+                  </el-button>
+                  <el-button
+                    size="small"
+                    @click.stop="exportBookAnnotations(item)"
+                  >
+                    <LucideIcon name="Download" :size="13" />
+                    导出
+                  </el-button>
                 </div>
               </div>
             </div>
@@ -280,12 +320,19 @@
         <!-- 笔记与划线抽屉：分「笔记」与「划线」两个标签页，点击项跳转到对应位置 -->
         <el-drawer
           v-model="annotationDrawerVisible"
-          title="笔记与划线"
+          :title="annotationDrawerTitle"
           direction="ltr"
           size="340px"
           :append-to-body="false"
         >
           <div class="annotation-drawer">
+            <!-- 导出操作行：导出当前查看的书（或当前打开的书）的笔记与划线 -->
+            <div class="annotation-export-bar">
+              <el-button size="small" @click="exportCurrentAnnotations">
+                <LucideIcon name="Download" :size="13" />
+                导出笔记
+              </el-button>
+            </div>
             <!-- 标签页：区分「笔记」（带笔记内容）与「划线」（纯高亮），避免二者混杂 -->
             <div class="annotation-tabs">
               <button
@@ -310,7 +357,7 @@
               </button>
             </div>
 
-            <!-- 笔记标签页：展示带笔记内容的标注，点击笔记图标可展开/收起笔记 -->
+            <!-- 笔记标签页：展示「引用内容 + 笔记」，二者直接并列展示 -->
             <div v-show="annotationTab === 'note'" class="annotation-list">
               <div
                 v-for="item in noteItems"
@@ -318,23 +365,10 @@
                 class="annotation-item note-item"
                 @click="onAnnotationClick(item)"
               >
-                <div class="annotation-main">
-                  <!-- 原文摘录：最多 3 行截断 -->
-                  <div class="annotation-text">{{ item.text }}</div>
-                  <!-- 笔记图标按钮：点击展开/收起笔记内容 -->
-                  <button
-                    class="note-toggle"
-                    type="button"
-                    :title="expandedNoteId === item.id ? '收起笔记' : '查看笔记'"
-                    @click.stop="toggleNote(item.id)"
-                  >
-                    <LucideIcon name="NotebookPen" :size="15" />
-                  </button>
-                </div>
-                <!-- 展开的笔记内容 -->
-                <div v-if="expandedNoteId === item.id" class="annotation-note">
-                  {{ item.note }}
-                </div>
+                <!-- 引用内容：原文摘录，最多 3 行截断 -->
+                <div class="annotation-text">{{ item.text }}</div>
+                <!-- 笔记内容：直接展示，不再需要点击展开 -->
+                <div class="annotation-note">{{ item.note }}</div>
                 <!-- 操作区：笔记可编辑与删除，删除按钮阻止冒泡避免触发跳转 -->
                 <div class="annotation-actions">
                   <el-button size="small" text @click.stop="onAnnotationEdit(item)">
@@ -376,6 +410,27 @@
             </div>
           </div>
         </el-drawer>
+
+        <!-- 书架来源的笔记编辑弹窗（书未打开时无法复用阅读组件，用独立弹窗编辑） -->
+        <el-dialog
+          v-model="shelfNoteEditVisible"
+          title="编辑笔记"
+          width="420px"
+          :close-on-click-modal="false"
+          append-to-body
+        >
+          <el-input
+            v-model="shelfNoteEditText"
+            type="textarea"
+            :rows="5"
+            placeholder="请输入笔记内容"
+            resize="none"
+          />
+          <template #footer>
+            <el-button size="small" @click="shelfNoteEditVisible = false">取消</el-button>
+            <el-button type="primary" size="small" @click="saveShelfNote">保存</el-button>
+          </template>
+        </el-dialog>
 
       <!-- 更多阅读设置抽屉（右侧弹出）：分栏、翻页模式、行距、页边距等主流电子书功能 -->
       <el-drawer
@@ -747,8 +802,26 @@ const highlightItems = computed(() =>
 const annotationDrawerVisible = ref(false);
 /** 笔记抽屉当前标签页：note 笔记 / highlight 划线 */
 const annotationTab = ref<'note' | 'highlight'>('note');
-/** 当前展开笔记内容的标注 id（同一时间仅展开一条，null 表示全部收起） */
-const expandedNoteId = ref<number | null>(null);
+
+/** 每本书的笔记/划线数量映射（path -> { noteCount, highlightCount }），用于书架卡片徽标 */
+const annotationCountMap = ref<Record<string, { noteCount: number; highlightCount: number }>>({});
+
+/** 笔记抽屉来源文件：null = 当前打开的书；string = 从书架打开的指定书路径 */
+const annotationSourceFile = ref<string | null>(null);
+
+/** 书架来源时编辑笔记的弹窗状态 */
+const shelfNoteEditVisible = ref(false);
+const shelfNoteEditText = ref('');
+const shelfNoteEditId = ref<number | null>(null);
+
+/** 笔记抽屉标题：书架来源显示书名，否则显示默认标题 */
+const annotationDrawerTitle = computed(() => {
+  if (annotationSourceFile.value) {
+    const book = bookshelf.value.find((b) => b.path === annotationSourceFile.value);
+    return book ? `${book.name} · 笔记` : '笔记与划线';
+  }
+  return '笔记与划线';
+});
 
 /** 更多阅读设置抽屉显示状态 */
 const settingsDrawerVisible = ref(false);
@@ -1274,19 +1347,18 @@ function onAnnotationsUpdated(items: any[]) {
  * @returns 无返回值
  */
 function onAnnotationClick(item: AnnotationDisplayItem) {
+  if (annotationSourceFile.value) {
+    // 书架来源：书尚未打开，点击条目先打开该书（阅读位置由保存的进度恢复）
+    const book = bookshelf.value.find((b) => b.path === annotationSourceFile.value);
+    annotationDrawerVisible.value = false;
+    annotationSourceFile.value = null;
+    if (book) {
+      openBookFromBookshelf(book);
+    }
+    return;
+  }
   readerRef.value?.jumpToAnnotation?.(item.anchor);
   annotationDrawerVisible.value = false;
-}
-
-/**
- * 切换某条笔记的展开/收起状态
- * 点击笔记图标按钮时调用，同一时间仅展开一条以节省空间
- *
- * @param id - 标注 id
- * @returns 无返回值
- */
-function toggleNote(id: number): void {
-  expandedNoteId.value = expandedNoteId.value === id ? null : id;
 }
 
 /**
@@ -1298,6 +1370,13 @@ function toggleNote(id: number): void {
  * @returns 无返回值
  */
 function onAnnotationEdit(item: AnnotationDisplayItem): void {
+  if (annotationSourceFile.value) {
+    // 书架来源：书未打开，用独立弹窗编辑笔记
+    shelfNoteEditId.value = item.id;
+    shelfNoteEditText.value = item.note || '';
+    shelfNoteEditVisible.value = true;
+    return;
+  }
   readerRef.value?.editAnnotationNote?.(item.id);
 }
 
@@ -1325,11 +1404,9 @@ async function onAnnotationDelete(item: AnnotationDisplayItem) {
     // 更新父组件展示列表（子组件 removeAnnotationById 会 emit annotations-updated，
     // 但为保险起见此处也直接同步父组件列表）
     annotations.value = annotations.value.filter((a) => a.id !== item.id);
-    // 若删除的正是当前展开笔记的项，收起展开状态，避免空内容残留
-    if (expandedNoteId.value === item.id) {
-      expandedNoteId.value = null;
-    }
     ElMessage.success('已删除划线');
+    // 刷新书架卡片上的笔记/划线数量徽标
+    refreshAnnotationCounts();
   } catch (err) {
     // 用户点击取消时 ElMessageBox.reject 抛出 'cancel'，此处统一忽略
     // 真正的异常（如 IPC 调用失败）已在上方 try 中通过 ElMessage.error 提示
@@ -1339,9 +1416,156 @@ async function onAnnotationDelete(item: AnnotationDisplayItem) {
   }
 }
 
+/**
+ * 刷新每本书的笔记/划线数量（供书架卡片徽标显示）
+ * 调用主进程批量统计接口，失败时静默（徽标保持原值）
+ *
+ * @returns 无返回值
+ */
+async function refreshAnnotationCounts(): Promise<void> {
+  const paths = bookshelf.value.map((b) => b.path);
+  if (paths.length === 0) {
+    annotationCountMap.value = {};
+    return;
+  }
+  try {
+    const res = await window.ipcRenderer.ebook.getAnnotationCounts(paths);
+    if (res?.success) {
+      const map: Record<string, { noteCount: number; highlightCount: number }> = {};
+      (res.data || []).forEach((d) => {
+        map[d.filePath] = { noteCount: d.noteCount, highlightCount: d.highlightCount };
+      });
+      annotationCountMap.value = map;
+    }
+  } catch (err) {
+    console.error('刷新笔记数量失败', err);
+  }
+}
+
+/**
+ * 从书架打开某本书的笔记抽屉（不打开书本体）
+ * 加载该书的笔记与划线到抽屉展示，并标记来源文件
+ *
+ * @param item - 书架条目
+ * @returns 无返回值
+ */
+async function openShelfAnnotations(item: BookshelfItem): Promise<void> {
+  annotationSourceFile.value = item.path;
+  annotationTab.value = 'note';
+  const res = await window.ipcRenderer.ebook.getAnnotations(item.path);
+  if (res?.success) {
+    annotations.value = (res.data || []).map((r) => ({
+      id: r.id,
+      anchor: r.anchor,
+      text: r.text,
+      note: r.note || '',
+    }));
+  } else {
+    annotations.value = [];
+  }
+  annotationDrawerVisible.value = true;
+}
+
+/**
+ * 导出单本书的笔记与划线为 Markdown（弹出保存对话框）
+ *
+ * @param item - 书架条目
+ * @returns 无返回值
+ */
+async function exportBookAnnotations(item: BookshelfItem): Promise<void> {
+  const title = `${item.name.replace(/\.[^.]+$/, '')}笔记与划线`;
+  const res = await window.ipcRenderer.ebook.exportAnnotations({
+    filePath: item.path,
+    title,
+  });
+  handleExportResult(res);
+}
+
+/**
+ * 导出全部书的笔记与划线为 Markdown（弹出保存对话框）
+ *
+ * @returns 无返回值
+ */
+async function exportAllAnnotations(): Promise<void> {
+  const res = await window.ipcRenderer.ebook.exportAnnotations({
+    title: '全部电子书笔记与划线',
+  });
+  handleExportResult(res);
+}
+
+/**
+ * 导出当前笔记抽屉所查看的书（书架来源则导出该书，否则导出当前打开的书）
+ *
+ * @returns 无返回值
+ */
+async function exportCurrentAnnotations(): Promise<void> {
+  if (annotationSourceFile.value) {
+    const book = bookshelf.value.find((b) => b.path === annotationSourceFile.value);
+    const title = `${book?.name?.replace(/\.[^.]+$/, '') || '电子书'}笔记与划线`;
+    const res = await window.ipcRenderer.ebook.exportAnnotations({
+      filePath: annotationSourceFile.value,
+      title,
+    });
+    handleExportResult(res);
+  } else if (currentFile.value.path) {
+    const title = `${currentFile.value.name.replace(/\.[^.]+$/, '')}笔记与划线`;
+    const res = await window.ipcRenderer.ebook.exportAnnotations({
+      filePath: currentFile.value.path,
+      title,
+    });
+    handleExportResult(res);
+  }
+}
+
+/**
+ * 统一处理导出结果：成功提示、取消静默、失败提示错误
+ *
+ * @param res - 导出 IPC 返回结果
+ * @returns 无返回值
+ */
+function handleExportResult(res: { success: boolean; savedPath?: string; error?: string } | undefined): void {
+  if (res?.success) {
+    ElMessage.success('笔记已导出');
+  } else if (res?.error && res.error !== '已取消导出') {
+    ElMessage.error(res.error);
+  }
+}
+
+/**
+ * 保存书架来源的笔记编辑弹窗内容（调用 updateAnnotation IPC）
+ *
+ * @returns 无返回值
+ */
+async function saveShelfNote(): Promise<void> {
+  const id = shelfNoteEditId.value;
+  if (id == null) return;
+  try {
+    const res = await window.ipcRenderer.ebook.updateAnnotation({
+      id,
+      note: shelfNoteEditText.value,
+    });
+    if (!res?.success) {
+      ElMessage.error(`保存失败：${res?.error || '未知错误'}`);
+      return;
+    }
+    // 同步本地列表中的笔记内容
+    const target = annotations.value.find((a) => a.id === id);
+    if (target) {
+      target.note = shelfNoteEditText.value;
+    }
+    shelfNoteEditVisible.value = false;
+    ElMessage.success('笔记已保存');
+    // 笔记/划线分类可能变化（划线加笔记后变成笔记），刷新书架徽标
+    refreshAnnotationCounts();
+  } catch (err) {
+    console.error('保存笔记失败', err);
+  }
+}
+
 // 组件挂载时加载书架列表（从数据库读取）并拉取系统字体供字体选择使用
 onMounted(() => {
-  loadBookshelf();
+  // 加载书架后刷新每本书的笔记/划线数量徽标
+  loadBookshelf().then(() => refreshAnnotationCounts());
   window.ipcRenderer
     .handlePromise('get-fonts', {})
     .then((result) => {
@@ -1361,7 +1585,17 @@ watch(
     annotations.value = [];
     annotationDrawerVisible.value = false;
     annotationTab.value = 'note';
-    expandedNoteId.value = null;
+    annotationSourceFile.value = null;
+  }
+);
+
+// 笔记抽屉关闭时重置来源标记，避免下次打开阅读视图抽屉时误判为书架来源
+watch(
+  () => annotationDrawerVisible.value,
+  (visible) => {
+    if (!visible) {
+      annotationSourceFile.value = null;
+    }
   }
 );
 </script>
@@ -1575,6 +1809,12 @@ watch(
         font-size: 13px;
         color: var(--text-secondary);
       }
+
+      .bookshelf-header-right {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
     }
 
     /* 空书架提示 */
@@ -1674,6 +1914,39 @@ watch(
         :deep(.lucide-icon-box) {
           color: var(--text-muted);
         }
+      }
+
+      /* 笔记/划线数量徽标 */
+      .book-stats {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 8px;
+
+        .stat-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 3px;
+          font-size: 11px;
+          padding: 2px 8px;
+          border-radius: 10px;
+          background: var(--bg-base);
+
+          &.note {
+            color: var(--color-primary);
+          }
+          &.highlight {
+            color: var(--text-secondary);
+          }
+        }
+      }
+
+      /* 卡片操作按钮：笔记 / 导出 */
+      .book-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 10px;
       }
     }
   }
@@ -1888,6 +2161,12 @@ watch(
     flex-direction: column;
     height: 100%;
 
+    .annotation-export-bar {
+      display: flex;
+      justify-content: flex-end;
+      padding: 0 4px 10px;
+    }
+
     .annotation-tabs {
       display: flex;
       gap: 8px;
@@ -1957,23 +2236,14 @@ watch(
         background: var(--bg-hover, var(--bg-base));
       }
 
-      .annotation-main {
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 8px;
-
-        .annotation-text {
-          flex: 1;
-          min-width: 0;
-        }
-      }
-
-      /* 原文摘录：最多 3 行截断 */
+      /* 引用内容（原文摘录）：左侧灰色竖线标识，最多 3 行截断 */
       .annotation-text {
         font-size: 13px;
         line-height: 1.5;
         color: var(--text-primary);
+        padding-left: 8px;
+        border-left: 2px solid var(--border-subtle);
+        margin-bottom: 6px;
         display: -webkit-box;
         -webkit-box-orient: vertical;
         -webkit-line-clamp: 3;
@@ -1982,28 +2252,7 @@ watch(
         text-overflow: ellipsis;
       }
 
-      /* 笔记图标按钮：点击展开/收起笔记 */
-      .note-toggle {
-        flex-shrink: 0;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 26px;
-        height: 26px;
-        padding: 0;
-        border: none;
-        border-radius: 6px;
-        background: transparent;
-        color: var(--color-primary);
-        cursor: pointer;
-        transition: background-color 0.15s;
-
-        &:hover {
-          background: var(--bg-hover, rgba(0, 0, 0, 0.06));
-        }
-      }
-
-      /* 展开的笔记内容：左侧竖线区分，主题色突出 */
+      /* 笔记内容：左侧竖线区分，主题色突出，直接展示不折叠 */
       .annotation-note {
         margin-top: 6px;
         padding: 8px 10px;

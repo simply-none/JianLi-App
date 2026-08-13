@@ -147,11 +147,21 @@ export default defineStore("window-mode", () => {
     const migrateOldConfig = () => {
       const oldPomodoroConfig = getStore("pomodoroMiniWindowConfig");
       if (oldPomodoroConfig) {
-        setStore("window-mode:pomodoro", oldPomodoroConfig);
+        // 仅当新键不存在时才迁移，避免覆盖用户已保存的新配置
+        const newConfig = getStore("window-mode:pomodoro");
+        if (!newConfig) {
+          setStore("window-mode:pomodoro", oldPomodoroConfig);
+        }
+        // 迁移完成后清除旧键，避免反复迁移导致旧值反复覆盖新值
+        setStore("pomodoroMiniWindowConfig", null);
       }
       const oldNotebookConfig = getStore("miniNotebookWindowConfig");
       if (oldNotebookConfig) {
-        setStore("window-mode:notebook", oldNotebookConfig);
+        const newConfig = getStore("window-mode:notebook");
+        if (!newConfig) {
+          setStore("window-mode:notebook", oldNotebookConfig);
+        }
+        setStore("miniNotebookWindowConfig", null);
       }
     };
 

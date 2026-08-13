@@ -6,8 +6,9 @@
  * 本模块复用 newSql.ts 中的主数据库实例（db.sqlite），不新建独立数据库文件。
  */
 
-import { ipcMain } from 'electron';
+import { ipcMain, dialog, BrowserWindow } from 'electron';
 import fs from 'node:fs';
+import path from 'node:path';
 import log from 'electron-log';
 import chardet from 'chardet';
 import iconv from 'iconv-lite';
@@ -185,6 +186,26 @@ interface UpdateAnnotationData {
   color?: string;
   /** 划线类型：'highlight'（高亮）、'underline'（下划线）等 */
   type?: string;
+}
+
+/**
+ * export-annotations 入参结构
+ */
+interface ExportAnnotationsData {
+  /** 文件绝对路径；为空（不传或空串）表示导出全部书的笔记与划线 */
+  filePath?: string;
+  /** 导出标题（Markdown 一级标题 + 默认文件名），如《书名》或「全部笔记」 */
+  title?: string;
+}
+
+/** 单本书的笔记/划线数量统计（get-annotation-counts 返回项） */
+interface AnnotationCountItem {
+  /** 文件绝对路径 */
+  filePath: string;
+  /** 笔记数量（note 非空） */
+  noteCount: number;
+  /** 划线数量（note 为空） */
+  highlightCount: number;
 }
 
 /**
@@ -853,7 +874,225 @@ export async function initEbook(): Promise<void> {
     }
   );
 
+  // ============ ebook:get-annotation-counts 批量统计笔记与划线数量 ============
+  /**
+   * 按 filePaths 批量统计每本书的笔记数（note 非空）与划线数（note 为空）
+   *
+   * @param _event - IPC 事件对象（未使用）
+   * @param filePaths - 必填参数，文件绝对路径数组（空数组返回空 data）
+   * @returns 成功返回 { success: true, data: AnnotationCountItem[] }；
+   *          失败返回 { success: false, error: string }
+   */
+  ipcMain.handle(
+    'ebook:get-annotation-counts',
+    async (
+      _event,
+      filePaths: string[]
+    ): Promise<{
+      success: boolean;
+      data?: AnnotationCountItem[];
+      error?: string;
+    }> => {
+      try {
+        const db = myDb.db;
+        if (!db) {
+          return { success: false, error: '数据库未初始化' };
+        }
+        if (!Array.isArray(filePaths) || filePaths.length === 0) {
+          return { success: true, data: [] };
+        }
+        const placeholders = filePaths.map(() => '?').join(', ');
+        const sql = `SELECT file_path,
+          SUM(CASE WHEN note IS NOT NULL AND TRIM(note) != '' THEN 1 ELSE 0 END) AS note_count,
+          SUM(CASE WHEN note IS NULL OR TRIM(note) = '' THEN 1 ELSE 0 END) AS highlight_count
+        FROM ${EBOOK_ANNOTATION_TABLE}
+        WHERE file_path IN (${placeholders})
+        GROUP BY file_path`;
+        const rows = await new Promise<any[]>((resolve, reject) => {
+          db.all(sql, filePaths, (err, rows) => {
+            if (err) reject(err);
+            else resolve(rows);
+          });
+        });
+        const data: AnnotationCountItem[] = rows.map((row) => ({
+          filePath: row.file_path,
+          noteCount: row.note_count || 0,
+          highlightCount: row.highlight_count || 0
+        }));
+        return { success: true, data };
+      } catch (err: any) {
+        log.error('Failed to get annotation counts:', err);
+        return {
+          success: false,
+          error: `统计笔记数量失败：${err?.message || String(err)}`
+        };
+      }
+    }
+  );
+
+  // ============ ebook:export-annotations 导出笔记与划线为 Markdown ============
+  /**
+   * 导出笔记与划线为 Markdown 文件（弹出系统保存对话框）
+   *
+   * @param _event - IPC 事件对象（未使用）
+   * @param data - 入参 { filePath?, title? }；filePath 为空表示导出全部书
+   * @returns 成功返回 { success: true, savedPath: string }；
+   *          取消/失败返回 { success: false, error?: string }（取消时 error 为 '已取消导出'）
+   */
+  ipcMain.handle(
+    'ebook:export-annotations',
+    async (
+      _event,
+      data: ExportAnnotationsData
+    ): Promise<{ success: boolean; savedPath?: string; error?: string }> => {
+      try {
+        const db = myDb.db;
+        if (!db) {
+          return { success: false, error: '数据库未初始化' };
+        }
+        const filePath = data?.filePath || '';
+        const title = data?.title || (filePath ? '电子书笔记与划线' : '全部电子书笔记与划线');
+
+        // 查询记录：单本按 file_path 过滤，全部则取所有
+        let rows: AnnotationRecord[];
+        if (filePath) {
+          rows = await query({
+            tableName: EBOOK_ANNOTATION_TABLE,
+            columns: ['id', 'file_path', 'format', 'anchor', 'text', 'note', 'color', 'type', 'created_at', 'updated_at'],
+            conditions: { file_path: filePath },
+            orderBy: 'created_at',
+            orderByDesc: false
+          });
+        } else {
+          rows = await query({
+            tableName: EBOOK_ANNOTATION_TABLE,
+            columns: ['id', 'file_path', 'format', 'anchor', 'text', 'note', 'color', 'type', 'created_at', 'updated_at'],
+            orderBy: 'created_at',
+            orderByDesc: false
+          });
+        }
+
+        // 生成 Markdown 内容
+        const markdown = buildAnnotationsMarkdown(title, filePath, rows);
+
+        // 弹出保存对话框
+        const win = BrowserWindow.getFocusedWindow();
+        const saveResult = await (win
+          ? dialog.showSaveDialog(win, {
+              title: '导出笔记与划线',
+              defaultPath: `${sanitizeFileName(title)}.md`,
+              filters: [{ name: 'Markdown', extensions: ['md'] }]
+            })
+          : dialog.showSaveDialog({
+              title: '导出笔记与划线',
+              defaultPath: `${sanitizeFileName(title)}.md`,
+              filters: [{ name: 'Markdown', extensions: ['md'] }]
+            }));
+        if (saveResult.canceled || !saveResult.filePath) {
+          return { success: false, error: '已取消导出' };
+        }
+
+        fs.writeFileSync(saveResult.filePath, markdown, 'utf-8');
+        return { success: true, savedPath: saveResult.filePath };
+      } catch (err: any) {
+        log.error('Failed to export annotations:', err);
+        return {
+          success: false,
+          error: `导出笔记失败：${err?.message || String(err)}`
+        };
+      }
+    }
+  );
+
   log.info('Ebook module initialized successfully');
+}
+
+/**
+ * 生成笔记与划线导出用的 Markdown 文本
+ *
+ * @param title - 一级标题（书名或「全部」）
+ * @param filePath - 单本导出时传文件路径（用于区分单本/全部排版）；空串表示全部书
+ * @param records - 笔记与划线记录数组
+ * @returns Markdown 字符串
+ */
+function buildAnnotationsMarkdown(
+  title: string,
+  filePath: string,
+  records: AnnotationRecord[]
+): string {
+  const lines: string[] = [];
+  const totalNotes = records.filter((r) => (r.note || '').trim().length > 0).length;
+  const totalHighlights = records.length - totalNotes;
+  lines.push(`# ${title}`);
+  lines.push('');
+  lines.push(
+    `> 导出时间：${new Date().toLocaleString('zh-CN')} · 笔记 ${totalNotes} 条 · 划线 ${totalHighlights} 条`
+  );
+  lines.push('');
+
+  if (filePath) {
+    // 单本：直接输出笔记与划线两个分区
+    appendAnnotationSection(lines, records);
+  } else {
+    // 全部：按 file_path 分组，每组一个小节
+    const groups = new Map<string, AnnotationRecord[]>();
+    for (const r of records) {
+      const list = groups.get(r.file_path) || [];
+      list.push(r);
+      groups.set(r.file_path, list);
+    }
+    for (const [fp, list] of groups.entries()) {
+      const bookName = path.basename(fp, path.extname(fp)) || fp;
+      lines.push(`## 《${bookName}》`);
+      lines.push('');
+      appendAnnotationSection(lines, list);
+    }
+  }
+  return lines.join('\n');
+}
+
+/**
+ * 输出一组记录的「笔记」与「划线」两个三级分区
+ *
+ * @param lines - 累积输出的行数组
+ * @param records - 该组（单本或某一本书）的记录
+ * @returns 无返回值
+ */
+function appendAnnotationSection(lines: string[], records: AnnotationRecord[]): void {
+  const notes = records.filter((r) => (r.note || '').trim().length > 0);
+  const highlights = records.filter((r) => !(r.note || '').trim());
+
+  lines.push('### 笔记');
+  lines.push('');
+  if (notes.length === 0) {
+    lines.push('（无）');
+  } else {
+    notes.forEach((r, i) => {
+      lines.push(`${i + 1}. ${r.text.replace(/\s+/g, ' ')}`);
+      const noteLines = (r.note || '').split('\n');
+      noteLines.forEach((nl) => lines.push(`   > ${nl}`));
+      lines.push('');
+    });
+  }
+
+  lines.push('### 划线');
+  lines.push('');
+  if (highlights.length === 0) {
+    lines.push('（无）');
+  } else {
+    highlights.forEach((r) => lines.push(`- ${r.text.replace(/\s+/g, ' ')}`));
+  }
+  lines.push('');
+}
+
+/**
+ * 清理文件名中的非法字符，避免保存对话框默认名非法
+ *
+ * @param name - 原始文件名
+ * @returns 清理后的合法文件名
+ */
+function sanitizeFileName(name: string): string {
+  return name.replace(/[\\/:*?"<>|]/g, '_').trim() || '笔记导出';
 }
 
 export type {
@@ -866,5 +1105,6 @@ export type {
   AddBookshelfData,
   AnnotationRecord,
   AddAnnotationData,
-  UpdateAnnotationData
+  UpdateAnnotationData,
+  ExportAnnotationsData
 };

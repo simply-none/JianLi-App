@@ -53,6 +53,10 @@ interface Window {
       updateAnnotation: (data: { id: number; note?: string | null; color?: string; type?: string }) => Promise<{ success: boolean; error?: string }>;
       // 按 id 删除笔记与划线记录
       removeAnnotation: (id: number) => Promise<{ success: boolean; error?: string }>;
+      // 批量统计每本书的笔记与划线数量
+      getAnnotationCounts: (filePaths: string[]) => Promise<{ success: boolean; data?: { filePath: string; noteCount: number; highlightCount: number }[]; error?: string }>;
+      // 导出笔记与划线为 Markdown 文件
+      exportAnnotations: (data: { filePath?: string; title?: string }) => Promise<{ success: boolean; savedPath?: string; error?: string }>;
     };
   }
 }

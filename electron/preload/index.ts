@@ -168,6 +168,26 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     removeAnnotation(id: number) {
       return ipcRenderer.invoke('ebook:remove-annotation', id)
     },
+    /**
+     * 批量统计每本书的笔记与划线数量（供书架卡片显示徽标）
+     *
+     * @param filePaths - 必填参数，文件绝对路径数组
+     * @returns 成功返回 Promise<{ success: true; data: { filePath, noteCount, highlightCount }[] }>；
+     *          失败返回 Promise<{ success: false; error: string }>
+     */
+    getAnnotationCounts(filePaths: string[]) {
+      return ipcRenderer.invoke('ebook:get-annotation-counts', filePaths)
+    },
+    /**
+     * 导出笔记与划线为 Markdown 文件（弹出系统保存对话框）
+     *
+     * @param data - 必填参数，{ filePath?, title? }；filePath 为空表示导出全部书
+     * @returns 成功返回 Promise<{ success: true; savedPath: string }>；
+     *          取消/失败返回 Promise<{ success: false; error?: string }>
+     */
+    exportAnnotations(data: { filePath?: string; title?: string }) {
+      return ipcRenderer.invoke('ebook:export-annotations', data)
+    },
   },
   on(...args: Parameters<typeof ipcRenderer.on>) {
     const [channel, listener] = args

@@ -103,7 +103,8 @@ const saveConfig = (key: string, value: string) => {
     const configStr = window.ipcRenderer.sendSync('get-store', 'window-mode:pomodoro')
     const config = configStr && typeof configStr === 'string' ? JSON.parse(configStr) : (configStr || {})
     config[key] = value
-    window.ipcRenderer.sendSync('set-store', 'window-mode:pomodoro', JSON.stringify(config))
+    // 直接传对象，避免二次 JSON.stringify 导致双重序列化
+    window.ipcRenderer.sendSync('set-store', 'window-mode:pomodoro', config)
     window.ipcRenderer.send('sync-data-to-other-window', {
       pomodoroMiniWindowConfig: { ...config },
     })
