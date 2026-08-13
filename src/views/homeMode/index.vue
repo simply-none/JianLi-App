@@ -9,41 +9,65 @@
 
     <div class="mode-cards">
       <div class="mode-card work-card">
-        <div class="mode-card-icon">
-          <LucideIcon name="Sun" :size="28" />
-        </div>
-        <div class="mode-card-content">
+        <div class="mode-card-header">
+          <div class="mode-card-icon">
+            <LucideIcon name="Sun" :size="22" />
+          </div>
           <div class="mode-card-title">日常模式</div>
-          <el-select v-model="homeModeCc.work.value" value-key="value" placeholder="请选择" class="mode-select"
-            @change="changeHomeMode('work')">
-            <el-option v-for="item in homeModeOpsCc" :key="item.value" :label="item.label" :value="item.value" />
-          </el-select>
+        </div>
+        <div class="mode-options">
+          <div
+            v-for="item in homeModeOpsCc"
+            :key="item.value"
+            class="mode-option"
+            :class="{ active: homeModeCc.work.value === item.value }"
+            :title="item.label"
+            @click="selectMode('work', item.value)"
+          >
+            <div class="mode-option-label">{{ item.label }}</div>
+          </div>
         </div>
       </div>
 
       <div class="mode-card rest-card">
-        <div class="mode-card-icon">
-          <LucideIcon name="Lock" :size="28" />
-        </div>
-        <div class="mode-card-content">
+        <div class="mode-card-header">
+          <div class="mode-card-icon">
+            <LucideIcon name="Lock" :size="22" />
+          </div>
           <div class="mode-card-title">锁定模式</div>
-          <el-select v-model="homeModeCc.rest.value" value-key="value" placeholder="请选择" class="mode-select"
-            @change="changeHomeMode('rest')">
-            <el-option v-for="item in homeModeOpsCc" :key="item.value" :label="item.label" :value="item.value" />
-          </el-select>
+        </div>
+        <div class="mode-options">
+          <div
+            v-for="item in homeModeOpsCc"
+            :key="item.value"
+            class="mode-option"
+            :class="{ active: homeModeCc.rest.value === item.value }"
+            :title="item.label"
+            @click="selectMode('rest', item.value)"
+          >
+            <div class="mode-option-label">{{ item.label }}</div>
+          </div>
         </div>
       </div>
 
       <div class="mode-card screen-card">
-        <div class="mode-card-icon">
-          <LucideIcon name="Monitor" :size="28" />
-        </div>
-        <div class="mode-card-content">
+        <div class="mode-card-header">
+          <div class="mode-card-icon">
+            <LucideIcon name="Monitor" :size="22" />
+          </div>
           <div class="mode-card-title">屏保模式</div>
-          <el-select v-model="homeModeCc.screen.value" value-key="value" placeholder="请选择" class="mode-select"
-            @change="changeHomeMode('screen')">
-            <el-option v-for="item in homeModeOpsCc" :key="item.value" :label="item.label" :value="item.value" />
-          </el-select>
+        </div>
+        <div class="mode-options">
+          <div
+            v-for="item in homeModeOpsCc"
+            :key="item.value"
+            class="mode-option"
+            :class="{ active: homeModeCc.screen.value === item.value }"
+            :title="item.label"
+            @click="selectMode('screen', item.value)"
+          >
+            <div class="mode-option-label">{{ item.label }}</div>
+          </div>
         </div>
       </div>
     </div>
@@ -73,6 +97,11 @@ watch(() => homeModeOpsC.value, (n) => {
 watch(() => homeModeC.value, (n) => {
   homeModeCc.value = JSON.parse(JSON.stringify(n));
 }, { deep: true });
+
+function selectMode(key: StatusMode, value: string) {
+  homeModeCc.value[key].value = value;
+  changeHomeMode(key);
+}
 
 function changeHomeMode(key: StatusMode) {
   const find = homeModeOpsCc.value.find((item: any) => item.value === homeModeCc.value[key].value);
@@ -116,35 +145,21 @@ function changeHomeMode(key: StatusMode) {
 }
 
 .mode-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 16px;
 }
 
 .mode-card {
-  display: flex;
-  align-items: center;
-  gap: 16px;
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-card);
-  padding: 20px;
+  padding: 16px 20px 20px;
   transition: all 0.2s ease;
 
   &:hover {
     border-color: var(--color-primary);
     box-shadow: var(--shadow-card);
-    transform: translateY(-2px);
-  }
-
-  .mode-card-icon {
-    width: 56px;
-    height: 56px;
-    border-radius: 14px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
   }
 
   &.work-card .mode-card-icon {
@@ -161,23 +176,75 @@ function changeHomeMode(key: StatusMode) {
     background: linear-gradient(135deg, rgba(103, 194, 58, 0.15), rgba(82, 190, 128, 0.15));
     color: #67c23a;
   }
+}
 
-  .mode-card-content {
-    flex: 1;
-    min-width: 0;
+.mode-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+
+  .mode-card-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
     display: flex;
-    flex-direction: column;
-    gap: 8px;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
 
-    .mode-card-title {
-      font-size: 15px;
-      font-weight: 600;
-      color: var(--text-primary);
-    }
+  .mode-card-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+}
 
-    .mode-select {
-      width: 100%;
-    }
+.mode-options {
+  display: flex;
+  flex-wrap: wrap;
+  margin: -5px;
+}
+
+.mode-option {
+  flex: 0 0 calc(25% - 10px);
+  margin: 5px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--el-border-color, #dcdfe6);
+  border-radius: 8px;
+  background: var(--el-fill-color-blank, #ffffff);
+  color: var(--el-text-color-regular, #606266);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+
+  &:hover {
+    color: var(--el-color-primary, #409eff);
+    border-color: var(--el-color-primary-light-7, #c6e2ff);
+  }
+
+  &.active {
+    color: #fff;
+    background: var(--el-color-primary, #409eff);
+    border-color: var(--el-color-primary, #409eff);
+    box-shadow: 0 2px 8px rgba(64, 158, 255, 0.3);
+  }
+
+  .mode-option-label {
+    line-height: 1.2;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
   }
 }
 </style>
