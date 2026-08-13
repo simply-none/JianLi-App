@@ -635,8 +635,8 @@ function applyProgress(location: any) {
     }
   }
   if (percent === 0 && !locationsReady && book?.spine) {
-    // 注意：book.spine.length 是数值属性（非函数），需直接取值
-    const total = typeof book.spine.length === 'number' ? book.spine.length : 0;
+    // 注意：book.spine.length 是数值属性（非函数），需直接取值（epubjs 类型定义缺失，用 any 断言）
+    const total = typeof (book.spine as any).length === 'number' ? (book.spine as any).length : 0;
     const idx = typeof location?.start?.index === 'number' ? location.start.index : -1;
     if (total > 0 && idx >= 0) {
       percent = Math.round(((idx + 1) / total) * 100);
@@ -1188,8 +1188,8 @@ function applyFont() {
   const en = props.fontFamilyEn || '';
   const list = [cn, en].filter(Boolean);
   if (list.length === 0) {
-    // 无自定义字体：移除覆盖以使用 epub 默认字体
-    rendition.themes.removeOverride('font-family');
+    // 无自定义字体：移除覆盖以使用 epub 默认字体（epubjs 类型定义缺失，用 any 断言）
+    (rendition.themes as any).removeOverride('font-family');
     return;
   }
   list.push('sans-serif');
@@ -1283,7 +1283,7 @@ async function refreshAnnotations(): Promise<void> {
     // 2. 等待浏览器完成重排（字体 / 字号改变后布局需在下一帧才稳定）
     await new Promise<void>((resolve) => {
       if (typeof requestAnimationFrame === 'function') {
-        requestAnimationFrame(() => requestAnimationFrame(resolve));
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
       } else {
         setTimeout(resolve, 60);
       }
