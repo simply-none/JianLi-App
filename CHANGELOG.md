@@ -2,7 +2,20 @@
 
 变更日志
 
-## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.7.25-rc.1...HEAD) (2026-08-12)
+## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.8.12-rc.1...HEAD) (2026-08-13)
+
+### ✨ Features | 新功能
+
+* 优化进入窗口模式页面设置被初始化的逻辑；电子书功能增加笔记和划线导出功能； ([bf9e952](https://github.com/simply-none/JianLi-App/commit/bf9e952a2af261dafb6a78928bdd92713457bff8))
+* 快捷键注册页面排版优化 ([11fd321](https://github.com/simply-none/JianLi-App/commit/11fd321fd1f1ce433238b95e30909b73c08eb2da))
+* 修改主页模式的排版 ([5d9b88c](https://github.com/simply-none/JianLi-App/commit/5d9b88cdf830257116c9dc90354c8436b168f29a))
+* 优化番茄钟的数据库记录 ([7bff356](https://github.com/simply-none/JianLi-App/commit/7bff35616d655cfa9454e6ed0173ca73c2faf210))
+
+### 🐛 Bug Fixes | Bug 修复
+
+* 修复typescript类型错误 ([117c211](https://github.com/simply-none/JianLi-App/commit/117c211fa6f4d45ab03a67c760b3a5318c96e146))
+
+## [v26.8.12-rc.1](https://github.com/simply-none/JianLi-App/compare/v26.7.25-rc.1...v26.8.12-rc.1) (2026-08-12)
 
 ### ✨ Features | 新功能
 
