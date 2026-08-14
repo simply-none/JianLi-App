@@ -65,6 +65,10 @@ export interface EbookSettings {
   readerTopbarVisible: boolean;
   /** 是否显示阅读页底部翻页栏 */
   readerBottomBarVisible: boolean;
+  /** 是否启用阅读区左右边缘点击翻页（点击边缘区域上一页/下一页，便于沉浸式翻页） */
+  edgeClickEnabled: boolean;
+  /** 边缘点击翻页的感应区宽度百分比（阅读区左右各占该百分比），范围 2-40，默认 10 */
+  edgeClickPercent: number;
 }
 
 /** 书架条目信息（前端使用 camelCase，对应数据库 ebook_bookshelf 表的一行） */
@@ -109,6 +113,8 @@ const DEFAULT_SETTINGS: EbookSettings = {
   pageEffect: 'none',
   readerTopbarVisible: true,
   readerBottomBarVisible: true,
+  edgeClickEnabled: true,
+  edgeClickPercent: 10,
 };
 
 export default defineStore('ebook-reader', () => {
@@ -321,6 +327,18 @@ export default defineStore('ebook-reader', () => {
     setStore(SETTINGS_KEY, settings.value);
   }
 
+  /** 设置是否启用阅读区左右边缘点击翻页并持久化 */
+  function setEdgeClickEnabled(value: boolean) {
+    settings.value.edgeClickEnabled = value;
+    setStore(SETTINGS_KEY, settings.value);
+  }
+
+  /** 设置边缘点击翻页感应区宽度百分比并持久化（范围 2-40） */
+  function setEdgeClickPercent(value: number) {
+    settings.value.edgeClickPercent = value;
+    setStore(SETTINGS_KEY, settings.value);
+  }
+
   /**
    * 从数据库加载书架列表，把数据库记录（snake_case）映射为 BookshelfItem（camelCase）
    * 失败时打印错误日志，bookshelf 保持原值（空数组）
@@ -433,6 +451,10 @@ export default defineStore('ebook-reader', () => {
     setReaderTopbarVisible,
     // 设置阅读页底部翻页栏显隐
     setReaderBottomBarVisible,
+    // 设置是否启用阅读区左右边缘点击翻页
+    setEdgeClickEnabled,
+    // 设置边缘点击翻页感应区宽度百分比
+    setEdgeClickPercent,
     // 加载书架列表
     loadBookshelf,
     // 添加或更新书架记录

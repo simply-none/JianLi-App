@@ -341,6 +341,7 @@ export function initFile() {
       let result = getFilePath({
         openDirectory: params.openDirectory,
         openFile: params.openFile,
+        multiSelections: params.multiSelections,
         type: params.type,
       });
       e.returnValue = result;

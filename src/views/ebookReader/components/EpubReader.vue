@@ -3,9 +3,21 @@
     <!-- epub 渲染容器：epubjs 会将内容渲染到此元素；监听 mouseup 记录鼠标坐标，用于浮动工具条定位 -->
     <div class="epub-viewport">
       <div ref="readerRef" class="epub-viewer" @mouseup="onReaderMouseup"></div>
-      <!-- 阅读区左右边缘 10% 点击区：点击上一页 / 下一页，便于沉浸式翻页 -->
-      <div class="edge-turn-zone edge-turn-zone--left" @click="onEdgePrev" title="上一页"></div>
-      <div class="edge-turn-zone edge-turn-zone--right" @click="onEdgeNext" title="下一页"></div>
+      <!-- 阅读区左右边缘点击区：点击上一页 / 下一页，便于沉浸式翻页（开关与百分比在设置中调整） -->
+      <div
+        v-show="props.edgeClickEnabled !== false"
+        class="edge-turn-zone edge-turn-zone--left"
+        :style="{ width: (props.edgeClickPercent ?? 10) + '%' }"
+        @click="onEdgePrev"
+        title="上一页"
+      ></div>
+      <div
+        v-show="props.edgeClickEnabled !== false"
+        class="edge-turn-zone edge-turn-zone--right"
+        :style="{ width: (props.edgeClickPercent ?? 10) + '%' }"
+        @click="onEdgeNext"
+        title="下一页"
+      ></div>
     </div>
 
     <!-- 选中文本后弹出的浮动工具条：提供「划线」「笔记」两个操作 -->
@@ -138,6 +150,10 @@ const props = defineProps<{
   margin?: number;
   /** 是否显示底部翻页控制栏 */
   bottomBarVisible?: boolean;
+  /** 是否启用阅读区左右边缘点击翻页（上一页/下一页） */
+  edgeClickEnabled?: boolean;
+  /** 边缘点击翻页感应区宽度百分比（阅读区左右各占该百分比），默认 10 */
+  edgeClickPercent?: number;
 }>();
 
 /** 组件 Emits 定义 */
@@ -1657,29 +1673,35 @@ onUnmounted(() => {
     will-change: transform, opacity;
   }
 
-  /* 阅读区左右边缘 10% 点击翻页区：透明覆盖层，点击上一页 / 下一页 */
+  /* 阅读区左右边缘点击翻页区：透明覆盖层；hover 时整区高亮，颜色跟随主题 */
   .edge-turn-zone {
     position: absolute;
     top: 0;
     bottom: 0;
-    width: 10%;
+    /* 宽度由组件内联样式按 edgeClickPercent 注入，此处不写死 */
     z-index: 10;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
     user-select: none;
+    transition: background-color 0.18s ease;
 
-    /* 悬停时显示淡淡的提示渐变，增强可发现性 */
+    /* hover 时整区高亮（颜色取自当前主题选择器定义的 --edge-hover-bg） */
+    &:hover {
+      background-color: var(--edge-hover-bg, rgba(0, 0, 0, 0.06));
+    }
+
+    /* 居中箭头提示：hover 时浮现，颜色跟随主题（--edge-arrow-color） */
     &::after {
       content: '';
       position: absolute;
       top: 50%;
-      width: 28px;
-      height: 48px;
-      transform: translateY(-50%);
-      border-radius: 6px;
+      width: 11px;
+      height: 11px;
+      border-top: 2px solid var(--edge-arrow-color, rgba(0, 0, 0, 0.3));
+      border-right: 2px solid var(--edge-arrow-color, rgba(0, 0, 0, 0.3));
+      transform: translateY(-50%) rotate(45deg);
       opacity: 0;
       transition: opacity 0.18s ease;
-      background: var(--bg-hover, rgba(0, 0, 0, 0.06));
       pointer-events: none;
     }
 
@@ -1692,7 +1714,8 @@ onUnmounted(() => {
     left: 0;
 
     &::after {
-      left: 8px;
+      left: calc(50% - 4px);
+      transform: translateY(-50%) rotate(-135deg);
     }
   }
 
@@ -1700,7 +1723,8 @@ onUnmounted(() => {
     right: 0;
 
     &::after {
-      right: 8px;
+      right: calc(50% - 4px);
+      transform: translateY(-50%) rotate(45deg);
     }
   }
 
@@ -1784,11 +1808,15 @@ onUnmounted(() => {
   /* 白天主题 */
   &.theme-day {
     background-color: #ffffff;
+    --edge-hover-bg: rgba(0, 0, 0, 0.06);
+    --edge-arrow-color: rgba(0, 0, 0, 0.28);
   }
 
   /* 夜间主题 */
   &.theme-night {
     background-color: #1a1a1a;
+    --edge-hover-bg: rgba(255, 255, 255, 0.10);
+    --edge-arrow-color: rgba(255, 255, 255, 0.38);
 
     .epub-footer {
       background-color: #2a2a2a;
@@ -1799,6 +1827,8 @@ onUnmounted(() => {
   /* 护眼主题 */
   &.theme-eye {
     background-color: #c7edcc;
+    --edge-hover-bg: rgba(0, 0, 0, 0.05);
+    --edge-arrow-color: rgba(0, 0, 0, 0.24);
   }
 }
 

@@ -33,8 +33,13 @@
             </div>
           </div>
 
-          <!-- 右侧阅读控制区：仅在阅读视图显示 -->
-          <div class="toolbar-right" v-if="view === 'reader'">
+          <!-- 右侧阅读控制区：仅在阅读视图显示；窄屏可横向滚动（含鼠标滚轮映射） -->
+          <div
+            class="toolbar-right"
+            v-if="view === 'reader'"
+            ref="toolbarRightRef"
+            @wheel="onToolbarRightWheel"
+          >
             <!-- 目录按钮（仅 epub 时有效） -->
             <el-button
               v-if="currentFile.format === 'epub'"
@@ -145,6 +150,14 @@
                 我的书架
               </h2>
               <div class="bookshelf-header-right">
+                <el-button
+                  size="small"
+                  @click="addBookToShelf"
+                  title="打开外部电子书并加入书架"
+                >
+                  <LucideIcon name="FolderPlus" :size="14" />
+                  添加书籍
+                </el-button>
                 <span class="book-count">共 {{ bookshelf.length }} 本书</span>
                 <el-button
                   v-if="bookshelf.length > 0"
@@ -163,6 +176,10 @@
                 <el-button type="primary" @click="openFile">
                   <LucideIcon name="FolderOpen" :size="16" />
                   打开文件
+                </el-button>
+                <el-button @click="addBookToShelf">
+                  <LucideIcon name="FolderPlus" :size="16" />
+                  仅加入书架
                 </el-button>
               </el-empty>
             </div>
@@ -273,6 +290,8 @@
               :bg-image="settings.bgImage"
               :text-color="settings.textColor"
               :bottom-bar-visible="settings.readerBottomBarVisible"
+              :edge-click-enabled="settings.edgeClickEnabled"
+              :edge-click-percent="settings.edgeClickPercent"
               :line-height="settings.lineHeight"
               :column-count="settings.columnCount"
               :scroll-mode="settings.scrollMode"
@@ -664,6 +683,29 @@
             <el-switch v-model="readerBottomBarVisibleModel" />
             <div class="setting-tip">显示/隐藏阅读页底部翻页控制栏（上一页、进度、页码、下一页）</div>
           </div>
+
+          <!-- 边缘点击翻页：开关 + 感应区宽度百分比，便于沉浸式翻页 -->
+          <div class="setting-row">
+            <div class="setting-head">
+              <span class="setting-label">边缘点击翻页</span>
+            </div>
+            <el-switch v-model="edgeClickEnabledModel" />
+            <div class="setting-tip">在阅读区左右边缘点击即可上一页 / 下一页，适合沉浸式翻页</div>
+          </div>
+          <div class="setting-row column" v-if="edgeClickEnabledModel">
+            <div class="setting-head">
+              <span class="setting-label">边缘感应区</span>
+              <span class="setting-value">{{ edgeClickPercentModel }}%</span>
+            </div>
+            <el-slider
+              v-model="edgeClickPercentModel"
+              :min="2"
+              :max="40"
+              :step="1"
+              :show-tooltip="false"
+            />
+            <div class="setting-tip">阅读区左右两侧各占该宽度作为翻页热区（2%-40%）</div>
+          </div>
         </div>
       </el-drawer>
       </div>
@@ -758,6 +800,8 @@ const {
   setPageEffect,
   setReaderTopbarVisible,
   setReaderBottomBarVisible,
+  setEdgeClickEnabled,
+  setEdgeClickPercent,
   loadBookshelf,
   addToBookshelf,
   removeFromBookshelf,
@@ -776,6 +820,8 @@ const tocVisible = ref(false);
 const tocItems = ref<TocItem[]>([]);
 /** 子组件实例引用 */
 const readerRef = ref<ReaderComponentInstance | null>(null);
+/** 顶部栏右侧功能区容器引用：用于挂载鼠标滚轮→横向滚动 */
+const toolbarRightRef = ref<HTMLElement | null>(null);
 /**
  * 不支持格式的提示文本
  * - 空字符串：不显示提示（正常打开文件或未打开文件状态）
@@ -921,6 +967,18 @@ const readerTopbarVisibleModel = computed({
 const readerBottomBarVisibleModel = computed({
   get: () => settings.value.readerBottomBarVisible,
   set: (val: boolean) => setReaderBottomBarVisible(val),
+});
+
+/** 边缘点击翻页开关双向绑定 */
+const edgeClickEnabledModel = computed({
+  get: () => settings.value.edgeClickEnabled,
+  set: (val: boolean) => setEdgeClickEnabled(val),
+});
+
+/** 边缘点击感应区宽度百分比双向绑定 */
+const edgeClickPercentModel = computed({
+  get: () => settings.value.edgeClickPercent,
+  set: (val: number) => setEdgeClickPercent(val),
 });
 
 /** 翻页效果选项（仅 epub 生效） */
@@ -1215,6 +1273,34 @@ function formatBookTime(time: string): string {
  *
  * @returns 无返回值
  */
+/**
+ * 顶部栏右侧功能区的鼠标滚轮处理：将纵向滚轮映射为横向滚动，
+ * 便于小屏幕下用普通鼠标滚动查看被裁切的「目录/笔记/字体/字号/设置」。
+ * 仅当容器确实存在横向溢出时生效；到达左/右边缘时让出默认行为，避免卡死页面滚动。
+ *
+ * @param e - 滚轮事件对象
+ * @returns 无返回值
+ */
+function onToolbarRightWheel(e: WheelEvent) {
+  const el = toolbarRightRef.value;
+  if (!el) return;
+  // 不存在横向溢出时不拦截，保持原生行为
+  if (el.scrollWidth <= el.clientWidth) return;
+
+  // 优先取纵向滚轮 deltaY；若已携带横向意图（如触控板）则取 deltaX
+  const delta = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+  if (delta === 0) return;
+
+  const atStart = el.scrollLeft <= 0;
+  const atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 1;
+  // 已到边缘：不拦截，让页面/外层正常滚动
+  if ((delta < 0 && atStart) || (delta > 0 && atEnd)) return;
+
+  // 仅在确能横向滚动时阻止默认，避免无谓拦截纵向页面滚动
+  e.preventDefault();
+  el.scrollLeft += delta;
+}
+
 function openFile() {
   // 每次点击「打开文件」时重置不支持格式提示，避免上一次的提示残留
   unsupportedTip.value = '';
@@ -1251,6 +1337,57 @@ function openFile() {
 
   // 调用统一的 loadFile 方法：写入 store、加入书架、切换到阅读视图
   loadFile(filePath, fileName, format);
+}
+
+/**
+ * 书架视图下：打开外部电子书文件并加入书架
+ * 与 openFile 的区别在于——本方法停留在书架视图（不切换到阅读视图），
+ * 便于连续把多本书加入书架；支持多选，仅接受 txt / epub，其余格式忽略并提示。
+ *
+ * @returns 无返回值；用户取消选择时不做任何操作
+ */
+async function addBookToShelf() {
+  // 多选打开文件对话框（multiSelections 由主进程 get-file-list 转发给 getFilePath）
+  const result = window.ipcRenderer.sendSync('get-file-list', {
+    openFile: true,
+    type: ['file'],
+    multiSelections: true,
+  });
+  // 用户取消或返回非数组
+  if (!result || !Array.isArray(result) || result.length === 0) return;
+
+  let added = 0;
+  let skipped = 0;
+  for (const filePath of result) {
+    const fileName = getFileName(filePath);
+    const format = getFormat(fileName);
+    // 仅接受 txt / epub，其它格式跳过并计数
+    if (!format) {
+      skipped++;
+      continue;
+    }
+    // 已存在的书沿用其原有进度（percent），避免被 0 覆盖
+    const existingItem = bookshelf.value.find((b) => b.path === filePath);
+    await addToBookshelf({
+      path: filePath,
+      name: fileName,
+      format,
+      percent: existingItem ? existingItem.percent : 0,
+      lastReadAt: new Date().toISOString(),
+      addedAt: new Date().toISOString(),
+    });
+    added++;
+  }
+
+  // 刷新每本书的笔记/划线数量徽标（addToBookshelf 内部已重新 loadBookshelf）
+  refreshAnnotationCounts();
+
+  if (added > 0) {
+    ElMessage.success(`已添加 ${added} 本书到书架`);
+  }
+  if (skipped > 0) {
+    ElMessage.warning(`已忽略 ${skipped} 个不支持的文件（当前仅支持 txt、epub）`);
+  }
 }
 
 /**
@@ -1624,11 +1761,44 @@ watch(
     border-bottom: 1px solid var(--border-subtle);
     box-shadow: var(--shadow-top);
 
-    .toolbar-left,
+    .toolbar-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0; /* 核心按钮（书架/打开文件/文件名）保持完整，不随屏幕变窄被压缩 */
+      min-width: 0;
+    }
+
+    /* 右侧阅读控制区：空间不足时横向滚动，保证所有功能（目录/笔记/字体/字号/设置）始终可触及 */
     .toolbar-right {
       display: flex;
       align-items: center;
       gap: 10px;
+      margin-left: auto; /* 始终贴右 */
+      flex-shrink: 1; /* 允许收缩以触发横向滚动 */
+      min-width: 0;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border-subtle, rgba(0, 0, 0, 0.2)) transparent;
+
+      /* 子项不压缩，保持按钮/下拉框的可点尺寸，超出部分由容器横向滚动 */
+      > * {
+        flex-shrink: 0;
+      }
+
+      /* 细滚动条（webkit） */
+      &::-webkit-scrollbar {
+        height: 4px;
+      }
+      &::-webkit-scrollbar-thumb {
+        background: var(--border-subtle, rgba(0, 0, 0, 0.2));
+        border-radius: 2px;
+      }
+      &::-webkit-scrollbar-track {
+        background: transparent;
+      }
     }
 
     .file-info {
