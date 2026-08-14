@@ -462,6 +462,7 @@
         :append-to-body="false"
       >
         <div class="reader-settings">
+          <div class="setting-group-title">主题外观</div>
           <!-- 主题：日间 / 夜间 / 护眼 预设，点击切换整体主题并重置自定义背景/文字为跟随主题 -->
           <div class="setting-row">
             <div class="setting-head">
@@ -566,6 +567,7 @@
             </div>
           </div>
 
+          <div class="setting-group-title">排版布局</div>
           <!-- 翻页模式：仅 epub 支持（txt 天然为滚动模式） -->
           <div class="setting-row" v-if="currentFile.format === 'epub'">
             <div class="setting-head">
@@ -619,6 +621,7 @@
             />
           </div>
 
+          <div class="setting-group-title">标注</div>
           <!-- 划线样式：颜色 + 类型，由右上角设置统一预设，选中文本后直接套用，便于沉浸式阅读 -->
           <div class="setting-row">
             <div class="setting-head">
@@ -654,6 +657,7 @@
             </el-radio-group>
           </div>
 
+          <div class="setting-group-title">翻页与交互</div>
           <div class="setting-row">
             <div class="setting-head">
               <span class="setting-label">翻页效果</span>
@@ -670,6 +674,7 @@
             <div class="setting-tip">滑动 / 覆盖 / 3D 仿真翻页，仅 EPUB 阅读器生效</div>
           </div>
 
+          <div class="setting-group-title">界面显示</div>
           <!-- 显示：控制阅读页顶部工具栏和底部翻页栏的显隐 -->
           <div class="setting-row">
             <div class="setting-head">
@@ -2191,6 +2196,32 @@ watch(
     flex-direction: column;
     gap: 20px;
     padding: 4px 2px;
+
+    /* 设置分类标题：左侧主题色竖条 + 浅色小标题，用于为杂乱的设置项分组 */
+    .setting-group-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      position: relative;
+      padding-left: 10px;
+      margin-top: 2px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+
+      &::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 3px;
+        height: 13px;
+        border-radius: 2px;
+        background: var(--color-primary);
+      }
+    }
 
     .setting-row {
       display: flex;
