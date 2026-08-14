@@ -162,9 +162,9 @@ export function useTxtRender(ctx: TxtCtx) {
     return base;
   });
 
-  /** 根据颜色名称获取 CSS 颜色值 */
+  /** 根据颜色名称（或自定义 CSS 颜色字符串）获取 CSS 颜色值；未命中预设则原样返回（自定义色） */
   function getColorValue(colorName: string): string {
-    return HIGHLIGHT_COLOR_MAP[colorName] || HIGHLIGHT_COLOR_MAP.yellow;
+    return HIGHLIGHT_COLOR_MAP[colorName] || colorName || HIGHLIGHT_COLOR_MAP.yellow;
   }
 
   /** 根据类型获取高亮样式类名 */

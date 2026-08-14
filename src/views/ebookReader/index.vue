@@ -210,6 +210,7 @@
               :letter-spacing="settings.letterSpacing"
               :paragraph-spacing="settings.paragraphSpacing"
               :first-line-indent="settings.firstLineIndent"
+              :underline-gap="settings.underlineGap"
               @progress-update="onProgressUpdate"
               @toc-loaded="onTocLoaded"
               @landmarks-loaded="onLandmarksLoaded"

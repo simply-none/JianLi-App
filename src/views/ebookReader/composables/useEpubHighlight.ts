@@ -8,31 +8,46 @@
  *   - 加载并恢复已保存标注、字体/字号变更后重新定位标注
  * 渲染/翻页/进度逻辑见 useEpubRender。
  */
+import { watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { Contents } from 'epubjs';
-import { HIGHLIGHT_COLOR_MAP } from '../highlightConfig';
+import { getHighlightColorValue } from '../highlightConfig';
 import type { EpubCtx } from './epubContext';
 
 export function useEpubHighlight(ctx: EpubCtx) {
-  /** 根据颜色名称获取 CSS 颜色值 */
+  /** 根据颜色名称（或自定义 CSS 颜色字符串）获取解析后的 CSS 颜色值 */
   function getColorValue(colorName: string): string {
-    return HIGHLIGHT_COLOR_MAP[colorName] || HIGHLIGHT_COLOR_MAP.yellow;
+    return getHighlightColorValue(colorName);
   }
 
   /**
-   * 将颜色名解析为 epub.js SVG 高亮所需的 fill / stroke 颜色与透明度。
+   * 将颜色（预设名或自定义 CSS 颜色）解析为 epub.js SVG 高亮所需的 fill / stroke 颜色与透明度。
+   * 支持预设 rgba（含 0.4 透明度的浅色高亮）、自定义 #rgb / #rrggbb / #rrggbbaa（带 alpha）、rgb()/rgba()。
    */
   function parseColor(colorName: string): { fill: string; opacity: string } {
-    const rgba = getColorValue(colorName);
-    const m = rgba.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
-    if (!m) {
-      return { fill: '#FFEB3B', opacity: '0.4' };
+    const raw = getColorValue(colorName);
+    // 1) rgb() / rgba()
+    let m = raw.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+    if (m) {
+      const [, r, g, b, a] = m;
+      const fill =
+        '#' + [r, g, b].map((x) => Number(x).toString(16).padStart(2, '0')).join('').toUpperCase();
+      return { fill, opacity: a ?? '1' };
     }
-    const [, r, g, b, a] = m;
-    const fill =
-      '#' +
-      [r, g, b].map((x) => Number(x).toString(16).padStart(2, '0')).join('').toUpperCase();
-    return { fill, opacity: a ?? '1' };
+    // 2) hex：#rgb / #rrggbb / #rrggbbaa
+    if (raw.startsWith('#')) {
+      let hex = raw.slice(1);
+      if (hex.length === 3) hex = hex.split('').map((c) => c + c).join('');
+      if (hex.length === 6) return { fill: '#' + hex.toUpperCase(), opacity: '1' };
+      if (hex.length === 8) {
+        const fill = '#' + hex.slice(0, 6).toUpperCase();
+        const alpha = parseInt(hex.slice(6, 8), 16) / 255;
+        return { fill, opacity: String(Number(alpha.toFixed(2))) };
+      }
+      return { fill: '#' + hex.toUpperCase(), opacity: '1' };
+    }
+    // 3) 其它（命名色等）回退
+    return { fill: '#FFEB3B', opacity: '0.4' };
   }
 
   /** 将 UI 划线类型映射为 epub.js 支持的标注类型（删除线/双下划线在 epub 里都走 underline 覆盖层，再做 SVG 后处理） */
@@ -44,11 +59,12 @@ export function useEpubHighlight(ctx: EpubCtx) {
 
   /**
    * 根据 UI 划线类型返回 epub.js 标注的 className。
-   * mark / markStrong 在 epub-highlight 基础上追加专属 class，便于（切章后）重新定位并装饰 SVG。
+   * 注意：epub.js 内部用 `element.classList.add(className)` 应用该值，空格分隔的多 class 字符串会被
+   * 视为单个非法 token 而抛 InvalidCharacterError。因此此处始终只返回单个合法 token 'epub-highlight'。
+   * mark / markStrong 的「删除线 / 双下划线」差异完全由 decorateMark 的 SVG 几何后处理实现，
+   * 不依赖额外 class（decorateAllMarks 也只凭 ctx.annotations 的 type 字段识别，无需 class 标记）。
    */
-  function getAnnotationClassName(type: string): string {
-    if (type === 'mark') return 'epub-highlight epub-strike';
-    if (type === 'markStrong') return 'epub-highlight epub-double';
+  function getAnnotationClassName(_type: string): string {
     return 'epub-highlight';
   }
 
@@ -84,12 +100,19 @@ export function useEpubHighlight(ctx: EpubCtx) {
   }
 
   /**
-   * 对 epub.js 生成的标注 SVG 组（<g>）做后处理，把 underline 覆盖层改造成删除线 / 双下划线。
+   * 对 epub.js 生成的标注 SVG 组（<g>）做后处理，把 underline 覆盖层精确锚定到「文字本身」，
+   * 而不是整行盒（line box）的底部——否则在「段间距 / 大行距」下，线会漂到字形下方甚至下一行。
    *
-   * epub.js 的 Underline 对【每行换行片段】各画一个 <rect>（定位框）+ 一条底部 <line>。
-   * - 删除线(mark)：把每条 <line> 的 y 移到行高正中（保留原线，仅改坐标；颜色仍由 CSS 变量 --hl-stroke 着色）。
-   * - 双下划线(markStrong)：在底部 <line> 下方用「同文档」再插一条 <line>。
-   * 幂等：已装饰过的组会带 data-decorated 标记，重复调用直接跳过，避免双下划线被重复叠加。
+   * epub.js 的 Underline 对【每行换行片段】各画一个 <rect>（定位框，高度=整行盒含行距）+ 一条底部 <line>。
+   * 关键：用 mark.range 取选中文字的解析字号 F，由「半行距 + 基线偏移」反推真正的基线 / 中线：
+   *   - 基线 baseline  = rect.y + halfLeading + 0.8F   （halfLeading = max(0,(rect.h - F)/2)）
+   *   - 删除线 strikeY = rect.y + halfLeading + 0.55F  （≈ 小写 x-height 中线）
+   * - mark（删除线）：把原底部 <line> 上移到 strikeY（穿过字形中部，无需间隙）。
+   * - underline / 双下划线(markStrong)：把原底部 <line> 上移到 baseline + gap（gap = 设置项
+   *   「划线间隙」，让下划线与文字行之间留出 1~2px 间隙，避免线贴着字形）。
+   * - 双下划线(markStrong)：在主线下方（secondGap = max(2, 0.18F)）用「同文档」再插一条 <line>。
+   * 幂等：data-decorated 标记携带「类型+间隙」签名，间隙变更时签名不同会重新装饰；
+   * 重装饰前先移除上一轮追加的额外线（line[data-extra]），避免双下划线被重复叠加。
    *
    * @param mark - epub.js Annotation 实例的 .mark（即 <g> SVG 组），可能为 undefined（标注尚未挂到当前视图）
    * @param type - UI 划线类型
@@ -97,38 +120,76 @@ export function useEpubHighlight(ctx: EpubCtx) {
   function decorateMark(mark: any, type: string): void {
     if (!mark || !mark.element) return;
     const g = mark.element as SVGGElement;
-    if (g.getAttribute('data-decorated') === type) return;
+    const gap = ctx.props.underlineGap ?? 2;
+    const signature = `${type}@${gap}`;
+    if (g.getAttribute('data-decorated') === signature) return;
+
+    // 清理上一轮（可能不同间隙）追加的额外线，避免双下划线被重复叠加
+    g.querySelectorAll('line[data-extra="1"]').forEach((n) => n.remove());
+
     const rects = Array.from(g.querySelectorAll('rect')) as SVGRectElement[];
     const lines = Array.from(g.querySelectorAll('line')) as SVGLineElement[];
     const SVG_NS = 'http://www.w3.org/2000/svg';
+
+    // 解析选中文字的字号，用于把线锚定到基线/中线而非整行盒底部
+    const range = mark.range as Range | undefined;
+    const sc = range?.startContainer as Node | undefined;
+    let textEl: HTMLElement | null = null;
+    if (sc) {
+      if (sc.nodeType === Node.TEXT_NODE) textEl = sc.parentElement as HTMLElement | null;
+      else if (sc.nodeType === Node.ELEMENT_NODE) textEl = sc as unknown as HTMLElement;
+    }
+    let fontF = NaN;
+    if (textEl) {
+      const win = textEl.ownerDocument.defaultView;
+      if (win) {
+        const fs = win.getComputedStyle(textEl).fontSize;
+        fontF = parseFloat(fs);
+      }
+    }
+
     rects.forEach((rect, i) => {
       const x = parseFloat(rect.getAttribute('x') || '0');
       const y = parseFloat(rect.getAttribute('y') || '0');
       const h = parseFloat(rect.getAttribute('height') || '0');
       const w = parseFloat(rect.getAttribute('width') || '0');
+      // 拿不到字号时退化为「行盒高度 * 0.7」（约 font-size，行距 1.5 时）也能大致正确
+      const F = isNaN(fontF) ? h * 0.7 : fontF;
+      const halfLeading = Math.max(0, (h - F) / 2);
+      const baseline = y + halfLeading + F * 0.8;
+      const strikeY = y + halfLeading + F * 0.55;
       const line = lines[i];
       if (type === 'mark') {
-        const midY = y + h / 2;
         if (line) {
-          line.setAttribute('y1', String(midY));
-          line.setAttribute('y2', String(midY));
+          line.setAttribute('y1', String(strikeY));
+          line.setAttribute('y2', String(strikeY));
         }
-      } else if (type === 'markStrong') {
-        const bottom = y + h; // 现有 underline 位于 bottom-1
-        const extra = g.ownerDocument.createElementNS(SVG_NS, 'line');
-        extra.setAttribute('x1', String(x));
-        extra.setAttribute('x2', String(x + w));
-        extra.setAttribute('y1', String(bottom + 3));
-        extra.setAttribute('y2', String(bottom + 3));
-        // 颜色 / 线宽 / 线帽由 EpubReader.vue 的 g.epub-highlight > line 全局 CSS 统一着色
-        g.appendChild(extra);
+      } else if (type === 'underline' || type === 'markStrong') {
+        // 主线：置于基线下方 gap 处，与文字行之间形成间隙
+        const mainY = baseline + gap;
+        if (line) {
+          line.setAttribute('y1', String(mainY));
+          line.setAttribute('y2', String(mainY));
+        }
+        if (type === 'markStrong') {
+          // 第二条线：主线再下方一小段（与字形尺寸成比例，保证清晰可分）
+          const secondY = mainY + Math.max(2, F * 0.18);
+          const extra = g.ownerDocument.createElementNS(SVG_NS, 'line');
+          extra.setAttribute('data-extra', '1');
+          extra.setAttribute('x1', String(x));
+          extra.setAttribute('x2', String(x + w));
+          extra.setAttribute('y1', String(secondY));
+          extra.setAttribute('y2', String(secondY));
+          // 颜色 / 线宽 / 线帽由 EpubReader.vue 的 g.epub-highlight > line 全局 CSS 统一着色
+          g.appendChild(extra);
+        }
       }
     });
-    g.setAttribute('data-decorated', type);
+    g.setAttribute('data-decorated', signature);
   }
 
   /**
-   * 遍历当前所有标注，对 mark / markStrong 类型重新执行 SVG 装饰。
+   * 遍历当前所有标注，对需要重新锚定基线的类型（underline / mark / markStrong）重新执行 SVG 装饰。
    * 用于在「切章后 epub.js 才把离屏标注挂到新视图」的场景下补装饰（handleRelocated 中调用）。
    */
   function decorateAllMarks(): void {
@@ -136,7 +197,7 @@ export function useEpubHighlight(ctx: EpubCtx) {
     const store = (ctx.rendition.annotations as any)?._annotations;
     if (!store) return;
     for (const ann of ctx.annotations.value) {
-      if (ann.type !== 'mark' && ann.type !== 'markStrong') continue;
+      if (ann.type !== 'underline' && ann.type !== 'mark' && ann.type !== 'markStrong') continue;
       const hash = encodeURI(ann.anchor + 'underline');
       const annotation = store[hash];
       if (annotation && annotation.mark) {
@@ -491,6 +552,13 @@ export function useEpubHighlight(ctx: EpubCtx) {
   ctx.loadAnnotations = loadAnnotations;
   ctx.refreshAnnotations = refreshAnnotations;
   ctx.decorateAnnotationMarks = decorateAllMarks;
+
+  // 划线间隙（设置项）变更时，重新装饰当前视图内所有下划线 / 双下划线标注，
+  // 使其间隙实时生效（decorateMark 的签名含 gap，变化后即会重绘）。
+  watch(
+    () => ctx.props.underlineGap,
+    () => decorateAllMarks()
+  );
 
   return {
     toolbarVisible: ctx.toolbarVisible,

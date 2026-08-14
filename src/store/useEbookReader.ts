@@ -79,6 +79,8 @@ export interface EbookSettings {
   paragraphSpacing: number;
   /** 首行缩进，单位 em（0 表示不缩进），仅 epub 生效 */
   firstLineIndent: number;
+  /** 下划线 / 双下划线 与文字之间的间隙，单位 px（0 表示贴着基线），仅 epub 生效 */
+  underlineGap: number;
 }
 
 /** 书架条目信息（前端使用 camelCase，对应数据库 ebook_bookshelf 表的一行） */
@@ -130,6 +132,7 @@ const DEFAULT_SETTINGS: EbookSettings = {
   letterSpacing: 0,
   paragraphSpacing: 0,
   firstLineIndent: 0,
+  underlineGap: 2,
 };
 
 export default defineStore('ebook-reader', () => {
@@ -312,7 +315,7 @@ export default defineStore('ebook-reader', () => {
   /**
    * 设置划线默认类型，并同步持久化到本地存储
    * 选中文本后点击「划线/笔记」即按此样式标注
-   * @param value 划线类型（'highlight' | 'underline' | 'wavy'）
+   * @param value 划线类型（'highlight' | 'underline' | 'mark' | 'markStrong'）
    * @returns 无返回值
    */
   function setHighlightType(value: string) {
@@ -347,6 +350,16 @@ export default defineStore('ebook-reader', () => {
    */
   function setFirstLineIndent(value: number) {
     settings.value.firstLineIndent = value;
+    setStore(SETTINGS_KEY, settings.value);
+  }
+
+  /**
+   * 设置下划线 / 双下划线与文字之间的间隙（px），并同步持久化到本地存储，仅 epub 生效
+   * @param value 间隙数值（0 表示贴着基线，2 表示与文字留 2px 间隙）
+   * @returns 无返回值
+   */
+  function setUnderlineGap(value: number) {
+    settings.value.underlineGap = value;
     setStore(SETTINGS_KEY, settings.value);
   }
 
@@ -522,6 +535,8 @@ export default defineStore('ebook-reader', () => {
     setParagraphSpacing,
     // 设置首行缩进（仅 epub 生效）
     setFirstLineIndent,
+    // 设置下划线间隙（仅 epub 生效）
+    setUnderlineGap,
     // 加载书架列表
     loadBookshelf,
     // 添加或更新书架记录

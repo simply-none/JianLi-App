@@ -162,6 +162,14 @@ const props = defineProps<{
   wheelPageEnabled?: boolean;
   /** 鼠标滚轮翻页灵敏度（1-10，越大越灵敏），默认 5 */
   wheelPageSensitivity?: number;
+  /** 字间距，单位 px（0 表示不额外加宽），仅 epub 生效 */
+  letterSpacing?: number;
+  /** 段间距，单位 px（0 表示使用默认），仅 epub 生效 */
+  paragraphSpacing?: number;
+  /** 首行缩进，单位 em（0 表示不缩进），仅 epub 生效 */
+  firstLineIndent?: number;
+  /** 下划线 / 双下划线 与文字之间的间隙，单位 px（0 表示贴着基线），仅 epub 生效 */
+  underlineGap?: number;
 }>();
 
 /** 组件 Emits 定义 */

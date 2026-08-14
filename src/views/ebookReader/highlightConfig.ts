@@ -80,11 +80,26 @@ export const DEFAULT_HIGHLIGHT_COLOR: HighlightColorName = 'yellow';
 export const DEFAULT_HIGHLIGHT_TYPE: HighlightTypeName = 'highlight';
 
 /**
- * 根据颜色名称获取 CSS 颜色值，未知名称回退到黄色
+ * 根据颜色名称（或自定义 CSS 颜色字符串）获取 CSS 颜色值。
+ * 命中预设名则返回对应值；否则把入参当「自定义 CSS 颜色」原样返回；
+ * 空值最终回退到黄色，避免渲染端拿到非法色值。
  *
- * @param colorName - 颜色名称
+ * @param colorName - 预设颜色名（'yellow' 等）或自定义 CSS 颜色字符串（'#FF0000'、'rgba(...)'）
  * @returns CSS 颜色值
  */
 export function getHighlightColorValue(colorName: string): string {
-  return HIGHLIGHT_COLOR_MAP[colorName] || HIGHLIGHT_COLOR_MAP.yellow;
+  if (colorName && HIGHLIGHT_COLOR_MAP[colorName]) return HIGHLIGHT_COLOR_MAP[colorName];
+  if (colorName) return colorName;
+  return HIGHLIGHT_COLOR_MAP.yellow;
+}
+
+/**
+ * 判断某个颜色字符串是否为「预设颜色名」（而非自定义 CSS 颜色）。
+ * 用于在设置抽屉中区分预设色块高亮与「自定义颜色」高亮。
+ *
+ * @param color - 颜色字符串（预设名或自定义 CSS 颜色）
+ * @returns 是否为预设色名
+ */
+export function isPresetColorName(color: string): boolean {
+  return !!color && HIGHLIGHT_COLORS.some((c) => c.name === color);
 }

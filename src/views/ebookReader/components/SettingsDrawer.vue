@@ -228,6 +228,21 @@
             type="button"
             @click="highlightColorModel = c.name"
           ></button>
+          <!-- 自定义颜色：选中态高亮 + 显示当前自定义色，点击取色器修改 -->
+          <button
+            class="highlight-color-dot custom"
+            :class="{ active: !isPresetColorName(highlightColorModel) }"
+            :style="{ background: isPresetColorName(highlightColorModel) ? 'transparent' : highlightColorModel }"
+            type="button"
+            :title="isPresetColorName(highlightColorModel) ? '自定义颜色' : highlightColorModel"
+            @click="customColorModel = customColorModel || '#FF5722'"
+          >
+            <span v-if="isPresetColorName(highlightColorModel)" class="custom-plus">＋</span>
+          </button>
+        </div>
+        <div class="highlight-color-custom">
+          <el-color-picker v-model="customColorModel" size="small" />
+          <span class="custom-tip">自定义颜色</span>
         </div>
         <div class="setting-tip">选中文本后点击「划线 / 笔记」即按此颜色与样式标注</div>
       </div>
@@ -245,6 +260,22 @@
             {{ t.label }}
           </el-radio-button>
         </el-radio-group>
+      </div>
+
+      <!-- 划线间隙：下划线 / 双下划线 与文字之间的间隙，仅 EPUB 生效 -->
+      <div class="setting-row column" v-if="currentFile.format === 'epub'">
+        <div class="setting-head">
+          <span class="setting-label">划线间隙</span>
+          <span class="setting-value">{{ underlineGapModel }}px</span>
+        </div>
+        <el-slider
+          v-model="underlineGapModel"
+          :min="0"
+          :max="10"
+          :step="1"
+          :show-tooltip="false"
+        />
+        <div class="setting-tip">下划线 / 双下划线 与文字之间的间隙（0-10px），仅 EPUB 生效</div>
       </div>
 
       <div class="setting-group-title">翻页与交互</div>
@@ -336,7 +367,7 @@ import { storeToRefs } from 'pinia';
 import LucideIcon from '@/components/LucideIcon.vue';
 import useEbookReader from '@/store/useEbookReader';
 import type { EbookTheme, EbookBgType } from '@/store/useEbookReader';
-import { HIGHLIGHT_COLORS, HIGHLIGHT_TYPES } from '../highlightConfig';
+import { HIGHLIGHT_COLORS, HIGHLIGHT_TYPES, isPresetColorName } from '../highlightConfig';
 import { THEME_PRESETS, READING_PRESET_BG } from '../themePresets';
 
 interface Props {
@@ -363,6 +394,7 @@ const {
   setLetterSpacing,
   setParagraphSpacing,
   setFirstLineIndent,
+  setUnderlineGap,
   setHighlightColor,
   setHighlightType,
   setPageEffect,
@@ -492,10 +524,31 @@ const firstLineIndentModel = computed({
   },
 });
 
+/** 下划线间隙（px）双向绑定，仅 epub 生效 */
+const underlineGapModel = computed({
+  get: () => settings.value.underlineGap,
+  set: (val: number | undefined) => {
+    if (typeof val === 'number') setUnderlineGap(val);
+  },
+});
+
 /** 划线默认颜色双向绑定（右上角设置预设，划线/笔记时直接套用） */
 const highlightColorModel = computed({
   get: () => settings.value.highlightColor,
   set: (val: string) => setHighlightColor(val),
+});
+
+/**
+ * 自定义划线颜色（取色器）双向绑定。
+ * - 当前为预设色名时，取色器显示空（不回填预设的 rgba 浅色），避免误把预设当自定义；
+ * - 当前已是自定义色时，取色器回填该色，便于微调；
+ * - 用户选色即写入 store.highlightColor（字符串形式，如 '#FF5722'），渲染端原样解析。
+ */
+const customColorModel = computed({
+  get: () => (isPresetColorName(settings.value.highlightColor) ? '' : settings.value.highlightColor),
+  set: (val: string) => {
+    if (val) setHighlightColor(val);
+  },
 });
 
 /** 划线默认类型双向绑定（高亮 / 下划线） */
@@ -678,6 +731,32 @@ function onPickBgImage(e: Event) {
         border-color: var(--color-primary);
         box-shadow: 0 0 0 2px var(--bg-card), 0 0 0 4px var(--color-primary);
       }
+    }
+
+    /* 自定义颜色色块：透明底 + ＋号提示，选中态（自定义色生效）高亮 */
+    .highlight-color-dot.custom {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent !important;
+
+      .custom-plus {
+        font-size: 16px;
+        line-height: 1;
+        color: var(--text-muted);
+      }
+    }
+  }
+
+  /* 自定义取色器行（取色器 + 文字提示） */
+  .highlight-color-custom {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .custom-tip {
+      font-size: 12px;
+      color: var(--text-muted);
     }
   }
 

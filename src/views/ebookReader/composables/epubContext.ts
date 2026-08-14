@@ -54,6 +54,8 @@ export interface EpubReaderProps {
   paragraphSpacing?: number;
   /** 首行缩进，单位 em（0 表示不缩进），仅 epub 生效 */
   firstLineIndent?: number;
+  /** 下划线 / 双下划线 与文字之间的间隙，单位 px（0 表示贴着基线），仅 epub 生效 */
+  underlineGap?: number;
 }
 
 /** 渲染/标注逻辑共享的上下文对象 */
