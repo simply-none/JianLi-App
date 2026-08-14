@@ -69,6 +69,10 @@ export interface EbookSettings {
   edgeClickEnabled: boolean;
   /** 边缘点击翻页的感应区宽度百分比（阅读区左右各占该百分比），范围 2-40，默认 10 */
   edgeClickPercent: number;
+  /** 是否启用鼠标滚轮翻页（在阅读区滚动滚轮上一页/下一页） */
+  wheelPageEnabled: boolean;
+  /** 鼠标滚轮翻页灵敏度（1-10，越大越灵敏、滚动距离越小即翻页），默认 5 */
+  wheelPageSensitivity: number;
 }
 
 /** 书架条目信息（前端使用 camelCase，对应数据库 ebook_bookshelf 表的一行） */
@@ -115,6 +119,8 @@ const DEFAULT_SETTINGS: EbookSettings = {
   readerBottomBarVisible: true,
   edgeClickEnabled: true,
   edgeClickPercent: 10,
+  wheelPageEnabled: false,
+  wheelPageSensitivity: 5,
 };
 
 export default defineStore('ebook-reader', () => {
@@ -339,6 +345,18 @@ export default defineStore('ebook-reader', () => {
     setStore(SETTINGS_KEY, settings.value);
   }
 
+  /** 设置是否启用鼠标滚轮翻页并持久化 */
+  function setWheelPageEnabled(value: boolean) {
+    settings.value.wheelPageEnabled = value;
+    setStore(SETTINGS_KEY, settings.value);
+  }
+
+  /** 设置鼠标滚轮翻页灵敏度并持久化（范围 1-10） */
+  function setWheelPageSensitivity(value: number) {
+    settings.value.wheelPageSensitivity = value;
+    setStore(SETTINGS_KEY, settings.value);
+  }
+
   /**
    * 从数据库加载书架列表，把数据库记录（snake_case）映射为 BookshelfItem（camelCase）
    * 失败时打印错误日志，bookshelf 保持原值（空数组）
@@ -455,6 +473,10 @@ export default defineStore('ebook-reader', () => {
     setEdgeClickEnabled,
     // 设置边缘点击翻页感应区宽度百分比
     setEdgeClickPercent,
+    // 设置是否启用鼠标滚轮翻页
+    setWheelPageEnabled,
+    // 设置鼠标滚轮翻页灵敏度
+    setWheelPageSensitivity,
     // 加载书架列表
     loadBookshelf,
     // 添加或更新书架记录

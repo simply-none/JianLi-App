@@ -8,7 +8,7 @@
     element-loading-text="正在加载文件..."
   >
     <!-- 阅读内容区：按页展示 txt 文本，分段 span 渲染以支持划线高亮 -->
-    <div class="txt-viewport">
+    <div class="txt-viewport" @wheel="onWheelPageTurn">
       <div
         class="txt-content"
         :style="{ fontSize: fontSize + 'px', fontFamily: fontFamilyValue, padding: margin + 'px' }"
@@ -215,6 +215,10 @@ const props = defineProps<{
   edgeClickEnabled?: boolean;
   /** 边缘点击翻页感应区宽度百分比（阅读区左右各占该百分比），默认 10 */
   edgeClickPercent?: number;
+  /** 是否启用鼠标滚轮翻页（在阅读区滚动滚轮上一页/下一页） */
+  wheelPageEnabled?: boolean;
+  /** 鼠标滚轮翻页灵敏度（1-10，越大越灵敏），默认 5 */
+  wheelPageSensitivity?: number;
 }>();
 
 /** 组件 Emits 定义 */
@@ -941,6 +945,42 @@ function onEdgePrev() {
 function onEdgeNext() {
   if (loading.value) return;
   nextPage();
+}
+
+/** 鼠标滚轮翻页累加器：累计滚动量，达到阈值才翻一页 */
+let wheelAccum = 0;
+/** 滚轮空闲计时器：停止滚动超过该时长清零累加，避免跨次误翻 */
+let wheelIdleTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * 阅读区鼠标滚轮翻页：将纵向滚轮（或触控板横向）映射为上一页/下一页。
+ * 仅在设置开启时生效；按灵敏度对滚动量缩放后累计，达到阈值翻一页，
+ * 防止触控板高频小增量一次性翻多页。开启时接管默认滚动（页面内不滚动）。
+ *
+ * @param e - 滚轮事件（来自阅读区，非 passive）
+ * @returns 无返回值
+ */
+function onWheelPageTurn(e: WheelEvent) {
+  if (props.wheelPageEnabled === false) return;
+  // 归一化滚动单位：行模式×16、页模式×视口高、像素模式×1
+  const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? window.innerHeight : 1;
+  const raw = e.deltaY !== 0 ? e.deltaY : e.deltaX;
+  const sensitivity = props.wheelPageSensitivity ?? 5;
+  // 灵敏度 5 为基准（×1）：越大越灵敏，少量滚动即翻页
+  wheelAccum += raw * unit * (sensitivity / 5);
+  const THRESHOLD = 100;
+  if (Math.abs(wheelAccum) >= THRESHOLD) {
+    const dir = wheelAccum > 0 ? 1 : -1;
+    wheelAccum = 0;
+    if (dir > 0) nextPage();
+    else prevPage();
+  }
+  // 开启时接管阅读区默认滚动（页面内容已分页，不另行滚动）
+  e.preventDefault();
+  if (wheelIdleTimer) clearTimeout(wheelIdleTimer);
+  wheelIdleTimer = setTimeout(() => {
+    wheelAccum = 0;
+  }, 200);
 }
 
 /**

@@ -292,6 +292,8 @@
               :bottom-bar-visible="settings.readerBottomBarVisible"
               :edge-click-enabled="settings.edgeClickEnabled"
               :edge-click-percent="settings.edgeClickPercent"
+              :wheel-page-enabled="settings.wheelPageEnabled"
+              :wheel-page-sensitivity="settings.wheelPageSensitivity"
               :line-height="settings.lineHeight"
               :column-count="settings.columnCount"
               :scroll-mode="settings.scrollMode"
@@ -706,6 +708,29 @@
             />
             <div class="setting-tip">阅读区左右两侧各占该宽度作为翻页热区（2%-40%）</div>
           </div>
+
+          <!-- 鼠标滚轮翻页：开关 + 灵敏度，便于用滚轮直接翻页 -->
+          <div class="setting-row">
+            <div class="setting-head">
+              <span class="setting-label">鼠标滚轮翻页</span>
+            </div>
+            <el-switch v-model="wheelPageEnabledModel" />
+            <div class="setting-tip">在阅读区滚动鼠标滚轮即可上一页 / 下一页（关闭则滚轮仅用于页面内滚动）</div>
+          </div>
+          <div class="setting-row column" v-if="wheelPageEnabledModel">
+            <div class="setting-head">
+              <span class="setting-label">滚动灵敏度</span>
+              <span class="setting-value">{{ wheelPageSensitivityModel }}</span>
+            </div>
+            <el-slider
+              v-model="wheelPageSensitivityModel"
+              :min="1"
+              :max="10"
+              :step="1"
+              :show-tooltip="false"
+            />
+            <div class="setting-tip">数值越大越灵敏（滚动少量距离即翻页），范围 1-10</div>
+          </div>
         </div>
       </el-drawer>
       </div>
@@ -802,6 +827,8 @@ const {
   setReaderBottomBarVisible,
   setEdgeClickEnabled,
   setEdgeClickPercent,
+  setWheelPageEnabled,
+  setWheelPageSensitivity,
   loadBookshelf,
   addToBookshelf,
   removeFromBookshelf,
@@ -979,6 +1006,18 @@ const edgeClickEnabledModel = computed({
 const edgeClickPercentModel = computed({
   get: () => settings.value.edgeClickPercent,
   set: (val: number) => setEdgeClickPercent(val),
+});
+
+/** 鼠标滚轮翻页开关双向绑定 */
+const wheelPageEnabledModel = computed({
+  get: () => settings.value.wheelPageEnabled,
+  set: (val: boolean) => setWheelPageEnabled(val),
+});
+
+/** 鼠标滚轮翻页灵敏度双向绑定（1-10） */
+const wheelPageSensitivityModel = computed({
+  get: () => settings.value.wheelPageSensitivity,
+  set: (val: number) => setWheelPageSensitivity(val),
 });
 
 /** 翻页效果选项（仅 epub 生效） */

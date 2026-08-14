@@ -1,7 +1,7 @@
 <template>
   <div class="epub-reader" :class="themeClass" v-loading="loading" element-loading-text="正在加载电子书...">
     <!-- epub 渲染容器：epubjs 会将内容渲染到此元素；监听 mouseup 记录鼠标坐标，用于浮动工具条定位 -->
-    <div class="epub-viewport">
+    <div class="epub-viewport" @wheel="onWheelPageTurn">
       <div ref="readerRef" class="epub-viewer" @mouseup="onReaderMouseup"></div>
       <!-- 阅读区左右边缘点击区：点击上一页 / 下一页，便于沉浸式翻页（开关与百分比在设置中调整） -->
       <div
@@ -154,6 +154,10 @@ const props = defineProps<{
   edgeClickEnabled?: boolean;
   /** 边缘点击翻页感应区宽度百分比（阅读区左右各占该百分比），默认 10 */
   edgeClickPercent?: number;
+  /** 是否启用鼠标滚轮翻页（在阅读区滚动滚轮上一页/下一页） */
+  wheelPageEnabled?: boolean;
+  /** 鼠标滚轮翻页灵敏度（1-10，越大越灵敏），默认 5 */
+  wheelPageSensitivity?: number;
 }>();
 
 /** 组件 Emits 定义 */
@@ -528,6 +532,15 @@ async function renderEpub(filePath: string) {
     // 监听章节渲染完成：新章节会创建新的 iframe，此处再归一化一次主题 class，
     // 兜底 content 钩子与主题切换的时序竞态，保证新章节配色与当前所选主题一致
     rendition.on('rendered', () => syncThemeClass(props.theme));
+
+    // 在 iframe 内部文档挂载滚轮监听：epub 内容渲染在 iframe 中，其滚轮事件不会冒泡到外层，
+    // 故需在每一章的 content 文档上直接绑定，实现「鼠标滚轮翻页」（非 passive，可 preventDefault）
+    (rendition.hooks as any).content.register((contents: any) => {
+      const doc = contents?.document as Document | undefined;
+      if (doc) {
+        doc.addEventListener('wheel', onWheelPageTurn, { passive: false });
+      }
+    });
 
     // 恢复上次阅读进度
     const savedCfi = await restoreProgress(filePath);
@@ -1381,6 +1394,42 @@ function onEdgePrev() {
 function onEdgeNext() {
   if (loading.value) return;
   nextPage();
+}
+
+/** 鼠标滚轮翻页累加器：累计滚动量，达到阈值才翻一页 */
+let wheelAccum = 0;
+/** 滚轮空闲计时器：停止滚动超过该时长清零累加，避免跨次误翻 */
+let wheelIdleTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * 阅读区鼠标滚轮翻页：将纵向滚轮（或触控板横向）映射为上一页/下一页。
+ * 仅在设置开启时生效；按灵敏度对滚动量缩放后累计，达到阈值翻一页，
+ * 防止触控板高频小增量一次性翻多页。开启时接管默认滚动（epub 内部不滚动）。
+ *
+ * @param e - 滚轮事件（来自阅读区或 epub iframe 内部文档，均为非 passive）
+ * @returns 无返回值
+ */
+function onWheelPageTurn(e: WheelEvent) {
+  if (props.wheelPageEnabled === false) return;
+  // 归一化滚动单位：行模式×16、页模式×视口高、像素模式×1
+  const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? window.innerHeight : 1;
+  const raw = e.deltaY !== 0 ? e.deltaY : e.deltaX;
+  const sensitivity = props.wheelPageSensitivity ?? 5;
+  // 灵敏度 5 为基准（×1）：越大越灵敏，少量滚动即翻页
+  wheelAccum += raw * unit * (sensitivity / 5);
+  const THRESHOLD = 100;
+  if (Math.abs(wheelAccum) >= THRESHOLD) {
+    const dir = wheelAccum > 0 ? 1 : -1;
+    wheelAccum = 0;
+    if (dir > 0) nextPage();
+    else prevPage();
+  }
+  // 开启时接管阅读区默认滚动（epub 分页模式无内部滚动）
+  e.preventDefault();
+  if (wheelIdleTimer) clearTimeout(wheelIdleTimer);
+  wheelIdleTimer = setTimeout(() => {
+    wheelAccum = 0;
+  }, 200);
 }
 
 /**
