@@ -1,156 +1,140 @@
 <template>
-  <div class="reminder-set">
+  <div class="section">
     <div class="section-header">
-      <h3 class="section-title">
+      <h2 class="section-title">
         <LucideIcon name="BellRing" />
-        提醒列表
-      </h3>
+        定时提醒
+      </h2>
       <el-button type="primary" size="small" @click="openDialog()" class="add-btn">
         <LucideIcon name="AlarmClockPlus" />
         新增提醒
       </el-button>
     </div>
 
-    <div v-if="remindersCc.length > 0" class="reminder-list">
-      <div v-for="item in remindersCc" :key="item.id" class="reminder-card" :class="{ disabled: !item.enabled }">
-        <div class="reminder-icon" :class="item.mode">
-          <LucideIcon :name="item.mode === 'time' ? 'AlarmClock' : 'RefreshCw'" :size="20" />
-        </div>
-        <div class="reminder-info">
-          <div class="reminder-title">{{ item.title }}</div>
-          <div class="reminder-rule">{{ getRuleText(item) }}</div>
-        </div>
-        <el-tag size="small" :type="item.mode === 'time' ? 'primary' : 'success'" class="mode-tag" effect="plain">
-          {{ item.mode === 'time' ? '定点' : '周期' }}
-        </el-tag>
-        <el-switch
-          :model-value="item.enabled"
-          @change="(val: boolean) => toggle(item.id, val)"
-        />
-        <div class="reminder-actions">
-          <el-button size="small" @click="openDialog(item)" class="act-btn edit">
-            <LucideIcon name="Pen" :size="14" />
-            编辑
-          </el-button>
-          <el-button size="small" @click="del(item)" class="act-btn delete">
-            <LucideIcon name="Trash" :size="14" />
-            删除
-          </el-button>
+    <div class="reminder-set">
+      <div v-if="remindersCc.length > 0" class="reminder-list">
+        <div v-for="item in remindersCc" :key="item.id" class="reminder-card" :class="{ disabled: !item.enabled }">
+          <div class="reminder-icon" :class="item.mode">
+            <LucideIcon :name="item.mode === 'time' ? 'AlarmClock' : 'RefreshCw'" :size="20" />
+          </div>
+          <div class="reminder-info">
+            <div class="reminder-title">{{ item.title }}</div>
+            <div class="reminder-rule">{{ getRuleText(item) }}</div>
+          </div>
+          <el-tag size="small" :type="item.mode === 'time' ? 'primary' : 'success'" class="mode-tag" effect="plain">
+            {{ item.mode === 'time' ? '定点' : '周期' }}
+          </el-tag>
+          <el-switch :model-value="item.enabled" @change="(val: boolean) => toggle(item.id, val)" />
+          <div class="reminder-actions">
+            <el-button size="small" @click="openDialog(item)" class="act-btn edit">
+              <LucideIcon name="Pen" :size="14" />
+              编辑
+            </el-button>
+            <el-button size="small" @click="del(item)" class="act-btn delete">
+              <LucideIcon name="Trash" :size="14" />
+              删除
+            </el-button>
+          </div>
         </div>
       </div>
-    </div>
 
-    <div v-else class="empty-state">
-      <LucideIcon name="BellRing" :size="48" class="empty-icon" />
-      <div class="empty-text">暂无提醒，点击右上角「新增提醒」添加</div>
-    </div>
+      <div v-else class="empty-state">
+        <LucideIcon name="BellRing" :size="48" class="empty-icon" />
+        <div class="empty-text">暂无提醒，点击右上角「新增提醒」添加</div>
+      </div>
 
-    <el-dialog
-      v-model="dialogVisible"
-      :title="isEdit ? '编辑提醒' : '新增提醒'"
-      width="500px"
-      class="reminder-dialog"
-      @close="resetForm"
-    >
-      <div class="dialog-form">
-        <div class="form-item">
-          <span class="form-label">标题</span>
-          <el-input v-model="form.title" placeholder="请输入提醒标题" class="form-input" />
-        </div>
-
-        <div class="form-item">
-          <span class="form-label">提醒内容</span>
-          <el-input v-model="form.content" type="textarea" :rows="2" placeholder="提醒正文（可空）" class="form-input" />
-        </div>
-
-        <div class="form-item">
-          <span class="form-label">提醒方式</span>
-          <el-radio-group v-model="form.mode">
-            <el-radio-button value="time">定点提醒</el-radio-button>
-            <el-radio-button value="interval">周期提醒</el-radio-button>
-          </el-radio-group>
-        </div>
-
-        <template v-if="form.mode === 'time'">
+      <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑提醒' : '新增提醒'" width="500px" class="reminder-dialog"
+        @close="resetForm">
+        <div class="dialog-form">
           <div class="form-item">
-            <span class="form-label">重复规则</span>
-            <el-select v-model="form.repeat" class="form-select">
-              <el-option label="每小时" value="hourly" />
-              <el-option label="每天" value="daily" />
-              <el-option label="每周" value="weekly" />
-              <el-option label="每月" value="monthly" />
-              <el-option label="每年" value="yearly" />
-              <el-option label="仅一次" value="once" />
-            </el-select>
+            <span class="form-label">标题</span>
+            <el-input v-model="form.title" placeholder="请输入提醒标题" class="form-input" />
           </div>
 
-          <div class="form-item" v-if="form.repeat === 'hourly'">
-            <span class="form-label">分钟</span>
-            <el-input-number v-model="form.minute" :min="0" :max="59" class="form-number" />
-          </div>
-
-          <div class="form-item" v-if="form.repeat === 'monthly'">
-            <span class="form-label">日期（几号）</span>
-            <el-input-number v-model="form.dayOfMonth" :min="1" :max="31" class="form-number" />
-          </div>
-
-          <div class="form-item" v-if="form.repeat === 'yearly'">
-            <span class="form-label">月份与日期</span>
-            <div class="ymd-wrap">
-              <el-input-number v-model="form.month" :min="1" :max="12" class="ymd-input" />
-              <span class="ymd-sep">月</span>
-              <el-input-number v-model="form.dayOfMonth" :min="1" :max="31" class="ymd-input" />
-              <span class="ymd-sep">日</span>
-            </div>
-          </div>
-
-          <div class="form-item" v-if="form.repeat === 'once'">
-            <span class="form-label">日期</span>
-            <el-date-picker
-              v-model="form.date"
-              type="date"
-              value-format="YYYY-MM-DD"
-              placeholder="选择日期"
-              class="form-select"
-            />
-          </div>
-
-          <div class="form-item" v-if="form.repeat === 'weekly'">
-            <span class="form-label">星期</span>
-            <el-checkbox-group v-model="form.weekDays">
-              <el-checkbox v-for="w in weekOptions" :key="w.value" :value="w.value" :label="w.label" />
-            </el-checkbox-group>
-          </div>
-
-          <div class="form-item" v-if="form.repeat !== 'hourly'">
-            <span class="form-label">时间</span>
-            <el-time-picker
-              v-model="form.time"
-              format="HH:mm"
-              value-format="HH:mm"
-              placeholder="选择时间"
-              class="form-select"
-            />
-          </div>
-        </template>
-
-        <template v-else>
           <div class="form-item">
-            <span class="form-label">间隔</span>
-            <div class="gap-input-wrap">
-              <el-input v-model="form.interval" type="number" placeholder="请输入间隔数值" class="gap-input" />
-              <el-select v-model="form.unit" class="gap-unit">
-                <el-option v-for="u in unitOptions" :key="u.value" :label="u.label" :value="u.value" />
+            <span class="form-label">提醒内容</span>
+            <el-input v-model="form.content" type="textarea" :rows="2" placeholder="提醒正文（可空）" class="form-input" />
+          </div>
+
+          <div class="form-item">
+            <span class="form-label">提醒方式</span>
+            <el-radio-group v-model="form.mode">
+              <el-radio-button value="time">定点提醒</el-radio-button>
+              <el-radio-button value="interval">周期提醒</el-radio-button>
+            </el-radio-group>
+          </div>
+
+          <template v-if="form.mode === 'time'">
+            <div class="form-item">
+              <span class="form-label">重复规则</span>
+              <el-select v-model="form.repeat" class="form-select">
+                <el-option label="每小时" value="hourly" />
+                <el-option label="每天" value="daily" />
+                <el-option label="每周" value="weekly" />
+                <el-option label="每月" value="monthly" />
+                <el-option label="每年" value="yearly" />
+                <el-option label="仅一次" value="once" />
               </el-select>
             </div>
-          </div>
+
+            <div class="form-item" v-if="form.repeat === 'hourly'">
+              <span class="form-label">分钟</span>
+              <el-input-number v-model="form.minute" :min="0" :max="59" class="form-number" />
+            </div>
+
+            <div class="form-item" v-if="form.repeat === 'monthly'">
+              <span class="form-label">日期（几号）</span>
+              <el-input-number v-model="form.dayOfMonth" :min="1" :max="31" class="form-number" />
+            </div>
+
+            <div class="form-item" v-if="form.repeat === 'yearly'">
+              <span class="form-label">月份与日期</span>
+              <div class="ymd-wrap">
+                <el-input-number v-model="form.month" :min="1" :max="12" class="ymd-input" />
+                <span class="ymd-sep">月</span>
+                <el-input-number v-model="form.dayOfMonth" :min="1" :max="31" class="ymd-input" />
+                <span class="ymd-sep">日</span>
+              </div>
+            </div>
+
+            <div class="form-item" v-if="form.repeat === 'once'">
+              <span class="form-label">日期</span>
+              <el-date-picker v-model="form.date" type="date" value-format="YYYY-MM-DD" placeholder="选择日期"
+                class="form-select" />
+            </div>
+
+            <div class="form-item" v-if="form.repeat === 'weekly'">
+              <span class="form-label">星期</span>
+              <el-checkbox-group v-model="form.weekDays">
+                <el-checkbox v-for="w in weekOptions" :key="w.value" :value="w.value" :label="w.label" />
+              </el-checkbox-group>
+            </div>
+
+            <div class="form-item" v-if="form.repeat !== 'hourly'">
+              <span class="form-label">时间</span>
+              <el-time-picker v-model="form.time" format="HH:mm" value-format="HH:mm" placeholder="选择时间"
+                class="form-select" />
+            </div>
+          </template>
+
+          <template v-else>
+            <div class="form-item">
+              <span class="form-label">间隔</span>
+              <div class="gap-input-wrap">
+                <el-input v-model="form.interval" type="number" placeholder="请输入间隔数值" class="gap-input" />
+                <el-select v-model="form.unit" class="gap-unit">
+                  <el-option v-for="u in unitOptions" :key="u.value" :label="u.label" :value="u.value" />
+                </el-select>
+              </div>
+            </div>
+          </template>
+        </div>
+        <template #footer>
+          <el-button @click="dialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="submit">确定</el-button>
         </template>
-      </div>
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submit">确定</el-button>
-      </template>
-    </el-dialog>
+      </el-dialog>
+    </div>
   </div>
 </template>
 
@@ -311,31 +295,50 @@ function del(item: Reminder) {
 </script>
 
 <style scoped lang="scss">
+
+.section {
+  margin-bottom: 24px;
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid transparent;
+    background: linear-gradient(90deg, var(--color-primary), transparent) no-repeat left bottom / 100% 1px;
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 0;
+
+      .el-icon {
+        color: var(--color-primary);
+      }
+    }
+
+    .add-btn {
+      font-size: 13px;
+      font-weight: 500;
+      padding: 6px 14px;
+      border-radius: 6px;
+    }
+  }
+}
 .reminder-set {
   width: 100%;
 }
 
-.section-header {
+.reminder-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   margin-bottom: 16px;
-  padding-bottom: 10px;
-  border-bottom: 2px solid var(--color-primary);
-
-  .section-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0;
-
-    .el-icon {
-      color: var(--color-primary);
-    }
-  }
 
   .add-btn {
     font-size: 13px;

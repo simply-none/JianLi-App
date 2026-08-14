@@ -15,21 +15,25 @@
       <div class="todo-toolbar">
         <div class="toolbar-left">
           <div class="search-box">
-            <LucideIcon name="Search" class="search-icon" />
             <el-input
               v-model="searchKeyword"
               placeholder="搜索待办内容..."
               clearable
+              size="default"
               @input="handleSearch"
               @clear="handleSearch"
               class="search-input"
-            />
+            >
+            <template #prefix>
+              <LucideIcon name="Search" :size="14" class="search-icon" />
+            </template>
+          </el-input>
           </div>
           <div class="priority-filter">
             <el-select
               v-model="selectedPriority"
               placeholder="优先级"
-              size="small"
+              size="default"
               clearable
               @change="handleSearch"
             >
@@ -42,7 +46,7 @@
             <el-select
               v-model="selectedTag"
               placeholder="标签"
-              size="small"
+              size="default"
               clearable
               @change="handleSearch"
             >
@@ -64,7 +68,7 @@
             <el-select
               v-model="selectedStatus"
               placeholder="状态"
-              size="small"
+              size="default"
               clearable
               @change="handleSearch"
             >

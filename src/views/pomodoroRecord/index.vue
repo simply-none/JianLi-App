@@ -168,7 +168,8 @@ const processedData = computed(() => {
     color: var(--text-primary, #303133);
     margin: 0;
     padding-bottom: 8px;
-    border-bottom: 2px solid var(--color-primary, #6366f1);
+    border-bottom: 1px solid transparent;
+    background: linear-gradient(90deg, var(--color-primary, #6366f1), transparent) no-repeat left bottom / 100% 1px;
   }
 
   .tab-switch {

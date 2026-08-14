@@ -100,15 +100,13 @@
           </div>
         </div>
 
-        <div class="section">
+        <!-- <div class="section">
           <h2 class="section-title">
             <LucideIcon name="Hourglass" />
             番茄钟可视化
           </h2>
-          <div class="visual-card">
-            <Pomodoro />
-          </div>
-        </div>
+          <Pomodoro />
+        </div> -->
 
         <div class="section">
           <h2 class="section-title">
@@ -143,24 +141,15 @@
           </div>
         </div>
 
-        <div class="section">
-          <h2 class="section-title">
-            <LucideIcon name="BellRing" />
-            定时提醒
-          </h2>
-          <div class="reminder-card">
-            <Reminder />
-          </div>
-        </div>
+        <!-- 定时提醒 -->
+        <Reminder />
 
         <div class="section">
           <h2 class="section-title">
             <LucideIcon name="FolderCog" />
             缓存设置
           </h2>
-          <div class="cache-card">
-            <CacheSet />
-          </div>
+          <CacheSet />
         </div>
 
         <div class="section">
@@ -438,7 +427,8 @@ onMounted(async () => {
       color: var(--text-primary);
       margin: 0 0 16px;
       padding-bottom: 10px;
-      border-bottom: 2px solid var(--color-primary);
+      border-bottom: 1px solid transparent;
+      background: linear-gradient(90deg, var(--color-primary), transparent) no-repeat left bottom / 100% 1px;
 
       .el-icon {
         color: var(--color-primary);
@@ -719,13 +709,6 @@ onMounted(async () => {
     }
   }
 
-  .visual-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-card);
-    padding: 20px;
-  }
-
   .force-card {
     background: var(--bg-card);
     border: 1px solid var(--border-subtle);
@@ -770,20 +753,6 @@ onMounted(async () => {
     .force-badge {
       font-size: 13px;
     }
-  }
-
-  .cache-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-card);
-    padding: 20px;
-  }
-
-  .reminder-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-card);
-    padding: 20px;
   }
 
   .font-card {

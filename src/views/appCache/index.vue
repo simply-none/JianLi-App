@@ -159,7 +159,8 @@ function restoreData() {
 .section-header {
   margin-bottom: 20px;
   padding-bottom: 10px;
-  border-bottom: 2px solid var(--color-primary);
+  border-bottom: 1px solid transparent;
+  background: linear-gradient(90deg, var(--color-primary), transparent) no-repeat left bottom / 100% 1px;
 
   .section-title {
     display: flex;

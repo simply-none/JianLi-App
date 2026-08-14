@@ -113,6 +113,13 @@ input {
   color: var(--text-primary) !important;
 }
 
+.el-dialog__footer {
+  color: var(--text-primary) !important;
+  .el-button + .el-button {
+    margin-left: 10px;
+  }
+}
+
 .el-message-box {
   background-color: var(--el-bg-color) !important;
 }
