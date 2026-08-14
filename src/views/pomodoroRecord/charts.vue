@@ -503,6 +503,10 @@ const typeColorMap = computed<Record<string, string>>(() => ({
 }))
 
 function formatDuration (minutes: number): string {
+  // 不足一分钟，用秒显示
+  if (minutes > 0 && minutes < 1) {
+    return `${Math.round(minutes * 60)} 秒`
+  }
   const h = Math.floor(minutes / 60)
   const m = Math.round(minutes % 60)
   if (h > 0 && m > 0) return `${h} 小时 ${m} 分钟`
