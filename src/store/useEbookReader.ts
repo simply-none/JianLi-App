@@ -57,7 +57,7 @@ export interface EbookSettings {
   margin: number;
   /** 划线默认颜色标识（如 'yellow'、'green'、'blue' 等），由右上角「阅读设置」预设 */
   highlightColor: string;
-  /** 划线默认类型：'highlight'（高亮）、'underline'（下划线）、'wavy'（波浪线），由右上角「阅读设置」预设 */
+  /** 划线默认类型：'highlight'（高亮）、'underline'（下划线），由右上角「阅读设置」预设 */
   highlightType: string;
   /** 翻页效果：'none'（瞬时）、'slide'（滑动）、'cover'（覆盖）、'flip3d'（3D 仿真），仅 epub 生效 */
   pageEffect: 'none' | 'slide' | 'cover' | 'flip3d';
@@ -73,6 +73,12 @@ export interface EbookSettings {
   wheelPageEnabled: boolean;
   /** 鼠标滚轮翻页灵敏度（1-10，越大越灵敏、滚动距离越小即翻页），默认 5 */
   wheelPageSensitivity: number;
+  /** 字间距，单位 px（0 表示不额外加宽），仅 epub 生效 */
+  letterSpacing: number;
+  /** 段间距，单位 px（段落之间的额外间距，0 表示使用默认），仅 epub 生效 */
+  paragraphSpacing: number;
+  /** 首行缩进，单位 em（0 表示不缩进），仅 epub 生效 */
+  firstLineIndent: number;
 }
 
 /** 书架条目信息（前端使用 camelCase，对应数据库 ebook_bookshelf 表的一行） */
@@ -121,6 +127,9 @@ const DEFAULT_SETTINGS: EbookSettings = {
   edgeClickPercent: 10,
   wheelPageEnabled: false,
   wheelPageSensitivity: 5,
+  letterSpacing: 0,
+  paragraphSpacing: 0,
+  firstLineIndent: 0,
 };
 
 export default defineStore('ebook-reader', () => {
@@ -312,6 +321,36 @@ export default defineStore('ebook-reader', () => {
   }
 
   /**
+   * 设置字间距（px），并同步持久化到本地存储，仅 epub 生效
+   * @param value 字间距数值（0 表示不额外加宽）
+   * @returns 无返回值
+   */
+  function setLetterSpacing(value: number) {
+    settings.value.letterSpacing = value;
+    setStore(SETTINGS_KEY, settings.value);
+  }
+
+  /**
+   * 设置段间距（px），并同步持久化到本地存储，仅 epub 生效
+   * @param value 段间距数值（0 表示使用默认）
+   * @returns 无返回值
+   */
+  function setParagraphSpacing(value: number) {
+    settings.value.paragraphSpacing = value;
+    setStore(SETTINGS_KEY, settings.value);
+  }
+
+  /**
+   * 设置首行缩进（em），并同步持久化到本地存储，仅 epub 生效
+   * @param value 首行缩进数值（0 表示不缩进）
+   * @returns 无返回值
+   */
+  function setFirstLineIndent(value: number) {
+    settings.value.firstLineIndent = value;
+    setStore(SETTINGS_KEY, settings.value);
+  }
+
+  /**
    * 设置翻页效果并持久化到本地存储，仅 epub 阅读器生效
    * @param value 翻页效果（'none' | 'slide' | 'cover' | 'flip3d'）
    * @returns 无返回值
@@ -477,6 +516,12 @@ export default defineStore('ebook-reader', () => {
     setWheelPageEnabled,
     // 设置鼠标滚轮翻页灵敏度
     setWheelPageSensitivity,
+    // 设置字间距（仅 epub 生效）
+    setLetterSpacing,
+    // 设置段间距（仅 epub 生效）
+    setParagraphSpacing,
+    // 设置首行缩进（仅 epub 生效）
+    setFirstLineIndent,
     // 加载书架列表
     loadBookshelf,
     // 添加或更新书架记录

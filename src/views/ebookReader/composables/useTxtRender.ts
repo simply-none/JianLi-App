@@ -172,8 +172,10 @@ export function useTxtRender(ctx: TxtCtx) {
     switch (type) {
       case 'underline':
         return 'txt-underline';
-      case 'wavy':
-        return 'txt-wavy';
+      case 'mark':
+        return 'txt-strike';
+      case 'markStrong':
+        return 'txt-double';
       case 'highlight':
       default:
         return 'txt-highlight';
@@ -191,11 +193,17 @@ export function useTxtRender(ctx: TxtCtx) {
           'text-decoration-thickness': '2px',
           'text-underline-offset': '3px',
         };
-      case 'wavy':
+      case 'mark':
         return {
-          'text-decoration': `wavy ${colorValue}`,
+          'text-decoration': `line-through ${colorValue}`,
+          'text-decoration-thickness': '2px',
+        };
+      case 'markStrong':
+        return {
+          'text-decoration': `underline ${colorValue}`,
           'text-decoration-thickness': '2px',
           'text-underline-offset': '3px',
+          'text-decoration-style': 'double',
         };
       case 'highlight':
       default:

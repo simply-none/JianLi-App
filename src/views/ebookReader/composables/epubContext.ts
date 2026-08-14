@@ -48,6 +48,12 @@ export interface EpubReaderProps {
   wheelPageEnabled?: boolean;
   /** 鼠标滚轮翻页灵敏度（1-10，越大越灵敏），默认 5 */
   wheelPageSensitivity?: number;
+  /** 字间距，单位 px（0 表示不额外加宽），仅 epub 生效 */
+  letterSpacing?: number;
+  /** 段间距，单位 px（0 表示使用默认），仅 epub 生效 */
+  paragraphSpacing?: number;
+  /** 首行缩进，单位 em（0 表示不缩进），仅 epub 生效 */
+  firstLineIndent?: number;
 }
 
 /** 渲染/标注逻辑共享的上下文对象 */
@@ -66,6 +72,8 @@ export interface EpubCtx {
   pageInfo: Ref<{ current: number; total: number }>;
   /** 最后一次 relocated 得到的 CFI */
   currentCfi: Ref<string>;
+  /** 当前所在阅读位置的 href（用于书签标题与目录高亮，空串表示未知） */
+  currentHref: Ref<string>;
   /** 翻页动画方向 */
   turnDirection: Ref<'forward' | 'back' | null>;
   /** 浮动工具条是否显示 */
@@ -92,8 +100,6 @@ export interface EpubCtx {
   lastMouseX: number;
   /** 最近一次 mouseup 的视口 y 坐标 */
   lastMouseY: number;
-  /** 下划线 / 波浪线标注的线条着色观察器 */
-  underlineObservers: Map<string, MutationObserver>;
   /** 刷新标注重入保护标记 */
   isRefreshing: boolean;
   /** 刷新期间是否再次发生字体 / 字号变更 */
@@ -114,6 +120,14 @@ export interface EpubCtx {
   onRenditionMouseup?: (ev: MouseEvent) => void;
   /** 加载标注回调（render 在 display 完成后转发给 highlight 的 loadAnnotations） */
   loadAnnotations?: (filePath: string) => Promise<void>;
+  /** 加载书签回调（render 在 display 完成后转发给 bookmarks 的 loadBookmarks） */
+  loadBookmarks?: (filePath: string) => Promise<void>;
+  /** 初始化真实页码（pageList）回调（render 在 book 就绪后转发给 pageNumbers 的 setupPageNumbers） */
+  setupPageNumbers?: () => Promise<void>;
+  /** 更新真实页码显示回调（render 在 relocated 时转发给 pageNumbers 的 updatePrintPage） */
+  updatePrintPage?: (cfi: string) => void;
+  /** 重新装饰 mark / markStrong 标注的 SVG 回调（render 在 relocated 时转发给 highlight 的 decorateAllMarks，用于切章后补全离屏标注的装饰） */
+  decorateAnnotationMarks?: () => void;
   /** 更新页码信息回调（highlight 的 refreshAnnotations 结束后转发给 render 的 updatePageInfo） */
   updatePageInfo?: () => void;
   /** 重新定位标注回调（render 的字体/字号/行距/页边距监听变化后转发给 highlight 的 refreshAnnotations） */
@@ -149,6 +163,7 @@ export function createEpubCtx(
     progressText: ref('0%'),
     pageInfo: ref({ current: 1, total: 1 }),
     currentCfi: ref(''),
+    currentHref: ref(''),
     turnDirection: ref<'forward' | 'back' | null>(null),
     toolbarVisible: ref(false),
     toolbarX: ref(0),
@@ -162,7 +177,6 @@ export function createEpubCtx(
     locationsReady: false,
     lastMouseX: 0,
     lastMouseY: 0,
-    underlineObservers: new Map(),
     isRefreshing: false,
     pendingRefresh: false,
     wheelAccum: 0,

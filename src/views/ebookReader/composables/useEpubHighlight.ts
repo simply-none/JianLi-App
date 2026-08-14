@@ -35,48 +35,43 @@ export function useEpubHighlight(ctx: EpubCtx) {
     return { fill, opacity: a ?? '1' };
   }
 
-  /** 将 UI 划线类型映射为 epub.js 支持的标注类型（波浪线降级为 underline） */
+  /** 将 UI 划线类型映射为 epub.js 支持的标注类型（删除线/双下划线在 epub 里都走 underline 覆盖层，再做 SVG 后处理） */
   function uiTypeToEpub(type: string): 'highlight' | 'underline' {
-    return type === 'underline' || type === 'wavy' ? 'underline' : 'highlight';
+    return type === 'underline' || type === 'mark' || type === 'markStrong'
+      ? 'underline'
+      : 'highlight';
   }
 
-  /** 为 epub.js 的 underline 标注线条设置颜色（epub.js 写死 black，需二次着色） */
-  function recolorUnderline(mark: any, cfiRange: string, colorName: string): void {
-    const el = mark?.element as SVGElement | undefined;
-    if (!el) return;
-    const apply = () => {
-      const { fill } = parseColor(colorName);
-      el.querySelectorAll('line').forEach((line) => {
-        line.setAttribute('stroke', fill);
-        line.setAttribute('stroke-width', '2');
-      });
-    };
-    apply();
-    const obs = new MutationObserver(apply);
-    obs.observe(el, { childList: true, subtree: true });
-    ctx.underlineObservers.set(cfiRange, obs);
+  /**
+   * 根据 UI 划线类型返回 epub.js 标注的 className。
+   * mark / markStrong 在 epub-highlight 基础上追加专属 class，便于（切章后）重新定位并装饰 SVG。
+   */
+  function getAnnotationClassName(type: string): string {
+    if (type === 'mark') return 'epub-highlight epub-strike';
+    if (type === 'markStrong') return 'epub-highlight epub-double';
+    return 'epub-highlight';
   }
 
-  /** 断开并移除某标注的下划线着色观察器 */
-  function disposeUnderlineObserver(cfiRange: string): void {
-    const obs = ctx.underlineObservers.get(cfiRange);
-    if (obs) {
-      obs.disconnect();
-      ctx.underlineObservers.delete(cfiRange);
-    }
-  }
-
-  /** 根据类型与颜色生成 epub.js annotations 所需的 SVG 属性对象 */
+  /**
+   * 根据类型与颜色生成 epub.js annotations 所需的 SVG 属性对象。
+   *
+   * 关键：epub.js 的 Underline.render() 会为每个文本框画一个 <rect fill="none">（仅用于定位），
+   * 再画一条 <line> 作为真正的下划线。若把 stroke 直接写在 <g> 上，<rect> 会继承 stroke 而渲染出
+   * 一圈「边框」（即用户反馈的异常效果）。因此下划线类型改为把颜色写入 <g> 的 inline style 的
+   * CSS 变量（--hl-stroke / --hl-stroke-opacity），由 EpubReader.vue 的全局 CSS 针对 <line> 着色、
+   * 针对 <rect> 强制 stroke:none——既能着色又不会产生边框，且能抵御 epub.js 在翻页/缩放时重建 SVG
+   * 节点导致的内联属性丢失（这正是旧版 MutationObserver 二次着色 hack 的脆弱点）。
+   */
   function getTypeStyles(type: string, colorName: string): Record<string, string> {
     const { fill, opacity } = parseColor(colorName);
     switch (type) {
       case 'underline':
-      case 'wavy':
+      case 'mark':
+      case 'markStrong':
+        // 不在此处写 stroke：避免 <rect> 继承后产生边框。颜色通过 inline style 的 CSS 变量传递。
+        // mark / markStrong 借用 underline 覆盖层（底部单线）作为基底，再由 decorateMark 做 SVG 后处理。
         return {
-          stroke: fill,
-          'stroke-opacity': opacity,
-          'stroke-width': '2',
-          'mix-blend-mode': 'multiply',
+          style: `--hl-stroke:${fill};--hl-stroke-opacity:${opacity};mix-blend-mode:multiply`,
         };
       case 'highlight':
       default:
@@ -85,6 +80,68 @@ export function useEpubHighlight(ctx: EpubCtx) {
           'fill-opacity': opacity,
           'mix-blend-mode': 'multiply',
         };
+    }
+  }
+
+  /**
+   * 对 epub.js 生成的标注 SVG 组（<g>）做后处理，把 underline 覆盖层改造成删除线 / 双下划线。
+   *
+   * epub.js 的 Underline 对【每行换行片段】各画一个 <rect>（定位框）+ 一条底部 <line>。
+   * - 删除线(mark)：把每条 <line> 的 y 移到行高正中（保留原线，仅改坐标；颜色仍由 CSS 变量 --hl-stroke 着色）。
+   * - 双下划线(markStrong)：在底部 <line> 下方用「同文档」再插一条 <line>。
+   * 幂等：已装饰过的组会带 data-decorated 标记，重复调用直接跳过，避免双下划线被重复叠加。
+   *
+   * @param mark - epub.js Annotation 实例的 .mark（即 <g> SVG 组），可能为 undefined（标注尚未挂到当前视图）
+   * @param type - UI 划线类型
+   */
+  function decorateMark(mark: any, type: string): void {
+    if (!mark || !mark.element) return;
+    const g = mark.element as SVGGElement;
+    if (g.getAttribute('data-decorated') === type) return;
+    const rects = Array.from(g.querySelectorAll('rect')) as SVGRectElement[];
+    const lines = Array.from(g.querySelectorAll('line')) as SVGLineElement[];
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+    rects.forEach((rect, i) => {
+      const x = parseFloat(rect.getAttribute('x') || '0');
+      const y = parseFloat(rect.getAttribute('y') || '0');
+      const h = parseFloat(rect.getAttribute('height') || '0');
+      const w = parseFloat(rect.getAttribute('width') || '0');
+      const line = lines[i];
+      if (type === 'mark') {
+        const midY = y + h / 2;
+        if (line) {
+          line.setAttribute('y1', String(midY));
+          line.setAttribute('y2', String(midY));
+        }
+      } else if (type === 'markStrong') {
+        const bottom = y + h; // 现有 underline 位于 bottom-1
+        const extra = g.ownerDocument.createElementNS(SVG_NS, 'line');
+        extra.setAttribute('x1', String(x));
+        extra.setAttribute('x2', String(x + w));
+        extra.setAttribute('y1', String(bottom + 3));
+        extra.setAttribute('y2', String(bottom + 3));
+        // 颜色 / 线宽 / 线帽由 EpubReader.vue 的 g.epub-highlight > line 全局 CSS 统一着色
+        g.appendChild(extra);
+      }
+    });
+    g.setAttribute('data-decorated', type);
+  }
+
+  /**
+   * 遍历当前所有标注，对 mark / markStrong 类型重新执行 SVG 装饰。
+   * 用于在「切章后 epub.js 才把离屏标注挂到新视图」的场景下补装饰（handleRelocated 中调用）。
+   */
+  function decorateAllMarks(): void {
+    if (!ctx.rendition) return;
+    const store = (ctx.rendition.annotations as any)?._annotations;
+    if (!store) return;
+    for (const ann of ctx.annotations.value) {
+      if (ann.type !== 'mark' && ann.type !== 'markStrong') continue;
+      const hash = encodeURI(ann.anchor + 'underline');
+      const annotation = store[hash];
+      if (annotation && annotation.mark) {
+        decorateMark(annotation.mark, ann.type);
+      }
     }
   }
 
@@ -145,14 +202,14 @@ export function useEpubHighlight(ctx: EpubCtx) {
       const id = res.id;
       const styles = getTypeStyles(type, color);
       const epubType = uiTypeToEpub(type);
+      const className = getAnnotationClassName(type);
       const data = { id, note, cfiRange, color, type };
       const cb = () => onHighlightClick(id, cfiRange, note);
-      const mark =
-        epubType === 'underline'
-          ? ctx.rendition.annotations.underline(cfiRange, data, cb, 'epub-highlight', styles)
-          : ctx.rendition.annotations.highlight(cfiRange, data, cb, 'epub-highlight', styles);
       if (epubType === 'underline') {
-        recolorUnderline(mark, cfiRange, color);
+        const ann = ctx.rendition.annotations.underline(cfiRange, data, cb, className, styles);
+        decorateMark((ann as any)?.mark, type);
+      } else {
+        ctx.rendition.annotations.highlight(cfiRange, data, cb, className, styles);
       }
       ctx.annotations.value.push({ id, anchor: cfiRange, text, note, color, type });
       ctx.emit('annotations-updated', ctx.annotations.value);
@@ -239,7 +296,6 @@ export function useEpubHighlight(ctx: EpubCtx) {
       if (ctx.rendition) {
         const ann = ctx.annotations.value.find((a) => a.id === id);
         const epubType = uiTypeToEpub(ann?.type || 'highlight');
-        disposeUnderlineObserver(cfiRange);
         ctx.rendition.annotations.remove(cfiRange, epubType);
       }
       const idx = ctx.annotations.value.findIndex((a) => a.id === id);
@@ -324,14 +380,14 @@ export function useEpubHighlight(ctx: EpubCtx) {
         try {
           const styles = getTypeStyles(type, color);
           const epubType = uiTypeToEpub(type);
+          const className = getAnnotationClassName(type);
           const data = { id, note, cfiRange, color, type };
           const cb = () => onHighlightClick(id, cfiRange, note);
-          const mark =
-            epubType === 'underline'
-              ? ctx.rendition.annotations.underline(cfiRange, data, cb, 'epub-highlight', styles)
-              : ctx.rendition.annotations.highlight(cfiRange, data, cb, 'epub-highlight', styles);
           if (epubType === 'underline') {
-            recolorUnderline(mark, cfiRange, color);
+            const ann = ctx.rendition.annotations.underline(cfiRange, data, cb, className, styles);
+            decorateMark((ann as any)?.mark, type);
+          } else {
+            ctx.rendition.annotations.highlight(cfiRange, data, cb, className, styles);
           }
           ctx.annotations.value.push({
             id,
@@ -372,7 +428,6 @@ export function useEpubHighlight(ctx: EpubCtx) {
     try {
       for (const ann of list) {
         const epubType = uiTypeToEpub(ann.type);
-        disposeUnderlineObserver(ann.anchor);
         try {
           ctx.rendition.annotations.remove(ann.anchor, epubType);
         } catch (err) {
@@ -392,14 +447,14 @@ export function useEpubHighlight(ctx: EpubCtx) {
         try {
           const styles = getTypeStyles(ann.type, ann.color);
           const epubType = uiTypeToEpub(ann.type);
+          const className = getAnnotationClassName(ann.type);
           const data = { id: ann.id, note: ann.note, cfiRange: ann.anchor, color: ann.color, type: ann.type };
           const cb = () => onHighlightClick(ann.id, ann.anchor, ann.note);
-          const mark =
-            epubType === 'underline'
-              ? ctx.rendition.annotations.underline(ann.anchor, data, cb, 'epub-highlight', styles)
-              : ctx.rendition.annotations.highlight(ann.anchor, data, cb, 'epub-highlight', styles);
           if (epubType === 'underline') {
-            recolorUnderline(mark, ann.anchor, ann.color);
+            const created = ctx.rendition.annotations.underline(ann.anchor, data, cb, className, styles);
+            decorateMark((created as any)?.mark, ann.type);
+          } else {
+            ctx.rendition.annotations.highlight(ann.anchor, data, cb, className, styles);
           }
         } catch (err) {
           console.error('重新添加划线失败', ann, err);
@@ -422,7 +477,6 @@ export function useEpubHighlight(ctx: EpubCtx) {
     if (ctx.rendition) {
       try {
         const epubType = uiTypeToEpub(ann.type || 'highlight');
-        disposeUnderlineObserver(ann.anchor);
         ctx.rendition.annotations.remove(ann.anchor, epubType);
       } catch (err) {
         console.error('移除 rendition 高亮失败', err);
@@ -436,6 +490,7 @@ export function useEpubHighlight(ctx: EpubCtx) {
   ctx.onSelected = handleSelected;
   ctx.loadAnnotations = loadAnnotations;
   ctx.refreshAnnotations = refreshAnnotations;
+  ctx.decorateAnnotationMarks = decorateAllMarks;
 
   return {
     toolbarVisible: ctx.toolbarVisible,

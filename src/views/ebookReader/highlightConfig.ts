@@ -20,8 +20,8 @@ export type HighlightColorName =
   | 'orange'
   | 'purple';
 
-/** 划线类型：高亮 / 下划线 / 波浪线 */
-export type HighlightTypeName = 'highlight' | 'underline' | 'wavy';
+/** 划线类型：高亮 / 下划线 / 删除线(mark) / 双下划线(markStrong) */
+export type HighlightTypeName = 'highlight' | 'underline' | 'mark' | 'markStrong';
 
 /** 颜色选项配置 */
 export interface HighlightColorOption {
@@ -57,7 +57,8 @@ export const HIGHLIGHT_COLORS: HighlightColorOption[] = [
 export const HIGHLIGHT_TYPES: HighlightTypeOption[] = [
   { name: 'highlight', label: '高亮', icon: '🟨' },
   { name: 'underline', label: '下划线', icon: '📝' },
-  { name: 'wavy', label: '波浪线', icon: '〰️' },
+  { name: 'mark', label: '删除线', icon: '🗵' },
+  { name: 'markStrong', label: '双下划线', icon: '📏' },
 ];
 
 /**

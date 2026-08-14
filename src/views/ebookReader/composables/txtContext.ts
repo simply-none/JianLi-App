@@ -26,7 +26,7 @@ export interface Segment {
   globalStart: number;
   /** 高亮颜色标识，如 'yellow'；普通段为空字符串 */
   color: string;
-  /** 划线类型：'highlight'、'underline'、'wavy'；普通段为空字符串 */
+  /** 划线类型：'highlight'、'underline'、'mark'（删除线）、'markStrong'（双下划线）；普通段为空字符串 */
   type: string;
   /** 笔记内容，仅高亮段携带；普通段为空字符串 */
   note: string;
@@ -46,7 +46,7 @@ export interface TxtAnnotation {
   note: string;
   /** 高亮颜色标识，如 'yellow'、'green'、'blue' 等 */
   color: string;
-  /** 划线类型：'highlight'（高亮）、'underline'（下划线）、'wavy'（波浪线） */
+  /** 划线类型：'highlight'（高亮）、'underline'（下划线）、'mark'（删除线）、'markStrong'（双下划线） */
   type: string;
 }
 

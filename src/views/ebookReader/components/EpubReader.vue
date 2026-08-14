@@ -72,8 +72,27 @@
         <LucideIcon name="ArrowLeft" :size="14" />
         上一页
       </el-button>
+      <el-button
+        size="small"
+        :disabled="loading"
+        :type="currentBookmarked ? 'warning' : ''"
+        @click="toggleBookmark"
+        :title="currentBookmarked ? '取消书签' : '添加书签'"
+      >
+        <LucideIcon :name="currentBookmarked ? 'BookmarkCheck' : 'Bookmark'" :size="14" />
+        书签
+      </el-button>
       <span class="progress-text">{{ progressText }}</span>
-      <span class="page-text">{{ pageText }}</span>
+      <span v-if="hasPageList" class="print-page-text">{{ printPage }}</span>
+      <span v-else class="page-text">{{ pageText }}</span>
+      <div class="font-quick">
+        <el-button size="small" :disabled="loading || (ctx.settings.value.fontSize <= 12)" @click="onAdjustFont(-1)" title="减小字号">
+          <LucideIcon name="Minus" :size="14" />
+        </el-button>
+        <el-button size="small" :disabled="loading || (ctx.settings.value.fontSize >= 32)" @click="onAdjustFont(1)" title="增大字号">
+          <LucideIcon name="Plus" :size="14" />
+        </el-button>
+      </div>
       <el-button size="small" :disabled="loading" @click="nextPage">
         下一页
         <LucideIcon name="ArrowRight" :size="14" />
@@ -91,11 +110,14 @@ import AnnotationToolbar from './AnnotationToolbar.vue';
 // 划线颜色/类型统一配置（颜色映射、默认值等）
 import useEbookReader from '@/store/useEbookReader';
 // 阅读设置 store：划线颜色/类型由右上角「阅读设置」预设
-import type { EpubAnnotation } from '../types';
+import type { EpubAnnotation, EpubSearchResult } from '../types';
 // 渲染 / 标注逻辑 composable（共享 ctx）
 import { createEpubCtx } from '../composables/epubContext';
 import { useEpubRender } from '../composables/useEpubRender';
 import { useEpubHighlight } from '../composables/useEpubHighlight';
+import { useEpubBookmarks } from '../composables/useEpubBookmarks';
+import { useEpubSearch } from '../composables/useEpubSearch';
+import { useEpubPageNumbers } from '../composables/useEpubPageNumbers';
 
 /** 阅读主题类型：day 白天、night 夜间、eye 护眼 */
 type EbookTheme = 'day' | 'night' | 'eye';
@@ -155,6 +177,18 @@ const emit = defineEmits<{
   (e: 'toc-loaded', payload: any[]): void;
   /** 标注列表变更事件：新增/编辑/删除划线或笔记后触发，payload 为最新标注列表 */
   (e: 'annotations-updated', payload: EpubAnnotation[]): void;
+  /** 书签列表变更事件：新增/删除书签后触发，payload 为最新书签列表 */
+  (e: 'bookmarks-updated', payload: BookmarkRecord[]): void;
+  /** 全文搜索结果变更事件：搜索完成后触发，payload 为命中结果列表 */
+  (e: 'search-results', payload: EpubSearchResult[]): void;
+  /** 搜索进行中状态变更事件：开始/结束时触发，payload 为是否正在搜索 */
+  (e: 'searching', payload: boolean): void;
+  /** 目录地标（landmarks）加载完成事件，payload 为地标项数组（封面/正文/目录等） */
+  (e: 'landmarks-loaded', payload: any[]): void;
+  /** 当前阅读位置 href 变更事件，payload 为当前章节 href（用于目录高亮） */
+  (e: 'current-href', payload: string): void;
+  /** 字号快捷调整事件（A-/A+ 按钮触发），payload 为目标字号 px */
+  (e: 'font-size-change', payload: number): void;
 }>();
 
 /** epub 渲染容器引用 */
@@ -168,6 +202,9 @@ const ctx = createEpubCtx(props, emit, settings, readerRef);
 // 注意：先初始化 highlight（注册 onSelected / loadAnnotations / refreshAnnotations 回调），
 // 再初始化 render（注册 updatePageInfo 并在 mounted 时调用 renderEpub，其内部会触发上述回调）
 const highlight = useEpubHighlight(ctx);
+const bookmarks = useEpubBookmarks(ctx);
+const search = useEpubSearch(ctx);
+const pageNumbers = useEpubPageNumbers(ctx);
 const render = useEpubRender(ctx);
 
 // 模板所需绑定（reactive ref 解构后仍保持响应性）
@@ -185,6 +222,17 @@ const {
   deleteCurrentAnnotation,
   saveNote,
 } = highlight;
+const { currentBookmarked, toggleBookmark } = bookmarks;
+const { printPage, hasPageList } = pageNumbers;
+
+/** 字号快捷调整（A-/A+）：计算新的受限字号并通知父组件持久化 */
+function onAdjustFont(delta: number): void {
+  const cur = ctx.settings.value.fontSize ?? 16;
+  const next = Math.max(12, Math.min(32, cur + delta));
+  if (next !== cur) {
+    ctx.emit('font-size-change', next);
+  }
+}
 
 // 暴露方法供父组件调用：
 // - displayTarget：跳转到指定 cfi 或 href（目录跳转）
@@ -196,6 +244,10 @@ defineExpose({
   jumpToAnnotation: highlight.jumpToAnnotation,
   removeAnnotationById: highlight.removeAnnotationById,
   editAnnotationNote: highlight.editAnnotationNote,
+  jumpToBookmark: bookmarks.jumpToBookmark,
+  removeBookmark: bookmarks.removeBookmark,
+  runSearch: search.runSearch,
+  jumpToSearchResult: search.jumpToSearchResult,
 });
 </script>
 
@@ -356,6 +408,19 @@ defineExpose({
       min-width: 56px;
       text-align: center;
     }
+
+    .print-page-text {
+      font-size: 13px;
+      color: var(--text-secondary);
+      min-width: 96px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .font-quick {
+      display: inline-flex;
+      gap: 4px;
+    }
   }
 
   /* 白天主题 */
@@ -397,6 +462,31 @@ defineExpose({
       display: flex;
       gap: 8px;
     }
+  }
+}
+</style>
+
+<!--
+  全局（非 scoped）样式：epub.js 的标注 <svg> 由 JS 动态注入到 .epub-reader 容器内，
+  不会带有 Vue 的 scoped 属性，因此必须用非 scoped 规则才能命中。
+  用途：修正下划线「边框」异常——epub.js 的 Underline.render() 对每个文本框画一个
+  <rect fill="none">（仅定位）并继承 <g> 的 stroke，导致显示成一圈边框；真正的下划线是 <line>。
+  这里强制 <rect> 不描边，并把 <line> 的颜色取自 <g> inline style 的 CSS 变量（由 useEpubHighlight 写入）。
+-->
+<style lang="scss">
+.epub-reader {
+  /* 下划线的 <rect> 仅用于定位，不应显示边框 */
+  g.epub-highlight > rect {
+    stroke: none !important;
+  }
+
+  /* 下划线条颜色取自 <g> inline style 的 CSS 变量；该变量在翻页/缩放重建 SVG 后仍由 CSS 命中，
+     相比旧版 MutationObserver 二次着色的 hack 更稳健 */
+  g.epub-highlight > line {
+    stroke: var(--hl-stroke, #000) !important;
+    stroke-opacity: var(--hl-stroke-opacity, 1) !important;
+    stroke-width: 2 !important;
+    stroke-linecap: square;
   }
 }
 </style>

@@ -57,6 +57,12 @@ interface Window {
       getAnnotationCounts: (filePaths: string[]) => Promise<{ success: boolean; data?: { filePath: string; noteCount: number; highlightCount: number }[]; error?: string }>;
       // 导出笔记与划线为 Markdown 文件
       exportAnnotations: (data: { filePath?: string; title?: string }) => Promise<{ success: boolean; savedPath?: string; error?: string }>;
+      // 获取指定文件的书签列表（按阅读顺序升序）
+      getBookmarks: (filePath: string) => Promise<{ success: boolean; data?: BookmarkRecord[]; error?: string }>;
+      // 新增一条书签（返回新记录自增 id）
+      addBookmark: (data: { filePath: string; format: string; cfi: string; label?: string | null; percent?: number }) => Promise<{ success: boolean; id?: number; error?: string }>;
+      // 按 id 删除书签
+      removeBookmark: (id: number) => Promise<{ success: boolean; error?: string }>;
     };
   }
 }
@@ -105,6 +111,26 @@ type AnnotationRecord = {
   created_at: string;
   /** 更新时间（ISO 字符串） */
   updated_at: string;
+};
+
+/**
+ * 书签记录结构（对应主进程 ebook_bookmark 表的行字段，snake_case 与数据库一致）
+ */
+type BookmarkRecord = {
+  /** 自增主键 */
+  id: number;
+  /** 文件绝对路径 */
+  file_path: string;
+  /** 文件格式：'txt' 或 'epub' */
+  format: string;
+  /** 定位锚点（EPUB 用 cfi 字符串；TXT 用字符偏移字符串如 "1520"） */
+  cfi: string;
+  /** 书签标题（如当前章节名），可空 */
+  label: string | null;
+  /** 阅读百分比 0-100，用于排序 */
+  percent: number;
+  /** 创建时间（ISO 字符串） */
+  created_at: string;
 };
 
 // 生成JavaScript对象的类型

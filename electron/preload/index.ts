@@ -188,6 +188,41 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     exportAnnotations(data: { filePath?: string; title?: string }) {
       return ipcRenderer.invoke('ebook:export-annotations', data)
     },
+    /**
+     * 获取指定电子书文件的书签列表（按阅读进度升序）
+     *
+     * @param filePath - 必填参数，电子书文件绝对路径
+     * @returns 成功返回 Promise<{ success: true; data: BookmarkRecord[] }>（无记录时 data 为空数组）；
+     *          失败返回 Promise<{ success: false; error: string }>
+     */
+    getBookmarks(filePath: string) {
+      return ipcRenderer.invoke('ebook:get-bookmarks', filePath)
+    },
+    /**
+     * 新增一条书签记录
+     *
+     * @param data - 必填参数，书签数据对象
+     *   - filePath: 文件绝对路径
+     *   - format: 文件格式（'txt' 或 'epub'）
+     *   - cfi: 定位锚点（epub.js 的 cfi 字符串）
+     *   - label: 书签标签（章节名或进度描述），可空
+     *   - percent: 阅读百分比 0-100
+     * @returns 成功返回 Promise<{ success: true; id: number }>（id 为新记录自增主键）；
+     *          失败返回 Promise<{ success: false; error: string }>
+     */
+    addBookmark(data: { filePath: string; format: string; cfi: string; label?: string | null; percent: number }) {
+      return ipcRenderer.invoke('ebook:add-bookmark', data)
+    },
+    /**
+     * 按数据库 id 删除书签记录
+     *
+     * @param id - 必填参数，书签记录主键 id
+     * @returns 成功返回 Promise<{ success: boolean; error?: string }>；
+     *          失败返回 Promise 中 success 为 false，并附带 error 错误信息
+     */
+    removeBookmark(id: number) {
+      return ipcRenderer.invoke('ebook:remove-bookmark', id)
+    },
   },
   on(...args: Parameters<typeof ipcRenderer.on>) {
     const [channel, listener] = args

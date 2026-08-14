@@ -14,6 +14,19 @@
           导出笔记
         </el-button>
       </div>
+      <!-- 抽屉内搜索：按划线原文 / 笔记内容关键词过滤当前标签页 -->
+      <div class="annotation-search">
+        <el-input
+          v-model="keyword"
+          size="small"
+          clearable
+          placeholder="搜索划线 / 笔记内容"
+        >
+          <template #prefix>
+            <LucideIcon name="Search" :size="14" />
+          </template>
+        </el-input>
+      </div>
       <!-- 标签页：区分「笔记」（带笔记内容）与「划线」（纯高亮），避免二者混杂 -->
       <div class="annotation-tabs">
         <button
@@ -41,7 +54,7 @@
       <!-- 笔记标签页：展示「引用内容 + 笔记」，二者直接并列展示 -->
       <div v-show="annotationTab === 'note'" class="annotation-list">
         <div
-          v-for="item in noteItems"
+          v-for="item in filteredNoteItems"
           :key="item.id"
           class="annotation-item note-item"
           @click="onSelect(item)"
@@ -59,15 +72,15 @@
             </el-button>
           </div>
         </div>
-        <div v-if="noteItems.length === 0" class="annotation-empty">
-          暂无笔记
+        <div v-if="filteredNoteItems.length === 0" class="annotation-empty">
+          {{ keyword ? '无匹配结果' : '暂无笔记' }}
         </div>
       </div>
 
       <!-- 划线标签页：展示纯高亮标注，仅可删除 -->
       <div v-show="annotationTab === 'highlight'" class="annotation-list">
         <div
-          v-for="item in highlightItems"
+          v-for="item in filteredHighlightItems"
           :key="item.id"
           class="annotation-item"
           @click="onSelect(item)"
@@ -80,8 +93,8 @@
             </el-button>
           </div>
         </div>
-        <div v-if="highlightItems.length === 0" class="annotation-empty">
-          暂无划线
+        <div v-if="filteredHighlightItems.length === 0" class="annotation-empty">
+          {{ keyword ? '无匹配结果' : '暂无划线' }}
         </div>
       </div>
     </div>
@@ -148,6 +161,24 @@ const highlightItems = computed(() =>
   props.items.filter((a) => !(a.note || '').trim())
 );
 
+/** 抽屉内搜索关键词（按划线原文 / 笔记内容过滤，忽略大小写） */
+const keyword = ref('');
+
+/** 关键词命中判定：划线原文或笔记内容包含关键词即命中 */
+function matchKeyword(item: AnnotationDisplayItem): boolean {
+  const kw = keyword.value.trim().toLowerCase();
+  if (!kw) return true;
+  return (
+    (item.text || '').toLowerCase().includes(kw) ||
+    (item.note || '').toLowerCase().includes(kw)
+  );
+}
+
+/** 笔记标签页：在 noteItems 基础上按关键词过滤 */
+const filteredNoteItems = computed(() => noteItems.value.filter(matchKeyword));
+/** 划线标签页：在 highlightItems 基础上按关键词过滤 */
+const filteredHighlightItems = computed(() => highlightItems.value.filter(matchKeyword));
+
 /** 书架来源时编辑笔记的弹窗状态 */
 const shelfNoteEditVisible = ref(false);
 const shelfNoteEditText = ref('');
@@ -195,6 +226,11 @@ function onSaveNote() {
     display: flex;
     justify-content: flex-end;
     padding: 0 4px 10px;
+  }
+
+  /* 抽屉内搜索框：位于导出栏与标签页之间，过滤当前标签页内容 */
+  .annotation-search {
+    padding: 0 4px 12px;
   }
 
   .annotation-tabs {

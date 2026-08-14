@@ -61,6 +61,28 @@
                 笔记
               </el-button>
             </el-badge>
+            <!-- 书签按钮（仅 epub 时有效）：打开书签抽屉，附带数量徽标 -->
+            <el-badge
+              v-if="currentFile.format === 'epub'"
+              :value="bookmarks.length"
+              :hidden="bookmarks.length === 0"
+              :max="99"
+              type="warning"
+            >
+              <el-button size="small" @click="bookmarkDrawerVisible = true">
+                <LucideIcon name="Bookmark" :size="16" />
+                书签
+              </el-button>
+            </el-badge>
+            <!-- 全文搜索按钮（仅 epub 时有效）：打开搜索面板 -->
+            <el-button
+              v-if="currentFile.format === 'epub'"
+              size="small"
+              @click="searchPanelVisible = true"
+            >
+              <LucideIcon name="Search" :size="16" />
+              搜索
+            </el-button>
             <!-- 字体设置：中文 / 英文（选项参考设置页「字体设置」） -->
             <div class="font-control">
               <span class="control-label">字体</span>
@@ -185,9 +207,18 @@
               :column-count="settings.columnCount"
               :scroll-mode="settings.scrollMode"
               :margin="settings.margin"
+              :letter-spacing="settings.letterSpacing"
+              :paragraph-spacing="settings.paragraphSpacing"
+              :first-line-indent="settings.firstLineIndent"
               @progress-update="onProgressUpdate"
               @toc-loaded="onTocLoaded"
+              @landmarks-loaded="onLandmarksLoaded"
+              @current-href="onCurrentHref"
               @annotations-updated="onAnnotationsUpdated"
+              @bookmarks-updated="onBookmarksUpdated"
+              @search-results="onSearchResults"
+              @searching="onSearching"
+              @font-size-change="onFontSizeChange"
             />
             <!-- 优先级 3：未打开文件时引导用户 -->
             <div v-else class="empty-state">
@@ -202,7 +233,13 @@
         </div>
 
         <!-- 目录抽屉（仅 epub 有效），已抽为独立组件 TocDrawer -->
-        <TocDrawer v-model="tocVisible" :items="tocItems" @select="onTocItemClick" />
+        <TocDrawer
+          v-model="tocVisible"
+          :items="tocItems"
+          :landmarks="tocLandmarks"
+          :current-href="currentFileHref"
+          @select="onTocItemClick"
+        />
 
         <!-- 笔记与划线抽屉（已抽为独立组件 AnnotationDrawer）：分「笔记」与「划线」，跳转/删除/导出/保存由父组件处理 -->
         <AnnotationDrawer
@@ -213,6 +250,25 @@
           @delete="onAnnotationDelete"
           @export="exportCurrentAnnotations"
           @save-note="saveShelfNote"
+        />
+
+        <!-- 书签抽屉（已抽为独立组件 BookmarksDrawer）：跳转/删除由父组件处理 -->
+        <BookmarksDrawer
+          v-model="bookmarkDrawerVisible"
+          :items="bookmarks"
+          :current-cfi="currentFileCfi"
+          @jump="onBookmarkClick"
+          @delete="onBookmarkDelete"
+        />
+
+        <!-- 全文搜索面板（已抽为独立组件 SearchPanel）：检索/跳转由父组件处理 -->
+        <SearchPanel
+          v-model="searchPanelVisible"
+          :results="searchResults"
+          :searching="searching"
+          :max-results="300"
+          @search="onSearch"
+          @jump="onSearchJump"
         />
 
       <!-- 更多阅读设置抽屉（主题/排版/标注/翻页交互/界面），已抽为独立组件 SettingsDrawer -->
@@ -236,10 +292,12 @@ import EpubReader from './components/EpubReader.vue';
 import SettingsDrawer from './components/SettingsDrawer.vue';
 import TocDrawer from './components/TocDrawer.vue';
 import AnnotationDrawer from './components/AnnotationDrawer.vue';
+import BookmarksDrawer from './components/BookmarksDrawer.vue';
+import SearchPanel from './components/SearchPanel.vue';
 import Bookshelf from './components/Bookshelf.vue';
 import { useBookshelf, handleExportResult } from './composables/useBookshelf';
 import { getFileName, getFormat } from './utils/fileUtils';
-import type { TocItem, FlatTocItem, ReaderComponentInstance, AnnotationDisplayItem } from './types';
+import type { TocItem, FlatTocItem, ReaderComponentInstance, AnnotationDisplayItem, EpubSearchResult } from './types';
 
 /** 书架进度刷新节流间隔（毫秒），500ms 内最多触发一次 addToBookshelf */
 const BOOKSHELF_THROTTLE_MS = 500;
@@ -287,6 +345,10 @@ const view = ref<'bookshelf' | 'reader'>('bookshelf');
 const tocVisible = ref(false);
 /** 目录项列表（由 EpubReader 通过 toc-loaded 事件回传） */
 const tocItems = ref<TocItem[]>([]);
+/** 目录地标列表（封面/正文/目录等，由 EpubReader 通过 landmarks-loaded 事件回传） */
+const tocLandmarks = ref<any[]>([]);
+/** 当前阅读位置的 href（由 EpubReader 通过 current-href 事件回传，用于目录高亮） */
+const currentFileHref = ref('');
 /** 子组件实例引用 */
 const readerRef = ref<ReaderComponentInstance | null>(null);
 /** 顶部栏右侧功能区容器引用：用于挂载鼠标滚轮→横向滚动 */
@@ -306,6 +368,24 @@ const annotations = ref<AnnotationDisplayItem[]>([]);
 
 /** 笔记抽屉显示状态 */
 const annotationDrawerVisible = ref(false);
+
+/** 当前文件的书签列表（由 EpubReader 通过 bookmarks-updated 事件回填，用于书签抽屉展示） */
+const bookmarks = ref<BookmarkRecord[]>([]);
+
+/** 书签抽屉显示状态 */
+const bookmarkDrawerVisible = ref(false);
+
+/** 当前阅读位置的 cfi（用于书签抽屉高亮当前书签，随进度更新回填） */
+const currentFileCfi = ref('');
+
+/** 全文搜索结果列表（由 EpubReader 通过 search-results 事件回填，用于搜索面板展示） */
+const searchResults = ref<EpubSearchResult[]>([]);
+
+/** 是否正在搜索（由 EpubReader 通过 searching 事件回填） */
+const searching = ref(false);
+
+/** 全文搜索面板显示状态 */
+const searchPanelVisible = ref(false);
 
 /** 笔记抽屉来源文件：null = 当前打开的书；string = 从书架打开的指定书路径 */
 const annotationSourceFile = ref<string | null>(null);
@@ -488,6 +568,8 @@ function openFile() {
  * @returns 无返回值
  */
 async function onProgressUpdate(payload: { cfi: string; percent: number }) {
+  // 更新当前阅读位置 cfi（供书签抽屉高亮当前书签）
+  currentFileCfi.value = payload.cfi;
   // 更新 store 中的进度（同步持久化到本地存储）
   setProgress(payload);
   // 通过 IPC 持久化到数据库，并节流刷新书架进度
@@ -530,6 +612,26 @@ function onTocLoaded(items: TocItem[]) {
 }
 
 /**
+ * EpubReader 目录地标加载完成事件处理
+ *
+ * @param items - 地标项数组（封面/正文/目录等）
+ * @returns 无返回值
+ */
+function onLandmarksLoaded(items: any[]) {
+  tocLandmarks.value = Array.isArray(items) ? items : [];
+}
+
+/**
+ * EpubReader 当前阅读位置 href 变更事件处理（用于目录高亮）
+ *
+ * @param href - 当前章节 href
+ * @returns 无返回值
+ */
+function onCurrentHref(href: string) {
+  currentFileHref.value = href || '';
+}
+
+/**
  * 目录项点击事件处理
  * 调用 EpubReader 暴露的 displayTarget 方法跳转
  *
@@ -563,6 +665,106 @@ function onAnnotationsUpdated(items: any[]) {
     text: item.text ?? '',
     note: item.note ?? '',
   }));
+}
+
+/**
+ * EpubReader 书签列表变更事件处理
+ * 接收 BookmarkRecord[]，直接回填到父组件书签列表用于抽屉展示
+ *
+ * @param items - 子组件 emit 的书签 payload
+ * @returns 无返回值；payload 非数组时清空当前列表
+ */
+function onBookmarksUpdated(items: BookmarkRecord[]) {
+  bookmarks.value = Array.isArray(items) ? items : [];
+}
+
+/**
+ * 书签抽屉项点击事件处理
+ * 调用子组件暴露的 jumpToBookmark 方法跳转到书签位置，并关闭抽屉
+ *
+ * @param item - 被点击的书签项
+ * @returns 无返回值
+ */
+function onBookmarkClick(item: BookmarkRecord) {
+  readerRef.value?.jumpToBookmark?.(item.cfi);
+  bookmarkDrawerVisible.value = false;
+}
+
+/**
+ * 书签抽屉项删除事件处理
+ * 弹出确认框，确认后调用子组件暴露的 removeBookmark 删除对应书签，并同步父组件列表
+ *
+ * @param item - 待删除的书签项
+ * @returns 无返回值；用户取消时不做任何操作
+ */
+async function onBookmarkDelete(item: BookmarkRecord) {
+  try {
+    await ElMessageBox.confirm('确认删除该书签？', '提示', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+    });
+  } catch {
+    return;
+  }
+  readerRef.value?.removeBookmark?.(item.id);
+  bookmarks.value = bookmarks.value.filter((b) => b.id !== item.id);
+  ElMessage.success('已删除书签');
+}
+
+/**
+ * EpubReader 全文搜索结果变更事件处理
+ * 接收 EpubSearchResult[]，直接回填到父组件搜索结果列表用于搜索面板展示
+ *
+ * @param items - 子组件 emit 的搜索命中 payload
+ * @returns 无返回值
+ */
+function onSearchResults(items: EpubSearchResult[]) {
+  searchResults.value = Array.isArray(items) ? items : [];
+}
+
+/**
+ * EpubReader 搜索进行中状态变更事件处理
+ *
+ * @param val - 是否正在搜索
+ * @returns 无返回值
+ */
+function onSearching(val: boolean) {
+  searching.value = val;
+}
+
+/**
+ * 搜索面板触发搜索
+ * 转发关键词到子组件暴露的 runSearch 方法（子组件遍历 spine 检索并回传结果）
+ *
+ * @param term - 搜索关键词
+ * @returns 无返回值
+ */
+function onSearch(term: string) {
+  readerRef.value?.runSearch?.(term);
+}
+
+/**
+ * 搜索面板点击命中项
+ * 调用子组件暴露的 jumpToSearchResult 方法跳转并关闭搜索面板
+ *
+ * @param item - 被点击的搜索命中项
+ * @returns 无返回值
+ */
+function onSearchJump(item: EpubSearchResult) {
+  readerRef.value?.jumpToSearchResult?.(item.cfi);
+  searchPanelVisible.value = false;
+}
+
+/**
+ * 阅读区内 A-/A+ 字号快捷调整
+ * 接收目标字号并写入 store 持久化（store 变化会同步 props.fontSize → 子组件自动重排）
+ *
+ * @param size - 目标字号 px
+ * @returns 无返回值
+ */
+function onFontSizeChange(size: number) {
+  setFontSize(size);
 }
 
 /**
@@ -720,9 +922,17 @@ watch(
   () => {
     tocItems.value = [];
     tocVisible.value = false;
+    tocLandmarks.value = [];
+    currentFileHref.value = '';
     annotations.value = [];
     annotationDrawerVisible.value = false;
     annotationSourceFile.value = null;
+    bookmarks.value = [];
+    bookmarkDrawerVisible.value = false;
+    currentFileCfi.value = '';
+    searchResults.value = [];
+    searching.value = false;
+    searchPanelVisible.value = false;
   }
 );
 

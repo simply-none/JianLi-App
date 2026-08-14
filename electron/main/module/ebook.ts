@@ -32,6 +32,9 @@ const EBOOK_BOOKSHELF_TABLE = 'ebook_bookshelf';
 /** 电子书笔记与划线表名（存储高亮、摘录、笔记记录） */
 const EBOOK_ANNOTATION_TABLE = 'ebook_annotation';
 
+/** 电子书书签表名（存储用户手动添加的翻页书签，基于 epub cfi 或 txt 偏移定位） */
+const EBOOK_BOOKMARK_TABLE = 'ebook_bookmark';
+
 /**
  * 电子书阅读进度数据结构
  */
@@ -172,6 +175,42 @@ interface AddAnnotationData {
   color?: string;
   /** 划线类型：'highlight'（高亮）、'underline'（下划线）等，默认 'highlight' */
   type?: string;
+}
+
+/**
+ * 数据库中的书签记录结构（对应 ebook_bookmark 表的每一行）
+ */
+interface BookmarkRecord {
+  /** 自增主键 */
+  id: number;
+  /** 文件绝对路径 */
+  file_path: string;
+  /** 文件格式：'txt' 或 'epub' */
+  format: string;
+  /** 定位锚点（EPUB 用 cfi 字符串；TXT 用字符偏移字符串如 "1520"） */
+  cfi: string;
+  /** 书签标题（如当前章节名），可空 */
+  label: string | null;
+  /** 阅读百分比 0-100，用于排序 */
+  percent: number;
+  /** 创建时间（ISO 字符串） */
+  created_at: string;
+}
+
+/**
+ * add-bookmark 入参结构
+ */
+interface AddBookmarkData {
+  /** 文件绝对路径 */
+  filePath: string;
+  /** 文件格式：'txt' 或 'epub' */
+  format: string;
+  /** 定位锚点（EPUB 用 cfi；TXT 用字符偏移） */
+  cfi: string;
+  /** 书签标题，可空 */
+  label?: string | null;
+  /** 阅读百分比 0-100 */
+  percent?: number;
 }
 
 /**
@@ -370,6 +409,37 @@ async function createAnnotationTable(): Promise<void> {
 }
 
 /**
+ * 创建电子书书签表（IF NOT EXISTS）
+ *
+ * 表结构：
+ * - id         INTEGER PRIMARY KEY AUTOINCREMENT  自增主键
+ * - file_path  TEXT                               文件绝对路径
+ * - format     TEXT                               文件格式（'txt' 或 'epub'）
+ * - cfi        TEXT                               定位锚点（EPUB 用 cfi；TXT 用字符偏移）
+ * - label      TEXT                               书签标题，可空
+ * - percent    REAL                               阅读百分比 0-100，用于排序
+ * - created_at TEXT                               创建时间（ISO 字符串）
+ *
+ * @returns 成功 resolve void；失败 reject Error（如数据库未初始化）
+ */
+async function createBookmarkTable(): Promise<void> {
+  const db = myDb.db;
+  if (!db) {
+    throw new Error('数据库未初始化');
+  }
+  const sql = `CREATE TABLE IF NOT EXISTS ${EBOOK_BOOKMARK_TABLE} (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_path TEXT,
+    format TEXT,
+    cfi TEXT,
+    label TEXT,
+    percent REAL,
+    created_at TEXT
+  )`;
+  await dbRunAsync(db, sql);
+}
+
+/**
  * 电子书模块初始化
  * 注册所有 ebook 相关 IPC 监听：
  * - ebook:read-txt           读取 txt 文件内容（自动检测编码并转为 UTF-8）
@@ -412,6 +482,13 @@ export async function initEbook(): Promise<void> {
     log.error('Failed to create ebook_annotation table:', err);
   }
 
+  // 3.1 创建书签表（与上述表并列，独立 try/catch，互不影响）
+  try {
+    await createBookmarkTable();
+  } catch (err) {
+    log.error('Failed to create ebook_bookmark table:', err);
+  }
+
   // 4. 与 newSql.ts 保持一致：确保各表列完整，自动补齐旧库中缺失的列
   //    （例如老版本建表时还没有 type 列，这里会 ALTER TABLE ADD COLUMN 补齐，
   //      否则后续 INSERT/UPDATE 引用 type 会报 SQLITE_ERROR: no column named type）
@@ -429,6 +506,11 @@ export async function initEbook(): Promise<void> {
     await ensureTableExists(
       EBOOK_ANNOTATION_TABLE,
       ['file_path', 'format', 'anchor', 'text', 'note', 'color', 'type', 'created_at', 'updated_at'],
+      'id'
+    );
+    await ensureTableExists(
+      EBOOK_BOOKMARK_TABLE,
+      ['file_path', 'format', 'cfi', 'label', 'percent', 'created_at'],
       'id'
     );
   } catch (err) {
@@ -1004,6 +1086,134 @@ export async function initEbook(): Promise<void> {
     }
   );
 
+  // ============ ebook:get-bookmarks 获取书签列表 ============
+  /**
+   * 按 file_path 查询书签记录，按 percent 升序（阅读顺序）返回
+   *
+   * @param _event - IPC 事件对象（未使用）
+   * @param filePath - 必填参数，电子书文件绝对路径
+   * @returns 成功返回 { success: true, data: BookmarkRecord[] }（无记录时 data 为空数组）；
+   *          失败返回 { success: false, error: string }
+   */
+  ipcMain.handle(
+    'ebook:get-bookmarks',
+    async (
+      _event,
+      filePath: string
+    ): Promise<{
+      success: boolean;
+      data?: BookmarkRecord[];
+      error?: string;
+    }> => {
+      try {
+        const db = myDb.db;
+        if (!db) {
+          return { success: false, error: '数据库未初始化' };
+        }
+        if (!filePath || typeof filePath !== 'string') {
+          return { success: false, error: '文件路径不能为空' };
+        }
+        const rows = await query({
+          tableName: EBOOK_BOOKMARK_TABLE,
+          columns: ['id', 'file_path', 'format', 'cfi', 'label', 'percent', 'created_at'],
+          conditions: { file_path: filePath },
+          orderBy: 'percent',
+          orderByDesc: false
+        });
+        return { success: true, data: rows as BookmarkRecord[] };
+      } catch (err: any) {
+        log.error('Failed to get ebook bookmarks:', err);
+        return {
+          success: false,
+          error: `获取书签列表失败：${err?.message || String(err)}`
+        };
+      }
+    }
+  );
+
+  // ============ ebook:add-bookmark 新增书签 ============
+  /**
+   * 新增一条书签记录
+   *
+   * @param _event - IPC 事件对象（未使用）
+   * @param data - 必填参数，书签数据 { filePath, format, cfi, label, percent }
+   * @returns 成功返回 { success: true, id: number }（id 为新记录自增主键）；
+   *          失败返回 { success: false, error: string }
+   */
+  ipcMain.handle(
+    'ebook:add-bookmark',
+    async (
+      _event,
+      data: AddBookmarkData
+    ): Promise<{ success: boolean; id?: number; error?: string }> => {
+      try {
+        const db = myDb.db;
+        if (!db) {
+          return { success: false, error: '数据库未初始化' };
+        }
+        if (!data || !data.filePath || !data.cfi) {
+          return { success: false, error: '文件路径与定位锚点不能为空' };
+        }
+        const now = new Date().toISOString();
+        const result = await insert({
+          tableName: EBOOK_BOOKMARK_TABLE,
+          data: {
+            file_path: data.filePath,
+            format: data.format ?? '',
+            cfi: data.cfi,
+            label: data.label ?? null,
+            percent: Number(data.percent) || 0,
+            created_at: now
+          }
+        });
+        return { success: true, id: result.lastID };
+      } catch (err: any) {
+        log.error('Failed to add ebook bookmark:', err);
+        return {
+          success: false,
+          error: `添加书签失败：${err?.message || String(err)}`
+        };
+      }
+    }
+  );
+
+  // ============ ebook:remove-bookmark 删除书签 ============
+  /**
+   * 按 id 删除书签记录
+   *
+   * @param _event - IPC 事件对象（未使用）
+   * @param id - 必填参数，书签记录主键 id
+   * @returns 成功返回 { success: true }；失败返回 { success: false, error: string }
+   */
+  ipcMain.handle(
+    'ebook:remove-bookmark',
+    async (
+      _event,
+      id: number
+    ): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const db = myDb.db;
+        if (!db) {
+          return { success: false, error: '数据库未初始化' };
+        }
+        if (typeof id !== 'number') {
+          return { success: false, error: '书签 id 不能为空' };
+        }
+        await del({
+          tableName: EBOOK_BOOKMARK_TABLE,
+          condition: { id }
+        });
+        return { success: true };
+      } catch (err: any) {
+        log.error('Failed to remove ebook bookmark:', err);
+        return {
+          success: false,
+          error: `删除书签失败：${err?.message || String(err)}`
+        };
+      }
+    }
+  );
+
   log.info('Ebook module initialized successfully');
 }
 
@@ -1106,5 +1316,7 @@ export type {
   AnnotationRecord,
   AddAnnotationData,
   UpdateAnnotationData,
-  ExportAnnotationsData
+  ExportAnnotationsData,
+  BookmarkRecord,
+  AddBookmarkData
 };

@@ -122,6 +122,7 @@ export function useEpubRender(ctx: EpubCtx) {
       book.loaded.navigation
         .then((nav) => {
           ctx.emit('toc-loaded', nav.toc || []);
+          ctx.emit('landmarks-loaded', nav.landmarks || []);
         })
         .catch((err) => {
           console.error('加载目录失败', err);
@@ -148,6 +149,8 @@ export function useEpubRender(ctx: EpubCtx) {
         if (doc) {
           doc.addEventListener('wheel', onWheelPageTurn, { passive: false });
         }
+        // 内容挂载后注入「字间距 / 段间距 / 首行缩进」扩展样式
+        applyTypographyExtrasToContent(contents);
       });
 
       const savedCfi = await restoreProgress(filePath);
@@ -158,6 +161,8 @@ export function useEpubRender(ctx: EpubCtx) {
       }
 
       await ctx.loadAnnotations?.(filePath);
+      await ctx.loadBookmarks?.(filePath);
+      await ctx.setupPageNumbers?.();
     } catch (err: any) {
       ElMessage.error(`加载电子书失败：${err?.message || String(err)}`);
       cleanup();
@@ -217,8 +222,14 @@ export function useEpubRender(ctx: EpubCtx) {
     const cfi = location?.start?.cfi;
     if (!cfi) return;
     ctx.currentCfi.value = cfi;
+    if (typeof location?.start?.href === 'string') {
+      ctx.currentHref.value = location.start.href;
+      ctx.emit('current-href', location.start.href);
+    }
     applyProgress(location);
     updatePageInfo();
+    ctx.updatePrintPage?.(cfi);
+    ctx.decorateAnnotationMarks?.();
     playPageTurn();
   }
 
@@ -372,6 +383,50 @@ export function useEpubRender(ctx: EpubCtx) {
   function applyLineHeight() {
     if (!ctx.rendition) return;
     ctx.rendition.themes.override('line-height', `${ctx.props.lineHeight ?? 1.8}`);
+  }
+
+  /**
+   * 将「字间距 / 段间距 / 首行缩进」注入到单个 iframe 内容（Contents）。
+   * 这些属性需要定位到 <p> 等块级元素，无法用 themes.override（仅作用于 body）实现，
+   * 因此直接往 iframe 的 <head> 注入一段受控的 <style>（带固定 id，重复设置时先移除旧节点，
+   * 避免规则无限累积）；该样式独立于主题系统，不会与 background/color/line-height 冲突。
+   *
+   * @param contents - epubjs 当前渲染的 Contents 实例
+   */
+  function applyTypographyExtrasToContent(contents: any) {
+    const doc = contents?.document as Document | undefined;
+    if (!doc) return;
+    const existing = doc.getElementById('ebook-typo-style');
+    if (existing) existing.remove();
+
+    const letterSpacing = ctx.props.letterSpacing ?? 0;
+    const paragraphSpacing = ctx.props.paragraphSpacing ?? 0;
+    const firstLineIndent = ctx.props.firstLineIndent ?? 0;
+    if (!letterSpacing && !paragraphSpacing && !firstLineIndent) return;
+
+    const parts: string[] = [];
+    if (letterSpacing) {
+      parts.push(`body { letter-spacing: ${letterSpacing}px; }`);
+    }
+    if (paragraphSpacing || firstLineIndent) {
+      const decls: string[] = [];
+      if (paragraphSpacing) decls.push(`margin-top: ${paragraphSpacing}px`);
+      if (firstLineIndent) decls.push(`text-indent: ${firstLineIndent}em`);
+      parts.push(`p { ${decls.join('; ')}; }`);
+    }
+    if (parts.length === 0) return;
+
+    const styleEl = doc.createElement('style');
+    styleEl.id = 'ebook-typo-style';
+    styleEl.textContent = parts.join('\n');
+    doc.head.appendChild(styleEl);
+  }
+
+  /** 将排版扩展样式应用到当前全部已渲染内容 */
+  function applyTypographyExtras() {
+    if (!ctx.rendition) return;
+    const contents = (ctx.rendition as any).getContents?.() || [];
+    contents.forEach((c: any) => applyTypographyExtrasToContent(c));
   }
 
   /*
@@ -593,6 +648,14 @@ export function useEpubRender(ctx: EpubCtx) {
       applyLineHeight();
       if (ctx.refreshAnnotations) void ctx.refreshAnnotations();
       requestAnimationFrame(() => updatePageInfo());
+    }
+  );
+
+  // 字间距 / 段间距 / 首行缩进：注入到 iframe 内容的扩展样式，变更时重新应用到全部已渲染内容
+  watch(
+    () => [ctx.props.letterSpacing, ctx.props.paragraphSpacing, ctx.props.firstLineIndent],
+    () => {
+      applyTypographyExtras();
     }
   );
 

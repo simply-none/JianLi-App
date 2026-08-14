@@ -26,6 +26,14 @@ export interface ReaderComponentInstance {
   removeAnnotationById?: (id: number) => void;
   /** 按 id 编辑笔记（弹出输入框），两种阅读组件均实现 */
   editAnnotationNote?: (id: number) => void;
+  /** 跳转到书签位置，仅 EpubReader 实现 */
+  jumpToBookmark?: (cfi: string) => void;
+  /** 按 id 删除书签，仅 EpubReader 实现 */
+  removeBookmark?: (id: number) => void;
+  /** 跳转到全文搜索命中位置，仅 EpubReader 实现 */
+  jumpToSearchResult?: (cfi: string) => void;
+  /** 执行全文搜索（term 关键词），仅 EpubReader 实现 */
+  runSearch?: (term: string) => void;
 }
 
 /** 笔记抽屉展示用的统一标注项（兼容 epub 与 txt 两种子组件 payload） */
@@ -52,6 +60,16 @@ export interface EpubAnnotation {
   note: string;
   /** 高亮颜色标识，如 'yellow'、'green'、'blue' 等 */
   color: string;
-  /** 划线类型：'highlight'（高亮）、'underline'（下划线）、'wavy'（波浪线） */
+  /** 划线类型：'highlight'（高亮）、'underline'（下划线）、'mark'（删除线）、'markStrong'（双下划线） */
   type: string;
+}
+
+/** EPUB 全文搜索单条命中结果 */
+export interface EpubSearchResult {
+  /** 命中位置 CFI（可用于 rendition.display 跳转） */
+  cfi: string;
+  /** 命中上下文摘录 */
+  excerpt: string;
+  /** 所在 spine 项的 href（用于展示来源章节） */
+  sectionHref: string;
 }

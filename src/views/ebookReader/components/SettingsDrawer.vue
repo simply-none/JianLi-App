@@ -166,6 +166,51 @@
         />
       </div>
 
+      <!-- 字间距 / 段间距 / 首行缩进：仅 EPUB 生效，注入 <style id="ebook-typo-style"> 到阅读 iframe 正文 -->
+      <template v-if="currentFile.format === 'epub'">
+        <div class="setting-row column">
+          <div class="setting-head">
+            <span class="setting-label">字间距</span>
+            <span class="setting-value">{{ letterSpacingModel }}px</span>
+          </div>
+          <el-slider
+            v-model="letterSpacingModel"
+            :min="0"
+            :max="4"
+            :step="0.5"
+            :show-tooltip="false"
+          />
+        </div>
+
+        <div class="setting-row column">
+          <div class="setting-head">
+            <span class="setting-label">段间距</span>
+            <span class="setting-value">{{ paragraphSpacingModel }}px</span>
+          </div>
+          <el-slider
+            v-model="paragraphSpacingModel"
+            :min="0"
+            :max="40"
+            :step="2"
+            :show-tooltip="false"
+          />
+        </div>
+
+        <div class="setting-row column">
+          <div class="setting-head">
+            <span class="setting-label">首行缩进</span>
+            <span class="setting-value">{{ firstLineIndentModel }}em</span>
+          </div>
+          <el-slider
+            v-model="firstLineIndentModel"
+            :min="0"
+            :max="4"
+            :step="0.5"
+            :show-tooltip="false"
+          />
+        </div>
+      </template>
+
       <div class="setting-group-title">标注</div>
       <!-- 划线样式：颜色 + 类型，由右上角设置统一预设，选中文本后直接套用，便于沉浸式阅读 -->
       <div class="setting-row">
@@ -315,6 +360,9 @@ const {
   setColumnCount,
   setScrollMode,
   setMargin,
+  setLetterSpacing,
+  setParagraphSpacing,
+  setFirstLineIndent,
   setHighlightColor,
   setHighlightType,
   setPageEffect,
@@ -420,13 +468,37 @@ const marginModel = computed({
   },
 });
 
+/** 字间距（px）双向绑定，仅 epub 生效 */
+const letterSpacingModel = computed({
+  get: () => settings.value.letterSpacing,
+  set: (val: number | undefined) => {
+    if (typeof val === 'number') setLetterSpacing(val);
+  },
+});
+
+/** 段间距（px）双向绑定，仅 epub 生效 */
+const paragraphSpacingModel = computed({
+  get: () => settings.value.paragraphSpacing,
+  set: (val: number | undefined) => {
+    if (typeof val === 'number') setParagraphSpacing(val);
+  },
+});
+
+/** 首行缩进（em）双向绑定，仅 epub 生效 */
+const firstLineIndentModel = computed({
+  get: () => settings.value.firstLineIndent,
+  set: (val: number | undefined) => {
+    if (typeof val === 'number') setFirstLineIndent(val);
+  },
+});
+
 /** 划线默认颜色双向绑定（右上角设置预设，划线/笔记时直接套用） */
 const highlightColorModel = computed({
   get: () => settings.value.highlightColor,
   set: (val: string) => setHighlightColor(val),
 });
 
-/** 划线默认类型双向绑定（高亮 / 下划线 / 波浪线） */
+/** 划线默认类型双向绑定（高亮 / 下划线） */
 const highlightTypeModel = computed({
   get: () => settings.value.highlightType,
   set: (val: string) => setHighlightType(val),
