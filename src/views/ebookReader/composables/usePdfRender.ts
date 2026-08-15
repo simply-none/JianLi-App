@@ -790,7 +790,10 @@ export function usePdfRender(ctx: PdfCtx) {
         }
         merged.push({ ...it });
       }
-      const baseColor = getHighlightColorValue(ann.color);
+      const map: any = ebookStore.settings.annotationStyles;
+      const typeStyle = map[ann.type] ||
+        { color: ann.color, underlineGap: 2, lineThickness: 2, rowPaddingY: 2 };
+      const baseColor = getHighlightColorValue(typeStyle.color || ann.color);
       for (const m of merged) {
         const div = document.createElement('div');
         // 始终带类型 class（pdf-hl--highlight/underline/mark/markStrong），由 CSS 决定具体表现，
@@ -798,11 +801,10 @@ export function usePdfRender(ctx: PdfCtx) {
         div.className = `pdf-hl pdf-hl--${ann.type || 'highlight'}`;
         div.setAttribute('data-id', String(ann.id));
         // 划线线宽 / 线相对行底部的上抬间隙 / 高亮背景上下外扩间距，
-        // 均由 props 注入 CSS 变量，便于在阅读设置中实时调整，
-        // 解决「固定参数导致划线贴向下一行」的问题（带默认值兜底）。
-        const lineThickness = ctx.props.hlLineThickness ?? 2;
-        const lineOffsetY = ctx.props.underlineGap ?? 2;
-        const rowPadY = ctx.props.hlRowPaddingY ?? 2;
+        // 均取自「当前标注类型的样式预设」（按格式分别存储），随类型切换整体变化。
+        const lineThickness = typeStyle.lineThickness ?? 2;
+        const lineOffsetY = typeStyle.underlineGap ?? 2;
+        const rowPadY = typeStyle.rowPaddingY ?? 2;
         div.style.setProperty('--hl-line-thickness', `${lineThickness}px`);
         div.style.setProperty('--hl-line-offset-y', `${lineOffsetY}px`);
         div.style.setProperty('--hl-row-pad-y', `${rowPadY}px`);
@@ -856,10 +858,11 @@ export function usePdfRender(ctx: PdfCtx) {
    * 重绘所有已渲染页，使调整即时生效，无需重新打开文档。
    */
   watch(
-    () => [ctx.props.hlLineThickness, ctx.props.underlineGap, ctx.props.hlRowPaddingY],
+    () => ebookStore.settings.annotationStyles,
     () => {
       for (const n of [...ctx.renderedPages]) ctx.renderHighlights?.(n);
-    }
+    },
+    { deep: true }
   );
 
   return {

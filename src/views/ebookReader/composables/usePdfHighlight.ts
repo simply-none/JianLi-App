@@ -178,7 +178,9 @@ export function usePdfHighlight(ctx: PdfCtx) {
   async function onToolbarHighlight(): Promise<void> {
     if (!ctx.currentSelection.value) return;
     const { page, rects, text } = ctx.currentSelection.value;
-    await addHighlight(page, rects, text, '', ctx.settings.value.highlightColor, ctx.settings.value.highlightType);
+    const type = ctx.settings.value.highlightType;
+    const color = (ctx.settings.value.annotationStyles[type]?.color) || 'yellow';
+    await addHighlight(page, rects, text, '', color, type);
     ctx.toolbarVisible.value = false;
     window.getSelection()?.removeAllRanges();
     ctx.currentSelection.value = null;
@@ -188,8 +190,8 @@ export function usePdfHighlight(ctx: PdfCtx) {
   async function onToolbarNote(): Promise<void> {
     if (!ctx.currentSelection.value) return;
     const { page, rects, text } = ctx.currentSelection.value;
-    const color = ctx.settings.value.highlightColor;
     const type = ctx.settings.value.highlightType;
+    const color = (ctx.settings.value.annotationStyles[type]?.color) || 'yellow';
     const id = await addHighlight(page, rects, text, '', color, type);
     if (id !== null) {
       try {

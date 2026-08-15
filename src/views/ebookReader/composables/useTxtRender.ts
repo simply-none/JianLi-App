@@ -192,27 +192,29 @@ export function useTxtRender(ctx: TxtCtx) {
     }
   }
 
-  /** 获取高亮段的内联样式对象 */
+  /** 获取高亮段的内联样式对象（样式取自「当前标注类型的预设」，切换类型即整体变化） */
   function getSegmentStyle(segment: Segment): Record<string, string> {
     if (!segment.isHighlight) return {};
-    const colorValue = getColorValue(segment.color);
+    const map: any = ebookStore.settings.annotationStyles;
+    const ts = (map && map[segment.type]) || { color: 'yellow', underlineGap: 2, lineThickness: 2, rowPaddingY: 2 };
+    const colorValue = getColorValue(ts.color);
     switch (segment.type) {
       case 'underline':
         return {
           'text-decoration': `underline ${colorValue}`,
-          'text-decoration-thickness': '2px',
-          'text-underline-offset': '3px',
+          'text-decoration-thickness': `${ts.lineThickness || 2}px`,
+          'text-underline-offset': `${ts.underlineGap || 2}px`,
         };
       case 'mark':
         return {
           'text-decoration': `line-through ${colorValue}`,
-          'text-decoration-thickness': '2px',
+          'text-decoration-thickness': `${ts.lineThickness || 2}px`,
         };
       case 'markStrong':
         return {
           'text-decoration': `underline ${colorValue}`,
-          'text-decoration-thickness': '2px',
-          'text-underline-offset': '3px',
+          'text-decoration-thickness': `${ts.lineThickness || 2}px`,
+          'text-underline-offset': `${ts.underlineGap || 2}px`,
           'text-decoration-style': 'double',
         };
       case 'highlight':

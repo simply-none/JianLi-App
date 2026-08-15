@@ -82,6 +82,13 @@ input {
   color: var(--text-primary) !important;
 }
 
+.el-drawer__header {
+  margin-bottom: var(--el-drawer-padding-primary);
+}
+.el-drawer__body {
+  padding-top: 0px;
+}
+
 .el-table {
   --el-table-bg-color: var(--el-bg-color) !important;
   --el-table-tr-bg-color: var(--el-bg-color) !important;

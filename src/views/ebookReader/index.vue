@@ -439,14 +439,10 @@ const extraReaderProps = computed(() => {
       letterSpacing: settings.value.letterSpacing,
       paragraphSpacing: settings.value.paragraphSpacing,
       firstLineIndent: settings.value.firstLineIndent,
-      underlineGap: settings.value.underlineGap,
     };
   }
   if (currentFile.value.format === 'pdf') {
     return {
-      underlineGap: settings.value.underlineGap,
-      hlLineThickness: settings.value.hlLineThickness,
-      hlRowPaddingY: settings.value.hlRowPaddingY,
       pdfFitMode: settings.value.pdfFitMode,
     };
   }

@@ -163,7 +163,9 @@ export function useTxtHighlight(ctx: TxtCtx) {
   async function onToolbarHighlight(): Promise<void> {
     if (!ctx.currentSelection.value) return;
     const { start, end, text } = ctx.currentSelection.value;
-    await addHighlight(start, end, text, '', ctx.settings.value.highlightColor, ctx.settings.value.highlightType);
+    const type = ctx.settings.value.highlightType;
+    const color = (ctx.settings.value.annotationStyles[type]?.color) || 'yellow';
+    await addHighlight(start, end, text, '', color, type);
     ctx.toolbarVisible.value = false;
     window.getSelection()?.removeAllRanges();
     ctx.currentSelection.value = null;
@@ -173,8 +175,8 @@ export function useTxtHighlight(ctx: TxtCtx) {
   async function onToolbarNote(): Promise<void> {
     if (!ctx.currentSelection.value) return;
     const { start, end, text } = ctx.currentSelection.value;
-    const color = ctx.settings.value.highlightColor;
     const type = ctx.settings.value.highlightType;
+    const color = (ctx.settings.value.annotationStyles[type]?.color) || 'yellow';
     const id = await addHighlight(start, end, text, '', color, type);
     if (id !== null) {
       try {

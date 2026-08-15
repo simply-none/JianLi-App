@@ -20,6 +20,18 @@ export function useEpubHighlight(ctx: EpubCtx) {
     return getHighlightColorValue(colorName);
   }
 
+  /** 读取某标注类型的预设颜色（跟随类型；取不到则回退黄） */
+  function styleColorOf(type: string): string {
+    const map = (ctx.settings.value as any).annotationStyles;
+    return (map && map[type] && map[type].color) || 'yellow';
+  }
+
+  /** 读取某标注类型的预设划线间隙（跟随类型；取不到则回退 2） */
+  function styleGapOf(type: string): number {
+    const map = (ctx.settings.value as any).annotationStyles;
+    return map && map[type] && typeof map[type].underlineGap === 'number' ? map[type].underlineGap : 2;
+  }
+
   /**
    * 将颜色（预设名或自定义 CSS 颜色）解析为 epub.js SVG 高亮所需的 fill / stroke 颜色与透明度。
    * 支持预设 rgba（含 0.4 透明度的浅色高亮）、自定义 #rgb / #rrggbb / #rrggbbaa（带 alpha）、rgb()/rgba()。
@@ -128,7 +140,7 @@ export function useEpubHighlight(ctx: EpubCtx) {
   function decorateMark(mark: any, type: string): void {
     if (!mark || !mark.element) return;
     const g = mark.element as SVGGElement;
-    const gap = ctx.props.underlineGap ?? 2;
+    const gap = styleGapOf(type);
     const signature = `${type}@${gap}`;
     if (g.getAttribute('data-decorated') === signature) return;
 
@@ -274,13 +286,14 @@ export function useEpubHighlight(ctx: EpubCtx) {
   ): Promise<void> {
     if (!ctx.rendition) return;
     try {
+      const typeColor = styleColorOf(type) || color;
       const res = await window.ipcRenderer.ebook.addAnnotation({
         filePath: ctx.props.filePath,
         format: 'epub',
         anchor: cfiRange,
         text,
         note,
-        color,
+        color: typeColor,
         type,
       });
       if (!res?.success || typeof res.id !== 'number') {
@@ -288,10 +301,10 @@ export function useEpubHighlight(ctx: EpubCtx) {
         return;
       }
       const id = res.id;
-      const styles = getTypeStyles(type, color);
+      const styles = getTypeStyles(type, typeColor);
       const epubType = uiTypeToEpub(type);
       const className = getAnnotationClassName(type);
-      const data = { id, note, cfiRange, color, type };
+      const data = { id, note, cfiRange, color: typeColor, type };
       const cb = () => onHighlightClick(id, cfiRange, note);
       if (epubType === 'underline') {
         const ann = ctx.rendition.annotations.underline(cfiRange, data, cb, className, styles);
@@ -312,8 +325,8 @@ export function useEpubHighlight(ctx: EpubCtx) {
   async function onToolbarHighlight(): Promise<void> {
     const sel = ctx.currentSelection.value;
     if (!sel) return;
-    const color = ctx.settings.value.highlightColor;
     const type = ctx.settings.value.highlightType;
+    const color = (ctx.settings.value.annotationStyles[type]?.color) || 'yellow';
     ctx.currentSelection.value = null;
     ctx.toolbarVisible.value = false;
     await addHighlight(sel.cfiRange, sel.text, '', color, type);
@@ -323,8 +336,8 @@ export function useEpubHighlight(ctx: EpubCtx) {
   async function onToolbarNote(): Promise<void> {
     const sel = ctx.currentSelection.value;
     if (!sel) return;
-    const color = ctx.settings.value.highlightColor;
     const type = ctx.settings.value.highlightType;
+    const color = (ctx.settings.value.annotationStyles[type]?.color) || 'yellow';
     ctx.currentSelection.value = null;
     ctx.toolbarVisible.value = false;
     await addHighlight(sel.cfiRange, sel.text, '', color, type);
@@ -466,8 +479,8 @@ export function useEpubHighlight(ctx: EpubCtx) {
         const id = record.id;
         const cfiRange = record.anchor;
         const note = record.note ?? '';
-        const color = record.color || 'yellow';
         const type = record.type || 'highlight';
+        const color = styleColorOf(type);
         try {
           const styles = getTypeStyles(type, color);
           const epubType = uiTypeToEpub(type);
@@ -538,10 +551,10 @@ export function useEpubHighlight(ctx: EpubCtx) {
       for (const ann of list) {
         if (!ctx.annotations.value.some((a) => a.id === ann.id)) continue;
         try {
-          const styles = getTypeStyles(ann.type, ann.color);
+          const styles = getTypeStyles(ann.type, styleColorOf(ann.type));
           const epubType = uiTypeToEpub(ann.type);
           const className = getAnnotationClassName(ann.type);
-          const data = { id: ann.id, note: ann.note, cfiRange: ann.anchor, color: ann.color, type: ann.type };
+          const data = { id: ann.id, note: ann.note, cfiRange: ann.anchor, color: styleColorOf(ann.type), type: ann.type };
           const cb = () => onHighlightClick(ann.id, ann.anchor, ann.note);
           if (epubType === 'underline') {
             const created = ctx.rendition.annotations.underline(ann.anchor, data, cb, className, styles);
@@ -585,11 +598,14 @@ export function useEpubHighlight(ctx: EpubCtx) {
   ctx.refreshAnnotations = refreshAnnotations;
   ctx.decorateAnnotationMarks = decorateAllMarks;
 
-  // 划线间隙（设置项）变更时，重新装饰当前视图内所有下划线 / 双下划线标注，
-  // 使其间隙实时生效（decorateMark 的签名含 gap，变化后即会重绘）。
+  // 标注类型样式预设（颜色 / 间隙 / 线宽 / 行距）变化时，按当前预设重新添加所有标注，
+  // 使同一类型的标注整体跟随类型预设更新（改预设即改该类所有标注），无需重新打开文档。
   watch(
-    () => ctx.props.underlineGap,
-    () => decorateAllMarks()
+    () => (ctx.settings.value as any).annotationStyles,
+    () => {
+      if (ctx.rendition) void refreshAnnotations();
+    },
+    { deep: true }
   );
 
   return {

@@ -3,7 +3,7 @@
     v-model="visible"
     :title="title"
     direction="ltr"
-    size="340px"
+    size="390px"
     :append-to-body="false"
   >
     <div class="annotation-drawer">

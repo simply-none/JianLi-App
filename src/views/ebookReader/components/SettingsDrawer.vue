@@ -3,7 +3,7 @@
     v-model="visible"
     title="阅读设置"
     direction="rtl"
-    size="320px"
+    size="360px"
     :append-to-body="false"
   >
     <div class="reader-settings">
@@ -291,44 +291,10 @@
       </template>
 
       <div class="setting-group-title">标注</div>
-      <!-- 划线样式：颜色 + 类型，由右上角设置统一预设，选中文本后直接套用，便于沉浸式阅读 -->
+      <!-- 标注类型：决定新建标注用哪种类型（高亮/下划线/删除线/双下划线） -->
       <div class="setting-row">
         <div class="setting-head">
-          <span class="setting-label">划线颜色</span>
-        </div>
-        <div class="highlight-color-list">
-          <button
-            v-for="c in HIGHLIGHT_COLORS"
-            :key="c.name"
-            class="highlight-color-dot"
-            :class="{ active: highlightColorModel === c.name }"
-            :style="{ background: c.value }"
-            :title="c.label"
-            type="button"
-            @click="highlightColorModel = c.name"
-          ></button>
-          <!-- 自定义颜色：选中态高亮 + 显示当前自定义色，点击取色器修改 -->
-          <button
-            class="highlight-color-dot custom"
-            :class="{ active: !isPresetColorName(highlightColorModel) }"
-            :style="{ background: isPresetColorName(highlightColorModel) ? 'transparent' : highlightColorModel }"
-            type="button"
-            :title="isPresetColorName(highlightColorModel) ? '自定义颜色' : highlightColorModel"
-            @click="customColorModel = customColorModel || '#FF5722'"
-          >
-            <span v-if="isPresetColorName(highlightColorModel)" class="custom-plus">＋</span>
-          </button>
-        </div>
-        <div class="highlight-color-custom">
-          <el-color-picker v-model="customColorModel" size="small" />
-          <span class="custom-tip">自定义颜色</span>
-        </div>
-        <div class="setting-tip">选中文本后点击「划线 / 笔记」即按此颜色与样式标注</div>
-      </div>
-
-      <div class="setting-row">
-        <div class="setting-head">
-          <span class="setting-label">划线样式</span>
+          <span class="setting-label">标注类型</span>
         </div>
         <el-radio-group v-model="highlightTypeModel">
           <el-radio-button
@@ -339,32 +305,68 @@
             {{ t.label }}
           </el-radio-button>
         </el-radio-group>
+        <div class="setting-tip">选择后，新建标注即按该类型；下方为该类型单独设置的样式（各类型互不影响）</div>
       </div>
 
-      <!-- 划线间隙：下划线 / 双下划线 与文字之间的间隙，epub 与 pdf 均生效 -->
-      <div class="setting-row column" v-if="currentFile.format === 'epub' || currentFile.format === 'pdf'">
+      <!-- 当前类型的样式（按类型分别记忆，切换类型即套用，无需每次重设） -->
+      <div class="setting-row">
+        <div class="setting-head">
+          <span class="setting-label">类型样式（{{ activeTypeName }}）</span>
+        </div>
+        <div class="highlight-color-list">
+          <button
+            v-for="c in HIGHLIGHT_COLORS"
+            :key="c.name"
+            class="highlight-color-dot"
+            :class="{ active: styleColorModel === c.name }"
+            :style="{ background: c.value }"
+            :title="c.label"
+            type="button"
+            @click="styleColorModel = c.name"
+          ></button>
+          <!-- 自定义颜色：选中态高亮 + 显示当前自定义色，点击取色器修改 -->
+          <button
+            class="highlight-color-dot custom"
+            :class="{ active: !isPresetColorName(styleColorModel) }"
+            :style="{ background: isPresetColorName(styleColorModel) ? 'transparent' : styleColorModel }"
+            type="button"
+            :title="isPresetColorName(styleColorModel) ? '自定义颜色' : styleColorModel"
+            @click="styleCustomColorModel = styleCustomColorModel || '#FF5722'"
+          >
+            <span v-if="isPresetColorName(styleColorModel)" class="custom-plus">＋</span>
+          </button>
+        </div>
+        <div class="highlight-color-custom">
+          <el-color-picker v-model="styleCustomColorModel" size="small" />
+          <span class="custom-tip">自定义颜色</span>
+        </div>
+        <div class="setting-tip">仅作用于「{{ activeTypeName }}」类型，与其它类型互不影响</div>
+      </div>
+
+      <!-- 划线间隙：随「当前类型」显隐（仅下划线 / 双下划线） -->
+      <div class="setting-row column" v-if="showUnderlineGap">
         <div class="setting-head">
           <span class="setting-label">划线间隙</span>
-          <span class="setting-value">{{ underlineGapModel }}px</span>
+          <span class="setting-value">{{ styleUnderlineGapModel }}px</span>
         </div>
         <el-slider
-          v-model="underlineGapModel"
+          v-model="styleUnderlineGapModel"
           :min="0"
           :max="10"
           :step="1"
           :show-tooltip="false"
         />
-        <div class="setting-tip">下划线 / 双下划线 与文字之间的间隙（0-10px）；值越大线越往上离开文字基线，避免贴近下一行</div>
+        <div class="setting-tip">下划线 / 双下划线 与文字之间的间隙（0-10px）</div>
       </div>
 
-      <!-- 划线线宽：下划线 / 删除线 / 双下划线 的线条粗细，pdf 生效 -->
-      <div class="setting-row column" v-if="currentFile.format === 'pdf'">
+      <!-- 划线线宽：随「当前类型」显隐（仅下划线 / 删除线 / 双下划线） -->
+      <div class="setting-row column" v-if="showLineThickness">
         <div class="setting-head">
           <span class="setting-label">划线线宽</span>
-          <span class="setting-value">{{ hlLineThicknessModel }}px</span>
+          <span class="setting-value">{{ styleLineThicknessModel }}px</span>
         </div>
         <el-slider
-          v-model="hlLineThicknessModel"
+          v-model="styleLineThicknessModel"
           :min="1"
           :max="6"
           :step="1"
@@ -373,20 +375,20 @@
         <div class="setting-tip">划线（下划线 / 删除线 / 双下划线）线条粗细（1-6px）</div>
       </div>
 
-      <!-- 高亮行间距：高亮背景块上下外扩间距，避免紧贴上下行，pdf 生效 -->
-      <div class="setting-row column" v-if="currentFile.format === 'pdf'">
+      <!-- 高亮行间距：随「当前类型」显隐（仅高亮） -->
+      <div class="setting-row column" v-if="showRowPaddingY">
         <div class="setting-head">
           <span class="setting-label">高亮行间距</span>
-          <span class="setting-value">{{ hlRowPaddingYModel }}px</span>
+          <span class="setting-value">{{ styleRowPaddingYModel }}px</span>
         </div>
         <el-slider
-          v-model="hlRowPaddingYModel"
+          v-model="styleRowPaddingYModel"
           :min="0"
           :max="8"
           :step="1"
           :show-tooltip="false"
         />
-        <div class="setting-tip">高亮背景块上下外扩间距（0-8px）；值越大高亮越远离上下行，不被相邻行挤占</div>
+        <div class="setting-tip">高亮背景块上下外扩间距（0-8px）；值越大高亮越远离上下行</div>
       </div>
 
       <div class="setting-group-title">翻页与交互</div>
@@ -506,11 +508,8 @@ const {
   setLetterSpacing,
   setParagraphSpacing,
   setFirstLineIndent,
-  setUnderlineGap,
-  setHlLineThickness,
-  setHlRowPaddingY,
   setPdfFitMode,
-  setHighlightColor,
+  setAnnotationStyle,
   setHighlightType,
   setPageEffect,
   setReaderTopbarVisible,
@@ -650,50 +649,63 @@ const firstLineIndentModel = computed({
   },
 });
 
-/** 下划线间隙（px）双向绑定，epub / pdf 均生效 */
-const underlineGapModel = computed({
-  get: () => settings.value.underlineGap,
-  set: (val: number | undefined) => {
-    if (typeof val === 'number') setUnderlineGap(val);
-  },
+/** 当前所选标注类型的展示名（用于「类型样式（xxx）」标题） */
+const activeTypeName = computed(() => {
+  const t = HIGHLIGHT_TYPES.find((x) => x.name === settings.value.highlightType);
+  return t?.label ?? '';
+});
+/** 当前类型是否为下划线 / 双下划线（显示「划线间隙」） */
+const showUnderlineGap = computed(() => ['underline', 'markStrong'].includes(settings.value.highlightType));
+/** 当前类型是否为下划线 / 删除线 / 双下划线（显示「划线线宽」） */
+const showLineThickness = computed(() => ['underline', 'mark', 'markStrong'].includes(settings.value.highlightType));
+/** 当前类型是否为高亮（显示「高亮行间距」） */
+const showRowPaddingY = computed(() => settings.value.highlightType === 'highlight');
+
+/** 当前类型的预设样式（用于各控件双向绑定，缺失时回退默认） */
+const activeTypeStyle = computed(() =>
+  (settings.value.annotationStyles as any)[settings.value.highlightType] ||
+  { color: 'yellow', underlineGap: 2, lineThickness: 2, rowPaddingY: 2 }
+);
+
+/** 当前类型预设颜色双向绑定 */
+const styleColorModel = computed({
+  get: () => activeTypeStyle.value.color,
+  set: (val: string) => setAnnotationStyle(settings.value.highlightType as any, { color: val }),
 });
 
-/** 划线线宽（px）双向绑定，pdf 阅读器生效 */
-const hlLineThicknessModel = computed({
-  get: () => settings.value.hlLineThickness,
-  set: (val: number | undefined) => {
-    if (typeof val === 'number') setHlLineThickness(val);
-  },
-});
-
-/** 高亮行上下间距（px）双向绑定，pdf 阅读器生效 */
-const hlRowPaddingYModel = computed({
-  get: () => settings.value.hlRowPaddingY,
-  set: (val: number | undefined) => {
-    if (typeof val === 'number') setHlRowPaddingY(val);
-  },
-});
-
-/** 划线默认颜色双向绑定（右上角设置预设，划线/笔记时直接套用） */
-const highlightColorModel = computed({
-  get: () => settings.value.highlightColor,
-  set: (val: string) => setHighlightColor(val),
-});
-
-/**
- * 自定义划线颜色（取色器）双向绑定。
- * - 当前为预设色名时，取色器显示空（不回填预设的 rgba 浅色），避免误把预设当自定义；
- * - 当前已是自定义色时，取色器回填该色，便于微调；
- * - 用户选色即写入 store.highlightColor（字符串形式，如 '#FF5722'），渲染端原样解析。
- */
-const customColorModel = computed({
-  get: () => (isPresetColorName(settings.value.highlightColor) ? '' : settings.value.highlightColor),
+/** 当前类型自定义颜色（取色器）双向绑定：预设色名时取色器空，自定义色时回填 */
+const styleCustomColorModel = computed({
+  get: () => (isPresetColorName(activeTypeStyle.value.color) ? '' : activeTypeStyle.value.color),
   set: (val: string) => {
-    if (val) setHighlightColor(val);
+    if (val) setAnnotationStyle(settings.value.highlightType as any, { color: val });
   },
 });
 
-/** 划线默认类型双向绑定（高亮 / 下划线） */
+/** 当前类型预设划线间隙双向绑定 */
+const styleUnderlineGapModel = computed({
+  get: () => activeTypeStyle.value.underlineGap,
+  set: (val: number | undefined) => {
+    if (typeof val === 'number') setAnnotationStyle(settings.value.highlightType as any, { underlineGap: val });
+  },
+});
+
+/** 当前类型预设划线线宽双向绑定 */
+const styleLineThicknessModel = computed({
+  get: () => activeTypeStyle.value.lineThickness,
+  set: (val: number | undefined) => {
+    if (typeof val === 'number') setAnnotationStyle(settings.value.highlightType as any, { lineThickness: val });
+  },
+});
+
+/** 当前类型预设高亮行间距双向绑定 */
+const styleRowPaddingYModel = computed({
+  get: () => activeTypeStyle.value.rowPaddingY,
+  set: (val: number | undefined) => {
+    if (typeof val === 'number') setAnnotationStyle(settings.value.highlightType as any, { rowPaddingY: val });
+  },
+});
+
+/** 当前默认标注类型双向绑定（高亮 / 下划线 / 删除线 / 双下划线） */
 const highlightTypeModel = computed({
   get: () => settings.value.highlightType,
   set: (val: string) => setHighlightType(val),

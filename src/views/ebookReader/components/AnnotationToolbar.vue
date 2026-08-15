@@ -7,7 +7,22 @@
     :style="{ left: `${pos.x}px`, top: `${pos.y}px` }"
     @click.stop
   >
-    <!-- 划线按钮：按右上角「阅读设置」中预设的颜色与样式直接划线，不弹颜色/类型选择 -->
+    <!-- 标注类型切换：点击即设为当前默认类型，新建标注按该类型取预设样式 -->
+    <div class="toolbar-type-switch">
+      <button
+        v-for="t in HIGHLIGHT_TYPES"
+        :key="t.name"
+        class="type-btn"
+        :class="{ active: activeType === t.name }"
+        :title="t.label"
+        type="button"
+        @click="onPickType(t.name)"
+      >{{ t.label }}</button>
+    </div>
+
+    <span class="toolbar-divider"></span>
+
+    <!-- 划线按钮：按当前「标注类型」预设的颜色与样式直接划线，不弹颜色/类型选择 -->
     <button
       class="toolbar-btn"
       type="button"
@@ -21,7 +36,7 @@
     <!-- 分隔线 -->
     <span class="toolbar-divider"></span>
 
-    <!-- 笔记按钮：按预设格式划线并直接弹出笔记输入框 -->
+    <!-- 笔记按钮：按当前标注类型预设格式划线并直接弹出笔记输入框 -->
     <button
       class="toolbar-btn"
       type="button"
@@ -35,8 +50,10 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import LucideIcon from '@/components/LucideIcon.vue';
+import useEbookReader from '@/store/useEbookReader';
+import { HIGHLIGHT_TYPES } from '@/views/ebookReader/highlightConfig';
 
 /** 组件 Props 定义 */
 const props = defineProps<{
@@ -52,6 +69,14 @@ const props = defineProps<{
 const rootRef = ref<HTMLElement | null>(null);
 /** 实际渲染用的定位（在 props.x/y 基础上做视口夹紧，保证工具条始终可见） */
 const pos = reactive({ x: props.x, y: props.y });
+
+/** 当前默认标注类型（来自阅读设置 store，新建标注即按此类型取预设样式） */
+const store = useEbookReader();
+const activeType = computed(() => store.settings.highlightType);
+/** 在工具条上直接切换标注类型（高亮 / 下划线 / 删除线 / 双下划线），无需打开设置抽屉 */
+function onPickType(type: string) {
+  store.setHighlightType(type);
+}
 
 /**
  * 将工具条定位夹紧到视口内，避免选区结束在边缘/跨页时工具条被顶出屏幕而「看不到」。
@@ -254,6 +279,38 @@ watch(
   background: var(--border-subtle);
   flex-shrink: 0;
   margin: 0 2px;
+}
+
+/* 标注类型切换组：高亮 / 下划线 / 删除线 / 双下划线 */
+.toolbar-type-switch {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-right: 2px;
+}
+
+.type-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 6px;
+  border: 1px solid transparent;
+  border-radius: calc(var(--radius-btn) - 2px);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+
+  &:hover {
+    background: var(--bg-hover);
+  }
+
+  &.active {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  }
 }
 
 /* 出现动画关键帧 */
