@@ -2,7 +2,33 @@
 
 变更日志
 
-## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.8.12-rc.1...HEAD) (2026-08-13)
+## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.8.13-rc.1...HEAD) (2026-08-15)
+
+### ✨ Features | 新功能
+
+* 优化快捷键注册，给所有的路由增加快捷键注册功能 ([0adb2da](https://github.com/simply-none/JianLi-App/commit/0adb2dad4361360a5eee3fc4a1ff94ac971fc0ab))
+* 电子书的设置根据格式存储 ([8bb1b96](https://github.com/simply-none/JianLi-App/commit/8bb1b96675b8a6d1dc3c1ade6c13dc5f16b9ba80))
+* 电子书增加PDF格式的支持；其他电子书功能优化 ([1614259](https://github.com/simply-none/JianLi-App/commit/1614259746b7ae51f37ece5d8d3d3b3f22f14ce7))
+* 电子书功能增强 ([ddbd1c9](https://github.com/simply-none/JianLi-App/commit/ddbd1c9280089565e84e3f2b8065376011dca1c5))
+* 电子书功能增强 ([e94b2f2](https://github.com/simply-none/JianLi-App/commit/e94b2f22f166c26745df5d28e2c0cfe00e0586aa))
+* 优化电子书右侧功能弹窗分区展示 ([c320801](https://github.com/simply-none/JianLi-App/commit/c32080119694976328b1906a84888dbca40f6422))
+* 电子书增加鼠标滚轮翻页 ([6718355](https://github.com/simply-none/JianLi-App/commit/671835508487ec63327eababba6b8dad84545c25))
+* 电子书阅读器功能优化，顶部栏小屏操作优化，左右边缘点击翻页功能增强 ([73beb67](https://github.com/simply-none/JianLi-App/commit/73beb67c0dd30a609a2a7b16f9ad043f73742878))
+* 番茄钟时长显示优化 ([83a902d](https://github.com/simply-none/JianLi-App/commit/83a902dd2591fd6db329ac150bc087435fce2441))
+* 样式优化 ([63091c6](https://github.com/simply-none/JianLi-App/commit/63091c66b6eceb101ade29ed350db0861b443ca3))
+* 新增定时提醒功能 ([c07b558](https://github.com/simply-none/JianLi-App/commit/c07b55821d689b151aa5bde5e5ca3963a3b99175))
+
+### 🐛 Bug Fixes | Bug 修复
+
+* 图标修复和样式修复 ([655abe9](https://github.com/simply-none/JianLi-App/commit/655abe90fff1c4d704264ce375c24d3d1b3c6092))
+* txt划线功能修复 ([464581b](https://github.com/simply-none/JianLi-App/commit/464581b1438ed8bade416697abb3377ed31d164b))
+* txt文本进度问题修复 ([658b83e](https://github.com/simply-none/JianLi-App/commit/658b83eb9fde8cf0814899bfe05b8422d40702f1))
+
+### ♻️ Code Refactoring | 代码重构
+
+* 电子书功能重构 ([db9ad3d](https://github.com/simply-none/JianLi-App/commit/db9ad3dee070344168258575f97f78c31d41d759))
+
+## [v26.8.13-rc.1](https://github.com/simply-none/JianLi-App/compare/v26.8.12-rc.1...v26.8.13-rc.1) (2026-08-13)
 
 ### ✨ Features | 新功能
 
