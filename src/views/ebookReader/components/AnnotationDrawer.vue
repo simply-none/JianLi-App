@@ -3,12 +3,18 @@
     v-model="visible"
     :title="title"
     direction="ltr"
-    size="390px"
+    :size="fullWidth ? '100%' : '390px'"
     :append-to-body="false"
   >
-    <div class="annotation-drawer">
-      <!-- 导出操作行：导出当前查看的书（或当前打开的书）的笔记与划线 -->
-      <div class="annotation-export-bar">
+    <div class="annotation-drawer" :class="{ 'is-expanded': expanded }">
+      <!-- 顶部工具栏：左侧=展示所有/省略 + 全宽/现有宽度 切换；右侧=导出 -->
+      <div class="annotation-toolbar">
+        <div class="toolbar-toggles">
+          <el-button size="small" :type="expanded ? 'primary' : 'default'" @click="expandFn">
+            <LucideIcon :name="expanded ? 'ListCollapse' : 'UnfoldVertical'" :size="13" />
+            {{ expanded ? '省略' : '展示所有' }}
+          </el-button>
+        </div>
         <el-button size="small" @click="onExport">
           <LucideIcon name="Download" :size="13" />
           导出笔记
@@ -171,6 +177,20 @@ const visible = computed({
 /** 当前标签页：note 笔记 / highlight 划线 */
 const annotationTab = ref<'note' | 'highlight'>('note');
 
+/** 是否完整展示笔记/划线内容：false=引用文本按 3 行省略，true=完整展示 */
+const expanded = ref(false);
+/** 是否全宽展示抽屉：false=现有 390px 宽度，true=100% 全宽 */
+const fullWidth = ref(false);
+
+const expandFn = () => {
+  expanded.value = !expanded.value;
+  if (expanded.value) {
+    fullWidth.value = true;
+  } else {
+    fullWidth.value = false;
+  }
+};
+
 /** 仅含笔记内容的标注列表（note 非空） */
 const noteItems = computed(() =>
   props.items.filter((a) => (a.note || '').trim().length > 0)
@@ -267,10 +287,19 @@ function onSaveNote() {
   flex-direction: column;
   height: 100%;
 
-  .annotation-export-bar {
+  /* 顶部工具栏：左侧切换按钮，右侧导出；纵向排列时换行 */
+  .annotation-toolbar {
     display: flex;
-    justify-content: flex-end;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
     padding: 0 4px 10px;
+
+    .toolbar-toggles {
+      display: flex;
+      gap: 8px;
+    }
   }
 
   /* 抽屉内搜索框：位于导出栏与标签页之间，过滤当前标签页内容 */
@@ -356,7 +385,7 @@ function onSaveNote() {
       background: var(--bg-hover, var(--bg-base));
     }
 
-    /* 引用内容（原文摘录）：左侧灰色竖线标识，最多 3 行截断 */
+    /* 引用内容（原文摘录）：左侧灰色竖线标识，默认完整展示（line-clamp 初始化为 none） */
     .annotation-text {
       font-size: 13px;
       line-height: 1.5;
@@ -364,12 +393,7 @@ function onSaveNote() {
       padding-left: 8px;
       border-left: 2px solid var(--border-subtle);
       margin-bottom: 6px;
-      display: -webkit-box;
-      -webkit-box-orient: vertical;
-      -webkit-line-clamp: 3;
-      line-clamp: 3;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      word-break: break-word;
     }
 
     /* 笔记内容：左侧竖线区分，主题色突出，直接展示不折叠 */
@@ -411,5 +435,16 @@ function onSaveNote() {
     color: var(--text-muted);
     font-size: 13px;
   }
+}
+
+/* 省略模式（抽屉未展开）下：引用文本限制为 3 行截断；
+       展示所有时回到上面的基础样式，line-clamp 即初始化为 none */
+.annotation-drawer:not(.is-expanded) .annotation-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>
