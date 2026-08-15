@@ -13,51 +13,58 @@
     </header>
 
     <main class="page-content">
-      <div class="shortcuts-grid">
-        <div 
-          v-for="(item, index) in allShortcuts" 
-          :key="item.key" 
-          class="shortcut-card"
-        >
-          <div class="card-icon" :class="getIconClass(item.key)">
-            <LucideIcon :name="getIcon(item.key)" :size="24" />
-          </div>
-          
-          <div class="card-info">
-            <h3 class="card-title">{{ item.name }}</h3>
-            <p class="card-desc">{{ getDescription(item.key) }}</p>
-          </div>
+      <section
+        v-for="group in shortcutGroups"
+        :key="group.title"
+        class="shortcut-section"
+      >
+        <h2 class="section-title">{{ group.title }}</h2>
+        <div class="shortcuts-grid">
+          <div
+            v-for="item in group.items"
+            :key="item.key"
+            class="shortcut-card"
+          >
+            <div class="card-icon" :class="getIconClass(item.key)">
+              <LucideIcon :name="getIcon(item.key)" :size="24" />
+            </div>
 
-          <div class="card-divider"></div>
+            <div class="card-info">
+              <h3 class="card-title">{{ item.name }}</h3>
+              <p class="card-desc" v-if="getDescription(item.key)">{{ getDescription(item.key) }}</p>
+            </div>
 
-          <div class="card-shortcut">
-            <shortcut 
-              :shortcut="item.shortcut" 
-              @update:shortcut="(val) => updateShortcut(index, val)"
-            />
-          </div>
+            <div class="card-divider"></div>
 
-          <div class="card-actions">
-            <el-button 
-              type="primary" 
-              class="register-btn" 
-              @click="registerCommonFn(item)"
-              :disabled="!canRegister(item.shortcut)"
-            >
-              <LucideIcon name="Check" :size="14" />
-              注册
-            </el-button>
-            <el-button 
-              type="default" 
-              class="reset-btn"
-              @click="resetShortcut(index)"
-            >
-              <LucideIcon name="RefreshCcw" :size="14" />
-              重置
-            </el-button>
+            <div class="card-shortcut">
+              <shortcut
+                :shortcut="item.shortcut"
+                @update:shortcut="(val) => item.shortcut = val"
+              />
+            </div>
+
+            <div class="card-actions">
+              <el-button
+                type="primary"
+                class="register-btn"
+                @click="registerFn(item)"
+                :disabled="!canRegister(item.shortcut)"
+              >
+                <LucideIcon name="Check" :size="14" />
+                注册
+              </el-button>
+              <el-button
+                type="default"
+                class="reset-btn"
+                @click="resetShortcut(item)"
+              >
+                <LucideIcon name="RefreshCcw" :size="14" />
+                重置
+              </el-button>
+            </div>
           </div>
         </div>
-      </div>
+      </section>
     </main>
 
     <footer class="tips-section">
@@ -78,8 +85,9 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
+import { layoutRouters } from '@/router';
 import { ElMessage } from 'element-plus';
 import LucideIcon from '@/components/LucideIcon.vue';
 import moment from 'moment';
@@ -159,15 +167,21 @@ const descriptionMap = {
   pomodoroWindowShortcut: '快速打开/关闭番茄钟小窗口',
 }
 
+// 路由功能快捷键统一使用 Route 图标，且不展示描述
+const ROUTE_SHORTCUT_PREFIX = 'routeShortcut:'
+
 const getIcon = (key) => {
+  if (key.startsWith(ROUTE_SHORTCUT_PREFIX)) return 'Route'
   return iconMap[key] || 'monitor'
 }
 
 const getIconClass = (key) => {
+  if (key.startsWith(ROUTE_SHORTCUT_PREFIX)) return 'icon-blue'
   return iconClassMap[key] || 'icon-blue'
 }
 
 const getDescription = (key) => {
+  if (key.startsWith(ROUTE_SHORTCUT_PREFIX)) return ''
   return descriptionMap[key] || ''
 }
 
@@ -251,36 +265,59 @@ const originShortcuts = ref([
   },
 ])
 
+// 路由功能：基于 layoutRouters 动态生成，所有布局内路由均可注册快捷键。
+// 复用既有 open_match_page 触发链路（主进程 openMatchPage -> 渲染端 open-match-page -> router.push({ name: url })）。
+const routeShortcuts = ref(
+  layoutRouters.map((r) => ({
+    type: 'open_match_page',
+    url: r.name,
+    name: (r.meta && r.meta.title) || r.name,
+    key: `${ROUTE_SHORTCUT_PREFIX}${r.name}`,
+    shortcut: ['', '', ''],
+  }))
+)
+
 // 初始即用默认快捷键列表渲染，避免等待异步查询导致卡片区域延迟出现
-const allShortcuts = ref(JSON.parse(JSON.stringify(originShortcuts.value)))
+const allCommonShortcuts = ref(JSON.parse(JSON.stringify(originShortcuts.value)))
+const allRouteShortcuts = ref(JSON.parse(JSON.stringify(routeShortcuts.value)))
 
-const updateShortcut = (index, val) => {
-  allShortcuts.value[index].shortcut = val
-}
+// 分类分组：常用功能（既有列表） + 路由功能（layoutRouters 全量）
+const shortcutGroups = computed(() => [
+  { title: '常用功能', items: allCommonShortcuts.value },
+  { title: '路由功能', items: allRouteShortcuts.value },
+])
 
-const resetShortcut = (index) => {
-  allShortcuts.value[index].shortcut = ['', '', '']
+const resetShortcut = (item) => {
+  item.shortcut = ['', '', '']
 }
 
 const canRegister = (shortcut) => {
   return shortcut.filter(item => item !== '').length >= 2
 }
 
-const registerCommonFn = (item) => {
-  const isMust = item.shortcut.filter(item => item !== '').length >= 2
+// 常用功能与路由功能共用同一注册逻辑：校验 -> 落库并通知主进程注册全局快捷键
+const registerFn = (item) => {
+  const isMust = item.shortcut.filter(s => s !== '').length >= 2
   if (!isMust) {
     ElMessage.error('请选择至少两个快捷键')
     return
   }
-  const cur = allShortcuts.value.find(c => c.key === item.key)
-  if (!cur) {
-    return
-  }
   registerShortcut({
-    ...cur,
+    ...item,
     shortcut: item.shortcut.join('+'),
   });
   ElMessage.success('快捷键注册成功')
+}
+
+// 将数据库中以 '+' 连接的快捷键字符串归一化为长度为 3 的数组
+function normalizeShortcut(item) {
+  if (typeof item.shortcut === 'string') {
+    item.shortcut = item.shortcut.split('+')
+  }
+  while (item.shortcut.length < 3) {
+    item.shortcut.push('')
+  }
+  return item
 }
 
 function getShortcut() {
@@ -289,17 +326,9 @@ function getShortcut() {
     conditions: {}
   }).then(result => {
     if (result.success) {
-      const r = mergeShortcuts(originShortcuts.value, result.data)
-      allShortcuts.value = r.map(item => {
-        if (Array.isArray(item.shortcut)) {
-          return item
-        }
-        item.shortcut = item.shortcut.split('+')
-        while (item.shortcut.length < 3) {
-          item.shortcut.push('')
-        }
-        return item
-      })
+      const data = result.data
+      allCommonShortcuts.value = mergeShortcuts(originShortcuts.value, data).map(normalizeShortcut)
+      allRouteShortcuts.value = mergeShortcuts(routeShortcuts.value, data).map(normalizeShortcut)
     }
   })
 }
@@ -369,6 +398,24 @@ onMounted(() => {
   box-sizing: border-box;
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+.shortcut-section {
+  margin-bottom: 32px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+
+  .section-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 16px;
+    padding-left: 12px;
+    border-left: 4px solid var(--color-primary);
+    line-height: 1.2;
+  }
 }
 
 .shortcuts-grid {

@@ -13,7 +13,7 @@
 
     <div class="clipboard-toolbar">
       <div class="search-box">
-        <el-icon class="search-icon"><Search /></el-icon>
+        <LucideIcon name="Search" class="search-icon" />
         <el-input v-model="searchKey" placeholder="搜索剪贴板内容..." clearable />
       </div>
       <div class="toolbar-actions">
