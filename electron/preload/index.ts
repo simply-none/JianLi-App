@@ -242,6 +242,16 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     removeBookmark(id: number) {
       return ipcRenderer.invoke('ebook:remove-bookmark', id)
     },
+    /**
+     * 保存书籍基本信息（标题/作者/封面），由渲染进程解析后回传，供书架列表秒出、无需每次重新解析
+     *
+     * @param data - 必填参数，{ filePath, name?, format?, title?, author?, cover? }
+     * @returns 成功返回 Promise<{ success: boolean; error?: string }>；
+     *          失败返回 Promise 中 success 为 false，并附带 error 错误信息
+     */
+    saveBookMeta(data: { filePath: string; name?: string; format?: string; title?: string; author?: string; cover?: string }) {
+      return ipcRenderer.invoke('ebook:save-book-meta', data)
+    },
   },
   on(...args: Parameters<typeof ipcRenderer.on>) {
     const [channel, listener] = args

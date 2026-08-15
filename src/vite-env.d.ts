@@ -67,6 +67,8 @@ interface Window {
       addBookmark: (data: { filePath: string; format: string; cfi: string; label?: string | null; percent?: number }) => Promise<{ success: boolean; id?: number; error?: string }>;
       // 按 id 删除书签
       removeBookmark: (id: number) => Promise<{ success: boolean; error?: string }>;
+      // 保存书籍基本信息（标题/作者/封面），由渲染进程解析后回传，供书架列表秒出
+      saveBookMeta: (data: { filePath: string; name?: string; format?: string; title?: string; author?: string; cover?: string }) => Promise<{ success: boolean; error?: string }>;
     };
   }
 }
@@ -89,6 +91,12 @@ type BookshelfRecord = {
   last_read_at: string;
   /** 首次添加时间（ISO 字符串） */
   added_at: string;
+  /** 书籍标题（从 EPUB/PDF 元数据解析，无则空串，回退文件名） */
+  title: string;
+  /** 作者（从 EPUB/PDF 元数据解析，无则空串） */
+  author: string;
+  /** 封面图 data URL（JPEG/PNG base64，无则空串） */
+  cover: string;
 };
 
 /**

@@ -188,6 +188,8 @@ const emit = defineEmits<{
   ): void;
   /** 划线/笔记变化事件（新增、删除、编辑后均会触发） */
   (e: 'annotations-updated', payload: TxtAnnotation[]): void;
+  /** 书籍基本信息事件（TXT 无元数据，此处仅声明以配合父组件统一绑定，不发射） */
+  (e: 'book-meta', payload: { title: string; author: string; cover: string }): void;
 }>();
 
 /** TXT 阅读器根容器 */

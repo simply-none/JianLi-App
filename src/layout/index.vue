@@ -170,6 +170,14 @@ function handleMenuRefresh() {
 
 onMounted(() => {
   window.addEventListener('route-setting-changed', handleMenuRefresh);
+  // 预热快捷键注册页 chunk，避免首次进入时因懒加载编译/下载产生的「暂停」感
+  // 与 router 中 () => import(...) 指向同一模块，Vite 复用同一 chunk
+  const preload = () => import('@/views/registerShortcut/index.vue').catch(() => {});
+  if (typeof window.requestIdleCallback === 'function') {
+    window.requestIdleCallback(preload, { timeout: 2000 });
+  } else {
+    setTimeout(preload, 0);
+  }
 });
 
 onUnmounted(() => {

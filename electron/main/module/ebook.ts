@@ -109,7 +109,7 @@ interface BookshelfRecord {
   file_path: string;
   /** 文件名（含扩展名） */
   name: string;
-  /** 文件格式：'txt' 或 'epub' */
+  /** 文件格式：'txt' 或 'epub' 或 'pdf' */
   format: string;
   /** 阅读百分比 0-100 */
   percent: number;
@@ -117,6 +117,12 @@ interface BookshelfRecord {
   last_read_at: string;
   /** 首次添加时间（ISO 字符串） */
   added_at: string;
+  /** 书籍标题（从 EPUB/PDF 元数据解析，无则空串，回退文件名） */
+  title: string;
+  /** 作者（从 EPUB/PDF 元数据解析，无则空串） */
+  author: string;
+  /** 封面图 data URL（JPEG/PNG base64，无则空串） */
+  cover: string;
 }
 
 /**
@@ -131,6 +137,24 @@ interface AddBookshelfData {
   format: string;
   /** 阅读百分比 0-100 */
   percent: number;
+}
+
+/**
+ * save-book-meta 入参结构（书籍基本信息，由渲染进程解析后回传）
+ */
+interface SaveBookMetaData {
+  /** 文件绝对路径 */
+  filePath: string;
+  /** 文件名（含扩展名），UPDATE 未命中需新建行时兜底 */
+  name?: string;
+  /** 文件格式：'txt' / 'epub' / 'pdf'，新建行时兜底 */
+  format?: string;
+  /** 书籍标题（EPUB/PDF 元数据解析结果，无则空串） */
+  title?: string;
+  /** 作者（EPUB/PDF 元数据解析结果，无则空串） */
+  author?: string;
+  /** 封面图 data URL（JPEG/PNG base64，无则空串） */
+  cover?: string;
 }
 
 /**
@@ -369,7 +393,10 @@ async function createBookshelfTable(): Promise<void> {
     format TEXT,
     percent REAL,
     last_read_at TEXT,
-    added_at TEXT
+    added_at TEXT,
+    title TEXT,
+    author TEXT,
+    cover TEXT
   )`;
   await dbRunAsync(db, sql);
 }
@@ -502,7 +529,7 @@ export async function initEbook(): Promise<void> {
     );
     await ensureTableExists(
       EBOOK_BOOKSHELF_TABLE,
-      ['name', 'format', 'percent', 'last_read_at', 'added_at'],
+      ['name', 'format', 'percent', 'last_read_at', 'added_at', 'title', 'author', 'cover'],
       'file_path'
     );
     await ensureTableExists(
@@ -726,7 +753,7 @@ export async function initEbook(): Promise<void> {
         }
         const rows = await query({
           tableName: EBOOK_BOOKSHELF_TABLE,
-          columns: ['file_path', 'name', 'format', 'percent', 'last_read_at', 'added_at'],
+          columns: ['file_path', 'name', 'format', 'percent', 'last_read_at', 'added_at', 'title', 'author', 'cover'],
           orderBy: 'last_read_at',
           orderByDesc: true
         });
@@ -830,6 +857,71 @@ export async function initEbook(): Promise<void> {
         return {
           success: false,
           error: `删除书架记录失败：${err?.message || String(err)}`
+        };
+      }
+    }
+  );
+
+  // ============ ebook:save-book-meta 保存书籍基本信息（标题/作者/封面） ============
+  /**
+   * 保存书籍基本信息（标题/作者/封面），供书架列表秒出、无需每次重新解析。
+   *
+   * 实现策略：书架行通常已由 add-to-bookshelf 创建；先 UPDATE 元数据三列，
+   * 若 UPDATE 未命中（changes === 0，书架尚无该记录），则以最小信息 INSERT 一行兜底，
+   * 保证下次进入书架即可读到元数据。
+   *
+   * @param _event - IPC 事件对象（未使用）
+   * @param data - 必填参数，{ filePath, name?, format?, title?, author?, cover? }
+   * @returns 成功返回 { success: true }；失败返回 { success: false, error: string }
+   */
+  ipcMain.handle(
+    'ebook:save-book-meta',
+    async (
+      _event,
+      data: SaveBookMetaData
+    ): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const db = myDb.db;
+        if (!db) {
+          return { success: false, error: '数据库未初始化' };
+        }
+        if (!data || !data.filePath) {
+          return { success: false, error: '文件路径不能为空' };
+        }
+        const title = data.title ?? '';
+        const author = data.author ?? '';
+        const cover = data.cover ?? '';
+        // 优先 UPDATE 已有书架行的元数据列（保留 percent / added_at / last_read_at）
+        const upd = await dbRunAsync(
+          db,
+          `UPDATE ${EBOOK_BOOKSHELF_TABLE} SET title = ?, author = ?, cover = ? WHERE file_path = ?`,
+          [title, author, cover, data.filePath]
+        );
+        // UPDATE 未命中（书架尚无该记录）时，以最小信息插入一行兜底
+        if (upd.changes === 0) {
+          const now = new Date().toISOString();
+          await upsert({
+            tableName: EBOOK_BOOKSHELF_TABLE,
+            data: {
+              file_path: data.filePath,
+              name: data.name ?? '',
+              format: data.format ?? '',
+              percent: 0,
+              last_read_at: now,
+              added_at: now,
+              title,
+              author,
+              cover
+            },
+            config: { primaryKey: 'file_path' }
+          });
+        }
+        return { success: true };
+      } catch (err: any) {
+        log.error('Failed to save ebook book meta:', err);
+        return {
+          success: false,
+          error: `保存书籍基本信息失败：${err?.message || String(err)}`
         };
       }
     }

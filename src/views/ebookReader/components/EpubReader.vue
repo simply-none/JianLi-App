@@ -197,6 +197,8 @@ const emit = defineEmits<{
   (e: 'current-href', payload: string): void;
   /** 字号快捷调整事件（A-/A+ 按钮触发），payload 为目标字号 px */
   (e: 'font-size-change', payload: number): void;
+  /** 书籍基本信息（标题/作者/封面）解析完成事件，payload 为 { title, author, cover } */
+  (e: 'book-meta', payload: { title: string; author: string; cover: string }): void;
 }>();
 
 /** epub 渲染容器引用 */
@@ -342,38 +344,43 @@ defineExpose({
   }
 
   /* ===== 翻页过渡动画（仅 epub 阅读器：滑动 / 覆盖 / 3D 仿真） ===== */
-  /* 滑动：新页面从一侧滑入 */
+  /* 统一开启 GPU 合成与背面剔除，减少动画抖动/闪烁 */
+  [class*='page-turn-'] {
+    will-change: transform, opacity;
+    backface-visibility: hidden;
+  }
+  /* 滑动：新页面从一侧轻滑入（柔和、不刺眼），时长放慢、缓动改为 ease */
   .page-turn-slide-forward {
-    animation: page-slide-forward 0.32s cubic-bezier(0.22, 0.61, 0.36, 1);
+    animation: page-slide-forward 0.46s cubic-bezier(0.25, 0.1, 0.25, 1);
   }
   .page-turn-slide-back {
-    animation: page-slide-back 0.32s cubic-bezier(0.22, 0.61, 0.36, 1);
+    animation: page-slide-back 0.46s cubic-bezier(0.25, 0.1, 0.25, 1);
   }
-  /* 覆盖：新页面从一侧覆盖进来（带左/右侧阴影模拟页缘） */
+  /* 覆盖：新页面从一侧覆盖进来（带页缘阴影模拟厚度） */
   .page-turn-cover-forward {
-    animation: page-cover-forward 0.36s cubic-bezier(0.22, 0.61, 0.36, 1);
-    box-shadow: -18px 0 28px -10px rgba(0, 0, 0, 0.28);
+    animation: page-cover-forward 0.52s cubic-bezier(0.25, 0.1, 0.25, 1);
+    box-shadow: -24px 0 40px -12px rgba(0, 0, 0, 0.32);
   }
   .page-turn-cover-back {
-    animation: page-cover-back 0.36s cubic-bezier(0.22, 0.61, 0.36, 1);
-    box-shadow: 18px 0 28px -10px rgba(0, 0, 0, 0.28);
+    animation: page-cover-back 0.52s cubic-bezier(0.25, 0.1, 0.25, 1);
+    box-shadow: 24px 0 40px -12px rgba(0, 0, 0, 0.32);
   }
-  /* 3D 仿真：绕 Y 轴翻入（仿纸质书翻页） */
+  /* 3D 仿真：绕书脊（Y 轴）翻入，仿纸质书翻页 */
   .page-turn-flip3d-forward {
-    animation: page-flip3d-forward 0.42s cubic-bezier(0.22, 0.61, 0.36, 1);
+    animation: page-flip3d-forward 0.58s cubic-bezier(0.25, 0.1, 0.25, 1);
     transform-origin: left center;
   }
   .page-turn-flip3d-back {
-    animation: page-flip3d-back 0.42s cubic-bezier(0.22, 0.61, 0.36, 1);
+    animation: page-flip3d-back 0.58s cubic-bezier(0.25, 0.1, 0.25, 1);
     transform-origin: right center;
   }
 
   @keyframes page-slide-forward {
-    from { transform: translateX(56px); opacity: 0; }
+    from { transform: translateX(7%); opacity: 0; }
     to   { transform: translateX(0); opacity: 1; }
   }
   @keyframes page-slide-back {
-    from { transform: translateX(-56px); opacity: 0; }
+    from { transform: translateX(-7%); opacity: 0; }
     to   { transform: translateX(0); opacity: 1; }
   }
   @keyframes page-cover-forward {
@@ -385,12 +392,12 @@ defineExpose({
     to   { transform: translateX(0); }
   }
   @keyframes page-flip3d-forward {
-    from { transform: perspective(1500px) rotateY(-38deg) translateX(40px); opacity: 0.35; }
-    to   { transform: perspective(1500px) rotateY(0) translateX(0); opacity: 1; }
+    from { transform: perspective(1600px) rotateY(-100deg) translateX(40px); opacity: 0.22; }
+    to   { transform: perspective(1600px) rotateY(0) translateX(0); opacity: 1; }
   }
   @keyframes page-flip3d-back {
-    from { transform: perspective(1500px) rotateY(38deg) translateX(-40px); opacity: 0.35; }
-    to   { transform: perspective(1500px) rotateY(0) translateX(0); opacity: 1; }
+    from { transform: perspective(1600px) rotateY(100deg) translateX(-40px); opacity: 0.22; }
+    to   { transform: perspective(1600px) rotateY(0) translateX(0); opacity: 1; }
   }
 
   .epub-footer {

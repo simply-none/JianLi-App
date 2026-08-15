@@ -18,8 +18,14 @@ export interface EbookFile {
   path: string;
   /** 文件名（含扩展名） */
   name: string;
-  /** 文件格式：txt、epub，空字符串表示未打开任何文件 */
+  /** 文件格式：txt、epub、pdf，空字符串表示未打开任何文件 */
   format: EbookFormat;
+  /** 书籍标题（从 EPUB/PDF 元数据解析；空串表示回退文件名），用于阅读页头部与书架展示 */
+  title?: string;
+  /** 作者（从 EPUB/PDF 元数据解析；空串表示未知） */
+  author?: string;
+  /** 封面图 data URL（JPEG/PNG base64；空串表示无封面，回退占位） */
+  cover?: string;
 }
 
 /** 阅读进度信息 */
@@ -149,7 +155,7 @@ export interface BookshelfItem {
   path: string;
   /** 文件名（含扩展名） */
   name: string;
-  /** 文件格式：'txt' 或 'epub' */
+  /** 文件格式：'txt'、'epub' 或 'pdf' */
   format: string;
   /** 阅读百分比 0-100 */
   percent: number;
@@ -157,6 +163,12 @@ export interface BookshelfItem {
   lastReadAt: string;
   /** 首次添加时间（ISO 字符串） */
   addedAt: string;
+  /** 书籍标题（从 EPUB/PDF 元数据解析；空串表示回退文件名） */
+  title?: string;
+  /** 作者（从 EPUB/PDF 元数据解析；空串表示未知） */
+  author?: string;
+  /** 封面图 data URL（JPEG/PNG base64；空串表示无封面，回退占位） */
+  cover?: string;
 }
 
 /** 持久化存储键名：阅读设置 */
@@ -561,6 +573,9 @@ export default defineStore('ebook-reader', () => {
           percent: row.percent,
           lastReadAt: row.last_read_at,
           addedAt: row.added_at,
+          title: row.title,
+          author: row.author,
+          cover: row.cover,
         }));
       } else if (res && !res.success) {
         console.error('加载书架列表失败：', res.error);

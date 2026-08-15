@@ -47,9 +47,17 @@
         v-for="item in items"
         :key="item.path"
         class="book-card"
-        :title="`打开《${item.name}》`"
+        :title="`打开《${item.title || item.name}》`"
         @click="emit('open', item)"
       >
+        <!-- 封面：有封面图则显示，否则占位（格式首字母） -->
+        <div class="book-cover">
+          <img v-if="item.cover" :src="item.cover" :alt="item.title || item.name" class="book-cover-img" />
+          <div v-else class="book-cover-fallback" :class="`fmt-${item.format}`">
+            {{ (item.title || item.name || '?').charAt(0).toUpperCase() }}
+          </div>
+        </div>
+
         <!-- 卡片头部：格式徽标 + 删除按钮 -->
         <div class="book-card-header">
           <el-tag
@@ -71,8 +79,13 @@
         </div>
 
         <!-- 书名（截断显示，title 显示完整名） -->
-        <div class="book-name" :title="item.name">
-          {{ item.name }}
+        <div class="book-name" :title="item.title || item.name">
+          {{ item.title || item.name }}
+        </div>
+
+        <!-- 作者（有则显示） -->
+        <div v-if="item.author" class="book-author" :title="item.author">
+          {{ item.author }}
         </div>
 
         <!-- 进度条与百分比 -->
@@ -276,6 +289,56 @@ function formatTime(time: string): string {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  /* 作者：单行截断，浅色 */
+  .book-author {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* 封面：固定比例缩略图，无封面时占位 */
+  .book-cover {
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    border-radius: var(--radius-card);
+    overflow: hidden;
+    background: var(--bg-base);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    .book-cover-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .book-cover-fallback {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      font-weight: 700;
+      color: #fff;
+
+      &.fmt-epub {
+        background: linear-gradient(135deg, #f59e0b, #d97706);
+      }
+      &.fmt-pdf {
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+      }
+      &.fmt-txt {
+        background: linear-gradient(135deg, #10b981, #059669);
+      }
+    }
   }
 
   /* 进度条与百分比 */

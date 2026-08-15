@@ -23,6 +23,39 @@ import type { EpubCtx } from './epubContext';
 type EbookTheme = 'day' | 'night' | 'eye';
 
 export function useEpubRender(ctx: EpubCtx) {
+  /**
+   * 提取 EPUB 书籍基本信息（标题/作者/封面）并通过 ctx.emit('book-meta') 回传父组件。
+   * epubjs 的 book.loaded.metadata 提供 title/creator； book.loaded.cover 仅 resolve 出
+   * 封面资源在压缩包内的路径字符串（如 /cover.jpeg），并非 Blob，不可直接当图片地址。
+   * 因此封面须从 book.archive.getBase64(book.cover) 读取原始字节并转 base64 dataURL，
+   * 既能正确显示，又能持久化（blob: URL 跨会话会失效，而 dataURL 可稳定存库）。
+   * 以「即发即弃」方式调用，不阻塞首屏渲染。
+   *
+   * @param book - epubjs Book 实例（用 any 绕过 epubjs 不完整的 .d.ts）
+   */
+  async function renderBookMeta(book: any): Promise<void> {
+    try {
+      const meta = await book.loaded.metadata;
+      let cover = '';
+      try {
+        await book.loaded.cover; // 确保封面路径已解析并写入 book.cover
+        if (book.cover && book.archive) {
+          // getBase64 内部会 url.substr(1) 去掉首斜杠查 zip 条目，故入参必须带前导 '/'
+          const coverHref = book.cover.charAt(0) === '/' ? book.cover : '/' + book.cover;
+          const dataUrl = await book.archive.getBase64(coverHref);
+          if (dataUrl) cover = dataUrl;
+        }
+      } catch (err) {
+        console.error('提取 EPUB 封面失败', err);
+      }
+      const title = (meta && (meta.title || meta.bookTitle)) || '';
+      const author = (meta && (meta.creator || meta.author)) || '';
+      ctx.emit('book-meta', { title, author, cover });
+    } catch (err) {
+      console.error('提取 EPUB 基本信息失败', err);
+    }
+  }
+
   // 按书进度映射（本地存储兜底，进程退出时 IPC 来不及落库也能恢复）
   const ebookStore = useEbookReader();
   /** 主题 class 计算属性 */
@@ -107,6 +140,8 @@ export function useEpubRender(ctx: EpubCtx) {
       const arrayBuffer = await loadFileAsArrayBuffer(filePath);
       const book = ePub(arrayBuffer);
       ctx.book = book;
+      // 提取书籍基本信息（标题/作者/封面），即发即弃，不阻塞渲染
+      void renderBookMeta(book);
       const rendition = book.renderTo(ctx.readerRef.value, {
         width: '100%',
         height: '100%',
@@ -452,11 +487,22 @@ export function useEpubRender(ctx: EpubCtx) {
     ctx.rendition.spread(spreadValue(ctx.props.columnCount ?? 1));
   }
 
+  /** 翻页方向滞留保护：若 relocated 未触发（如已到首/末页边界，next/prev 不移动），
+   * 超时清除 turnDirection，避免之后任意跳转（点目录/拖进度）误带上翻页动画造成「眼花缭乱」。 */
+  let turnDirectionTimer: ReturnType<typeof setTimeout> | undefined;
+  function clearTurnDirectionLater() {
+    if (turnDirectionTimer) clearTimeout(turnDirectionTimer);
+    turnDirectionTimer = setTimeout(() => {
+      ctx.turnDirection.value = null;
+    }, 700);
+  }
+
   /** 翻到上一页 */
   function prevPage() {
     if (!ctx.rendition) return;
     ctx.turnDirection.value = 'back';
     ctx.rendition.prev?.();
+    clearTurnDirectionLater();
   }
 
   /** 翻到下一页 */
@@ -464,6 +510,7 @@ export function useEpubRender(ctx: EpubCtx) {
     if (!ctx.rendition) return;
     ctx.turnDirection.value = 'forward';
     ctx.rendition.next?.();
+    clearTurnDirectionLater();
   }
 
   /** 阅读区左侧边缘点击：上一页 */
@@ -537,6 +584,9 @@ export function useEpubRender(ctx: EpubCtx) {
   /** 跳转到指定 cfi 或 href（供父组件通过 ref 调用，实现目录跳转） */
   function displayTarget(target: string) {
     if (!ctx.rendition || !target) return;
+    // 非顺序翻页：清除翻页方向，避免误触发翻页动画
+    if (turnDirectionTimer) clearTimeout(turnDirectionTimer);
+    ctx.turnDirection.value = null;
     ctx.rendition.display(target);
   }
 

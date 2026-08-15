@@ -215,6 +215,8 @@ const emit = defineEmits<{
   (e: 'search-results', payload: EpubSearchResult[]): void;
   /** 搜索进行中状态变更事件 */
   (e: 'searching', payload: boolean): void;
+  /** 书籍基本信息（标题/作者/封面）解析完成事件，payload 为 { title, author, cover } */
+  (e: 'book-meta', payload: { title: string; author: string; cover: string }): void;
 }>();
 
 // 构建共享 ctx，并由若干 composable 分别接管渲染 / 标注 / 目录 / 书签 / 搜索逻辑

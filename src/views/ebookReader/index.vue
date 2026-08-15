@@ -27,8 +27,15 @@
               >
                 {{ currentFile.format.toUpperCase() }}
               </el-tag>
-              <span class="file-name" :title="currentFile.name">
-                {{ currentFile.name }}
+              <span class="file-name" :title="currentFile.title || currentFile.name">
+                {{ currentFile.title || currentFile.name }}
+              </span>
+              <span
+                v-if="currentFile.author"
+                class="file-author"
+                :title="currentFile.author"
+              >
+                {{ currentFile.author }}
               </span>
             </div>
           </div>
@@ -224,6 +231,7 @@
               @search-results="onSearchResults"
               @searching="onSearching"
               @font-size-change="onFontSizeChange"
+              @book-meta="onBookMeta"
             />
             <!-- 优先级 3：未打开文件时引导用户 -->
             <div v-else class="empty-state">
@@ -803,6 +811,51 @@ function onFontSizeChange(size: number) {
 }
 
 /**
+ * 书籍基本信息事件处理（由 EpubReader / PdfReader 解析后回传）
+ * 更新当前文件（标题/作者/封面，持久化到 localStorage，下次启动直接恢复），
+ * 并异步落库（供书架列表秒出），同时同步本地书架卡片，避免下次重进才刷新。
+ *
+ * @param payload - { title, author, cover }，空串表示无对应信息（UI 回退文件名）
+ * @returns 无返回值
+ */
+function onBookMeta(payload: { title: string; author: string; cover: string }) {
+  const path = currentFile.value.path;
+  if (!path) return;
+  // 更新当前文件并持久化（title/author/cover 带则覆盖，空串保留原值）
+  setCurrentFile({
+    path,
+    name: currentFile.value.name,
+    format: currentFile.value.format,
+    title: payload.title || currentFile.value.title,
+    author: payload.author || currentFile.value.author,
+    cover: payload.cover || currentFile.value.cover,
+  });
+  // 落库（供书架秒出），失败不影响阅读
+  window.ipcRenderer.ebook
+    .saveBookMeta({
+      filePath: path,
+      name: currentFile.value.name,
+      format: currentFile.value.format,
+      title: payload.title,
+      author: payload.author,
+      cover: payload.cover,
+    })
+    .catch((err: any) => console.error('保存书籍基本信息失败', err));
+  // 同步本地书架卡片（无需重新 loadBookshelf）
+  const idx = ebookStore.bookshelf.findIndex((b) => b.path === path);
+  if (idx >= 0) {
+    const list = ebookStore.bookshelf.slice();
+    list[idx] = {
+      ...list[idx],
+      title: payload.title || list[idx].title,
+      author: payload.author || list[idx].author,
+      cover: payload.cover || list[idx].cover,
+    };
+    ebookStore.bookshelf = list;
+  }
+}
+
+/**
  * 笔记抽屉项点击事件处理
  * 调用子组件暴露的 jumpToAnnotation 方法跳转到划线位置，并关闭抽屉
  *
@@ -1138,7 +1191,16 @@ watch(
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        max-width: 280px;
+        max-width: 220px;
+      }
+
+      .file-author {
+        font-size: 12px;
+        color: var(--text-secondary);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 120px;
       }
     }
   }

@@ -85,7 +85,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { layoutRouters } from '@/router';
 import { ElMessage } from 'element-plus';
@@ -104,9 +104,10 @@ watch(() => route.path, (newPath) => {
   }
 }, { immediate: true });
 
-const registerShortcut = (shortcut) => {
+// 落库并通知主进程注册全局快捷键；全程异步，不阻塞渲染
+const registerShortcut = async (shortcut) => {
   const curTime = moment().format('YYYY-MM-DD HH:mm:ss')
-  window.ipcRenderer.handlePromise('new-sql:upsert', {
+  const result = await window.ipcRenderer.handlePromise('new-sql:upsert', {
     tableName: tableName.value,
     data: {
       ...shortcut,
@@ -116,13 +117,12 @@ const registerShortcut = (shortcut) => {
     config: {
       primaryKey: 'key',
     }
-  }).then(result => {
-    if (result.success) {
-      window.ipcRenderer.send('register-shortcut', shortcut)
-    } else {
-      console.log('设置失败:', result.error);
-    }
   })
+  if (result.success) {
+    window.ipcRenderer.send('register-shortcut', shortcut)
+  } else {
+    console.log('设置失败:', result.error)
+  }
 }
 
 const iconMap = {
@@ -320,22 +320,18 @@ function normalizeShortcut(item) {
   return item
 }
 
-function getShortcut() {
-  window.ipcRenderer.handlePromise('new-sql:query', {
+// 从数据库拉取已保存的快捷键并合并到默认列表；异步执行，不阻塞首次渲染
+async function getShortcut() {
+  const result = await window.ipcRenderer.handlePromise('new-sql:query', {
     tableName: tableName.value,
     conditions: {}
-  }).then(result => {
-    if (result.success) {
-      const data = result.data
-      allCommonShortcuts.value = mergeShortcuts(originShortcuts.value, data).map(normalizeShortcut)
-      allRouteShortcuts.value = mergeShortcuts(routeShortcuts.value, data).map(normalizeShortcut)
-    }
   })
+  if (result.success) {
+    const data = result.data
+    allCommonShortcuts.value = mergeShortcuts(originShortcuts.value, data).map(normalizeShortcut)
+    allRouteShortcuts.value = mergeShortcuts(routeShortcuts.value, data).map(normalizeShortcut)
+  }
 }
-
-onMounted(() => {
-  getShortcut()
-})
 </script>
 
 <style scoped lang="scss">

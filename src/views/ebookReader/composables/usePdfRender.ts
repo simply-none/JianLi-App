@@ -549,6 +549,42 @@ export function usePdfRender(ctx: PdfCtx) {
     }
   }
 
+  /**
+   * 提取 PDF 书籍基本信息（标题/作者/封面）并通过 ctx.emit('book-meta') 回传父组件。
+   * 标题/作者取自 pdfDoc.getMetadata().info；封面将第 1 页渲染为缩略图 dataURL。
+   * 以「即发即弃」方式调用，不阻塞首屏渲染。
+   */
+  async function renderBookMeta(): Promise<void> {
+    if (!ctx.pdfDoc) return;
+    try {
+      const meta = await ctx.pdfDoc.getMetadata();
+      const info: any = (meta && meta.info) || {};
+      const title = (info.Title as string) || '';
+      const author = (info.Author as string) || '';
+      // 封面：第 1 页渲染为缩略图（限制宽度约 240px，JPEG 压缩以减小体积）
+      let cover = '';
+      try {
+        const page = await ctx.pdfDoc.getPage(1);
+        const base = page.getViewport({ scale: 1 });
+        const scale = Math.min(1, 240 / base.width);
+        const vp = page.getViewport({ scale });
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.ceil(vp.width);
+        canvas.height = Math.ceil(vp.height);
+        const ctx2d = canvas.getContext('2d');
+        if (ctx2d) {
+          await page.render({ canvasContext: ctx2d, viewport: vp }).promise;
+          cover = canvas.toDataURL('image/jpeg', 0.7);
+        }
+      } catch (err) {
+        console.error('提取 PDF 封面失败', err);
+      }
+      ctx.emit('book-meta', { title, author, cover });
+    } catch (err) {
+      console.error('提取 PDF 基本信息失败', err);
+    }
+  }
+
   /** 加载 PDF 文档：读字节 → 解析 → 预计算尺寸 → 渲染可视区 → 恢复进度 → 加载划线 */
   async function loadDocument(filePath: string): Promise<void> {
     if (!filePath) return;
@@ -588,6 +624,8 @@ export function usePdfRender(ctx: PdfCtx) {
       // 加载目录/outline 与书签列表（按钮在 index.vue 对 epub/pdf 均可用）
       await ctx.loadOutline?.(filePath);
       await ctx.loadBookmarks?.(filePath);
+      // 提取书籍基本信息（标题/作者/封面），即发即弃，不阻塞阅读
+      void renderBookMeta();
       ctx.initialRenderDone = true;
     } catch (err: any) {
       ElMessage.error(`加载 PDF 失败：${err?.message || String(err)}`);
