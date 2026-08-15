@@ -295,6 +295,7 @@ export function useEpubHighlight(ctx: EpubCtx) {
         note,
         color: typeColor,
         type,
+        contentHash: ctx.contentHash || '',
       });
       if (!res?.success || typeof res.id !== 'number') {
         ElMessage.error(`添加划线失败：${res?.error || '未知错误'}`);
@@ -470,7 +471,7 @@ export function useEpubHighlight(ctx: EpubCtx) {
   async function loadAnnotations(filePath: string): Promise<void> {
     if (!ctx.rendition) return;
     try {
-      const res = await window.ipcRenderer.ebook.getAnnotations(filePath);
+      const res = await window.ipcRenderer.ebook.getAnnotations(filePath, ctx.contentHash || '');
       if (!res?.success || !Array.isArray(res.data)) {
         return;
       }

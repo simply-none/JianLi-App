@@ -216,7 +216,7 @@ export function useEpubRender(ctx: EpubCtx) {
    */
   async function restoreProgress(filePath: string): Promise<string> {
     try {
-      const res = await window.ipcRenderer.ebook.getProgress(filePath);
+      const res = await window.ipcRenderer.ebook.getProgress(filePath, ctx.contentHash || '');
       if (res?.success && res.data?.cfi) {
         return res.data.cfi;
       }

@@ -45,26 +45,59 @@ export function useBookshelf(opts: UseBookshelfOptions) {
   const { bookshelf } = storeToRefs(store);
   const { addToBookshelf, removeFromBookshelf } = store;
 
-  /** 每本书的笔记/划线数量映射（path -> { noteCount, highlightCount }），用于书架卡片徽标 */
-  const annotationCountMap = ref<Record<string, { noteCount: number; highlightCount: number }>>({});
+  /** 每本书的笔记/划线/书签数量映射（key 为 content_hash 或 file_path），用于书架卡片徽标 */
+  const annotationCountMap = ref<Record<string, { noteCount: number; highlightCount: number; bookmarkCount: number }>>({});
 
   /**
-   * 刷新每本书的笔记/划线数量（供书架卡片徽标显示）
+   * 刷新每本书的笔记/划线/书签数量（供书架卡片徽标显示）
    * 调用主进程批量统计接口，失败时静默（徽标保持原值）
    */
   async function refreshCounts(): Promise<void> {
-    const paths = bookshelf.value.map((b) => b.path);
+    const items = bookshelf.value;
+    const paths = items.map((b) => b.path);
     if (paths.length === 0) {
       annotationCountMap.value = {};
       return;
     }
+    // 同时传入内容哈希，使多副本共用标注/书签能正确汇总到同一分组
+    const hashes = items.map((b) => b.contentHash || '').filter(Boolean);
     try {
-      const res = await window.ipcRenderer.ebook.getAnnotationCounts(paths);
+      const res = await window.ipcRenderer.ebook.getAnnotationCounts(paths, hashes);
       if (res?.success) {
-        const map: Record<string, { noteCount: number; highlightCount: number }> = {};
+        const map: Record<string, { noteCount: number; highlightCount: number; bookmarkCount: number }> = {};
         (res.data || []).forEach((d) => {
-          map[d.filePath] = { noteCount: d.noteCount, highlightCount: d.highlightCount };
+          const entry = {
+            noteCount: d.noteCount,
+            highlightCount: d.highlightCount,
+            bookmarkCount: d.bookmarkCount || 0
+          };
+          // key 为 content_hash（多副本共用）或 file_path（遗留数据）
+          map[d.key] = entry;
+          // 兜底：把该分组下的所有 file_path 也映射到同一计数
+          (d.paths || []).forEach((p) => {
+            map[p] = entry;
+          });
         });
+
+        // 按内容哈希把书架项分组：同一内容的原书与多份副本强制共享同一计数。
+        // 即便某副本的标注实际存储于原书路径下（共享场景），只要其书架行 content_hash 正确，
+        // 即可通过该 hash 命中聚合结果并绑定到副本自身路径，保证副本卡片也能展示正确数值。
+        const groupByHash: Record<string, typeof items> = {};
+        items.forEach((b) => {
+          if (b.contentHash) {
+            (groupByHash[b.contentHash] = groupByHash[b.contentHash] || []).push(b);
+          }
+        });
+        Object.keys(groupByHash).forEach((hash) => {
+          const entry = map[hash];
+          if (entry) {
+            groupByHash[hash].forEach((b) => {
+              map[b.contentHash as string] = entry;
+              map[b.path] = entry;
+            });
+          }
+        });
+
         annotationCountMap.value = map;
       }
     } catch (err) {
@@ -151,6 +184,14 @@ export function useBookshelf(opts: UseBookshelfOptions) {
       }
       // 已存在的书沿用其原有进度（percent），避免被 0 覆盖
       const existingItem = bookshelf.value.find((b) => b.path === filePath);
+      // 计算内容哈希，使加入书架即带 content_hash，副本可与同内容原书共用笔记/书签/进度
+      let contentHash = '';
+      try {
+        const hashRes = await window.ipcRenderer.ebook.computeFileHash(filePath);
+        if (hashRes && hashRes.success && hashRes.hash) contentHash = hashRes.hash;
+      } catch {
+        // 计算失败则回退为空，由后续打开时补全
+      }
       await addToBookshelf({
         path: filePath,
         name: fileName,
@@ -158,6 +199,7 @@ export function useBookshelf(opts: UseBookshelfOptions) {
         percent: existingItem ? existingItem.percent : 0,
         lastReadAt: new Date().toISOString(),
         addedAt: new Date().toISOString(),
+        contentHash,
       });
       added++;
     }
@@ -179,10 +221,12 @@ export function useBookshelf(opts: UseBookshelfOptions) {
    * @param item - 书架条目
    */
   async function exportBook(item: BookshelfItem): Promise<void> {
-    const title = `${item.name.replace(/\.[^.]+$/, '')}笔记与划线`;
+    // 书名去掉扩展名；透传内容哈希，使副本与原书按内容身份共用标注一并导出
+    const title = item.name.replace(/\.[^.]+$/, '');
     const res = await window.ipcRenderer.ebook.exportAnnotations({
       filePath: item.path,
       title,
+      contentHash: item.contentHash || '',
     });
     handleExportResult(res);
   }

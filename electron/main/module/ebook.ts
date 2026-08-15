@@ -8,6 +8,7 @@
 
 import { ipcMain, dialog, BrowserWindow } from 'electron';
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import log from 'electron-log';
 import chardet from 'chardet';
@@ -83,6 +84,8 @@ interface SaveProgressData {
   cfi: string;
   /** 阅读百分比 0-100 */
   percent: number;
+  /** 文件原始内容 sha256（内容身份，用于换路径复用标注/进度） */
+  contentHash?: string;
 }
 
 /**
@@ -99,6 +102,8 @@ interface ProgressRecord {
   percent: number;
   /** 更新时间（ISO 字符串） */
   updated_at: string;
+  /** 文件原始内容 sha256（内容身份） */
+  content_hash: string;
 }
 
 /**
@@ -123,6 +128,8 @@ interface BookshelfRecord {
   author: string;
   /** 封面图 data URL（JPEG/PNG base64，无则空串） */
   cover: string;
+  /** 文件原始内容 sha256（内容身份，用于换路径重新导入时复用标注/进度） */
+  content_hash: string;
 }
 
 /**
@@ -137,6 +144,8 @@ interface AddBookshelfData {
   format: string;
   /** 阅读百分比 0-100 */
   percent: number;
+  /** 文件原始内容 sha256（内容身份，用于换路径复用标注/进度） */
+  contentHash?: string;
 }
 
 /**
@@ -149,6 +158,8 @@ interface SaveBookMetaData {
   name?: string;
   /** 文件格式：'txt' / 'epub' / 'pdf'，新建行时兜底 */
   format?: string;
+  /** 文件原始内容 sha256（内容身份） */
+  contentHash?: string;
   /** 书籍标题（EPUB/PDF 元数据解析结果，无则空串） */
   title?: string;
   /** 作者（EPUB/PDF 元数据解析结果，无则空串） */
@@ -181,6 +192,8 @@ interface AnnotationRecord {
   created_at: string;
   /** 更新时间（ISO 字符串） */
   updated_at: string;
+  /** 文件原始内容 sha256（内容身份） */
+  content_hash: string;
 }
 
 /**
@@ -201,6 +214,8 @@ interface AddAnnotationData {
   color?: string;
   /** 划线类型：'highlight'（高亮）、'underline'（下划线）等，默认 'highlight' */
   type?: string;
+  /** 文件原始内容 sha256（内容身份） */
+  contentHash?: string;
 }
 
 /**
@@ -221,6 +236,8 @@ interface BookmarkRecord {
   percent: number;
   /** 创建时间（ISO 字符串） */
   created_at: string;
+  /** 文件原始内容 sha256（内容身份） */
+  content_hash: string;
 }
 
 /**
@@ -237,6 +254,8 @@ interface AddBookmarkData {
   label?: string | null;
   /** 阅读百分比 0-100 */
   percent?: number;
+  /** 文件原始内容 sha256（内容身份） */
+  contentHash?: string;
 }
 
 /**
@@ -261,16 +280,22 @@ interface ExportAnnotationsData {
   filePath?: string;
   /** 导出标题（Markdown 一级标题 + 默认文件名），如《书名》或「全部笔记」 */
   title?: string;
+  /** 文件原始内容 sha256（内容身份）；提供时按内容身份查询，覆盖多副本共用标注 */
+  contentHash?: string;
 }
 
-/** 单本书的笔记/划线数量统计（get-annotation-counts 返回项） */
+/** 单本书的笔记/划线/书签数量统计（get-annotation-counts 返回项） */
 interface AnnotationCountItem {
-  /** 文件绝对路径 */
-  filePath: string;
+  /** 聚合键：有内容哈希时为 content_hash（多副本共用），否则为 file_path */
+  key: string;
+  /** 该聚合分组下的所有文件绝对路径（用于前端按 path 兜底索引，兼容书架行 content_hash 为空的情况） */
+  paths: string[];
   /** 笔记数量（note 非空） */
   noteCount: number;
   /** 划线数量（note 为空） */
   highlightCount: number;
+  /** 书签数量（按内容身份共用，与笔记/划线同源聚合） */
+  bookmarkCount: number;
 }
 
 /**
@@ -343,6 +368,42 @@ function dbRunAsync(
 }
 
 /**
+ * 按内容身份关联同一本书的分散记录（换路径重新导入时复用标注/书签/进度）。
+ *
+ * 逻辑：
+ * 仅给「当前路径自己」的遗留记录补上 content_hash（兼容升级前、尚未带哈希的数据）。
+ * 注意：本函数刻意不做任何跨路径的「搬移 / 删除」操作——
+ * 同一内容的多份副本（不同 file_path、相同 content_hash）是互相独立的「引用」，
+ * 各自保留书架行；标注 / 书签 / 进度等共享数据以 content_hash 为身份键，
+ * 由读取侧（get-annotations / get-bookmarks / get-progress）按哈希优先命中实现共用，
+ * 删除某一份副本只删其书架引用行，不影响其它副本与共享数据。
+ *
+ * @param db - sqlite3 数据库实例
+ * @param filePath - 当前打开文件的绝对路径
+ * @param contentHash - 当前文件原始内容 sha256；为空时不处理
+ */
+async function ensureBookIdentity(
+  db: Database,
+  filePath: string,
+  contentHash?: string
+): Promise<void> {
+  if (!contentHash) return;
+  // 仅补全当前路径自身记录的 content_hash，便于后续按哈希优先读取；不触碰其它副本。
+  for (const table of [
+    EBOOK_ANNOTATION_TABLE,
+    EBOOK_BOOKMARK_TABLE,
+    EBOOK_PROGRESS_TABLE,
+    EBOOK_BOOKSHELF_TABLE
+  ]) {
+    await dbRunAsync(
+      db,
+      `UPDATE ${table} SET content_hash = ? WHERE file_path = ? AND (content_hash IS NULL OR content_hash = '')`,
+      [contentHash, filePath]
+    );
+  }
+}
+
+/**
  * 创建电子书阅读进度表（IF NOT EXISTS）
  *
  * 表结构：
@@ -364,7 +425,8 @@ async function createProgressTable(): Promise<void> {
     format TEXT,
     cfi TEXT,
     percent REAL,
-    updated_at TEXT
+    updated_at TEXT,
+    content_hash TEXT
   )`;
   await dbRunAsync(db, sql);
 }
@@ -396,7 +458,8 @@ async function createBookshelfTable(): Promise<void> {
     added_at TEXT,
     title TEXT,
     author TEXT,
-    cover TEXT
+    cover TEXT,
+    content_hash TEXT
   )`;
   await dbRunAsync(db, sql);
 }
@@ -432,7 +495,8 @@ async function createAnnotationTable(): Promise<void> {
     color TEXT DEFAULT 'yellow',
     type TEXT DEFAULT 'highlight',
     created_at TEXT,
-    updated_at TEXT
+    updated_at TEXT,
+    content_hash TEXT
   )`;
   await dbRunAsync(db, sql);
 }
@@ -463,7 +527,8 @@ async function createBookmarkTable(): Promise<void> {
     cfi TEXT,
     label TEXT,
     percent REAL,
-    created_at TEXT
+    created_at TEXT,
+    content_hash TEXT
   )`;
   await dbRunAsync(db, sql);
 }
@@ -524,22 +589,22 @@ export async function initEbook(): Promise<void> {
   try {
     await ensureTableExists(
       EBOOK_PROGRESS_TABLE,
-      ['format', 'cfi', 'percent', 'updated_at'],
+      ['format', 'cfi', 'percent', 'updated_at', 'content_hash'],
       'file_path'
     );
     await ensureTableExists(
       EBOOK_BOOKSHELF_TABLE,
-      ['name', 'format', 'percent', 'last_read_at', 'added_at', 'title', 'author', 'cover'],
+      ['name', 'format', 'percent', 'last_read_at', 'added_at', 'title', 'author', 'cover', 'content_hash'],
       'file_path'
     );
     await ensureTableExists(
       EBOOK_ANNOTATION_TABLE,
-      ['file_path', 'format', 'anchor', 'text', 'note', 'color', 'type', 'created_at', 'updated_at'],
+      ['file_path', 'format', 'anchor', 'text', 'note', 'color', 'type', 'created_at', 'updated_at', 'content_hash'],
       'id'
     );
     await ensureTableExists(
       EBOOK_BOOKMARK_TABLE,
-      ['file_path', 'format', 'cfi', 'label', 'percent', 'created_at'],
+      ['file_path', 'format', 'cfi', 'label', 'percent', 'created_at', 'content_hash'],
       'id'
     );
   } catch (err) {
@@ -619,12 +684,48 @@ export async function initEbook(): Promise<void> {
     }
   );
 
+  // ============ ebook:compute-file-hash 计算文件内容哈希 ============
+  /**
+   * 对文件原始字节计算 sha256（内容身份，用于换路径重新导入时复用标注/进度）。
+   *
+   * 三格式统一、开销极低（即使几十 MB 也在毫秒级）。哈希基于「原始字节」，
+   * 因此仅当两份文件字节完全一致时才视为同一本。
+   *
+   * @param _event - IPC 事件对象（未使用）
+   * @param filePath - 必填参数，文件绝对路径
+   * @returns 成功返回 { success: true, hash: string }；失败返回 { success: false, error: string }
+   */
+  ipcMain.handle(
+    'ebook:compute-file-hash',
+    async (
+      _event,
+      filePath: string
+    ): Promise<{ success: boolean; hash?: string; error?: string }> => {
+      try {
+        if (!filePath || typeof filePath !== 'string') {
+          return { success: false, error: '文件路径不能为空' };
+        }
+        const buf = fs.readFileSync(filePath);
+        const hash = crypto.createHash('sha256').update(buf).digest('hex');
+        return { success: true, hash };
+      } catch (err: any) {
+        log.error('Failed to compute ebook file hash:', err);
+        return {
+          success: false,
+          error: `计算文件哈希失败：${err?.message || String(err)}`
+        };
+      }
+    }
+  );
+
   // ============ ebook:get-progress 获取阅读进度 ============
   /**
-   * 按 file_path 查询阅读进度
+   * 按内容身份（content_hash）或 file_path 查询阅读进度。
+   * 优先按 content_hash 命中（换路径重新导入时复用），未命中则回退 file_path（兼容旧数据）。
    *
    * @param _event - IPC 事件对象（未使用）
    * @param filePath - 必填参数，电子书文件绝对路径
+   * @param contentHash - 可选参数，文件原始内容 sha256
    * @returns 成功返回 { success: true, data: ProgressRecord | null }（无记录时 data 为 null）；
    *          失败返回 { success: false, error: string }
    */
@@ -632,7 +733,8 @@ export async function initEbook(): Promise<void> {
     'ebook:get-progress',
     async (
       _event,
-      filePath: string
+      filePath: string,
+      contentHash?: string
     ): Promise<{
       success: boolean;
       data?: ProgressRecord | null;
@@ -645,6 +747,17 @@ export async function initEbook(): Promise<void> {
         }
         if (!filePath || typeof filePath !== 'string') {
           return { success: false, error: '文件路径不能为空' };
+        }
+        // 优先按内容身份查询，命中直接返回；否则回退 file_path
+        if (contentHash) {
+          const byHash = await query({
+            tableName: EBOOK_PROGRESS_TABLE,
+            columns: ['file_path', 'format', 'cfi', 'percent', 'updated_at'],
+            conditions: { content_hash: contentHash }
+          });
+          if (byHash.length) {
+            return { success: true, data: (byHash[0] as ProgressRecord) ?? null };
+          }
         }
         const rows = await query({
           tableName: EBOOK_PROGRESS_TABLE,
@@ -686,6 +799,7 @@ export async function initEbook(): Promise<void> {
         }
         const updatedAt = new Date().toISOString();
         const percent = Number(data.percent) || 0;
+        const contentHash = data.contentHash ?? '';
         await upsert({
           tableName: EBOOK_PROGRESS_TABLE,
           data: {
@@ -693,10 +807,21 @@ export async function initEbook(): Promise<void> {
             format: data.format ?? '',
             cfi: data.cfi ?? '',
             percent,
-            updated_at: updatedAt
+            updated_at: updatedAt,
+            content_hash: contentHash
           },
           config: { primaryKey: 'file_path' }
         });
+        // 阅读进度按内容身份共用：同一内容（content_hash）的多份副本共享同一阅读位置。
+        // 当前副本已 upsert 自身进度行；再把同哈希的「其它副本」进度行同步为相同值，
+        // 使任一副本续读都会反映到所有副本（避免改动进度表主键带来的迁移风险）。
+        if (contentHash) {
+          await dbRunAsync(
+            db,
+            `UPDATE ${EBOOK_PROGRESS_TABLE} SET cfi = ?, percent = ?, updated_at = ?, format = ?, content_hash = ? WHERE content_hash = ? AND file_path != ?`,
+            [data.cfi ?? '', percent, updatedAt, data.format ?? '', contentHash, contentHash, data.filePath]
+          );
+        }
         // 同步更新书架进度：书架 percent 与 ebook_progress 必须同源，否则会出现
         // 「书架显示进度 ≠ 实际阅读进度」并反过来覆盖真实进度的情况。
         // 保留原 added_at，仅在首次加入时写入，last_read_at 始终刷新为当前时间。
@@ -716,7 +841,8 @@ export async function initEbook(): Promise<void> {
             format: existingRow?.format ?? (data.format ?? ''),
             percent,
             last_read_at: updatedAt,
-            added_at: existingRow?.added_at ?? updatedAt
+            added_at: existingRow?.added_at ?? updatedAt,
+            content_hash: contentHash
           },
           config: { primaryKey: 'file_path' }
         });
@@ -753,7 +879,9 @@ export async function initEbook(): Promise<void> {
         }
         const rows = await query({
           tableName: EBOOK_BOOKSHELF_TABLE,
-          columns: ['file_path', 'name', 'format', 'percent', 'last_read_at', 'added_at', 'title', 'author', 'cover'],
+          // 注意：必须包含 content_hash，否则前端无法按内容身份（content_hash）命中共享的
+          // 笔记/划线/书签计数，导致副本书籍的书架徽标始终显示 0。
+          columns: ['file_path', 'name', 'format', 'percent', 'last_read_at', 'added_at', 'title', 'author', 'cover', 'content_hash'],
           orderBy: 'last_read_at',
           orderByDesc: true
         });
@@ -794,6 +922,9 @@ export async function initEbook(): Promise<void> {
           return { success: false, error: '文件路径不能为空' };
         }
         const now = new Date().toISOString();
+        // 仅需补全当前副本自身记录的 content_hash（兼容旧数据）；不搬移、不删除其它同哈希副本。
+        // 多副本以各自 file_path 为独立书架引用，共享数据由读取侧按 content_hash 优先命中实现。
+        await ensureBookIdentity(db, data.filePath, data.contentHash);
         // 查询原记录以保留首次添加时间 added_at
         const existing = await query({
           tableName: EBOOK_BOOKSHELF_TABLE,
@@ -810,7 +941,8 @@ export async function initEbook(): Promise<void> {
             format: data.format ?? '',
             percent: Number(data.percent) || 0,
             last_read_at: now,
-            added_at: addedAt
+            added_at: addedAt,
+            content_hash: data.contentHash ?? ''
           },
           config: { primaryKey: 'file_path' }
         });
@@ -891,11 +1023,12 @@ export async function initEbook(): Promise<void> {
         const title = data.title ?? '';
         const author = data.author ?? '';
         const cover = data.cover ?? '';
+        const contentHash = data.contentHash ?? '';
         // 优先 UPDATE 已有书架行的元数据列（保留 percent / added_at / last_read_at）
         const upd = await dbRunAsync(
           db,
-          `UPDATE ${EBOOK_BOOKSHELF_TABLE} SET title = ?, author = ?, cover = ? WHERE file_path = ?`,
-          [title, author, cover, data.filePath]
+          `UPDATE ${EBOOK_BOOKSHELF_TABLE} SET title = ?, author = ?, cover = ?, content_hash = ? WHERE file_path = ?`,
+          [title, author, cover, contentHash, data.filePath]
         );
         // UPDATE 未命中（书架尚无该记录）时，以最小信息插入一行兜底
         if (upd.changes === 0) {
@@ -911,7 +1044,8 @@ export async function initEbook(): Promise<void> {
               added_at: now,
               title,
               author,
-              cover
+              cover,
+              content_hash: contentHash
             },
             config: { primaryKey: 'file_path' }
           });
@@ -929,10 +1063,12 @@ export async function initEbook(): Promise<void> {
 
   // ============ ebook:get-annotations 获取笔记与划线列表 ============
   /**
-   * 按 file_path 查询笔记与划线记录，按 created_at 升序返回
+   * 按内容身份（content_hash）或 file_path 查询笔记与划线记录，按 created_at 升序返回。
+   * 优先按 content_hash 命中（换路径重新导入时复用），未命中则回退 file_path（兼容旧数据）。
    *
    * @param _event - IPC 事件对象（未使用）
    * @param filePath - 必填参数，电子书文件绝对路径
+   * @param contentHash - 可选参数，文件原始内容 sha256
    * @returns 成功返回 { success: true, data: AnnotationRecord[] }（无记录时 data 为空数组）；
    *          失败返回 { success: false, error: string }
    */
@@ -940,7 +1076,8 @@ export async function initEbook(): Promise<void> {
     'ebook:get-annotations',
     async (
       _event,
-      filePath: string
+      filePath: string,
+      contentHash?: string
     ): Promise<{
       success: boolean;
       data?: AnnotationRecord[];
@@ -953,6 +1090,19 @@ export async function initEbook(): Promise<void> {
         }
         if (!filePath || typeof filePath !== 'string') {
           return { success: false, error: '文件路径不能为空' };
+        }
+        // 优先按内容身份查询，命中直接返回；否则回退 file_path
+        if (contentHash) {
+          const byHash = await query({
+            tableName: EBOOK_ANNOTATION_TABLE,
+            columns: ['id', 'file_path', 'format', 'anchor', 'text', 'note', 'color', 'type', 'created_at', 'updated_at'],
+            conditions: { content_hash: contentHash },
+            orderBy: 'created_at',
+            orderByDesc: false
+          });
+          if (byHash.length) {
+            return { success: true, data: byHash as AnnotationRecord[] };
+          }
         }
         const rows = await query({
           tableName: EBOOK_ANNOTATION_TABLE,
@@ -1007,7 +1157,8 @@ export async function initEbook(): Promise<void> {
             color: data.color ?? 'yellow',
             type: data.type ?? 'highlight',
             created_at: now,
-            updated_at: now
+            updated_at: now,
+            content_hash: data.contentHash ?? ''
           }
         });
         return { success: true, id: result.lastID };
@@ -1104,7 +1255,9 @@ export async function initEbook(): Promise<void> {
 
   // ============ ebook:remove-annotations 批量删除笔记与划线 ============
   /**
-   * 按 file_path 批量删除笔记与划线记录，支持按范围（note / highlight / all）过滤
+   * 批量删除笔记与划线记录，支持按范围（note / highlight / all）过滤。
+   * 优先按 content_hash 命中（多副本共用同一内容的标注，从任一份副本删除都能覆盖全部）；
+   * 未提供 contentHash 时回退 file_path（兼容旧调用）。
    *
    * scope 含义：
    * - 'note'      仅删除「笔记」（note 非空且去除首尾空白后不为空）
@@ -1112,7 +1265,7 @@ export async function initEbook(): Promise<void> {
    * - 'all'       删除该书全部笔记与划线
    *
    * @param _event - IPC 事件对象（未使用）
-   * @param data - 必填参数，{ filePath, scope }
+   * @param data - 必填参数，{ filePath, scope, contentHash? }
    * @returns 成功返回 { success: true, deleted: number }（deleted 为实际删除行数）；
    *          失败返回 { success: false, error: string }
    */
@@ -1120,7 +1273,7 @@ export async function initEbook(): Promise<void> {
     'ebook:remove-annotations',
     async (
       _event,
-      data: { filePath: string; scope: 'note' | 'highlight' | 'all' }
+      data: { filePath: string; scope: 'note' | 'highlight' | 'all'; contentHash?: string }
     ): Promise<{ success: boolean; deleted?: number; error?: string }> => {
       try {
         const db = myDb.db;
@@ -1131,20 +1284,23 @@ export async function initEbook(): Promise<void> {
           return { success: false, error: '文件路径不能为空' };
         }
         const scope = data.scope || 'all';
+        // 共享数据以 content_hash 为身份键：优先按哈希删除，回退 file_path
+        const keyCol = data.contentHash ? 'content_hash' : 'file_path';
+        const keyVal = data.contentHash ? data.contentHash : data.filePath;
         let sql: string;
         switch (scope) {
           case 'note':
-            sql = `DELETE FROM ${EBOOK_ANNOTATION_TABLE} WHERE file_path = ? AND note IS NOT NULL AND TRIM(note) != ''`;
+            sql = `DELETE FROM ${EBOOK_ANNOTATION_TABLE} WHERE ${keyCol} = ? AND note IS NOT NULL AND TRIM(note) != ''`;
             break;
           case 'highlight':
-            sql = `DELETE FROM ${EBOOK_ANNOTATION_TABLE} WHERE file_path = ? AND (note IS NULL OR TRIM(note) = '')`;
+            sql = `DELETE FROM ${EBOOK_ANNOTATION_TABLE} WHERE ${keyCol} = ? AND (note IS NULL OR TRIM(note) = '')`;
             break;
           case 'all':
           default:
-            sql = `DELETE FROM ${EBOOK_ANNOTATION_TABLE} WHERE file_path = ?`;
+            sql = `DELETE FROM ${EBOOK_ANNOTATION_TABLE} WHERE ${keyCol} = ?`;
             break;
         }
-        const result = await dbRunAsync(db, sql, [data.filePath]);
+        const result = await dbRunAsync(db, sql, [keyVal]);
         return { success: true, deleted: result.changes };
       } catch (err: any) {
         log.error('Failed to remove ebook annotations:', err);
@@ -1158,10 +1314,13 @@ export async function initEbook(): Promise<void> {
 
   // ============ ebook:get-annotation-counts 批量统计笔记与划线数量 ============
   /**
-   * 按 filePaths 批量统计每本书的笔记数（note 非空）与划线数（note 为空）
+   * 批量统计每本书的笔记数（note 非空）、划线数（note 为空）与书签数。
+   * 按内容身份（content_hash）聚合：同一内容的多份副本共享标注与书签，会汇总到同一分组；
+   * 未带哈希的遗留数据回退按 file_path 聚合。返回项以 content_hash（或 file_path）为 key。
    *
    * @param _event - IPC 事件对象（未使用）
-   * @param filePaths - 必填参数，文件绝对路径数组（空数组返回空 data）
+   * @param filePaths - 必填参数，文件绝对路径数组
+   * @param contentHashes - 可选参数，与 filePaths 对应的内容哈希数组；用于把其它路径下的共享标注/书签一并计入
    * @returns 成功返回 { success: true, data: AnnotationCountItem[] }；
    *          失败返回 { success: false, error: string }
    */
@@ -1169,7 +1328,8 @@ export async function initEbook(): Promise<void> {
     'ebook:get-annotation-counts',
     async (
       _event,
-      filePaths: string[]
+      filePaths: string[],
+      contentHashes?: string[]
     ): Promise<{
       success: boolean;
       data?: AnnotationCountItem[];
@@ -1183,24 +1343,73 @@ export async function initEbook(): Promise<void> {
         if (!Array.isArray(filePaths) || filePaths.length === 0) {
           return { success: true, data: [] };
         }
-        const placeholders = filePaths.map(() => '?').join(', ');
-        const sql = `SELECT file_path,
-          SUM(CASE WHEN note IS NOT NULL AND TRIM(note) != '' THEN 1 ELSE 0 END) AS note_count,
-          SUM(CASE WHEN note IS NULL OR TRIM(note) = '' THEN 1 ELSE 0 END) AS highlight_count
-        FROM ${EBOOK_ANNOTATION_TABLE}
-        WHERE file_path IN (${placeholders})
-        GROUP BY file_path`;
+        const conditions: string[] = [];
+        const params: string[] = [];
+        const pathPlaceholders = filePaths.map(() => '?').join(', ');
+        conditions.push(`file_path IN (${pathPlaceholders})`);
+        params.push(...filePaths);
+        // 内容哈希：把同哈希、不同路径的共享标注一并拉入统计
+        if (Array.isArray(contentHashes) && contentHashes.length > 0) {
+          const hashPlaceholders = contentHashes.map(() => '?').join(', ');
+          conditions.push(`(content_hash IN (${hashPlaceholders}) AND content_hash != '')`);
+          params.push(...contentHashes);
+        }
+        // 聚合键：有哈希按哈希（多副本共用），否则按 file_path（兼容遗留数据）
+        // 同时收集该分组下的所有 file_path，供前端按路径兜底索引（修复书架行 content_hash 为空时徽标读 0）
+        const sql = `SELECT
+            CASE WHEN content_hash IS NOT NULL AND content_hash != '' THEN content_hash ELSE file_path END AS grp_key,
+            GROUP_CONCAT(DISTINCT file_path) AS paths,
+            SUM(CASE WHEN note IS NOT NULL AND TRIM(note) != '' THEN 1 ELSE 0 END) AS note_count,
+            SUM(CASE WHEN note IS NULL OR TRIM(note) = '' THEN 1 ELSE 0 END) AS highlight_count
+          FROM ${EBOOK_ANNOTATION_TABLE}
+          WHERE ${conditions.join(' OR ')}
+          GROUP BY grp_key`;
         const rows = await new Promise<any[]>((resolve, reject) => {
-          db.all(sql, filePaths, (err, rows) => {
+          db.all(sql, params, (err, rows) => {
             if (err) reject(err);
             else resolve(rows);
           });
         });
+        // 书签数量：与标注使用同一 WHERE 条件与聚合键，按内容身份共用
+        const bmSql = `SELECT
+            CASE WHEN content_hash IS NOT NULL AND content_hash != '' THEN content_hash ELSE file_path END AS grp_key,
+            GROUP_CONCAT(DISTINCT file_path) AS paths,
+            COUNT(*) AS bm_count
+          FROM ${EBOOK_BOOKMARK_TABLE}
+          WHERE ${conditions.join(' OR ')}
+          GROUP BY grp_key`;
+        const bmRows = await new Promise<any[]>((resolve, reject) => {
+          db.all(bmSql, params, (err, rows) => {
+            if (err) reject(err);
+            else resolve(rows);
+          });
+        });
+        const bmMap: Record<string, { count: number; paths: string[] }> = {};
+        bmRows.forEach((r) => {
+          bmMap[r.grp_key] = {
+            count: r.bm_count || 0,
+            paths: r.paths ? String(r.paths).split(',') : []
+          };
+        });
         const data: AnnotationCountItem[] = rows.map((row) => ({
-          filePath: row.file_path,
+          key: row.grp_key,
+          paths: row.paths ? String(row.paths).split(',') : [],
           noteCount: row.note_count || 0,
-          highlightCount: row.highlight_count || 0
+          highlightCount: row.highlight_count || 0,
+          bookmarkCount: bmMap[row.grp_key]?.count || 0
         }));
+        // 仅有书签但没有标注的书也需要出现在结果中，否则书签徽标不会显示
+        bmRows.forEach((r) => {
+          if (!rows.some((row) => row.grp_key === r.grp_key)) {
+            data.push({
+              key: r.grp_key,
+              paths: r.paths ? String(r.paths).split(',') : [],
+              noteCount: 0,
+              highlightCount: 0,
+              bookmarkCount: r.bm_count || 0
+            });
+          }
+        });
         return { success: true, data };
       } catch (err: any) {
         log.error('Failed to get annotation counts:', err);
@@ -1217,7 +1426,8 @@ export async function initEbook(): Promise<void> {
    * 导出笔记与划线为 Markdown 文件（弹出系统保存对话框）
    *
    * @param _event - IPC 事件对象（未使用）
-   * @param data - 入参 { filePath?, title? }；filePath 为空表示导出全部书
+   * @param data - 入参 { filePath?, title?, contentHash? }；filePath 为空表示导出全部书。
+   *             提供 contentHash 时按内容身份查询（多副本共用标注，从任一份副本导出即可覆盖全部）。
    * @returns 成功返回 { success: true, savedPath: string }；
    *          取消/失败返回 { success: false, error?: string }（取消时 error 为 '已取消导出'）
    */
@@ -1233,14 +1443,28 @@ export async function initEbook(): Promise<void> {
           return { success: false, error: '数据库未初始化' };
         }
         const filePath = data?.filePath || '';
-        const title = data?.title || (filePath ? '电子书笔记与划线' : '全部电子书笔记与划线');
+        const contentHash = data?.contentHash || '';
+        // 书名：优先用前端传入的清洗书名（不含扩展名），否则从路径推导；空表示导出全部书
+        const title =
+          data?.title ||
+          (filePath ? path.basename(filePath, path.extname(filePath)) : '全部电子书笔记与划线');
 
-        // 查询记录：单本按 file_path 过滤，全部则取所有
+        // 查询记录：优先按 content_hash（覆盖多副本共用数据），回退 file_path，空则取全部
         let rows: AnnotationRecord[];
-        if (filePath) {
+        // 含 content_hash 以便「导出全部」时按内容身份合并副本
+        const columns = ['id', 'file_path', 'format', 'anchor', 'text', 'note', 'color', 'type', 'created_at', 'updated_at', 'content_hash'];
+        if (contentHash) {
           rows = await query({
             tableName: EBOOK_ANNOTATION_TABLE,
-            columns: ['id', 'file_path', 'format', 'anchor', 'text', 'note', 'color', 'type', 'created_at', 'updated_at'],
+            columns,
+            conditions: { content_hash: contentHash },
+            orderBy: 'created_at',
+            orderByDesc: false
+          });
+        } else if (filePath) {
+          rows = await query({
+            tableName: EBOOK_ANNOTATION_TABLE,
+            columns,
             conditions: { file_path: filePath },
             orderBy: 'created_at',
             orderByDesc: false
@@ -1248,26 +1472,27 @@ export async function initEbook(): Promise<void> {
         } else {
           rows = await query({
             tableName: EBOOK_ANNOTATION_TABLE,
-            columns: ['id', 'file_path', 'format', 'anchor', 'text', 'note', 'color', 'type', 'created_at', 'updated_at'],
+            columns,
             orderBy: 'created_at',
             orderByDesc: false
           });
         }
 
-        // 生成 Markdown 内容
-        const markdown = buildAnnotationsMarkdown(title, filePath, rows);
+        // 生成 Markdown 内容（单本按 hash 身份输出；全部按 content_hash 合并副本）
+        const markdown = buildAnnotationsMarkdown(title, contentHash, filePath, rows);
 
-        // 弹出保存对话框
+        // 弹出保存对话框（默认文件名带时间前缀，便于区分多次导出）
+        const defaultName = `${timePrefix()}_${sanitizeFileName(title)}.md`;
         const win = BrowserWindow.getFocusedWindow();
         const saveResult = await (win
           ? dialog.showSaveDialog(win, {
               title: '导出笔记与划线',
-              defaultPath: `${sanitizeFileName(title)}.md`,
+              defaultPath: defaultName,
               filters: [{ name: 'Markdown', extensions: ['md'] }]
             })
           : dialog.showSaveDialog({
               title: '导出笔记与划线',
-              defaultPath: `${sanitizeFileName(title)}.md`,
+              defaultPath: defaultName,
               filters: [{ name: 'Markdown', extensions: ['md'] }]
             }));
         if (saveResult.canceled || !saveResult.filePath) {
@@ -1288,10 +1513,12 @@ export async function initEbook(): Promise<void> {
 
   // ============ ebook:get-bookmarks 获取书签列表 ============
   /**
-   * 按 file_path 查询书签记录，按 percent 升序（阅读顺序）返回
+   * 按内容身份（content_hash）或 file_path 查询书签记录，按 percent 升序（阅读顺序）返回。
+   * 优先按 content_hash 命中（换路径重新导入时复用），未命中则回退 file_path（兼容旧数据）。
    *
    * @param _event - IPC 事件对象（未使用）
    * @param filePath - 必填参数，电子书文件绝对路径
+   * @param contentHash - 可选参数，文件原始内容 sha256
    * @returns 成功返回 { success: true, data: BookmarkRecord[] }（无记录时 data 为空数组）；
    *          失败返回 { success: false, error: string }
    */
@@ -1299,7 +1526,8 @@ export async function initEbook(): Promise<void> {
     'ebook:get-bookmarks',
     async (
       _event,
-      filePath: string
+      filePath: string,
+      contentHash?: string
     ): Promise<{
       success: boolean;
       data?: BookmarkRecord[];
@@ -1312,6 +1540,19 @@ export async function initEbook(): Promise<void> {
         }
         if (!filePath || typeof filePath !== 'string') {
           return { success: false, error: '文件路径不能为空' };
+        }
+        // 优先按内容身份查询，命中直接返回；否则回退 file_path
+        if (contentHash) {
+          const byHash = await query({
+            tableName: EBOOK_BOOKMARK_TABLE,
+            columns: ['id', 'file_path', 'format', 'cfi', 'label', 'percent', 'created_at'],
+            conditions: { content_hash: contentHash },
+            orderBy: 'percent',
+            orderByDesc: false
+          });
+          if (byHash.length) {
+            return { success: true, data: byHash as BookmarkRecord[] };
+          }
         }
         const rows = await query({
           tableName: EBOOK_BOOKMARK_TABLE,
@@ -1363,7 +1604,8 @@ export async function initEbook(): Promise<void> {
             cfi: data.cfi,
             label: data.label ?? null,
             percent: Number(data.percent) || 0,
-            created_at: now
+            created_at: now,
+            content_hash: data.contentHash ?? ''
           }
         });
         return { success: true, id: result.lastID };
@@ -1418,61 +1660,116 @@ export async function initEbook(): Promise<void> {
 }
 
 /**
- * 生成笔记与划线导出用的 Markdown 文本
+ * 生成笔记与划线导出用的 Markdown 文本（按内容身份 hash 组织）
  *
- * @param title - 一级标题（书名或「全部」）
- * @param filePath - 单本导出时传文件路径（用于区分单本/全部排版）；空串表示全部书
+ * @param bookName - 清洗后的书名（不含扩展名），作为一级/二级标题主体
+ * @param contentHash - 文件原始内容 sha256（内容身份），参与标题与「书籍引用」分区
+ * @param filePath - 单本导出时传文件路径（非空表示单本排版）；空串表示导出全部书（按 hash 分组）
  * @param records - 笔记与划线记录数组
  * @returns Markdown 字符串
  */
 function buildAnnotationsMarkdown(
-  title: string,
+  bookName: string,
+  contentHash: string,
   filePath: string,
   records: AnnotationRecord[]
 ): string {
   const lines: string[] = [];
-  const totalNotes = records.filter((r) => (r.note || '').trim().length > 0).length;
-  const totalHighlights = records.length - totalNotes;
-  lines.push(`# ${title}`);
-  lines.push('');
-  lines.push(
-    `> 导出时间：${new Date().toLocaleString('zh-CN')} · 笔记 ${totalNotes} 条 · 划线 ${totalHighlights} 条`
-  );
-  lines.push('');
-
   if (filePath) {
-    // 单本：直接输出笔记与划线两个分区
-    appendAnnotationSection(lines, records);
+    // 单本：以内容身份（hash）为一级标题，文件名/路径为二级分区
+    appendBookSection(lines, 1, bookName, contentHash, [filePath], records);
   } else {
-    // 全部：按 file_path 分组，每组一个小节
+    // 全部：按内容哈希（content_hash）分组，多副本合并到同一身份；
+    // 无哈希的遗留数据按 file_path 分组，避免不同书被错误合并。
     const groups = new Map<string, AnnotationRecord[]>();
     for (const r of records) {
-      const list = groups.get(r.file_path) || [];
+      const key = r.content_hash && r.content_hash.trim() ? `H:${r.content_hash}` : `P:${r.file_path}`;
+      const list = groups.get(key) || [];
       list.push(r);
-      groups.set(r.file_path, list);
+      groups.set(key, list);
     }
-    for (const [fp, list] of groups.entries()) {
-      const bookName = path.basename(fp, path.extname(fp)) || fp;
-      lines.push(`## 《${bookName}》`);
-      lines.push('');
-      appendAnnotationSection(lines, list);
+    for (const [, list] of groups) {
+      const hash = list[0]?.content_hash || '';
+      const fps = list.map((r) => r.file_path);
+      const name = (list[0]?.file_path && path.basename(list[0].file_path, path.extname(list[0].file_path))) || bookName || '电子书';
+      appendBookSection(lines, 2, name, hash, fps, list);
     }
   }
   return lines.join('\n');
 }
 
 /**
- * 输出一组记录的「笔记」与「划线」两个三级分区
+ * 输出单本书（或某内容身份）的完整分区：
+ *   #/## 书籍名称 hash
+ *   ##/### 书籍引用及其文件名、路径
+ *   ##/### 标注划线
+ *     ###/#### 笔记
+ *     ###/#### 划线
  *
  * @param lines - 累积输出的行数组
+ * @param level - 该书标题的 Markdown 标题层级（单本为 1，全部导出时为 2）
+ * @param bookName - 清洗后的书名（不含扩展名）
+ * @param contentHash - 文件原始内容 sha256（内容身份），可空
+ * @param filePaths - 该书对应的文件绝对路径（多副本时含多个）
+ * @param records - 该书的标注/划线记录
+ */
+function appendBookSection(
+  lines: string[],
+  level: number,
+  bookName: string,
+  contentHash: string,
+  filePaths: string[],
+  records: AnnotationRecord[]
+): void {
+  const h1 = '#'.repeat(level);
+  const h2 = '#'.repeat(level + 1);
+  const h3 = '#'.repeat(level + 2);
+
+  // 一级/二级标题：书籍名称 + 内容哈希（身份标识）
+  lines.push(`${h1} 《${bookName}》${contentHash ? ' ' + contentHash : ''}`);
+  lines.push('');
+  lines.push(`> 导出时间：${new Date().toLocaleString('zh-CN')}`);
+  lines.push('');
+
+  // 书籍引用（内容哈希身份）及其文件名、路径
+  lines.push(`${h2} 书籍引用及其文件名、路径`);
+  lines.push('');
+  if (contentHash) {
+    lines.push(`- 书籍引用（内容哈希）：${contentHash}`);
+  }
+  const uniquePaths = Array.from(new Set(filePaths.filter(Boolean)));
+  if (uniquePaths.length === 0) {
+    lines.push('- 文件名：未知');
+    lines.push('- 路径：未知');
+  } else {
+    uniquePaths.forEach((fp, i) => {
+      lines.push(`- 文件名：${path.basename(fp)}`);
+      lines.push(`- 路径：${fp}`);
+      // 多副本时各组之间空一行分隔
+      if (uniquePaths.length > 1 && i < uniquePaths.length - 1) lines.push('');
+    });
+  }
+  lines.push('');
+
+  // 标注划线
+  lines.push(`${h2} 标注划线`);
+  lines.push('');
+  appendAnnotationSection(lines, h3, records);
+}
+
+/**
+ * 输出一组记录的「笔记」与「划线」两个分区（标题层级由 headingLevel 决定）
+ *
+ * @param lines - 累积输出的行数组
+ * @param headingLevel - 笔记/划线分区的 Markdown 标题前缀（如 '###' 或 '####'）
  * @param records - 该组（单本或某一本书）的记录
  * @returns 无返回值
  */
-function appendAnnotationSection(lines: string[], records: AnnotationRecord[]): void {
+function appendAnnotationSection(lines: string[], headingLevel: string, records: AnnotationRecord[]): void {
   const notes = records.filter((r) => (r.note || '').trim().length > 0);
   const highlights = records.filter((r) => !(r.note || '').trim());
 
-  lines.push('### 笔记');
+  lines.push(`${headingLevel} 笔记`);
   lines.push('');
   if (notes.length === 0) {
     lines.push('（无）');
@@ -1485,7 +1782,7 @@ function appendAnnotationSection(lines: string[], records: AnnotationRecord[]): 
     });
   }
 
-  lines.push('### 划线');
+  lines.push(`${headingLevel} 划线`);
   lines.push('');
   if (highlights.length === 0) {
     lines.push('（无）');
@@ -1503,6 +1800,17 @@ function appendAnnotationSection(lines: string[], records: AnnotationRecord[]): 
  */
 function sanitizeFileName(name: string): string {
   return name.replace(/[\\/:*?"<>|]/g, '_').trim() || '笔记导出';
+}
+
+/**
+ * 生成导出文件名的「时间前缀」（YYYYMMDD_HHmmss，紧凑且文件名安全）
+ *
+ * @returns 如 20260815_202530
+ */
+function timePrefix(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 }
 
 export type {

@@ -37,38 +37,40 @@ interface Window {
       readTxt: (filePath: string) => Promise<any>;
       // 以 base64 读取任意文件原始字节（PDF 等二进制格式）
       readFileBytes: (filePath: string) => Promise<{ base64?: string; error?: string }>;
+      // 计算文件原始内容 sha256（内容身份）
+      computeFileHash: (filePath: string) => Promise<{ success: boolean; hash?: string; error?: string }>;
       // 获取电子书阅读进度
-      getProgress: (filePath: string) => Promise<any>;
+      getProgress: (filePath: string, contentHash?: string) => Promise<any>;
       // 保存电子书阅读进度
-      saveProgress: (data: { filePath: string; format: string; name?: string; cfi: string; percent: number }) => Promise<any>;
+      saveProgress: (data: { filePath: string; format: string; name?: string; cfi: string; percent: number; contentHash?: string }) => Promise<any>;
       // 获取书架列表（按上次阅读时间倒序）
       getBookshelf: () => Promise<{ success: boolean; data?: BookshelfRecord[]; error?: string }>;
       // 添加或更新书架记录（upsert，保留首次添加时间）
-      addToBookshelf: (data: { filePath: string; name: string; format: string; percent: number }) => Promise<{ success: boolean; error?: string }>;
+      addToBookshelf: (data: { filePath: string; name: string; format: string; percent: number; contentHash?: string }) => Promise<{ success: boolean; error?: string }>;
       // 按 file_path 删除书架记录
       removeFromBookshelf: (filePath: string) => Promise<{ success: boolean; error?: string }>;
       // 获取指定文件的笔记与划线列表（按创建时间升序）
-      getAnnotations: (filePath: string) => Promise<{ success: boolean; data?: AnnotationRecord[]; error?: string }>;
+      getAnnotations: (filePath: string, contentHash?: string) => Promise<{ success: boolean; data?: AnnotationRecord[]; error?: string }>;
       // 新增一条笔记与划线记录（返回新记录自增 id）
-      addAnnotation: (data: { filePath: string; format: string; anchor: string; text: string; note?: string | null; color?: string; type?: string }) => Promise<{ success: boolean; id?: number; error?: string }>;
+      addAnnotation: (data: { filePath: string; format: string; anchor: string; text: string; note?: string | null; color?: string; type?: string; contentHash?: string }) => Promise<{ success: boolean; id?: number; error?: string }>;
       // 按 id 更新笔记内容、高亮颜色与类型
       updateAnnotation: (data: { id: number; note?: string | null; color?: string; type?: string }) => Promise<{ success: boolean; error?: string }>;
       // 按 id 删除笔记与划线记录
       removeAnnotation: (id: number) => Promise<{ success: boolean; error?: string }>;
       // 按 file_path 批量删除笔记与划线记录（scope: 'note' | 'highlight' | 'all'）
-      removeAnnotations: (data: { filePath: string; scope: 'note' | 'highlight' | 'all' }) => Promise<{ success: boolean; deleted?: number; error?: string }>;
-      // 批量统计每本书的笔记与划线数量
-      getAnnotationCounts: (filePaths: string[]) => Promise<{ success: boolean; data?: { filePath: string; noteCount: number; highlightCount: number }[]; error?: string }>;
+      removeAnnotations: (data: { filePath: string; scope: 'note' | 'highlight' | 'all'; contentHash?: string }) => Promise<{ success: boolean; deleted?: number; error?: string }>;
+      // 批量统计每本书的笔记、划线与书签数量（key 为 content_hash 或 file_path）
+      getAnnotationCounts: (filePaths: string[], contentHashes?: string[]) => Promise<{ success: boolean; data?: { key: string; paths: string[]; noteCount: number; highlightCount: number; bookmarkCount: number }[]; error?: string }>;
       // 导出笔记与划线为 Markdown 文件
-      exportAnnotations: (data: { filePath?: string; title?: string }) => Promise<{ success: boolean; savedPath?: string; error?: string }>;
+      exportAnnotations: (data: { filePath?: string; title?: string; contentHash?: string }) => Promise<{ success: boolean; savedPath?: string; error?: string }>;
       // 获取指定文件的书签列表（按阅读顺序升序）
-      getBookmarks: (filePath: string) => Promise<{ success: boolean; data?: BookmarkRecord[]; error?: string }>;
+      getBookmarks: (filePath: string, contentHash?: string) => Promise<{ success: boolean; data?: BookmarkRecord[]; error?: string }>;
       // 新增一条书签（返回新记录自增 id）
-      addBookmark: (data: { filePath: string; format: string; cfi: string; label?: string | null; percent?: number }) => Promise<{ success: boolean; id?: number; error?: string }>;
+      addBookmark: (data: { filePath: string; format: string; cfi: string; label?: string | null; percent?: number; contentHash?: string }) => Promise<{ success: boolean; id?: number; error?: string }>;
       // 按 id 删除书签
       removeBookmark: (id: number) => Promise<{ success: boolean; error?: string }>;
       // 保存书籍基本信息（标题/作者/封面），由渲染进程解析后回传，供书架列表秒出
-      saveBookMeta: (data: { filePath: string; name?: string; format?: string; title?: string; author?: string; cover?: string }) => Promise<{ success: boolean; error?: string }>;
+      saveBookMeta: (data: { filePath: string; name?: string; format?: string; title?: string; author?: string; cover?: string; contentHash?: string }) => Promise<{ success: boolean; error?: string }>;
     };
   }
 }
@@ -97,6 +99,8 @@ type BookshelfRecord = {
   author: string;
   /** 封面图 data URL（JPEG/PNG base64，无则空串） */
   cover: string;
+  /** 文件原始内容 sha256（内容身份，用于换路径重新导入时复用标注/进度） */
+  content_hash: string;
 };
 
 /**

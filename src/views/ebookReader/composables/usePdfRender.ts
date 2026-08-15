@@ -528,7 +528,7 @@ export function usePdfRender(ctx: PdfCtx) {
   async function restoreProgress(filePath: string): Promise<void> {
     try {
       let page = 0;
-      const res = await window.ipcRenderer.ebook.getProgress(filePath);
+      const res = await window.ipcRenderer.ebook.getProgress(filePath, ctx.contentHash || '');
       if (res?.success && res.data?.cfi) {
         const p = parseInt(res.data.cfi, 10);
         if (!isNaN(p) && p > 0) page = p;

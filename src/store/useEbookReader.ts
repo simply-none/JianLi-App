@@ -26,6 +26,8 @@ export interface EbookFile {
   author?: string;
   /** 封面图 data URL（JPEG/PNG base64；空串表示无封面，回退占位） */
   cover?: string;
+  /** 文件原始内容 sha256（内容身份，用于换路径重新导入时复用标注/进度） */
+  contentHash?: string;
 }
 
 /** 阅读进度信息 */
@@ -169,6 +171,8 @@ export interface BookshelfItem {
   author?: string;
   /** 封面图 data URL（JPEG/PNG base64；空串表示无封面，回退占位） */
   cover?: string;
+  /** 文件原始内容 sha256（内容身份，用于换路径重新导入时复用标注/进度） */
+  contentHash?: string;
 }
 
 /** 持久化存储键名：阅读设置 */
@@ -576,6 +580,7 @@ export default defineStore('ebook-reader', () => {
           title: row.title,
           author: row.author,
           cover: row.cover,
+          contentHash: row.content_hash,
         }));
       } else if (res && !res.success) {
         console.error('加载书架列表失败：', res.error);
@@ -597,6 +602,8 @@ export default defineStore('ebook-reader', () => {
         name: item.name,
         format: item.format,
         percent: item.percent,
+        // 透传内容哈希：使书架行写入 content_hash，副本可与同内容原书共用笔记/书签/进度
+        contentHash: item.contentHash,
       });
       if (res && res.success) {
         // 刷新书架列表，保证与数据库一致

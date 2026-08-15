@@ -78,10 +78,22 @@
           </el-button>
         </div>
 
-        <!-- 书名（截断显示，title 显示完整名） -->
-        <div class="book-name" :title="item.title || item.name">
-          {{ item.title || item.name }}
-        </div>
+        <!-- 书名（截断显示；hover 展示文件名与完整路径） -->
+        <el-tooltip placement="top" :show-after="300" effect="dark">
+          <template #content>
+            <div style="max-width: 320px; line-height: 1.7; font-size: 12px;">
+              <div style="margin-bottom: 4px;">
+                <span style="color: #c0c4cc; margin-right: 8px;">文件名</span><b style="color: #fff;">{{ item.name }}</b>
+              </div>
+              <div>
+                <span style="color: #c0c4cc; margin-right: 8px;">路径</span><span style="word-break: break-all; color: #fff;">{{ item.path }}</span>
+              </div>
+            </div>
+          </template>
+          <div class="book-name">
+            {{ item.title || item.name }}
+          </div>
+        </el-tooltip>
 
         <!-- 作者（有则显示） -->
         <div v-if="item.author" class="book-author" :title="item.author">
@@ -105,15 +117,19 @@
           <span>{{ formatTime(item.lastReadAt) }}</span>
         </div>
 
-        <!-- 笔记/划线数量徽标 -->
+        <!-- 笔记/划线/书签数量徽标（按内容身份共用，副本与原书同步） -->
         <div class="book-stats">
           <span class="stat-badge note">
             <LucideIcon name="NotebookPen" :size="12" />
-            笔记 {{ annotationCountMap[item.path]?.noteCount || 0 }}
+            笔记 {{ annotationCountMap[item.contentHash || item.path]?.noteCount || 0 }}
           </span>
           <span class="stat-badge highlight">
             <LucideIcon name="Pen" :size="12" />
-            划线 {{ annotationCountMap[item.path]?.highlightCount || 0 }}
+            划线 {{ annotationCountMap[item.contentHash || item.path]?.highlightCount || 0 }}
+          </span>
+          <span class="stat-badge bookmark">
+            <LucideIcon name="BookMarked" :size="12" />
+            书签 {{ annotationCountMap[item.contentHash || item.path]?.bookmarkCount || 0 }}
           </span>
         </div>
 
@@ -147,8 +163,8 @@ import type { BookshelfItem } from '@/store/useEbookReader';
 const props = defineProps<{
   /** 书架列表 */
   items: BookshelfItem[];
-  /** 每本书的笔记/划线数量映射（path -> { noteCount, highlightCount }） */
-  annotationCountMap: Record<string, { noteCount: number; highlightCount: number }>;
+  /** 每本书的笔记/划线/书签数量映射（key 为 content_hash 或 file_path） */
+  annotationCountMap: Record<string, { noteCount: number; highlightCount: number; bookmarkCount: number }>;
 }>();
 
 const emit = defineEmits<{
@@ -393,6 +409,9 @@ function formatTime(time: string): string {
       }
       &.highlight {
         color: var(--text-secondary);
+      }
+      &.bookmark {
+        color: #d9881e;
       }
     }
   }

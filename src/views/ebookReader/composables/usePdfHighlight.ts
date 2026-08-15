@@ -42,7 +42,7 @@ export function usePdfHighlight(ctx: PdfCtx) {
    */
   async function loadAnnotations(filePath: string) {
     try {
-      const res = await window.ipcRenderer.ebook.getAnnotations(filePath);
+      const res = await window.ipcRenderer.ebook.getAnnotations(filePath, ctx.contentHash || '');
       if (res?.success && Array.isArray(res.data)) {
         ctx.annotations.value = (res.data as AnnotationRecord[]).map((r): PdfAnnotation => {
           const { page, rects } = parseAnchor(r.anchor || '');
@@ -89,6 +89,7 @@ export function usePdfHighlight(ctx: PdfCtx) {
         note,
         color,
         type,
+        contentHash: ctx.contentHash || '',
       });
       if (!res?.success || typeof res.id !== 'number') {
         ElMessage.error('添加划线失败');

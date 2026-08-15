@@ -128,6 +128,8 @@ type EbookBgType = 'preset' | 'color' | 'image';
 const props = defineProps<{
   /** 文件绝对路径 */
   filePath: string;
+  /** 当前文件内容身份（原始内容 sha256，多副本共用标注/进度），由父组件透传 */
+  contentHash?: string;
   /** 字体大小，单位 px */
   fontSize: number;
   /** 中文正文字体（CSS font-family 值，可为空表示使用默认字体） */

@@ -17,7 +17,7 @@ export function useTxtHighlight(ctx: TxtCtx) {
    */
   async function loadAnnotations(filePath: string) {
     try {
-      const res = await window.ipcRenderer.ebook.getAnnotations(filePath);
+      const res = await window.ipcRenderer.ebook.getAnnotations(filePath, ctx.contentHash || '');
       if (res?.success && Array.isArray(res.data)) {
         ctx.annotations.value = (res.data as AnnotationRecord[]).map((r): TxtAnnotation => {
           const parts = (r.anchor || '').split('-');
@@ -63,6 +63,7 @@ export function useTxtHighlight(ctx: TxtCtx) {
         note,
         color,
         type,
+        contentHash: ctx.contentHash || '',
       });
       if (!res?.success || typeof res.id !== 'number') {
         ElMessage.error('添加划线失败');

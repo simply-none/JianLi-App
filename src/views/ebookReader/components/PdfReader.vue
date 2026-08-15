@@ -153,6 +153,8 @@ const { settings } = storeToRefs(ebookStore);
 const props = defineProps<{
   /** 文件绝对路径 */
   filePath: string;
+  /** 当前文件内容身份（原始内容 sha256，多副本共用标注/进度），由父组件透传 */
+  contentHash?: string;
   /** 阅读主题：day 白天、night 夜间、eye 护眼 */
   theme: 'day' | 'night' | 'eye';
   /** 阅读区背景类型：preset 跟随主题 / color 纯色 / image 背景图 */

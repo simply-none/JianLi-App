@@ -460,7 +460,7 @@ export function useTxtRender(ctx: TxtCtx) {
   async function restoreProgress(filePath: string) {
     try {
       let offset = 0;
-      const res = await window.ipcRenderer.ebook.getProgress(filePath);
+      const res = await window.ipcRenderer.ebook.getProgress(filePath, ctx.contentHash || '');
       if (res?.success && res.data?.cfi) {
         const dbOffset = parseInt(res.data.cfi, 10);
         if (!isNaN(dbOffset) && dbOffset > 0) offset = dbOffset;

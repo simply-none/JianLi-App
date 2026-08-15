@@ -49,7 +49,7 @@ export function useEpubBookmarks(ctx: EpubCtx) {
   async function loadBookmarks(filePath: string): Promise<void> {
     if (!filePath) return;
     try {
-      const res = await window.ipcRenderer.ebook.getBookmarks(filePath);
+      const res = await window.ipcRenderer.ebook.getBookmarks(filePath, ctx.contentHash || '');
       if (res?.success && Array.isArray(res.data)) {
         bookmarks.value = res.data;
         ctx.emit('bookmarks-updated', bookmarks.value);
@@ -74,6 +74,7 @@ export function useEpubBookmarks(ctx: EpubCtx) {
         cfi,
         label,
         percent,
+        contentHash: ctx.contentHash || '',
       });
       if (!res?.success || typeof res.id !== 'number') {
         ElMessage.error(`添加书签失败：${res?.error || '未知错误'}`);

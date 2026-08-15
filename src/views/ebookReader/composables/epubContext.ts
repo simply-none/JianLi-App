@@ -14,6 +14,8 @@ import type { EpubAnnotation } from '../types';
 export interface EpubReaderProps {
   /** 文件绝对路径 */
   filePath: string;
+  /** 当前文件内容身份（原始内容 sha256，多副本共用标注/进度），由父组件透传 */
+  contentHash?: string;
   /** 字体大小，单位 px */
   fontSize: number;
   /** 中文正文字体（CSS font-family 值，可为空表示使用默认字体） */
@@ -140,6 +142,8 @@ export interface EpubCtx {
   props: EpubReaderProps;
   /** 阅读设置 store 的 settings ref（划线颜色/类型、翻页效果等） */
   settings: Ref<any>;
+  /** 当前文件内容身份（原始内容 sha256，多副本共用标注/进度），由 props 透传 */
+  contentHash: string;
 }
 
 /**
@@ -188,6 +192,7 @@ export function createEpubCtx(
     initialRenderDone: false,
     emit,
     props,
+    contentHash: props.contentHash || '',
     settings,
   };
 }

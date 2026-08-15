@@ -72,14 +72,23 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
       return ipcRenderer.invoke('ebook:read-file-bytes', filePath)
     },
     /**
+     * 计算文件原始内容 sha256（内容身份，用于换路径重新导入时复用标注/进度）
+     *
+     * @param filePath - 必填参数，文件绝对路径
+     * @returns 成功返回 Promise<{ success: boolean; hash?: string; error?: string }>
+     */
+    computeFileHash(filePath: string) {
+      return ipcRenderer.invoke('ebook:compute-file-hash', filePath)
+    },
+    /**
      * 获取指定电子书文件的阅读进度
      *
      * @param filePath - 必填参数，电子书文件的绝对路径
      * @returns 成功返回 Promise<{ success: boolean; data?: EbookProgress; error?: string }>；
      *          失败返回 Promise 中 success 为 false，并附带 error 错误信息
      */
-    getProgress(filePath: string) {
-      return ipcRenderer.invoke('ebook:get-progress', filePath)
+    getProgress(filePath: string, contentHash?: string) {
+      return ipcRenderer.invoke('ebook:get-progress', filePath, contentHash)
     },
     /**
      * 保存电子书阅读进度
@@ -92,7 +101,7 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
      * @returns 成功返回 Promise<{ success: boolean; error?: string }>；
      *          失败返回 Promise 中 success 为 false，并附带 error 错误信息
      */
-    saveProgress(data: { filePath: string; format: string; name?: string; cfi: string; percent: number }) {
+    saveProgress(data: { filePath: string; format: string; name?: string; cfi: string; percent: number; contentHash?: string }) {
       return ipcRenderer.invoke('ebook:save-progress', data)
     },
     /**
@@ -115,7 +124,7 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
      * @returns 成功返回 Promise<{ success: boolean; error?: string }>；
      *          失败返回 Promise 中 success 为 false，并附带 error 错误信息
      */
-    addToBookshelf(data: { filePath: string; name: string; format: string; percent: number }) {
+    addToBookshelf(data: { filePath: string; name: string; format: string; percent: number; contentHash?: string }) {
       return ipcRenderer.invoke('ebook:add-to-bookshelf', data)
     },
     /**
@@ -135,8 +144,8 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
      * @returns 成功返回 Promise<{ success: true; data: AnnotationRecord[] }>（无记录时 data 为空数组）；
      *          失败返回 Promise<{ success: false; error: string }>
      */
-    getAnnotations(filePath: string) {
-      return ipcRenderer.invoke('ebook:get-annotations', filePath)
+    getAnnotations(filePath: string, contentHash?: string) {
+      return ipcRenderer.invoke('ebook:get-annotations', filePath, contentHash)
     },
     /**
      * 新增一条笔记与划线记录
@@ -151,7 +160,7 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
      * @returns 成功返回 Promise<{ success: true; id: number }>（id 为新记录自增主键）；
      *          失败返回 Promise<{ success: false; error: string }>
      */
-    addAnnotation(data: { filePath: string; format: string; anchor: string; text: string; note?: string | null; color?: string }) {
+    addAnnotation(data: { filePath: string; format: string; anchor: string; text: string; note?: string | null; color?: string; type?: string; contentHash?: string }) {
       return ipcRenderer.invoke('ebook:add-annotation', data)
     },
     /**
@@ -188,14 +197,15 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
       return ipcRenderer.invoke('ebook:remove-annotations', data)
     },
     /**
-     * 批量统计每本书的笔记与划线数量（供书架卡片显示徽标）
+     * 批量统计每本书的笔记、划线与书签数量（供书架卡片显示徽标）
      *
      * @param filePaths - 必填参数，文件绝对路径数组
-     * @returns 成功返回 Promise<{ success: true; data: { filePath, noteCount, highlightCount }[] }>；
+     * @param contentHashes - 可选参数，与 filePaths 对应的内容哈希数组；用于把同哈希、不同路径的共享数据一并计入
+     * @returns 成功返回 Promise<{ success: true; data: { key, noteCount, highlightCount, bookmarkCount }[] }>；
      *          失败返回 Promise<{ success: false; error: string }>
      */
-    getAnnotationCounts(filePaths: string[]) {
-      return ipcRenderer.invoke('ebook:get-annotation-counts', filePaths)
+    getAnnotationCounts(filePaths: string[], contentHashes?: string[]) {
+      return ipcRenderer.invoke('ebook:get-annotation-counts', filePaths, contentHashes)
     },
     /**
      * 导出笔记与划线为 Markdown 文件（弹出系统保存对话框）
@@ -214,8 +224,8 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
      * @returns 成功返回 Promise<{ success: true; data: BookmarkRecord[] }>（无记录时 data 为空数组）；
      *          失败返回 Promise<{ success: false; error: string }>
      */
-    getBookmarks(filePath: string) {
-      return ipcRenderer.invoke('ebook:get-bookmarks', filePath)
+    getBookmarks(filePath: string, contentHash?: string) {
+      return ipcRenderer.invoke('ebook:get-bookmarks', filePath, contentHash)
     },
     /**
      * 新增一条书签记录
@@ -229,7 +239,7 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
      * @returns 成功返回 Promise<{ success: true; id: number }>（id 为新记录自增主键）；
      *          失败返回 Promise<{ success: false; error: string }>
      */
-    addBookmark(data: { filePath: string; format: string; cfi: string; label?: string | null; percent: number }) {
+    addBookmark(data: { filePath: string; format: string; cfi: string; label?: string | null; percent: number; contentHash?: string }) {
       return ipcRenderer.invoke('ebook:add-bookmark', data)
     },
     /**
@@ -249,7 +259,7 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
      * @returns 成功返回 Promise<{ success: boolean; error?: string }>；
      *          失败返回 Promise 中 success 为 false，并附带 error 错误信息
      */
-    saveBookMeta(data: { filePath: string; name?: string; format?: string; title?: string; author?: string; cover?: string }) {
+    saveBookMeta(data: { filePath: string; name?: string; format?: string; title?: string; author?: string; cover?: string; contentHash?: string }) {
       return ipcRenderer.invoke('ebook:save-book-meta', data)
     },
   },

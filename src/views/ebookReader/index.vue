@@ -204,6 +204,7 @@
               :key="currentFile.path"
               ref="readerRef"
               :file-path="currentFile.path"
+              :content-hash="currentFile.contentHash"
               :font-size="settings.fontSize"
               :font-family="settings.fontFamily"
               :font-family-en="settings.fontFamilyEN"
@@ -466,11 +467,19 @@ const extraReaderProps = computed(() => {
  * @param format - 文件格式：'txt'、'epub' 或 'pdf'
  * @returns 无返回值
  */
-function loadFile(filePath: string, name: string, format: 'txt' | 'epub' | 'pdf') {
+async function loadFile(filePath: string, name: string, format: 'txt' | 'epub' | 'pdf') {
   // 清空不支持格式提示，避免上一次的提示残留
   unsupportedTip.value = '';
+  // 计算文件内容哈希（内容身份）：用于换路径重新导入时复用标注/进度
+  let contentHash = '';
+  try {
+    const hashRes = await window.ipcRenderer.ebook.computeFileHash(filePath);
+    if (hashRes && hashRes.success && hashRes.hash) contentHash = hashRes.hash;
+  } catch (err) {
+    console.error('计算文件内容哈希失败：', err);
+  }
   // 写入 store 的当前文件（同步持久化到本地存储）
-  setCurrentFile({ path: filePath, name, format });
+  setCurrentFile({ path: filePath, name, format, contentHash });
   // 清除旧目录状态，避免上本书目录残留
   tocItems.value = [];
   tocVisible.value = false;
@@ -480,6 +489,7 @@ function loadFile(filePath: string, name: string, format: 'txt' | 'epub' | 'pdf'
   // 写入/更新书架记录：仅确保该书存在于书架并刷新 last_read_at。
   // percent 不再由全局 progress 覆盖——saveProgress 已保证 ebook_bookshelf.percent 与真实阅读进度同源，
   // 此处沿用该书已有的书架进度（existingItem.percent）即可，避免把全局 progress 误写进本书条目。
+  // contentHash 一并写入，主进程据其把同内容、不同路径的遗留标注/进度关联到当前书。
   const existingItem = bookshelf.value.find((b) => b.path === filePath);
   addToBookshelf({
     path: filePath,
@@ -488,6 +498,7 @@ function loadFile(filePath: string, name: string, format: 'txt' | 'epub' | 'pdf'
     percent: existingItem ? existingItem.percent : getBookProgress(filePath)?.percent || 0,
     lastReadAt: new Date().toISOString(),
     addedAt: new Date().toISOString(),
+    contentHash,
   });
   // 切换到阅读视图
   view.value = 'reader';
@@ -631,6 +642,7 @@ async function onProgressUpdate(payload: { cfi: string; percent: number; filePat
       cfi: payload.cfi,
       percent: payload.percent,
       name: currentFile.value.name,
+      contentHash: currentFile.value.contentHash || '',
     });
   } catch (err) {
     // 持久化失败不影响阅读，仅打印日志（本地映射已兜底）
@@ -826,6 +838,7 @@ function onBookMeta(payload: { title: string; author: string; cover: string }) {
     path,
     name: currentFile.value.name,
     format: currentFile.value.format,
+    contentHash: currentFile.value.contentHash,
     title: payload.title || currentFile.value.title,
     author: payload.author || currentFile.value.author,
     cover: payload.cover || currentFile.value.cover,
@@ -839,6 +852,7 @@ function onBookMeta(payload: { title: string; author: string; cover: string }) {
       title: payload.title,
       author: payload.author,
       cover: payload.cover,
+      contentHash: currentFile.value.contentHash || '',
     })
     .catch((err: any) => console.error('保存书籍基本信息失败', err));
   // 同步本地书架卡片（无需重新 loadBookshelf）
@@ -946,7 +960,12 @@ async function onDeleteAll(scope: 'note' | 'highlight'): Promise<void> {
   }
 
   try {
-    const res = await window.ipcRenderer.ebook.removeAnnotations({ filePath: targetFile, scope });
+    // 以内容身份（content_hash）命中共享标注：多副本共用同一内容的标注，删除覆盖全部副本
+    const hash =
+      (bookshelf.value.find((b) => b.path === targetFile)?.contentHash as string | undefined) ||
+      currentFile.value.contentHash ||
+      '';
+    const res = await window.ipcRenderer.ebook.removeAnnotations({ filePath: targetFile, scope, contentHash: hash });
     if (!res?.success) {
       ElMessage.error(`删除失败：${res?.error || '未知错误'}`);
       return;
@@ -977,7 +996,7 @@ async function onDeleteAll(scope: 'note' | 'highlight'): Promise<void> {
  */
 async function openShelfAnnotations(item: BookshelfItem): Promise<void> {
   annotationSourceFile.value = item.path;
-  const res = await window.ipcRenderer.ebook.getAnnotations(item.path);
+  const res = await window.ipcRenderer.ebook.getAnnotations(item.path, item.contentHash || '');
   if (res?.success) {
     annotations.value = (res.data || []).map((r) => ({
       id: r.id,
@@ -1001,17 +1020,20 @@ async function openShelfAnnotations(item: BookshelfItem): Promise<void> {
 async function exportCurrentAnnotations(): Promise<void> {
   if (annotationSourceFile.value) {
     const book = bookshelf.value.find((b) => b.path === annotationSourceFile.value);
-    const title = `${book?.name?.replace(/\.[^.]+$/, '') || '电子书'}笔记与划线`;
+    // 书名去掉扩展名（"笔记与划线"由后端分区标题体现，无需塞进标题）
+    const title = book?.name?.replace(/\.[^.]+$/, '') || '电子书';
     const res = await window.ipcRenderer.ebook.exportAnnotations({
       filePath: annotationSourceFile.value,
       title,
+      contentHash: book?.contentHash || '',
     });
     handleExportResult(res);
   } else if (currentFile.value.path) {
-    const title = `${currentFile.value.name.replace(/\.[^.]+$/, '')}笔记与划线`;
+    const title = currentFile.value.name.replace(/\.[^.]+$/, '');
     const res = await window.ipcRenderer.ebook.exportAnnotations({
       filePath: currentFile.value.path,
       title,
+      contentHash: currentFile.value.contentHash || '',
     });
     handleExportResult(res);
   }
