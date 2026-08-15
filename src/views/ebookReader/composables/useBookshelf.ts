@@ -8,7 +8,7 @@
  *   避免 composable 反向依赖 index 的 loadFile。
  * - 笔记/划线抽屉（openShelfAnnotations）仍由父组件处理，因为涉及 annotationSourceFile / annotations / drawer 状态。
  */
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import useEbookReader from '@/store/useEbookReader';
@@ -44,6 +44,33 @@ export function useBookshelf(opts: UseBookshelfOptions) {
   // 书架列表（响应式，与原 index.vue 中 storeToRefs 解构结果一致）
   const { bookshelf } = storeToRefs(store);
   const { addToBookshelf, removeFromBookshelf } = store;
+  // 分类相关：全部分类列表 + 增删/设置书籍分类的操作（来自 store）
+  const { categories } = storeToRefs(store);
+  const { addCategory, deleteCategory, updateCategory, setBookCategories } = store;
+
+  /** 当前选中的分类筛选（null 表示不过滤，展示全部） */
+  const selectedCategory = ref<number | null>(null);
+  /** 名称搜索关键词（按书名 / 文件名匹配） */
+  const searchKeyword = ref('');
+
+  /**
+   * 过滤后的书架列表：先按分类筛选，再按名称关键词筛选。
+   * 分类筛选优先（选中分类后只显示该分类下的书），名称关键词在其结果上进一步过滤。
+   */
+  const filteredItems = computed(() => {
+    let list = bookshelf.value;
+    if (selectedCategory.value != null) {
+      list = list.filter((b) => (b.categoryIds || []).includes(selectedCategory.value as number));
+    }
+    const kw = searchKeyword.value.trim().toLowerCase();
+    if (kw) {
+      list = list.filter((b) => {
+        const name = (b.title || b.name || '').toLowerCase();
+        return name.includes(kw);
+      });
+    }
+    return list;
+  });
 
   /** 每本书的笔记/划线/书签数量映射（key 为 content_hash 或 file_path），用于书架卡片徽标 */
   const annotationCountMap = ref<Record<string, { noteCount: number; highlightCount: number; bookmarkCount: number }>>({});
@@ -250,5 +277,14 @@ export function useBookshelf(opts: UseBookshelfOptions) {
     addExternal,
     exportBook,
     exportAll,
+    // 分类相关状态与操作
+    categories,
+    selectedCategory,
+    searchKeyword,
+    filteredItems,
+    addCategory,
+    deleteCategory,
+    updateCategory,
+    setBookCategories,
   };
 }

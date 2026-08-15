@@ -138,6 +138,66 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
       return ipcRenderer.invoke('ebook:remove-from-bookshelf', filePath)
     },
     /**
+     * 获取全部分类（按创建时间升序）
+     *
+     * @returns 成功返回 Promise<{ success: true; data: { id, name }[] }>；
+     *          失败返回 Promise<{ success: false; error: string }>
+     */
+    getCategories() {
+      return ipcRenderer.invoke('ebook:get-categories')
+    },
+    /**
+     * 新增分类（按名称去重，幂等）
+     *
+     * @param name - 必填参数，分类名称
+     * @returns 成功返回 Promise<{ success: true; id: number; existed?: boolean }>；
+     *          失败返回 Promise<{ success: false; error: string }>
+     */
+    addCategory(name: string, color?: string) {
+      return ipcRenderer.invoke('ebook:add-category', name, color)
+    },
+    /**
+     * 修改分类（名称 / 颜色）
+     *
+     * @param data - 必填参数，{ id: number, name?: string, color?: string | null }
+     *               color 传 null/'' 表示清除颜色（传 undefined 表示不修改颜色）
+     * @returns 成功返回 Promise<{ success: boolean; error?: string }>；
+     *          失败返回 Promise<{ success: false; error: string }>
+     */
+    updateCategory(data: { id: number; name?: string; color?: string | null }) {
+      return ipcRenderer.invoke('ebook:update-category', data)
+    },
+    /**
+     * 删除分类（同时删除其下所有书-分类映射）
+     *
+     * @param id - 必填参数，分类 id
+     * @returns 成功返回 Promise<{ success: boolean; error?: string }>；
+     *          失败返回 Promise<{ success: false; error: string }>
+     */
+    deleteCategory(id: number) {
+      return ipcRenderer.invoke('ebook:delete-category', id)
+    },
+    /**
+     * 获取书与分类的映射
+     *
+     * @param bookPath - 可选参数，文件绝对路径；传入返回该书分类 id 数组，不传返回 { [book_path]: number[] }
+     * @returns 成功返回 Promise<{ success: true; data: any }>；
+     *          失败返回 Promise<{ success: false; error: string }>
+     */
+    getBookCategories(bookPath?: string) {
+      return ipcRenderer.invoke('ebook:get-book-categories', bookPath)
+    },
+    /**
+     * 替换某本书关联的分类集合（先清空旧映射，再批量写入）
+     *
+     * @param data - 必填参数，{ bookPath: 文件绝对路径, categoryIds: number[] }
+     * @returns 成功返回 Promise<{ success: boolean; error?: string }>；
+     *          失败返回 Promise<{ success: false; error: string }>
+     */
+    setBookCategories(data: { bookPath: string; categoryIds: number[] }) {
+      return ipcRenderer.invoke('ebook:set-book-categories', data)
+    },
+    /**
      * 获取指定电子书文件的笔记与划线列表（按创建时间升序）
      *
      * @param filePath - 必填参数，电子书文件绝对路径

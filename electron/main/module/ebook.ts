@@ -36,6 +36,12 @@ const EBOOK_ANNOTATION_TABLE = 'ebook_annotation';
 /** 电子书书签表名（存储用户手动添加的翻页书签，基于 epub cfi 或 txt 偏移定位） */
 const EBOOK_BOOKMARK_TABLE = 'ebook_bookmark';
 
+/** 电子书分类表名（用户自定义的分类，如「小说」「技术」），name 唯一 */
+const EBOOK_CATEGORY_TABLE = 'ebook_category';
+
+/** 电子书「书-分类」多对多映射表名（book_path 关联 category_id） */
+const EBOOK_BOOK_CATEGORY_TABLE = 'ebook_book_category';
+
 /**
  * 电子书阅读进度数据结构
  */
@@ -534,6 +540,53 @@ async function createBookmarkTable(): Promise<void> {
 }
 
 /**
+ * 创建电子书分类表（IF NOT EXISTS）
+ *
+ * 表结构：
+ * - id          INTEGER PRIMARY KEY AUTOINCREMENT  自增主键
+ * - name        TEXT                               分类名称（唯一，如「小说」「技术」）
+ * - created_at  TEXT                               创建时间（ISO 字符串）
+ *
+ * @returns 成功 resolve void；失败 reject Error（如数据库未初始化）
+ */
+async function createCategoryTable(): Promise<void> {
+  const db = myDb.db;
+  if (!db) {
+    throw new Error('数据库未初始化');
+  }
+  const sql = `CREATE TABLE IF NOT EXISTS ${EBOOK_CATEGORY_TABLE} (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE,
+    color TEXT,
+    created_at TEXT
+  )`;
+  await dbRunAsync(db, sql);
+}
+
+/**
+ * 创建电子书「书-分类」多对多映射表（IF NOT EXISTS）
+ *
+ * 表结构：
+ * - book_path    TEXT  书架条目绝对路径（联合主键之一）
+ * - category_id  INT   关联 ebook_category.id（联合主键之一）
+ * 联合主键 (book_path, category_id) 保证一本书同一分类不重复关联。
+ *
+ * @returns 成功 resolve void；失败 reject Error（如数据库未初始化）
+ */
+async function createBookCategoryTable(): Promise<void> {
+  const db = myDb.db;
+  if (!db) {
+    throw new Error('数据库未初始化');
+  }
+  const sql = `CREATE TABLE IF NOT EXISTS ${EBOOK_BOOK_CATEGORY_TABLE} (
+    book_path TEXT,
+    category_id INTEGER,
+    PRIMARY KEY (book_path, category_id)
+  )`;
+  await dbRunAsync(db, sql);
+}
+
+/**
  * 电子书模块初始化
  * 注册所有 ebook 相关 IPC 监听：
  * - ebook:read-txt           读取 txt 文件内容（自动检测编码并转为 UTF-8）
@@ -583,6 +636,18 @@ export async function initEbook(): Promise<void> {
     log.error('Failed to create ebook_bookmark table:', err);
   }
 
+  // 3.2 创建分类表与「书-分类」映射表（与上述表并列，独立 try/catch，互不影响）
+  try {
+    await createCategoryTable();
+  } catch (err) {
+    log.error('Failed to create ebook_category table:', err);
+  }
+  try {
+    await createBookCategoryTable();
+  } catch (err) {
+    log.error('Failed to create ebook_book_category table:', err);
+  }
+
   // 4. 与 newSql.ts 保持一致：确保各表列完整，自动补齐旧库中缺失的列
   //    （例如老版本建表时还没有 type 列，这里会 ALTER TABLE ADD COLUMN 补齐，
   //      否则后续 INSERT/UPDATE 引用 type 会报 SQLITE_ERROR: no column named type）
@@ -606,6 +671,16 @@ export async function initEbook(): Promise<void> {
       EBOOK_BOOKMARK_TABLE,
       ['file_path', 'format', 'cfi', 'label', 'percent', 'created_at', 'content_hash'],
       'id'
+    );
+    await ensureTableExists(
+      EBOOK_CATEGORY_TABLE,
+      ['name', 'color', 'created_at'],
+      'id'
+    );
+    await ensureTableExists(
+      EBOOK_BOOK_CATEGORY_TABLE,
+      ['category_id'],
+      'book_path'
     );
   } catch (err) {
     log.error('Failed to ensure ebook tables columns:', err);
@@ -983,12 +1058,291 @@ export async function initEbook(): Promise<void> {
           tableName: EBOOK_BOOKSHELF_TABLE,
           condition: { file_path: filePath }
         });
+        // 一并删除该书的所有「书-分类」映射，避免遗留脏数据
+        await del({
+          tableName: EBOOK_BOOK_CATEGORY_TABLE,
+          condition: { book_path: filePath }
+        });
         return { success: true };
       } catch (err: any) {
         log.error('Failed to remove from ebook bookshelf:', err);
         return {
           success: false,
           error: `删除书架记录失败：${err?.message || String(err)}`
+        };
+      }
+    }
+  );
+
+  // ============ ebook:get-categories 获取全部分类 ============
+  /**
+   * 查询全部分类（按创建时间升序，保证展示顺序稳定）
+   *
+   * @param _event - IPC 事件对象（未使用）
+   * @returns 成功返回 { success: true, data: { id, name, color }[] }（无记录时 data 为空数组）；
+   *          失败返回 { success: false, error: string }
+   */
+  ipcMain.handle(
+    'ebook:get-categories',
+    async (): Promise<{ success: boolean; data?: { id: number; name: string; color?: string }[]; error?: string }> => {
+      try {
+        const db = myDb.db;
+        if (!db) {
+          return { success: false, error: '数据库未初始化' };
+        }
+        const rows = await query({
+          tableName: EBOOK_CATEGORY_TABLE,
+          columns: ['id', 'name', 'color'],
+          orderBy: 'created_at',
+          orderByDesc: false
+        });
+        return { success: true, data: rows as { id: number; name: string; color?: string }[] };
+      } catch (err: any) {
+        log.error('Failed to get ebook categories:', err);
+        return {
+          success: false,
+          error: `获取分类列表失败：${err?.message || String(err)}`
+        };
+      }
+    }
+  );
+
+  // ============ ebook:add-category 新增分类 ============
+  /**
+   * 新增分类（按名称去重：若同名分类已存在，直接返回其 id，幂等）
+   *
+   * @param _event - IPC 事件对象（未使用）
+   * @param name - 必填参数，分类名称（会自动 trim；为空返回错误）
+   * @param color - 可选参数，分类颜色（十六进制色值，如 '#409eff'；为空则不设置）
+   * @returns 成功返回 { success: true, id: number, existed?: boolean }；
+   *          失败返回 { success: false, error: string }
+   */
+  ipcMain.handle(
+    'ebook:add-category',
+    async (
+      _event,
+      name: string,
+      color?: string
+    ): Promise<{ success: boolean; id?: number; existed?: boolean; error?: string }> => {
+      try {
+        const db = myDb.db;
+        if (!db) {
+          return { success: false, error: '数据库未初始化' };
+        }
+        const trimmed = (name || '').trim();
+        if (!trimmed) {
+          return { success: false, error: '分类名称不能为空' };
+        }
+        // 同名分类已存在则幂等返回，避免重复
+        const existing = await query({
+          tableName: EBOOK_CATEGORY_TABLE,
+          columns: ['id', 'name'],
+          conditions: { name: trimmed }
+        });
+        if (existing.length > 0) {
+          return { success: true, id: (existing[0] as { id: number }).id, existed: true };
+        }
+        const res = await insert({
+          tableName: EBOOK_CATEGORY_TABLE,
+          data: { name: trimmed, color: color || null, created_at: new Date().toISOString() }
+        });
+        return { success: true, id: res.lastID };
+      } catch (err: any) {
+        log.error('Failed to add ebook category:', err);
+        return {
+          success: false,
+          error: `添加分类失败：${err?.message || String(err)}`
+        };
+      }
+    }
+  );
+
+  // ============ ebook:delete-category 删除分类 ============
+  /**
+   * 删除分类（同时删除所有「书-分类」映射行）
+   *
+   * @param _event - IPC 事件对象（未使用）
+   * @param id - 必填参数，分类 id
+   * @returns 成功返回 { success: true }；失败返回 { success: false, error: string }
+   */
+  ipcMain.handle(
+    'ebook:delete-category',
+    async (
+      _event,
+      id: number
+    ): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const db = myDb.db;
+        if (!db) {
+          return { success: false, error: '数据库未初始化' };
+        }
+        if (typeof id !== 'number') {
+          return { success: false, error: '分类 id 无效' };
+        }
+        // 先删除该分类下的所有映射，再删除分类本身
+        await del({
+          tableName: EBOOK_BOOK_CATEGORY_TABLE,
+          condition: { category_id: id }
+        });
+        await del({
+          tableName: EBOOK_CATEGORY_TABLE,
+          condition: { id }
+        });
+        return { success: true };
+      } catch (err: any) {
+        log.error('Failed to delete ebook category:', err);
+        return {
+          success: false,
+          error: `删除分类失败：${err?.message || String(err)}`
+        };
+      }
+    }
+  );
+
+  // ============ ebook:update-category 修改分类（名称 / 颜色） ============
+  /**
+   * 修改分类的名称与/或颜色（按 id 更新，仅更新传入的字段）
+   *
+   * @param _event - IPC 事件对象（未使用）
+   * @param data - 必填参数，{ id: number, name?: string, color?: string }
+   *               name 为空表示不修改名称；color 传 null/'' 表示清除颜色
+   * @returns 成功返回 { success: true }；失败返回 { success: false, error: string }
+   */
+  ipcMain.handle(
+    'ebook:update-category',
+    async (
+      _event,
+      data: { id: number; name?: string; color?: string }
+    ): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const db = myDb.db;
+        if (!db) {
+          return { success: false, error: '数据库未初始化' };
+        }
+        if (!data || typeof data.id !== 'number') {
+          return { success: false, error: '分类 id 无效' };
+        }
+        // 仅组装传入的非空字段，避免覆盖未提供的列
+        const setData: { name?: string; color?: string | null } = {};
+        if (typeof data.name === 'string' && data.name.trim()) {
+          setData.name = data.name.trim();
+        }
+        if (data.color !== undefined) {
+          // 传 null 或空字符串表示清除颜色
+          setData.color = data.color || null;
+        }
+        if (Object.keys(setData).length === 0) {
+          // 无任何可更新字段，视为成功（幂等）
+          return { success: true };
+        }
+        await update({
+          tableName: EBOOK_CATEGORY_TABLE,
+          data: setData,
+          condition: { id: data.id }
+        });
+        return { success: true };
+      } catch (err: any) {
+        log.error('Failed to update ebook category:', err);
+        return {
+          success: false,
+          error: `修改分类失败：${err?.message || String(err)}`
+        };
+      }
+    }
+  );
+
+  // ============ ebook:get-book-categories 获取书与分类的映射 ============
+  /**
+   * 获取「书-分类」映射。
+   * - 传入 bookPath：返回该书关联的分类 id 数组（用于单本编辑）。
+   * - 不传 bookPath：返回全部映射 { [book_path]: number[] }（用于书架列表批量合并）。
+   *
+   * @param _event - IPC 事件对象（未使用）
+   * @param bookPath - 可选参数，电子书文件绝对路径
+   * @returns 成功返回 { success: true, data }（data 形态见上文）；
+   *          失败返回 { success: false, error: string }
+   */
+  ipcMain.handle(
+    'ebook:get-book-categories',
+    async (
+      _event,
+      bookPath?: string
+    ): Promise<{ success: boolean; data?: any; error?: string }> => {
+      try {
+        const db = myDb.db;
+        if (!db) {
+          return { success: false, error: '数据库未初始化' };
+        }
+        if (bookPath) {
+          const rows = await query({
+            tableName: EBOOK_BOOK_CATEGORY_TABLE,
+            columns: ['category_id'],
+            conditions: { book_path: bookPath }
+          });
+          return { success: true, data: (rows as { category_id: number }[]).map((r) => r.category_id) };
+        }
+        const rows = await query({
+          tableName: EBOOK_BOOK_CATEGORY_TABLE,
+          columns: ['book_path', 'category_id']
+        });
+        const map: Record<string, number[]> = {};
+        (rows as { book_path: string; category_id: number }[]).forEach((r) => {
+          (map[r.book_path] = map[r.book_path] || []).push(r.category_id);
+        });
+        return { success: true, data: map };
+      } catch (err: any) {
+        log.error('Failed to get ebook book categories:', err);
+        return {
+          success: false,
+          error: `获取书籍分类失败：${err?.message || String(err)}`
+        };
+      }
+    }
+  );
+
+  // ============ ebook:set-book-categories 设置某本书的分类 ============
+  /**
+   * 替换某本书关联的分类集合（先清空旧映射，再批量写入新映射）。
+   *
+   * @param _event - IPC 事件对象（未使用）
+   * @param data - 必填参数，{ bookPath: 文件绝对路径, categoryIds: number[] }
+   * @returns 成功返回 { success: true }；失败返回 { success: false, error: string }
+   */
+  ipcMain.handle(
+    'ebook:set-book-categories',
+    async (
+      _event,
+      data: { bookPath: string; categoryIds: number[] }
+    ): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const db = myDb.db;
+        if (!db) {
+          return { success: false, error: '数据库未初始化' };
+        }
+        if (!data || !data.bookPath || !Array.isArray(data.categoryIds)) {
+          return { success: false, error: '参数无效' };
+        }
+        // 先清空该书旧映射
+        await del({
+          tableName: EBOOK_BOOK_CATEGORY_TABLE,
+          condition: { book_path: data.bookPath }
+        });
+        // 再批量写入新映射（去重后的分类 id）
+        const ids = Array.from(new Set(data.categoryIds)).filter(
+          (id) => typeof id === 'number'
+        );
+        if (ids.length > 0) {
+          await insert({
+            tableName: EBOOK_BOOK_CATEGORY_TABLE,
+            data: ids.map((categoryId) => ({ book_path: data.bookPath, category_id: categoryId }))
+          });
+        }
+        return { success: true };
+      } catch (err: any) {
+        log.error('Failed to set ebook book categories:', err);
+        return {
+          success: false,
+          error: `设置书籍分类失败：${err?.message || String(err)}`
         };
       }
     }

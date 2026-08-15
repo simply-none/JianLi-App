@@ -173,6 +173,8 @@ export interface BookshelfItem {
   cover?: string;
   /** 文件原始内容 sha256（内容身份，用于换路径重新导入时复用标注/进度） */
   contentHash?: string;
+  /** 该书所属分类 id 列表（多对多，来自 ebook_category / ebook_book_category 表） */
+  categoryIds?: number[];
 }
 
 /** 持久化存储键名：阅读设置 */
@@ -284,6 +286,9 @@ export default defineStore('ebook-reader', () => {
 
   // 书架列表，默认空数组；不做本地持久化，每次组件挂载时从数据库加载
   const bookshelf = ref<BookshelfItem[]>([]);
+
+  /** 全部分类（来自 ebook_category 表），书架视图用于分类筛选与管理 */
+  const categories = ref<{ id: number; name: string; color?: string }[]>([]);
 
   /**
    * 设置当前打开的电子书文件，并同步持久化到本地存储
@@ -570,6 +575,16 @@ export default defineStore('ebook-reader', () => {
     try {
       const res = await window.ipcRenderer.ebook.getBookshelf();
       if (res && res.success && Array.isArray(res.data)) {
+        // 拉取「书-分类」映射（book_path -> categoryIds[]），合并进每条书架记录
+        let bookCategoryMap: Record<string, number[]> = {};
+        try {
+          const catRes = await window.ipcRenderer.ebook.getBookCategories();
+          if (catRes && catRes.success && catRes.data && typeof catRes.data === 'object') {
+            bookCategoryMap = catRes.data as Record<string, number[]>;
+          }
+        } catch (catErr) {
+          console.error('加载书籍分类映射失败：', catErr);
+        }
         bookshelf.value = res.data.map((row) => ({
           path: row.file_path,
           name: row.name,
@@ -581,12 +596,119 @@ export default defineStore('ebook-reader', () => {
           author: row.author,
           cover: row.cover,
           contentHash: row.content_hash,
+          categoryIds: bookCategoryMap[row.file_path] || [],
         }));
       } else if (res && !res.success) {
         console.error('加载书架列表失败：', res.error);
       }
     } catch (err) {
       console.error('加载书架列表异常：', err);
+    }
+  }
+
+  /**
+   * 从数据库加载全部分类列表到 categories
+   * 失败时打印错误日志，categories 保持原值（空数组）
+   * @returns 无返回值
+   */
+  async function loadCategories() {
+    try {
+      const res = await window.ipcRenderer.ebook.getCategories();
+      if (res && res.success && Array.isArray(res.data)) {
+        categories.value = res.data;
+      } else if (res && !res.success) {
+        console.error('加载分类列表失败：', res.error);
+      }
+    } catch (err) {
+      console.error('加载分类列表异常：', err);
+    }
+  }
+
+  /**
+   * 新增分类（按名称去重，已存在则直接返回），成功后刷新分类列表
+   * @param name 分类名称
+   * @param color 可选，分类颜色（十六进制色值，如 '#409eff'）
+   * @returns 成功返回新增/已有分类的 id；失败返回 undefined
+   */
+  async function addCategory(name: string, color?: string): Promise<number | undefined> {
+    try {
+      const res = await window.ipcRenderer.ebook.addCategory(name, color);
+      if (res && res.success && typeof res.id === 'number') {
+        await loadCategories();
+        return res.id;
+      }
+      if (res && !res.success) {
+        console.error('添加分类失败：', res.error);
+      }
+      return undefined;
+    } catch (err) {
+      console.error('添加分类异常：', err);
+      return undefined;
+    }
+  }
+
+  /**
+   * 修改分类的名称与/或颜色，成功后刷新分类列表
+   * @param id 分类 id
+   * @param name 可选，新名称；为空表示不修改名称
+   * @param color 可选，新颜色；传 null/'' 表示清除颜色（传 undefined 表示不修改颜色）
+   */
+  async function updateCategory(id: number, name?: string, color?: string | null): Promise<void> {
+    try {
+      const res = await window.ipcRenderer.ebook.updateCategory({ id, name, color });
+      if (res && res.success) {
+        await loadCategories();
+      } else if (res && !res.success) {
+        console.error('修改分类失败：', res.error);
+      }
+    } catch (err) {
+      console.error('修改分类异常：', err);
+    }
+  }
+
+  /**
+   * 删除分类（同时删除其下所有书-分类映射），成功后刷新分类列表
+   * @param id 分类 id
+   */
+  async function deleteCategory(id: number): Promise<void> {
+    try {
+      const res = await window.ipcRenderer.ebook.deleteCategory(id);
+      if (res && res.success) {
+        // 同步从本地书架项的 categoryIds 中摘除该分类
+        bookshelf.value = bookshelf.value.map((b) =>
+          b.categoryIds && b.categoryIds.includes(id)
+            ? { ...b, categoryIds: b.categoryIds.filter((c) => c !== id) }
+            : b
+        );
+        await loadCategories();
+      } else if (res && !res.success) {
+        console.error('删除分类失败：', res.error);
+      }
+    } catch (err) {
+      console.error('删除分类异常：', err);
+    }
+  }
+
+  /**
+   * 替换某本书关联的分类集合，成功后刷新该书架项的 categoryIds
+   * @param bookPath 电子书文件绝对路径
+   * @param categoryIds 分类 id 数组
+   */
+  async function setBookCategories(bookPath: string, categoryIds: number[]): Promise<void> {
+    try {
+      const res = await window.ipcRenderer.ebook.setBookCategories({ bookPath, categoryIds });
+      if (res && res.success) {
+        const idx = bookshelf.value.findIndex((b) => b.path === bookPath);
+        if (idx >= 0) {
+          const list = bookshelf.value.slice();
+          list[idx] = { ...list[idx], categoryIds: [...categoryIds] };
+          bookshelf.value = list;
+        }
+      } else if (res && !res.success) {
+        console.error('设置书籍分类失败：', res.error);
+      }
+    } catch (err) {
+      console.error('设置书籍分类异常：', err);
     }
   }
 
@@ -644,6 +766,8 @@ export default defineStore('ebook-reader', () => {
     settings,
     // 书架列表
     bookshelf,
+    // 全部分类
+    categories,
     // 设置当前文件
     setCurrentFile,
     // 设置阅读进度
@@ -700,6 +824,16 @@ export default defineStore('ebook-reader', () => {
     setPdfFitMode,
     // 加载书架列表
     loadBookshelf,
+    // 加载全部分类
+    loadCategories,
+    // 新增分类
+    addCategory,
+    // 删除分类
+    deleteCategory,
+    // 修改分类（名称/颜色）
+    updateCategory,
+    // 设置某本书的分类
+    setBookCategories,
     // 添加或更新书架记录
     addToBookshelf,
     // 删除书架记录

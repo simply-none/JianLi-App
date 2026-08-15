@@ -1,5 +1,5 @@
 <template>
-  <div class="bookshelf-view">
+  <div class="bookshelf-view" @scroll="onScroll">
     <!-- 书架顶部标题与数量 -->
     <div class="bookshelf-header">
       <h2 class="bookshelf-title">
@@ -27,6 +27,121 @@
       </div>
     </div>
 
+    <!-- 分类筛选栏：分类 chips + 名称搜索 + 管理分类 -->
+    <div class="bookshelf-filter">
+      <div class="cat-chips">
+        <span
+          class="cat-chip"
+          :class="{ active: selectedCategory === null }"
+          @click="emit('update:selected-category', null)"
+        >全部</span>
+        <span
+          v-for="cat in categories"
+          :key="cat.id"
+          class="cat-chip"
+          :class="{ active: selectedCategory === cat.id }"
+          @click="emit('update:selected-category', cat.id)"
+        ><span class="cat-dot" :style="{ background: cat.color || 'var(--color-primary)' }"></span>{{ cat.name }}</span>
+      </div>
+      <div class="filter-right">
+        <el-input
+          :model-value="searchKeyword"
+          size="small"
+          placeholder="搜索书名 / 文件名"
+          clearable
+          @update:model-value="emit('update:search-keyword', $event)"
+        >
+          <template #prefix>
+            <LucideIcon name="Search" :size="13" />
+          </template>
+        </el-input>
+        <el-button size="small" @click="manageVisible = true">
+          <LucideIcon name="Tags" :size="13" />
+          管理分类
+        </el-button>
+      </div>
+    </div>
+
+    <!-- 分类管理弹窗：新增 / 删除 / 改名 / 改色 -->
+    <el-dialog v-model="manageVisible" title="管理分类" width="440px" append-to-body>
+      <div class="cat-manage">
+        <div class="cat-add">
+          <el-color-picker v-model="newCatColor" size="small" />
+          <el-input
+            v-model="newCatName"
+            size="small"
+            placeholder="输入新分类名称"
+            @keyup.enter="onAddCategory"
+          />
+          <el-button type="primary" size="small" @click="onAddCategory">添加</el-button>
+        </div>
+        <div class="cat-list">
+          <div v-for="cat in categories" :key="cat.id" class="cat-row">
+            <el-color-picker
+              v-if="catEditCache[cat.id]"
+              v-model="catEditCache[cat.id].color"
+              size="small"
+              @change="onUpdateCategory(cat.id)"
+            />
+            <el-input
+              v-if="catEditCache[cat.id]"
+              v-model="catEditCache[cat.id].name"
+              size="small"
+              class="cat-edit-name"
+              placeholder="分类名称"
+              @blur="onUpdateCategory(cat.id)"
+              @keyup.enter="onUpdateCategory(cat.id)"
+            />
+            <el-button size="small" text type="danger" @click="onDeleteCategory(cat.id)">
+              <LucideIcon name="Trash2" :size="13" />
+              删除
+            </el-button>
+          </div>
+          <div v-if="categories.length === 0" class="cat-empty">暂无分类，先添加一个吧</div>
+        </div>
+      </div>
+    </el-dialog>
+
+    <!-- 书籍分类弹窗：支持搜索、可滚动的多选（分类过多时也能有效展示） -->
+    <el-dialog
+      v-model="catDialogVisible"
+      title="设置分类"
+      width="380px"
+      append-to-body
+    >
+      <div class="cat-dialog">
+        <el-input
+          v-model="catSearch"
+          size="small"
+          placeholder="搜索分类"
+          clearable
+          class="cat-dialog-search"
+        >
+          <template #prefix>
+            <LucideIcon name="Search" :size="13" />
+          </template>
+        </el-input>
+        <div class="cat-dialog-list">
+          <el-checkbox-group v-model="popoverSelected" class="cat-dialog-group">
+            <label
+              v-for="cat in filteredCategories"
+              :key="cat.id"
+              class="cat-dialog-item"
+            >
+              <el-checkbox :value="cat.id" />
+              <span class="cat-dot" :style="{ background: cat.color || 'var(--color-primary)' }"></span>
+              <span class="cat-dialog-name">{{ cat.name }}</span>
+            </label>
+          </el-checkbox-group>
+          <div v-if="filteredCategories.length === 0" class="cat-empty">无匹配分类</div>
+        </div>
+      </div>
+      <template #footer>
+        <el-button size="small" @click="catDialogVisible = false">取消</el-button>
+        <el-button size="small" type="primary" @click="saveBookCats">保存</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 空书架提示 -->
     <div v-if="items.length === 0" class="bookshelf-empty">
       <el-empty description="书架空空如也，打开一本电子书吧">
@@ -44,7 +159,7 @@
     <!-- 卡片网格：flex wrap 响应式布局，每行 3-4 张卡片 -->
     <div v-else class="bookshelf-grid">
       <div
-        v-for="item in items"
+        v-for="item in visibleItems"
         :key="item.path"
         class="book-card"
         :title="`打开《${item.title || item.name}》`"
@@ -133,6 +248,20 @@
           </span>
         </div>
 
+        <!-- 分类标签与设置：标签展示该书所属分类；「分类」按钮打开弹窗多选（支持搜索、可滚动） -->
+        <div class="book-cats" @click.stop>
+          <el-button size="small" class="cat-edit-btn" @click.stop="openCatDialog(item)">
+            <LucideIcon name="Tags" :size="12" />
+            分类
+          </el-button>
+          <span
+            v-for="cid in (item.categoryIds || [])"
+            :key="cid"
+            class="cat-tag"
+            :style="catTagStyle(cid)"
+          >{{ categoryName(cid) }}</span>
+        </div>
+
         <!-- 卡片操作按钮：笔记（查看/管理）、导出，阻止冒泡避免触发打开 -->
         <div class="book-actions">
           <el-button
@@ -152,10 +281,16 @@
         </div>
       </div>
     </div>
+    <!-- 触底加载指示：展示当前已渲染 / 总数，提示继续上滑加载更多 -->
+    <div v-if="items.length > 0" class="bookshelf-footer">
+      <span v-if="visibleCount < items.length">已加载 {{ visibleCount }} / {{ items.length }} 本，上滑加载更多</span>
+      <span v-else>已展示全部 {{ items.length }} 本书</span>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref, computed, watch } from 'vue';
 import moment from 'moment';
 import LucideIcon from '@/components/LucideIcon.vue';
 import type { BookshelfItem } from '@/store/useEbookReader';
@@ -165,6 +300,12 @@ const props = defineProps<{
   items: BookshelfItem[];
   /** 每本书的笔记/划线/书签数量映射（key 为 content_hash 或 file_path） */
   annotationCountMap: Record<string, { noteCount: number; highlightCount: number; bookmarkCount: number }>;
+  /** 全部分类列表 */
+  categories: { id: number; name: string; color?: string }[];
+  /** 当前选中的分类筛选（null 表示不过滤，展示全部） */
+  selectedCategory: number | null;
+  /** 名称搜索关键词（按书名 / 文件名匹配） */
+  searchKeyword: string;
 }>();
 
 const emit = defineEmits<{
@@ -175,7 +316,146 @@ const emit = defineEmits<{
   (e: 'open-annotations', item: BookshelfItem): void;
   (e: 'export', item: BookshelfItem): void;
   (e: 'export-all'): void;
+  /** 分类筛选切换（null=全部） */
+  (e: 'update:selected-category', value: number | null): void;
+  /** 名称搜索关键词变化 */
+  (e: 'update:search-keyword', value: string): void;
+  /** 新增分类 */
+  (e: 'add-category', name: string, color?: string): void;
+  /** 删除分类 */
+  (e: 'delete-category', id: number): void;
+  /** 修改分类（名称 / 颜色） */
+  (e: 'update-category', payload: { id: number; name?: string; color?: string | null }): void;
+  /** 设置某本书关联的分类集合 */
+  (e: 'set-book-categories', payload: { bookPath: string; categoryIds: number[] }): void;
 }>();
+
+/** 分类管理弹窗显隐 */
+const manageVisible = ref(false);
+/** 新增分类输入框 */
+const newCatName = ref('');
+/** 新增分类时的颜色（el-color-picker 绑定，空串表示不设置颜色） */
+const newCatColor = ref('');
+/** 管理弹窗内分类编辑缓存：id -> { name, color }，打开时初始化，改名/改色即时上抛 */
+const catEditCache = ref<Record<number, { name: string; color: string }>>({});
+/** 当前弹层中正在编辑的书所勾选的分类 id 列表 */
+const popoverSelected = ref<number[]>([]);
+
+/** 书籍设置分类弹窗的显隐 */
+const catDialogVisible = ref(false);
+/** 当前正在设置分类的书籍 */
+const catDialogItem = ref<BookshelfItem | null>(null);
+/** 分类弹窗内搜索关键词 */
+const catSearch = ref('');
+
+/** 分类弹窗内按关键词过滤后的分类列表（按名称匹配，空关键词展示全部） */
+const filteredCategories = computed(() => {
+  const kw = catSearch.value.trim().toLowerCase();
+  if (!kw) return props.categories;
+  return props.categories.filter((c) => c.name.toLowerCase().includes(kw));
+});
+
+/** 打开分类管理弹窗时，用当前分类列表初始化编辑缓存（name/color 各一份副本） */
+watch(manageVisible, (v) => {
+  if (v) {
+    const cache: Record<number, { name: string; color: string }> = {};
+    props.categories.forEach((c) => {
+      cache[c.id] = { name: c.name, color: c.color || '' };
+    });
+    catEditCache.value = cache;
+  }
+});
+
+/**
+ * 滚动触底分批渲染：避免书籍过多时一次性渲染全部卡片导致页面卡顿。
+ * visibleItems 始终为 props.items（已按分类 / 关键词筛选）的前 visibleCount 项，
+ * 滚动到底部时 visibleCount 递增一个批次，直至展示全部。
+ */
+/** 每批渲染的书籍数量 */
+const PAGE_SIZE = 60;
+/** 当前已渲染的书籍数量（随滚动触底递增） */
+const visibleCount = ref(PAGE_SIZE);
+/** 实际渲染的列表（从完整筛选结果中切片，控制 DOM 数量） */
+const visibleItems = computed(() => props.items.slice(0, visibleCount.value));
+
+/**
+ * 书架容器滚动事件：触底时递增可见数量，分批加载后续书籍。
+ * 仅当还有未渲染的书籍、且滚动位置进入距离底部 threshold 像素内时触发。
+ */
+function onScroll(e: Event): void {
+  const el = e.target as HTMLElement;
+  const threshold = 120;
+  if (el.scrollTop + el.clientHeight >= el.scrollHeight - threshold) {
+    if (visibleCount.value < props.items.length) {
+      visibleCount.value = Math.min(visibleCount.value + PAGE_SIZE, props.items.length);
+    }
+  }
+}
+
+// 筛选结果变化（切换分类 / 搜索）时重置为初始批次，避免看到旧批次残留
+watch(
+  () => props.items,
+  () => {
+    visibleCount.value = PAGE_SIZE;
+  }
+);
+
+/** 新增分类：trim 后向上抛出（含可选颜色），清空输入框与颜色 */
+function onAddCategory(): void {
+  const name = newCatName.value.trim();
+  if (!name) return;
+  emit('add-category', name, newCatColor.value || undefined);
+  newCatName.value = '';
+  newCatColor.value = '';
+}
+
+/** 删除分类：向上抛出分类 id */
+function onDeleteCategory(id: number): void {
+  emit('delete-category', id);
+}
+
+/** 修改分类（改名 / 改色）：读取编辑缓存并向上抛出 */
+function onUpdateCategory(id: number): void {
+  const c = catEditCache.value[id];
+  if (!c) return;
+  emit('update-category', { id, name: c.name, color: c.color || null });
+}
+
+/** 按分类 id 取名称（用于卡片标签展示） */
+function categoryName(id: number): string {
+  return props.categories.find((c) => c.id === id)?.name ?? '';
+}
+
+/** 按分类 id 取颜色（用于卡片标签背景着色） */
+function categoryColor(id: number): string {
+  return props.categories.find((c) => c.id === id)?.color || '';
+}
+
+/** 卡片分类标签样式：有颜色则按颜色着色，否则回退主题色 */
+function catTagStyle(id: number): Record<string, string> {
+  const color = categoryColor(id);
+  if (!color) return {};
+  return {
+    background: `${color}22`,
+    color,
+    border: `1px solid ${color}55`,
+  };
+}
+
+/** 打开书籍设置分类弹窗：初始化勾选项与搜索词 */
+function openCatDialog(item: BookshelfItem): void {
+  catDialogItem.value = item;
+  popoverSelected.value = [...(item.categoryIds || [])];
+  catSearch.value = '';
+  catDialogVisible.value = true;
+}
+
+/** 保存该书分类：向上抛出书路径与勾选的分类 id 列表，关闭弹窗 */
+function saveBookCats(): void {
+  if (!catDialogItem.value) return;
+  emit('set-book-categories', { bookPath: catDialogItem.value.path, categoryIds: [...popoverSelected.value] });
+  catDialogVisible.value = false;
+}
 
 /**
  * 格式化书架条目的时间字段为可读字符串
@@ -245,6 +525,17 @@ function formatTime(time: string): string {
   align-items: center;
   justify-content: center;
   padding: 60px 0;
+}
+
+/* 触底加载指示 */
+.bookshelf-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 0 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+  user-select: none;
 }
 
 /* 卡片网格：响应式 flex wrap，每行 3-4 张 */
@@ -422,6 +713,183 @@ function formatTime(time: string): string {
     align-items: center;
     gap: 6px;
     margin-top: 10px;
+  }
+}
+
+/* 分类筛选栏：左侧分类 chips，右侧搜索 + 管理分类 */
+.bookshelf-filter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+
+  .cat-chips {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+
+    .cat-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      padding: 4px 12px;
+      border-radius: 14px;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.15s;
+
+      &:hover {
+        border-color: var(--color-primary);
+        color: var(--color-primary);
+      }
+
+      &.active {
+        background: var(--color-primary);
+        border-color: var(--color-primary);
+        color: #fff;
+      }
+    }
+
+    /* 分类色点 */
+    .cat-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+  }
+
+  .filter-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    :deep(.el-input) {
+      width: 200px;
+    }
+  }
+}
+
+/* 分类管理弹窗 */
+.cat-manage {
+  .cat-add {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+
+    :deep(.el-input) {
+      flex: 1;
+    }
+  }
+
+  .cat-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 320px;
+    overflow: auto;
+
+    .cat-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-card);
+      background: var(--bg-card);
+
+      .cat-edit-name {
+        flex: 1;
+        min-width: 0;
+      }
+    }
+
+    .cat-empty {
+      text-align: center;
+      font-size: 13px;
+      color: var(--text-muted);
+      padding: 16px 0;
+    }
+  }
+}
+
+/* 书籍分类弹窗：搜索 + 可滚动多选列表 */
+.cat-dialog {
+  .cat-dialog-search {
+    margin-bottom: 12px;
+  }
+
+  .cat-dialog-list {
+    max-height: 320px;
+    overflow: auto;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-card);
+
+    .cat-dialog-group {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+    }
+
+    .cat-dialog-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border-subtle);
+
+      &:last-child {
+        border-bottom: none;
+      }
+
+      &:hover {
+        background: var(--bg-base);
+      }
+
+      .cat-dialog-name {
+        font-size: 13px;
+        color: var(--text-primary);
+      }
+    }
+
+    .cat-empty {
+      text-align: center;
+      font-size: 13px;
+      color: var(--text-muted);
+      padding: 16px 0;
+    }
+  }
+}
+
+/* 卡片内分类区：分类按钮 + 标签 */
+.book-cats {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+
+  .cat-edit-btn {
+    height: 24px;
+    padding: 0 8px;
+    color: var(--text-secondary);
+  }
+
+  .cat-tag {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: rgba(var(--color-primary-rgb, 64, 158, 255), 0.12);
+    color: var(--color-primary);
   }
 }
 </style>

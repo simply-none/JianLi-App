@@ -180,8 +180,11 @@
           <!-- 书架视图（已抽为独立组件 Bookshelf）：卡片网格 + 徽标 + 笔记/导出，打开/删除/加入/导出由父组件处理 -->
           <Bookshelf
             v-if="view === 'bookshelf'"
-            :items="bookshelf"
+            :items="filteredItems"
             :annotation-count-map="annotationCountMap"
+            :categories="categories"
+            :selected-category="selectedCategory"
+            :search-keyword="searchKeyword"
             @open="openBook"
             @remove="removeBook"
             @add-external="addExternal"
@@ -189,6 +192,12 @@
             @open-annotations="openShelfAnnotations"
             @export="exportBook"
             @export-all="exportAll"
+            @update:selected-category="onSelectCategory"
+            @update:search-keyword="onSearchKeyword"
+            @add-category="onAddCat"
+            @delete-category="onDelCat"
+            @update-category="onUpdateCat"
+            @set-book-categories="onSetBookCats"
           />
 
           <!-- 阅读视图：根据格式支持状态与是否打开文件动态切换显示 -->
@@ -326,6 +335,7 @@ const {
   setProgress,
   setFontSize,
   loadBookshelf,
+  loadCategories,
   addToBookshelf,
   setBookProgress,
   getBookProgress,
@@ -341,10 +351,44 @@ const {
   addExternal,
   exportBook,
   exportAll,
+  // 分类相关状态与操作
+  categories,
+  selectedCategory,
+  searchKeyword,
+  filteredItems,
+  addCategory,
+  deleteCategory,
+  updateCategory,
+  setBookCategories,
 } = useBookshelf({
   // 打开书时写入 store 并切换到阅读视图（复用统一的 loadFile 加载器）
   openBook: (item) => loadFile(item.path, item.name, item.format as 'txt' | 'epub'),
 });
+
+/** 分类筛选切换（null 表示全部） */
+function onSelectCategory(v: number | null): void {
+  selectedCategory.value = v;
+}
+/** 名称搜索关键词变化 */
+function onSearchKeyword(v: string): void {
+  searchKeyword.value = v;
+}
+/** 新增分类 */
+function onAddCat(name: string): void {
+  addCategory(name);
+}
+/** 删除分类 */
+function onDelCat(id: number): void {
+  deleteCategory(id);
+}
+/** 修改分类（名称 / 颜色） */
+function onUpdateCat(p: { id: number; name?: string; color?: string | null }): void {
+  updateCategory(p.id, p.name, p.color);
+}
+/** 设置某本书的分类 */
+function onSetBookCats(p: { bookPath: string; categoryIds: number[] }): void {
+  setBookCategories(p.bookPath, p.categoryIds);
+}
 
 /**
  * 当前视图状态
@@ -1072,7 +1116,9 @@ async function saveShelfNote(payload: { id: number; text: string }): Promise<voi
 
 // 组件挂载时加载书架列表（从数据库读取）
 onMounted(() => {
-  // 加载书架后刷新每本书的笔记/划线数量徽标
+  // 加载分类列表（书架分类筛选/管理依赖）
+  loadCategories();
+  // 加载书架后刷新每本书的笔记/驾线数量徽标
   loadBookshelf().then(() => refreshCounts());
   // 监听全屏变化（ESC 退出等），同步沉浸状态
   document.addEventListener('fullscreenchange', onFsChange);

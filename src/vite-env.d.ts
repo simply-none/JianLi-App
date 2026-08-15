@@ -49,6 +49,18 @@ interface Window {
       addToBookshelf: (data: { filePath: string; name: string; format: string; percent: number; contentHash?: string }) => Promise<{ success: boolean; error?: string }>;
       // 按 file_path 删除书架记录
       removeFromBookshelf: (filePath: string) => Promise<{ success: boolean; error?: string }>;
+      // 获取全部分类（按创建时间升序），每条含可选颜色 color
+      getCategories: () => Promise<{ success: boolean; data?: { id: number; name: string; color?: string }[]; error?: string }>;
+      // 新增分类（按名称去重，幂等；color 可选，十六进制色值）
+      addCategory: (name: string, color?: string) => Promise<{ success: boolean; id?: number; existed?: boolean; error?: string }>;
+      // 修改分类（名称 / 颜色），仅更新传入字段
+      updateCategory: (data: { id: number; name?: string; color?: string | null }) => Promise<{ success: boolean; error?: string }>;
+      // 删除分类（同时删除其下所有书-分类映射）
+      deleteCategory: (id: number) => Promise<{ success: boolean; error?: string }>;
+      // 获取书与分类的映射（bookPath 可选：传入返回该书分类 id 数组，不传返回 { [book_path]: number[] }）
+      getBookCategories: (bookPath?: string) => Promise<{ success: boolean; data?: any; error?: string }>;
+      // 替换某本书关联的分类集合
+      setBookCategories: (data: { bookPath: string; categoryIds: number[] }) => Promise<{ success: boolean; error?: string }>;
       // 获取指定文件的笔记与划线列表（按创建时间升序）
       getAnnotations: (filePath: string, contentHash?: string) => Promise<{ success: boolean; data?: AnnotationRecord[]; error?: string }>;
       // 新增一条笔记与划线记录（返回新记录自增 id）
