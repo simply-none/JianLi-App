@@ -126,6 +126,11 @@ input {
     margin-left: 10px;
   }
 }
+.el-message-box__btns {
+  .el-button + .el-button {
+    margin-left: 10px;
+  }
+}
 
 .el-message-box {
   background-color: var(--el-bg-color) !important;

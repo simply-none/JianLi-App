@@ -142,7 +142,7 @@ export const iconMap: Record<string, string> = {
   weather: 'CloudSun',
   about: 'Info',
   browser: 'Globe',
-  todoList: 'ListTodo',
+  todoList: 'CircleCheckBig',
   ttsTest: 'AudioLines',
   ebookReader: 'BookOpenText',
 };

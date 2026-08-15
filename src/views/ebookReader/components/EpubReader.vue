@@ -79,7 +79,7 @@
         @click="toggleBookmark"
         :title="currentBookmarked ? '取消书签' : '添加书签'"
       >
-        <LucideIcon :name="currentBookmarked ? 'BookmarkCheck' : 'Bookmark'" :size="14" />
+        <LucideIcon :name="currentBookmarked ? 'BookmarkXIcon' : 'BookmarkPlus'" :size="14" />
         书签
       </el-button>
       <span class="progress-text">{{ progressText }}</span>
@@ -87,7 +87,7 @@
       <span v-else class="page-text">{{ pageText }}</span>
       <div class="font-quick">
         <el-button size="small" :disabled="loading || (ctx.settings.value.fontSize <= 12)" @click="onAdjustFont(-1)" title="减小字号">
-          <LucideIcon name="Minus" :size="14" />
+          <LucideIcon name="MinusIcon" :size="14" />
         </el-button>
         <el-button size="small" :disabled="loading || (ctx.settings.value.fontSize >= 32)" @click="onAdjustFont(1)" title="增大字号">
           <LucideIcon name="Plus" :size="14" />

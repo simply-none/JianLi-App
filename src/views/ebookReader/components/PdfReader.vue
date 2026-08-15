@@ -60,7 +60,7 @@
           @click="toggleBookmark"
           :title="currentBookmarked ? '取消书签' : '添加书签'"
         >
-          <LucideIcon :name="currentBookmarked ? 'BookmarkCheck' : 'Bookmark'" :size="14" />
+          <LucideIcon :name="currentBookmarked ? 'BookmarkXIcon' : 'BookmarkPlus'" :size="14" />
           书签
         </el-button>
         <span class="page-info">{{ currentPage }} / {{ totalPages }}</span>

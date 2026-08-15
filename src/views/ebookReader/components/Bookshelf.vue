@@ -54,7 +54,7 @@
         <div class="book-card-header">
           <el-tag
             size="small"
-            :type="item.format === 'epub' ? 'warning' : 'success'"
+            :type="item.format === 'epub' ? 'warning' : item.format === 'pdf' ? 'danger' : 'success'"
           >
             {{ item.format.toUpperCase() }}
           </el-tag>

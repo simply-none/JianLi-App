@@ -120,14 +120,14 @@ const registerShortcut = (shortcut) => {
 const iconMap = {
   showAppShortcut: 'Monitor',
   homeShortcut: 'House',
-  notebookShortcut: 'File',
+  notebookShortcut: 'Notebook',
   pomodoroRecordShortcut: 'Clock',
   clipboardShortcut: 'Folder',
-  netRequestShortcut: 'Connection',
+  netRequestShortcut: 'Globe',
   systemInfoShortcut: 'Toolbox',
   flowShortcut: 'Notebook',
   quickNoteShortcut: 'SquarePen',
-  todoWindowShortcut: 'ListTodo',
+  todoWindowShortcut: 'CircleCheckBig',
   pomodoroWindowShortcut: 'Timer',
 }
 
@@ -405,6 +405,10 @@ onMounted(() => {
 
     &.icon-blue {
       background: linear-gradient(135deg, var(--icon-blue-from) 0%, var(--icon-blue-to) 100%);
+    }
+
+    &.icon-indigo {
+      background: linear-gradient(135deg, var(--icon-cyan-from) 0%, var(--icon-cyan-to) 100%);
     }
 
     &.icon-green {
