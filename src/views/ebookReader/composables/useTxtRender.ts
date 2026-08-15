@@ -19,12 +19,15 @@ import { ElMessage } from 'element-plus';
 import { HIGHLIGHT_COLOR_MAP } from '../highlightConfig';
 import { resolveReadingBg, resolveReadingText } from '../themePresets';
 import useGlobalSetting from '@/store/useGlobalSetting';
+import useEbookReader from '@/store/useEbookReader';
 import type { TxtCtx, Segment } from './txtContext';
 
 /** 翻页模式下相邻屏幕之间的列间距（px），同时作为每屏内列与列的间距 */
 const PAGE_GAP = 28;
 
 export function useTxtRender(ctx: TxtCtx) {
+  // 按书进度映射（本地存储兜底，进程退出时 IPC 来不及落库也能恢复）
+  const ebookStore = useEbookReader();
   /** 阅读模式：scroll=滚动，否则 paginated=翻页（来自 props.scrollMode） */
   const mode = computed<'scroll' | 'paginated'>(() =>
     ctx.props.scrollMode ? 'scroll' : 'paginated'
@@ -268,33 +271,9 @@ export function useTxtRender(ctx: TxtCtx) {
     return range;
   }
 
-  /** 由 Range 起点反推全文字符偏移（利用浏览器实际渲染文本，含 pre-wrap 换行） */
-  function globalOffsetAtRange(range: Range): number {
-    const flow = ctx.flowRef.value;
-    if (!flow) return -1;
-    const pre = document.createRange();
-    pre.setStart(flow, 0);
-    pre.setEnd(range.startContainer, range.startOffset);
-    return pre.toString().length;
-  }
-
-  /** 取视口某客户端坐标处的字符偏移（Chromium 用 caretRangeFromPoint） */
-  function offsetAtClientPoint(x: number, y: number): number {
-    const doc = document as any;
-    let range: Range | null = null;
-    if (typeof doc.caretRangeFromPoint === 'function') {
-      range = doc.caretRangeFromPoint(x, y) as Range | null;
-    } else {
-      const pos = doc.caretPositionFromPoint?.(x, y);
-      if (pos && pos.offsetNode) {
-        range = document.createRange();
-        range.setStart(pos.offsetNode, pos.offset);
-        range.collapse(true);
-      }
-    }
-    if (!range) return -1;
-    return globalOffsetAtRange(range);
-  }
+  // 进度 / 当前位置的计算统一采用「基于 rangeAtOffset + getBoundingClientRect 的确定性二分定位」，
+  // 不再使用 caretRangeFromPoint 命中测试：命中测试会被加载遮罩等覆盖元素拦截，
+  // 曾导致进度被误算成书籍末尾或 0。故移除原先的 globalOffsetAtRange / offsetAtClientPoint。
 
   /**
    * 把全局字符偏移映射为页码（paginated）。
@@ -307,8 +286,10 @@ export function useTxtRender(ctx: TxtCtx) {
     const prev = flow.style.transform;
     flow.style.transform = 'none';
     const flowRect = flow.getBoundingClientRect();
-    const rects = range.getClientRects();
-    const x = rects.length ? rects[0].left : flowRect.left;
+    // 注意：rangeAtOffset 返回的是折叠（零宽）Range，getClientRects() 在 Chromium 下会返回空数组，
+    // 故用 getBoundingClientRect()（折叠 Range 也能返回插入符所在位置的矩形）。
+    const rect = range.getBoundingClientRect();
+    const x = rect.left;
     flow.style.transform = prev;
     const step = ctx.colStep.value;
     if (step <= 0) return 0;
@@ -317,26 +298,49 @@ export function useTxtRender(ctx: TxtCtx) {
     return Math.max(0, Math.min(ctx.totalPages.value - 1, Math.floor(column / cols)));
   }
 
-  /** 当前屏首字符的全局偏移（paginated 模式：临时翻到该屏后取视口左上角） */
+  /**
+   * 当前屏首字符的全局偏移（paginated 模式）。
+   * 废弃原先的 caretRangeFromPoint 命中测试（会被加载遮罩等覆盖元素拦截，
+   * 导致进度被算成 0 或末尾）。改为在「offset → 页码」映射上二分，
+   * 直接定位该屏首字符偏移，完全不依赖任何 DOM 命中，结果稳定。
+   */
   function startOffsetOfPage(page: number): number {
-    const flow = ctx.flowRef.value;
-    const vp = ctx.viewportRef.value;
-    if (!flow || !vp) return 0;
-    const prev = flow.style.transform;
-    flow.style.transform = `translateX(${-page * ctx.cols.value * ctx.colStep.value}px)`;
-    const rect = vp.getBoundingClientRect();
-    const off = offsetAtClientPoint(rect.left + 2, rect.top + 2);
-    flow.style.transform = prev;
-    return off < 0 ? 0 : off;
+    const total = ctx.fullContent.value.length;
+    if (page <= 0 || total <= 0) return 0;
+    let lo = 0, hi = total, ans = total;
+    while (lo <= hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      if (offsetToPage(mid) >= page) {
+        ans = mid;
+        hi = mid - 1;
+      } else {
+        lo = mid + 1;
+      }
+    }
+    return ans;
   }
 
-  /** scroll 模式：当前滚动位置对应首字符偏移 */
+  /** scroll 模式：当前滚动位置对应首字符偏移（二分定位可见区首字符，不依赖命中测试） */
   function offsetAtScrollTop(): number {
     const vp = ctx.viewportRef.value;
-    if (!vp) return 0;
-    const rect = vp.getBoundingClientRect();
-    const off = offsetAtClientPoint(rect.left + 2, rect.top + 2);
-    return off < 0 ? 0 : off;
+    const flow = ctx.flowRef.value;
+    if (!vp || !flow) return 0;
+    const vpRect = vp.getBoundingClientRect();
+    const total = ctx.fullContent.value.length;
+    if (total <= 0) return 0;
+    let lo = 0, hi = total, ans = 0;
+    while (lo <= hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      const rect = rangeAtOffset(mid).getBoundingClientRect();
+      // rect.top - vpRect.top：该字符相对视口可见区顶部的位置（随滚动变化，单调不减）
+      if (rect.top - vpRect.top >= 0) {
+        ans = mid;
+        hi = mid - 1;
+      } else {
+        lo = mid + 1;
+      }
+    }
+    return ans;
   }
 
   /** scroll 模式：滚动到指定偏移 */
@@ -344,10 +348,11 @@ export function useTxtRender(ctx: TxtCtx) {
     const flow = ctx.flowRef.value;
     const vp = ctx.viewportRef.value;
     if (!flow || !vp) return;
-    const rects = rangeAtOffset(offset).getClientRects();
-    if (!rects.length) return;
+    // 注意：rangeAtOffset 返回的是折叠（零宽）Range，getClientRects() 在 Chromium 下会返回空数组，
+    // 故必须用 getBoundingClientRect()（折叠 Range 也能返回插入符所在位置的矩形）。
+    const rect = rangeAtOffset(offset).getBoundingClientRect();
     const vpRect = vp.getBoundingClientRect();
-    vp.scrollTop += rects[0].top - vpRect.top;
+    vp.scrollTop += rect.top - vpRect.top;
   }
 
   /** 当前阅读位置（按字符偏移） */
@@ -375,7 +380,39 @@ export function useTxtRender(ctx: TxtCtx) {
     const offset = currentStartOffset();
     const total = ctx.fullContent.value.length || 1;
     const percent = Math.min(100, Math.round((offset / total) * 100));
-    ctx.emit('progress-update', { cfi: String(offset), percent });
+    const cfi = String(offset);
+    ctx.currentCfi.value = cfi;
+    ctx.emit('progress-update', { cfi, percent, filePath: ctx.props.filePath });
+  }
+
+  /**
+   * 立即把当前阅读进度落库（取消防抖/节流的滚动定时器并同步 emit）。
+   * 在组件卸载 / 切换文件前调用，避免最后一次滚动（250ms 节流窗口内）的位置丢失，
+   * 从而导致下次打开时恢复到更早的位置。优先使用已缓存的最近位置，DOM 已销毁时仍可靠。
+   */
+  function flushProgress(filePathOverride?: string) {
+    if (scrollEmitTimer) {
+      clearTimeout(scrollEmitTimer);
+      scrollEmitTimer = null;
+    }
+    if (scrollEndTimer) {
+      clearTimeout(scrollEndTimer);
+      scrollEndTimer = null;
+    }
+    let cfi = ctx.currentCfi.value;
+    if (!cfi && ctx.fullContent.value && (ctx.viewportRef.value || ctx.flowRef.value)) {
+      try {
+        cfi = String(currentStartOffset());
+      } catch {
+        cfi = '';
+      }
+    }
+    if (!cfi) return;
+    const total = ctx.fullContent.value.length || 1;
+    const offset = parseInt(cfi, 10) || 0;
+    const percent = Math.min(100, Math.round((offset / total) * 100));
+    const filePath = filePathOverride || ctx.props.filePath;
+    ctx.emit('progress-update', { cfi, percent, filePath });
   }
 
   /** 加载 txt 文件内容并测量布局、恢复进度与划线 */
@@ -390,6 +427,9 @@ export function useTxtRender(ctx: TxtCtx) {
       }
       // 统一换行为 \n：渲染文本、划线锚点共用同一套字符偏移空间，避免 CRLF 偏移漂移。
       ctx.fullContent.value = (res?.content ?? '').replace(/\r\n?/g, '\n');
+      // 先关闭加载遮罩：让加载动画尽早消失，避免遮罩淡出动画在阅读区之上停留。
+      // 进度计算现已改为确定性的二分定位，不再依赖命中测试，此处仅用于改善体验。
+      ctx.loading.value = false;
       await nextTick();
       // 先实测视口尺寸写入响应式 ref，再 flush（nextTick + 双 rAF）让 flowStyle 用真实列宽重排，
       // 最后 measureLayout 读取 scrollWidth 才是多列布局下的真实总列数（否则首帧 column-width 为 0 → 只 1 页）
@@ -407,14 +447,24 @@ export function useTxtRender(ctx: TxtCtx) {
     }
   }
 
-  /** 恢复上次阅读进度（从数据库读取 offset 后跳转到对应屏/位置） */
+  /** 恢复上次阅读进度（从数据库读取 offset 后跳转到对应屏/位置；DB 无记录时回退本地按书映射） */
   async function restoreProgress(filePath: string) {
     try {
+      let offset = 0;
       const res = await window.ipcRenderer.ebook.getProgress(filePath);
       if (res?.success && res.data?.cfi) {
-        const offset = parseInt(res.data.cfi, 10);
-        if (!isNaN(offset) && offset > 0) jumpToOffset(offset);
+        const dbOffset = parseInt(res.data.cfi, 10);
+        if (!isNaN(dbOffset) && dbOffset > 0) offset = dbOffset;
       }
+      // 数据库无记录（或退出时 IPC 来不及落库）：回退本地按书进度映射，保证进度不丢
+      if (!offset) {
+        const local = ebookStore.getBookProgress(filePath);
+        if (local?.cfi) {
+          const localOffset = parseInt(local.cfi, 10);
+          if (!isNaN(localOffset) && localOffset > 0) offset = localOffset;
+        }
+      }
+      if (offset > 0) jumpToOffset(offset);
     } catch (err) {
       console.error('恢复阅读进度失败', err);
     }
@@ -479,13 +529,21 @@ export function useTxtRender(ctx: TxtCtx) {
 
   /** scroll 模式滚动时（节流）emit 进度 */
   let scrollEmitTimer: ReturnType<typeof setTimeout> | null = null;
+  /** scroll 模式滚动停止后（防抖）emit 进度，捕获精确停留位置，缩小退出恢复偏差 */
+  let scrollEndTimer: ReturnType<typeof setTimeout> | null = null;
   function onScroll() {
     if (!ctx.props.scrollMode) return;
-    if (scrollEmitTimer) return;
-    scrollEmitTimer = setTimeout(() => {
-      scrollEmitTimer = null;
+    if (!scrollEmitTimer) {
+      scrollEmitTimer = setTimeout(() => {
+        scrollEmitTimer = null;
+        emitProgress();
+      }, 250);
+    }
+    if (scrollEndTimer) clearTimeout(scrollEndTimer);
+    scrollEndTimer = setTimeout(() => {
+      scrollEndTimer = null;
       emitProgress();
-    }, 250);
+    }, 150);
   }
 
   /** 滑块值变化时跳转到对应屏 */
@@ -499,25 +557,42 @@ export function useTxtRender(ctx: TxtCtx) {
 
   /**
    * 排版/尺寸变化重载：保留当前阅读位置（按偏移），重新测量后跳回。防抖 200ms。
+   * 注意：记忆位置时不能用 currentStartOffset()——切换 scrollMode 时该函数在
+   * 「新 scrollMode + 新布局」下计算，位置指示器（scrollTop / currentPage）已被重置为 0，
+   * 会得到 0 而非真实位置。故改用与模式无关的 ctx.currentCfi（每次翻页/滚动/恢复都会写入）。
    */
   function scheduleReload() {
     if (ctx.reloadTimer) clearTimeout(ctx.reloadTimer);
+    // 切换模式/设置时，布局会先闪到顶部再重排，loading 遮罩盖住这次闪烁（进度已不依赖命中测试，安全）。
+    const saved = ctx.currentCfi.value ? parseInt(ctx.currentCfi.value, 10) || 0 : 0;
+    ctx.loading.value = true;
     ctx.reloadTimer = setTimeout(async () => {
-      if (!ctx.props.filePath || !ctx.viewportRef.value) return;
-      const saved = currentStartOffset();
-      readViewport();
-      await nextTick();
-      await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
-      measureLayout();
-      jumpToOffset(saved);
+      try {
+        if (!ctx.props.filePath || !ctx.viewportRef.value) return;
+        readViewport();
+        await nextTick();
+        await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+        measureLayout();
+        jumpToOffset(saved);
+      } catch (err) {
+        console.error('重新排版失败', err);
+      } finally {
+        ctx.loading.value = false;
+      }
     }, 200);
   }
 
   // ===== 生命周期与监听 =====
+  // 进程退出前（关闭窗口）补一次落库：flushProgress 会同步写入本地按书进度映射，
+  // 即使 saveProgress 的 IPC 来不及落库，下次打开也能从本地映射恢复真实位置。
+  function handleBeforeUnload() {
+    flushProgress();
+  }
   onMounted(() => {
     if (ctx.props.filePath) {
       loadContent(ctx.props.filePath);
     }
+    window.addEventListener('beforeunload', handleBeforeUnload);
     ctx.resizeObserver = new ResizeObserver(() => {
       if (!ctx.initialRenderDone) return;
       // 先更新实测视口尺寸，触发 flowStyle 重排列宽，再防抖重载
@@ -545,7 +620,14 @@ export function useTxtRender(ctx: TxtCtx) {
 
   watch(
     () => ctx.props.filePath,
-    (newPath) => {
+    (newPath, oldPath) => {
+      // 切书前先取消可能挂起的重新排版（否则旧书的 reload 定时器会在新书加载后误触发）
+      if (ctx.reloadTimer) {
+        clearTimeout(ctx.reloadTimer);
+        ctx.reloadTimer = null;
+      }
+      // 切书前先落库旧书的当前位置（用旧路径，避免误写进新书条目）
+      flushProgress(oldPath);
       ctx.annotations.value = [];
       ctx.toolbarVisible.value = false;
       ctx.currentSelection.value = null;
@@ -563,6 +645,9 @@ export function useTxtRender(ctx: TxtCtx) {
   );
 
   onUnmounted(() => {
+    // 卸载前立即落库当前阅读位置，避免最后一次滚动位置丢失
+    flushProgress();
+    window.removeEventListener('beforeunload', handleBeforeUnload);
     if (ctx.resizeObserver) {
       ctx.resizeObserver.disconnect();
       ctx.resizeObserver = null;
@@ -574,6 +659,10 @@ export function useTxtRender(ctx: TxtCtx) {
     if (scrollEmitTimer) {
       clearTimeout(scrollEmitTimer);
       scrollEmitTimer = null;
+    }
+    if (scrollEndTimer) {
+      clearTimeout(scrollEndTimer);
+      scrollEndTimer = null;
     }
     if (ctx.wheelIdleTimer) {
       clearTimeout(ctx.wheelIdleTimer);

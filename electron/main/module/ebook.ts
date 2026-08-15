@@ -77,6 +77,8 @@ interface SaveProgressData {
   filePath: string;
   /** 文件格式，'txt' 或 'epub' */
   format: string;
+  /** 电子书文件名（含扩展名），首次保存且书架尚无记录时用于补全书架条目 */
+  name?: string;
   /** EPUB 的 cfi 或 TXT 的字符位置 */
   cfi: string;
   /** 阅读百分比 0-100 */
@@ -628,14 +630,38 @@ export async function initEbook(): Promise<void> {
           return { success: false, error: '文件路径不能为空' };
         }
         const updatedAt = new Date().toISOString();
+        const percent = Number(data.percent) || 0;
         await upsert({
           tableName: EBOOK_PROGRESS_TABLE,
           data: {
             file_path: data.filePath,
             format: data.format ?? '',
             cfi: data.cfi ?? '',
-            percent: Number(data.percent) || 0,
+            percent,
             updated_at: updatedAt
+          },
+          config: { primaryKey: 'file_path' }
+        });
+        // 同步更新书架进度：书架 percent 与 ebook_progress 必须同源，否则会出现
+        // 「书架显示进度 ≠ 实际阅读进度」并反过来覆盖真实进度的情况。
+        // 保留原 added_at，仅在首次加入时写入，last_read_at 始终刷新为当前时间。
+        const existing = await query({
+          tableName: EBOOK_BOOKSHELF_TABLE,
+          columns: ['added_at', 'name', 'format'],
+          conditions: { file_path: data.filePath }
+        });
+        const existingRow = existing[0] as
+          | { added_at: string; name?: string; format?: string }
+          | undefined;
+        await upsert({
+          tableName: EBOOK_BOOKSHELF_TABLE,
+          data: {
+            file_path: data.filePath,
+            name: existingRow?.name ?? (data as any).name ?? '',
+            format: existingRow?.format ?? (data.format ?? ''),
+            percent,
+            last_read_at: updatedAt,
+            added_at: existingRow?.added_at ?? updatedAt
           },
           config: { primaryKey: 'file_path' }
         });

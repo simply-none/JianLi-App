@@ -106,6 +106,8 @@ export interface TxtCtx {
   fullContent: Ref<string>;
   /** 当前页码（0 起始，paginated 模式有效；scroll 模式恒为 0） */
   currentPage: Ref<number>;
+  /** 当前阅读位置的最近一次已知字符偏移（字符串，供退出/切书前 flush 落库） */
+  currentCfi: Ref<string>;
   /** 总页数（paginated 模式由布局测量得到；scroll 模式恒为 1） */
   totalPages: Ref<number>;
   /** 滑块绑定值（1 起始，对应 currentPage + 1） */
@@ -176,6 +178,7 @@ export function createTxtCtx(
   return {
     fullContent: ref(''),
     currentPage: ref(0),
+    currentCfi: ref(''),
     totalPages: ref(1),
     sliderValue: ref(1),
     loading: ref(false),

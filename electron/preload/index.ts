@@ -83,7 +83,7 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
      * @returns 成功返回 Promise<{ success: boolean; error?: string }>；
      *          失败返回 Promise 中 success 为 false，并附带 error 错误信息
      */
-    saveProgress(data: { filePath: string; format: string; cfi: string; percent: number }) {
+    saveProgress(data: { filePath: string; format: string; name?: string; cfi: string; percent: number }) {
       return ipcRenderer.invoke('ebook:save-progress', data)
     },
     /**

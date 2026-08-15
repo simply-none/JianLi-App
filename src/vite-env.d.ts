@@ -38,7 +38,7 @@ interface Window {
       // 获取电子书阅读进度
       getProgress: (filePath: string) => Promise<any>;
       // 保存电子书阅读进度
-      saveProgress: (data: { filePath: string; format: string; cfi: string; percent: number }) => Promise<any>;
+      saveProgress: (data: { filePath: string; format: string; name?: string; cfi: string; percent: number }) => Promise<any>;
       // 获取书架列表（按上次阅读时间倒序）
       getBookshelf: () => Promise<{ success: boolean; data?: BookshelfRecord[]; error?: string }>;
       // 添加或更新书架记录（upsert，保留首次添加时间）

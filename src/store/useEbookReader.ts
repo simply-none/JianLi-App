@@ -103,8 +103,10 @@ export interface BookshelfItem {
 const SETTINGS_KEY = 'ebookReaderSettings';
 /** 持久化存储键名：当前打开的文件 */
 const CURRENT_FILE_KEY = 'ebookReaderCurrentFile';
-/** 持久化存储键名：阅读进度 */
+/** 持久化存储键名：阅读进度（全局，最近一本书） */
 const PROGRESS_KEY = 'ebookReaderProgress';
+/** 持久化存储键名：每本书的阅读进度映射（path -> {cfi, percent}），按书去重、同步落库，避免退出时 IPC 丢失 */
+const PROGRESS_MAP_KEY = 'ebookReaderProgressMap';
 
 /** 阅读设置默认值 */
 const DEFAULT_SETTINGS: EbookSettings = {
@@ -150,6 +152,13 @@ export default defineStore('ebook-reader', () => {
       : { cfi: '', percent: 0 }
   );
 
+  // 每本书的阅读进度映射（path -> {cfi, percent}），从本地存储恢复，用于退出/切书时按书精确恢复，
+  // 且作为数据库进度的最终兜底（IPC 在进程退出时可能来不及落库，本地映射是同步写入的）。
+  const storedProgressMap = getStore(PROGRESS_MAP_KEY) as Record<string, EbookProgress> | undefined;
+  const progressMap = ref<Record<string, EbookProgress>>(
+    storedProgressMap && typeof storedProgressMap === 'object' ? storedProgressMap : {}
+  );
+
   // 阅读设置，从本地存储恢复，否则使用默认值
   const storedSettings = getStore(SETTINGS_KEY) as EbookSettings | undefined;
   const settings = ref<EbookSettings>(
@@ -179,6 +188,29 @@ export default defineStore('ebook-reader', () => {
   function setProgress(val: EbookProgress) {
     progress.value = val;
     setStore(PROGRESS_KEY, val);
+  }
+
+  /**
+   * 按文件路径写入该书独立的阅读进度（同步持久化到本地映射）。
+   * 与全局 progress 解耦，保证每本书各自记住位置；并在数据库 IPC 因进程退出来不及落库时作为兜底。
+   * @param path 电子书文件绝对路径
+   * @param val 阅读进度（cfi 定位 + 百分比）
+   * @returns 无返回值
+   */
+  function setBookProgress(path: string, val: EbookProgress) {
+    if (!path) return;
+    progressMap.value = { ...progressMap.value, [path]: val };
+    setStore(PROGRESS_MAP_KEY, progressMap.value);
+  }
+
+  /**
+   * 读取某本书独立保存的阅读进度（本地映射兜底，不触发 IPC）
+   * @param path 电子书文件绝对路径
+   * @returns 该书进度；无记录返回 undefined
+   */
+  function getBookProgress(path: string): EbookProgress | undefined {
+    if (!path) return undefined;
+    return progressMap.value[path];
   }
 
   /**
@@ -490,6 +522,9 @@ export default defineStore('ebook-reader', () => {
     setCurrentFile,
     // 设置阅读进度
     setProgress,
+    // 按书设置/读取阅读进度（本地映射兜底）
+    setBookProgress,
+    getBookProgress,
     // 设置字体大小
     setFontSize,
     // 设置阅读主题

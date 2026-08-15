@@ -16,12 +16,15 @@ import { ElMessage } from 'element-plus';
 import ePub, { Rendition } from 'epubjs';
 import { resolveReadingBg, resolveReadingText } from '../themePresets';
 import useGlobalSetting from '@/store/useGlobalSetting';
+import useEbookReader from '@/store/useEbookReader';
 import type { EpubCtx } from './epubContext';
 
 /** 阅读主题类型：day 白天、night 夜间、eye 护眼 */
 type EbookTheme = 'day' | 'night' | 'eye';
 
 export function useEpubRender(ctx: EpubCtx) {
+  // 按书进度映射（本地存储兜底，进程退出时 IPC 来不及落库也能恢复）
+  const ebookStore = useEbookReader();
   /** 主题 class 计算属性 */
   const themeClass = computed(() => `theme-${ctx.props.theme}`);
 
@@ -172,7 +175,7 @@ export function useEpubRender(ctx: EpubCtx) {
   }
 
   /**
-   * 恢复上次阅读进度（从数据库读取 cfi 记录）。
+   * 恢复上次阅读进度（从数据库读取 cfi；DB 无记录时回退本地按书映射）。
    */
   async function restoreProgress(filePath: string): Promise<string> {
     try {
@@ -183,6 +186,9 @@ export function useEpubRender(ctx: EpubCtx) {
     } catch (err) {
       console.error('恢复阅读进度失败', err);
     }
+    // 数据库无记录（退出时 IPC 来不及落库）：回退本地按书进度映射
+    const local = ebookStore.getBookProgress(filePath);
+    if (local?.cfi) return local.cfi;
     return '';
   }
 
@@ -262,7 +268,7 @@ export function useEpubRender(ctx: EpubCtx) {
 
     if (ctx.saveTimer) clearTimeout(ctx.saveTimer);
     ctx.saveTimer = setTimeout(() => {
-      ctx.emit('progress-update', { cfi, percent });
+      ctx.emit('progress-update', { cfi, percent, filePath: ctx.props.filePath });
     }, 500);
   }
 
@@ -276,7 +282,7 @@ export function useEpubRender(ctx: EpubCtx) {
     if (typeof p === 'number') {
       const percent = Math.max(0, Math.min(100, Math.round(p * 100)));
       ctx.progressText.value = `${percent}%`;
-      ctx.emit('progress-update', { cfi, percent });
+      ctx.emit('progress-update', { cfi, percent, filePath: ctx.props.filePath });
     }
     updatePageInfo();
   }
@@ -509,8 +515,46 @@ export function useEpubRender(ctx: EpubCtx) {
     ctx.rendition.display(target);
   }
 
+  /**
+   * 立即把当前阅读进度落库（取消防抖定时器并同步 emit）。
+   * 在组件卸载 / 切换文件前的 cleanup 中调用，避免最后一次翻页（500ms 防抖窗口内）的位置丢失，
+   * 从而导致下次打开时恢复到更早的位置。
+   */
+  function flushProgress() {
+    // 优先取「此刻真实阅读位置」：滚动模式下 epub.js 的 relocated 事件有 ~30ms 防抖 + RAF 延迟，
+    // 若直接退出，ctx.currentCfi 会停留在稍早的位置（缓慢滚动时尤其明显，恢复后偏前一点）。
+    // 用 rendition.currentLocation() 实时读取当前滚动位置，得到更精确的落库 CFI。
+    let cfi = '';
+    try {
+      const live: any = ctx.rendition?.currentLocation();
+      if (live && typeof live.then !== 'function' && live.start?.cfi) {
+        cfi = live.start.cfi;
+      }
+    } catch {
+      cfi = '';
+    }
+    if (!cfi && ctx.currentCfi.value) cfi = ctx.currentCfi.value;
+    if (!cfi) return;
+
+    if (ctx.saveTimer) {
+      clearTimeout(ctx.saveTimer);
+      ctx.saveTimer = null;
+    }
+    let percent = 0;
+    if (ctx.locationsReady && ctx.book) {
+      const p = ctx.book.locations.percentageFromCfi(cfi);
+      if (typeof p === 'number') percent = Math.round(p * 100);
+    } else {
+      const m = /(\d+)%/.exec(ctx.progressText.value);
+      if (m) percent = parseInt(m[1], 10);
+    }
+    ctx.emit('progress-update', { cfi, percent, filePath: ctx.props.filePath });
+  }
+
   /** 清理 epubjs 资源 */
   function cleanup() {
+    // 卸载 / 切换文件前，先把尚未落库的进度立即写出，避免丢失最后一次位置
+    flushProgress();
     if (ctx.saveTimer) {
       clearTimeout(ctx.saveTimer);
       ctx.saveTimer = null;
@@ -577,12 +621,18 @@ export function useEpubRender(ctx: EpubCtx) {
   ctx.updatePageInfo = updatePageInfo;
 
   // ===== 生命周期与监听 =====
+  // 进程退出前（关闭窗口）补一次落库：flushProgress 会同步写入本地按书进度映射，
+  // 即使 saveProgress 的 IPC 来不及落库，下次打开也能从本地映射恢复真实位置。
+  function handleBeforeUnload() {
+    flushProgress();
+  }
   onMounted(() => {
     if (ctx.props.filePath) {
       renderEpub(ctx.props.filePath).then(() => {
         ctx.initialRenderDone = true;
       });
     }
+    window.addEventListener('beforeunload', handleBeforeUnload);
     window.addEventListener('keydown', handleKeydown);
     ctx.resizeObserver = new ResizeObserver(() => {
       if (!ctx.initialRenderDone) return;
@@ -694,6 +744,7 @@ export function useEpubRender(ctx: EpubCtx) {
       ctx.reloadTimer = null;
     }
     window.removeEventListener('keydown', handleKeydown);
+    window.removeEventListener('beforeunload', handleBeforeUnload);
     cleanup();
   });
 

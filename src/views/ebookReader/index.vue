@@ -300,16 +300,13 @@ import { useBookshelf, handleExportResult } from './composables/useBookshelf';
 import { getFileName, getFormat } from './utils/fileUtils';
 import type { TocItem, FlatTocItem, ReaderComponentInstance, AnnotationDisplayItem, EpubSearchResult } from './types';
 
-/** 书架进度刷新节流间隔（毫秒），500ms 内最多触发一次 addToBookshelf */
-const BOOKSHELF_THROTTLE_MS = 500;
-
 // 电子书阅读器 store
 const ebookStore = useEbookReader();
-// 解构响应式状态：currentFile 当前文件、progress 阅读进度、settings 设置
-const { currentFile, progress, settings } = storeToRefs(ebookStore);
+// 解构响应式状态：currentFile 当前文件、settings 设置
+const { currentFile, settings } = storeToRefs(ebookStore);
 // 解构 actions：setCurrentFile 设置当前文件、setProgress 设置进度、setFontSize 设置字号、
 // setTheme 设置主题、setBgType/setBgColor/setBgImage/setTextColor 设置阅读区背景与文字色、
-// loadBookshelf 加载书架、addToBookshelf 写入书架
+// loadBookshelf 加载书架、addToBookshelf 写入书架、setBookProgress/getBookProgress 按书进度映射
 const {
   setCurrentFile,
   setProgress,
@@ -318,6 +315,8 @@ const {
   setFontFamilyEN,
   loadBookshelf,
   addToBookshelf,
+  setBookProgress,
+  getBookProgress,
 } = ebookStore;
 
 // 书架功能 composable：抽取书架列表、徽标数量与打开/移除/加入/导出等操作
@@ -403,12 +402,6 @@ const annotationDrawerTitle = computed(() => {
 /** 更多阅读设置抽屉显示状态 */
 const settingsDrawerVisible = ref(false);
 
-/**
- * 上次刷新书架进度的时间戳（毫秒）
- * 用于 onProgressUpdate 中节流 addToBookshelf，避免每次翻页都触发数据库写入
- */
-let lastBookshelfUpdateAt = 0;
-
 /** 字体大小双向绑定（get/set 关联 store） */
 const fontSizeModel = computed({
   get: () => settings.value.fontSize,
@@ -472,14 +465,15 @@ function loadFile(filePath: string, name: string, format: 'txt' | 'epub') {
   // 清除上一本书的笔记列表，避免抽屉中残留旧数据
   annotations.value = [];
   annotationDrawerVisible.value = false;
-  // 写入书架记录并刷新书架列表；percent 优先沿用该书已有的书架进度，
-  // 避免用全局 progress 覆盖掉每本书各自保存的真实阅读进度
+  // 写入/更新书架记录：仅确保该书存在于书架并刷新 last_read_at。
+  // percent 不再由全局 progress 覆盖——saveProgress 已保证 ebook_bookshelf.percent 与真实阅读进度同源，
+  // 此处沿用该书已有的书架进度（existingItem.percent）即可，避免把全局 progress 误写进本书条目。
   const existingItem = bookshelf.value.find((b) => b.path === filePath);
   addToBookshelf({
     path: filePath,
     name,
     format,
-    percent: existingItem ? existingItem.percent : progress.value.percent || 0,
+    percent: existingItem ? existingItem.percent : getBookProgress(filePath)?.percent || 0,
     lastReadAt: new Date().toISOString(),
     addedAt: new Date().toISOString(),
   });
@@ -568,37 +562,36 @@ function openFile() {
  * @param payload - 进度数据，包含 cfi 定位与百分比
  * @returns 无返回值
  */
-async function onProgressUpdate(payload: { cfi: string; percent: number }) {
+async function onProgressUpdate(payload: { cfi: string; percent: number; filePath?: string }) {
   // 更新当前阅读位置 cfi（供书签抽屉高亮当前书签）
   currentFileCfi.value = payload.cfi;
-  // 更新 store 中的进度（同步持久化到本地存储）
+  // 进度持久化的目标文件：优先用子组件随进度带回的 filePath（组件卸载/切换时仍能指向正确的书）
+  const savePath = payload.filePath || currentFile.value.path;
+  if (!savePath) return;
+  const sameBook = savePath === currentFile.value.path;
+  // 同步写入「每本书独立进度映射」（本地存储，同步落库）——这是进程退出时 IPC 来不及落库的最终兜底
+  setBookProgress(savePath, { cfi: payload.cfi, percent: payload.percent });
+  // 更新全局 progress（兼容旧逻辑）
   setProgress(payload);
-  // 通过 IPC 持久化到数据库，并节流刷新书架进度
-  if (currentFile.value.path) {
-    try {
-      await window.ipcRenderer.ebook.saveProgress({
-        filePath: currentFile.value.path,
-        format: currentFile.value.format,
-        cfi: payload.cfi,
-        percent: payload.percent,
-      });
-      // 节流刷新书架进度：避免每次翻页都触发数据库写入与列表刷新
-      const now = Date.now();
-      if (now - lastBookshelfUpdateAt >= BOOKSHELF_THROTTLE_MS) {
-        lastBookshelfUpdateAt = now;
-        await addToBookshelf({
-          path: currentFile.value.path,
-          name: currentFile.value.name,
-          format: currentFile.value.format,
-          percent: payload.percent,
-          lastReadAt: new Date().toISOString(),
-          addedAt: new Date().toISOString(),
-        });
-      }
-    } catch (err) {
-      // 持久化失败不影响阅读，仅打印日志
-      console.error('保存阅读进度失败', err);
-    }
+  // 立即同步书架内存条目的 percent，保证 UI 实时反映真实进度（saveProgress 已负责把书架表 percent 与进度同源落库）
+  const idx = bookshelf.value.findIndex((b) => b.path === savePath);
+  if (idx >= 0) {
+    const list = bookshelf.value.slice();
+    list[idx] = { ...list[idx], percent: payload.percent, lastReadAt: new Date().toISOString() };
+    bookshelf.value = list;
+  }
+  // 通过 IPC 持久化到数据库（ebook_progress + 同步 bookshelf.percent，二者同源）
+  try {
+    await window.ipcRenderer.ebook.saveProgress({
+      filePath: savePath,
+      format: currentFile.value.format,
+      cfi: payload.cfi,
+      percent: payload.percent,
+      name: currentFile.value.name,
+    });
+  } catch (err) {
+    // 持久化失败不影响阅读，仅打印日志（本地映射已兜底）
+    console.error('保存阅读进度失败', err);
   }
 }
 
