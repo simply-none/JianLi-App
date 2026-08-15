@@ -1,7 +1,7 @@
 <template>
   <layout-vue>
     <template #main>
-      <div class="ebook-reader-page" :class="themeClass">
+      <div class="ebook-reader-page" :class="[themeClass, { 'is-fullscreen': isFullscreen }]" ref="readerPageRef">
         <!-- 顶部工具栏 -->
         <header class="reader-toolbar" v-show="settings.readerTopbarVisible">
           <div class="toolbar-left">
@@ -23,7 +23,7 @@
             <div class="file-info" v-if="view === 'reader' && currentFile.format">
               <el-tag
                 size="small"
-                :type="currentFile.format === 'epub' ? 'warning' : 'success'"
+                :type="currentFile.format === 'epub' ? 'warning' : currentFile.format === 'pdf' ? 'danger' : 'success'"
               >
                 {{ currentFile.format.toUpperCase() }}
               </el-tag>
@@ -40,9 +40,9 @@
             ref="toolbarRightRef"
             @wheel="onToolbarRightWheel"
           >
-            <!-- 目录按钮（仅 epub 时有效） -->
+            <!-- 目录按钮（epub / pdf 均可用） -->
             <el-button
-              v-if="currentFile.format === 'epub'"
+              v-if="currentFile.format === 'epub' || currentFile.format === 'pdf'"
               size="small"
               @click="tocVisible = true"
             >
@@ -61,9 +61,9 @@
                 笔记
               </el-button>
             </el-badge>
-            <!-- 书签按钮（仅 epub 时有效）：打开书签抽屉，附带数量徽标 -->
+            <!-- 书签按钮（epub / pdf 均可用）：打开书签抽屉，附带数量徽标 -->
             <el-badge
-              v-if="currentFile.format === 'epub'"
+              v-if="currentFile.format === 'epub' || currentFile.format === 'pdf'"
               :value="bookmarks.length"
               :hidden="bookmarks.length === 0"
               :max="99"
@@ -74,68 +74,16 @@
                 书签
               </el-button>
             </el-badge>
-            <!-- 全文搜索按钮（仅 epub 时有效）：打开搜索面板 -->
+            <!-- 全文搜索按钮（epub / pdf 均可用）：打开搜索面板 -->
             <el-button
-              v-if="currentFile.format === 'epub'"
+              v-if="currentFile.format === 'epub' || currentFile.format === 'pdf'"
               size="small"
               @click="searchPanelVisible = true"
             >
               <LucideIcon name="Search" :size="16" />
               搜索
             </el-button>
-            <!-- 字体设置：中文 / 英文（选项参考设置页「字体设置」） -->
-            <div class="font-control">
-              <span class="control-label">字体</span>
-              <el-select-v2
-                v-model="fontFamilyModel"
-                :options="fontOptions"
-                filterable
-                clearable
-                placeholder="中文"
-                popper-class="font-select-popper"
-                :item-height="72"
-                style="width: 150px"
-              >
-                <template #default="{ item }">
-                  <span class="font-box" :style="{ fontFamily: item.value }">
-                    <span class="font-name">{{ item.label }}</span>
-                    <span class="font-preview">预览：中文English 123</span>
-                  </span>
-                </template>
-              </el-select-v2>
-              <el-select-v2
-                v-model="fontFamilyENModel"
-                :options="fontOptions"
-                filterable
-                clearable
-                placeholder="英文"
-                popper-class="font-select-popper"
-                :item-height="72"
-                style="width: 150px"
-              >
-                <template #default="{ item }">
-                  <span class="font-box" :style="{ fontFamily: item.value }">
-                    <span class="font-name">{{ item.label }}</span>
-                    <span class="font-preview">Preview: 中文English 123</span>
-                  </span>
-                </template>
-              </el-select-v2>
-            </div>
-
-            <!-- 字体大小调整 -->
-            <div class="font-size-control">
-              <span class="control-label">字号</span>
-              <el-input-number
-                v-model="fontSizeModel"
-                :min="12"
-                :max="32"
-                :step="1"
-                size="small"
-                controls-position="right"
-              />
-            </div>
-
-            <!-- 更多阅读设置按钮：点击打开右侧弹窗（分栏/翻页模式/行距/页边距等） -->
+            <!-- 更多阅读设置按钮：点击打开右侧弹窗（字体/字号/分栏/翻页模式/行距/页边距等） -->
             <el-button
               size="small"
               @click="settingsDrawerVisible = true"
@@ -143,6 +91,15 @@
             >
               <LucideIcon name="Settings" :size="16" />
               设置
+            </el-button>
+            <!-- 全屏阅读按钮：进入/退出沉浸全屏 -->
+            <el-button
+              size="small"
+              @click="toggleFullscreen"
+              :title="isFullscreen ? '退出全屏' : '全屏阅读（沉浸模式）'"
+            >
+              <LucideIcon :name="isFullscreen ? 'Minimize2' : 'Maximize2'" :size="16" />
+              {{ isFullscreen ? '退出全屏' : '全屏' }}
             </el-button>
           </div>
         </header>
@@ -159,6 +116,56 @@
           >
             <LucideIcon name="Settings" :size="16" />
           </el-button>
+        </transition>
+
+        <!-- 沉浸全屏时的浮动控制条：PDF 缩放 + 设置 + 退出全屏，统一在同一区域（工具栏已隐藏） -->
+        <transition name="fade">
+          <div
+            v-if="isFullscreen"
+            class="floating-fs-controls"
+          >
+            <!-- PDF 缩放（仅 PDF 格式、全屏时显示）：缩小 / 百分比（点击复位） / 放大 -->
+            <template v-if="currentFile.format === 'pdf'">
+              <el-button
+                size="small"
+                circle
+                @click="readerRef?.zoomOut?.()"
+                title="缩小"
+              >
+                <LucideIcon name="Minus" :size="16" />
+              </el-button>
+              <span
+                class="fs-zoom-percent"
+                title="点击复位到当前适应方式"
+                @click="readerRef?.zoomReset?.()"
+              >{{ readerRef?.scalePercent }}%</span>
+              <el-button
+                size="small"
+                circle
+                @click="readerRef?.zoomIn?.()"
+                title="放大"
+              >
+                <LucideIcon name="Plus" :size="16" />
+              </el-button>
+              <span class="fs-divider"></span>
+            </template>
+            <el-button
+              size="small"
+              circle
+              @click="settingsDrawerVisible = true"
+              title="设置"
+            >
+              <LucideIcon name="Settings" :size="16" />
+            </el-button>
+            <el-button
+              size="small"
+              circle
+              @click="toggleFullscreen"
+              title="退出全屏"
+            >
+              <LucideIcon name="Minimize2" :size="16" />
+            </el-button>
+          </div>
         </transition>
 
         <!-- 内容区：根据 view 状态切换「书架视图」与「阅读视图」 -->
@@ -198,7 +205,7 @@
               :bg-color="settings.bgColor"
               :bg-image="settings.bgImage"
               :text-color="settings.textColor"
-              :bottom-bar-visible="settings.readerBottomBarVisible"
+              :bottom-bar-visible="settings.readerBottomBarVisible && !isFullscreen"
               :edge-click-enabled="settings.edgeClickEnabled"
               :edge-click-percent="settings.edgeClickPercent"
               :wheel-page-enabled="settings.wheelPageEnabled"
@@ -207,10 +214,7 @@
               :column-count="settings.columnCount"
               :scroll-mode="settings.scrollMode"
               :margin="settings.margin"
-              :letter-spacing="settings.letterSpacing"
-              :paragraph-spacing="settings.paragraphSpacing"
-              :first-line-indent="settings.firstLineIndent"
-              :underline-gap="settings.underlineGap"
+              v-bind="extraReaderProps"
               @progress-update="onProgressUpdate"
               @toc-loaded="onTocLoaded"
               @landmarks-loaded="onLandmarksLoaded"
@@ -249,6 +253,7 @@
           :title="annotationDrawerTitle"
           @jump="onAnnotationClick"
           @delete="onAnnotationDelete"
+          @delete-all="onDeleteAll"
           @export="exportCurrentAnnotations"
           @save-note="saveShelfNote"
         />
@@ -280,16 +285,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import LayoutVue from '@/components/layout.vue';
 import LucideIcon from '@/components/LucideIcon.vue';
 import useEbookReader from '@/store/useEbookReader';
 import type { EbookTheme, EbookBgType, BookshelfItem } from '@/store/useEbookReader';
-import useGlobalSetting from '@/store/useGlobalSetting';
 import TxtReader from './components/TxtReader.vue';
 import EpubReader from './components/EpubReader.vue';
+import PdfReader from './components/PdfReader.vue';
 import SettingsDrawer from './components/SettingsDrawer.vue';
 import TocDrawer from './components/TocDrawer.vue';
 import AnnotationDrawer from './components/AnnotationDrawer.vue';
@@ -311,8 +316,6 @@ const {
   setCurrentFile,
   setProgress,
   setFontSize,
-  setFontFamily,
-  setFontFamilyEN,
   loadBookshelf,
   addToBookshelf,
   setBookProgress,
@@ -351,8 +354,18 @@ const tocLandmarks = ref<any[]>([]);
 const currentFileHref = ref('');
 /** 子组件实例引用 */
 const readerRef = ref<ReaderComponentInstance | null>(null);
+/** 阅读页根元素引用：全屏功能作用于该元素 */
+const readerPageRef = ref<HTMLElement | null>(null);
 /** 顶部栏右侧功能区容器引用：用于挂载鼠标滚轮→横向滚动 */
 const toolbarRightRef = ref<HTMLElement | null>(null);
+/**
+ * 沉浸全屏状态：
+ * - true：阅读区进入全屏/沉浸模式（隐藏工具栏，内容撑满），浮动控制条可见
+ * - false：普通阅读模式
+ * 真实 OS 全屏（requestFullscreen）成功时由 fullscreenchange 事件同步；
+ * 若环境不支持/拒绝真实全屏，则退化为仅隐藏工具栏的沉浸模式（本状态仍为 true）。
+ */
+const isFullscreen = ref(false);
 /**
  * 不支持格式的提示文本
  * - 空字符串：不显示提示（正常打开文件或未打开文件状态）
@@ -402,37 +415,6 @@ const annotationDrawerTitle = computed(() => {
 /** 更多阅读设置抽屉显示状态 */
 const settingsDrawerVisible = ref(false);
 
-/** 字体大小双向绑定（get/set 关联 store） */
-const fontSizeModel = computed({
-  get: () => settings.value.fontSize,
-  set: (val: number | undefined) => {
-    if (typeof val === 'number') {
-      setFontSize(val);
-    }
-  },
-});
-
-/** 字体选项来源（与设置页「字体设置」保持一致）：内置字体列表 + 系统已安装字体 */
-const { globalFontOpsC } = storeToRefs(useGlobalSetting());
-/** 系统字体列表（由主进程 get-fonts 返回，结构 { label, value }） */
-const sysFonts = ref<{ label: string; value: string }[]>([]);
-/** 合并后的字体下拉选项 */
-const fontOptions = computed(() => [...(globalFontOpsC.value || []), ...sysFonts.value]);
-
-/** 中文正文字体双向绑定 */
-const fontFamilyModel = computed({
-  get: () => settings.value.fontFamily,
-  set: (val: string | undefined) => setFontFamily(val ?? ''),
-});
-
-/** 英文正文字体双向绑定 */
-const fontFamilyENModel = computed({
-  get: () => settings.value.fontFamilyEN,
-  set: (val: string | undefined) => setFontFamilyEN(val ?? ''),
-});
-
-
-
 /** 当前主题对应的 class（作用于整个电子书阅读页，使工具栏/书架/抽屉等区域跟随切换） */
 const themeClass = computed(() => `theme-${settings.value.theme}`);
 
@@ -442,7 +424,33 @@ const themeClass = computed(() => `theme-${settings.value.theme}`);
 const readerComponent = computed(() => {
   if (currentFile.value.format === 'txt') return TxtReader;
   if (currentFile.value.format === 'epub') return EpubReader;
+  if (currentFile.value.format === 'pdf') return PdfReader;
   return null;
+});
+
+/**
+ * 仅包含按格式区分的额外 props，避免把 PDF / EPUB 专用参数透传给 TxtReader。
+ * 这些 props 在 TxtReader 中未声明，会作为 HTML attributes 落到根 div，
+ * 可能干扰其 CSS 多列布局或首次渲染。
+ */
+const extraReaderProps = computed(() => {
+  if (currentFile.value.format === 'epub') {
+    return {
+      letterSpacing: settings.value.letterSpacing,
+      paragraphSpacing: settings.value.paragraphSpacing,
+      firstLineIndent: settings.value.firstLineIndent,
+      underlineGap: settings.value.underlineGap,
+    };
+  }
+  if (currentFile.value.format === 'pdf') {
+    return {
+      underlineGap: settings.value.underlineGap,
+      hlLineThickness: settings.value.hlLineThickness,
+      hlRowPaddingY: settings.value.hlRowPaddingY,
+      pdfFitMode: settings.value.pdfFitMode,
+    };
+  }
+  return {};
 });
 
 /**
@@ -451,10 +459,10 @@ const readerComponent = computed(() => {
  *
  * @param filePath - 文件绝对路径
  * @param name - 文件名（含扩展名）
- * @param format - 文件格式：'txt' 或 'epub'
+ * @param format - 文件格式：'txt'、'epub' 或 'pdf'
  * @returns 无返回值
  */
-function loadFile(filePath: string, name: string, format: 'txt' | 'epub') {
+function loadFile(filePath: string, name: string, format: 'txt' | 'epub' | 'pdf') {
   // 清空不支持格式提示，避免上一次的提示残留
   unsupportedTip.value = '';
   // 写入 store 的当前文件（同步持久化到本地存储）
@@ -516,6 +524,37 @@ function onToolbarRightWheel(e: WheelEvent) {
   el.scrollLeft += delta;
 }
 
+/**
+ * 切换阅读区全屏（沉浸模式）
+ * - 进入：调用真实 Fullscreen API 让阅读页撑满整屏；
+ *   若环境不支持或被拒绝，则退化为「仅隐藏工具栏」的沉浸模式（isFullscreen 仍为 true）。
+ * - 退出：若存在真实全屏则退出，否则仅关闭沉浸模式。
+ * 工具栏与浮动设置按钮在 .is-fullscreen 下隐藏，由右上角浮动控制条提供「设置 / 退出全屏」。
+ */
+function toggleFullscreen() {
+  if (isFullscreen.value) {
+    isFullscreen.value = false;
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
+    return;
+  }
+  isFullscreen.value = true;
+  const el = readerPageRef.value;
+  const req = el?.requestFullscreen?.();
+  if (req && typeof (req as Promise<void>).then === 'function') {
+    (req as Promise<void>).catch(() => {
+      // 真实全屏失败：保持 isFullscreen=true 的沉浸模式（已隐藏工具栏），不报错
+    });
+  }
+}
+
+/** 监听 document 全屏变化（如用户按 ESC 退出），同步 isFullscreen 状态 */
+function onFsChange() {
+  const el = readerPageRef.value;
+  isFullscreen.value = !!el && document.fullscreenElement === el;
+}
+
 function openFile() {
   // 每次点击「打开文件」时重置不支持格式提示，避免上一次的提示残留
   unsupportedTip.value = '';
@@ -534,9 +573,9 @@ function openFile() {
   // 不支持的格式（含 .mobi 等）提示用户
   if (!format) {
     // 保留 ElMessage 作为即时反馈
-    ElMessage.warning('暂不支持该格式（当前支持 txt、epub）');
+    ElMessage.warning('暂不支持该格式（当前支持 txt、epub、pdf）');
     // 在阅读内容区以 el-empty 形式展示提示文本
-    unsupportedTip.value = '暂不支持该格式（当前支持 txt、epub）';
+    unsupportedTip.value = '暂不支持该格式（当前支持 txt、epub、pdf）';
     // 清空 currentFile，避免显示阅读器组件
     setCurrentFile({ path: '', name: '', format: '' });
     // 同步清除目录状态
@@ -635,6 +674,10 @@ function onCurrentHref(href: string) {
 function onTocItemClick(item: FlatTocItem) {
   if (currentFile.value.format === 'epub' && readerRef.value?.displayTarget) {
     readerRef.value.displayTarget(item.href);
+  } else if (currentFile.value.format === 'pdf' && readerRef.value?.goToTocPage) {
+    // PDF 目录项 href 形如 "page:N"，解析页码后跳转
+    const m = /^page:(\d+)$/.exec(item.href || '');
+    if (m) readerRef.value.goToTocPage(Number(m[1]));
   }
   tocVisible.value = false;
 }
@@ -658,6 +701,8 @@ function onAnnotationsUpdated(items: any[]) {
     anchor: item.anchor ?? `${item.start}-${item.end}`,
     text: item.text ?? '',
     note: item.note ?? '',
+    createdAt: item.createdAt ?? '',
+    updatedAt: item.updatedAt ?? '',
   }));
 }
 
@@ -779,7 +824,7 @@ function onAnnotationClick(item: AnnotationDisplayItem) {
     }
     return;
   }
-  readerRef.value?.jumpToAnnotation?.(item.anchor);
+  readerRef.value?.jumpToAnnotation?.(item.anchor, item.id);
   annotationDrawerVisible.value = false;
 }
 
@@ -820,6 +865,61 @@ async function onAnnotationDelete(item: AnnotationDisplayItem) {
 }
 
 /**
+ * 一键删除当前标签页全部（笔记或划线）
+ * 调用批量 IPC 删除数据库记录，成功后同步移除子组件本地高亮与父组件展示列表
+ *
+ * @param scope - 'note' 仅删笔记（note 非空）；'highlight' 仅删划线（note 为空）
+ * @returns 无返回值；用户取消时不做任何操作
+ */
+async function onDeleteAll(scope: 'note' | 'highlight'): Promise<void> {
+  const isNote = scope === 'note';
+  const targetFile = annotationSourceFile.value || currentFile.value.path;
+  if (!targetFile) return;
+
+  // 当前列表中属于该范围的项（用于本地高亮清理与列表同步）
+  const matched = annotations.value.filter((a) =>
+    isNote ? (a.note || '').trim().length > 0 : !(a.note || '').trim()
+  );
+  if (matched.length === 0) return;
+
+  try {
+    await ElMessageBox.confirm(
+      isNote ? '确认删除全部笔记吗？此操作不可恢复。' : '确认删除全部划线吗？此操作不可恢复。',
+      '提示',
+      {
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    );
+  } catch {
+    return;
+  }
+
+  try {
+    const res = await window.ipcRenderer.ebook.removeAnnotations({ filePath: targetFile, scope });
+    if (!res?.success) {
+      ElMessage.error(`删除失败：${res?.error || '未知错误'}`);
+      return;
+    }
+    // 同步父组件展示列表（移除该范围内的全部项）
+    annotations.value = annotations.value.filter((a) =>
+      isNote ? !(a.note || '').trim() : (a.note || '').trim()
+    );
+    // 若当前书已打开（非书架来源），重新加载阅读组件本地高亮，清掉页面上的划线/笔记层
+    if (!annotationSourceFile.value) {
+      readerRef.value?.loadAnnotations?.(currentFile.value.path);
+    }
+    ElMessage.success(isNote ? '已删除全部笔记' : '已删除全部划线');
+    // 刷新书架卡片上的笔记/划线数量徽标
+    refreshCounts();
+  } catch (err) {
+    console.error('一键删除异常', err);
+    ElMessage.error('删除失败，请重试');
+  }
+}
+
+/**
  * 从书架打开某本书的笔记抽屉（不打开书本体）
  * 加载该书的笔记与划线到抽屉展示，并标记来源文件
  *
@@ -835,6 +935,8 @@ async function openShelfAnnotations(item: BookshelfItem): Promise<void> {
       anchor: r.anchor,
       text: r.text,
       note: r.note || '',
+      createdAt: r.created_at || '',
+      updatedAt: r.updated_at || '',
     }));
   } else {
     annotations.value = [];
@@ -883,10 +985,11 @@ async function saveShelfNote(payload: { id: number; text: string }): Promise<voi
       ElMessage.error(`保存失败：${res?.error || '未知错误'}`);
       return;
     }
-    // 同步本地列表中的笔记内容
+    // 同步本地列表中的笔记内容与更新时间
     const target = annotations.value.find((a) => a.id === id);
     if (target) {
       target.note = text;
+      target.updatedAt = new Date().toISOString();
     }
     ElMessage.success('笔记已保存');
     // 笔记/划线分类可能变化（划线加笔记后变成笔记），刷新书架徽标
@@ -896,18 +999,20 @@ async function saveShelfNote(payload: { id: number; text: string }): Promise<voi
   }
 }
 
-// 组件挂载时加载书架列表（从数据库读取）并拉取系统字体供字体选择使用
+// 组件挂载时加载书架列表（从数据库读取）
 onMounted(() => {
   // 加载书架后刷新每本书的笔记/划线数量徽标
   loadBookshelf().then(() => refreshCounts());
-  window.ipcRenderer
-    .handlePromise('get-fonts', {})
-    .then((result) => {
-      sysFonts.value = result || [];
-    })
-    .catch((err) => {
-      console.error('获取系统字体失败', err);
-    });
+  // 监听全屏变化（ESC 退出等），同步沉浸状态
+  document.addEventListener('fullscreenchange', onFsChange);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('fullscreenchange', onFsChange);
+  // 卸载时若处于真实全屏，安全退出
+  if (document.fullscreenElement) {
+    document.exitFullscreen().catch(() => {});
+  }
 });
 
 // 监听文件路径变化，切换文件时清除目录状态与笔记列表
@@ -947,6 +1052,11 @@ watch(
   (val) => {
     if (val === 'bookshelf') {
       refreshCounts();
+      // 离开阅读视图时退出沉浸全屏，避免书架停留在隐藏工具栏的全屏态
+      if (isFullscreen.value) {
+        isFullscreen.value = false;
+        if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+      }
     }
   }
 );
@@ -971,7 +1081,7 @@ watch(
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 10px 16px;
+    padding: 6px 16px;
     background: var(--bg-card);
     border-bottom: 1px solid var(--border-subtle);
     box-shadow: var(--shadow-top);
@@ -995,6 +1105,10 @@ watch(
       flex-wrap: nowrap;
       overflow-x: auto;
       overflow-y: hidden;
+      /* 顶部补 padding：el-badge 角标绝对定位于按钮右上角、会向上溢出约 9px，
+         若不加 padding 会被 overflow-y:hidden 裁掉（数量角标显示不全）。
+         仅补顶部（底部不补），因 .toolbar-right 垂直居中于工具栏，按钮仍与左侧对齐，且高度更省。 */
+      padding: 10px 0 0;
       scrollbar-width: thin;
       scrollbar-color: var(--border-subtle, rgba(0, 0, 0, 0.2)) transparent;
 
@@ -1029,30 +1143,6 @@ watch(
         overflow: hidden;
         text-overflow: ellipsis;
         max-width: 280px;
-      }
-    }
-
-    .font-size-control {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-
-      .control-label {
-        font-size: 13px;
-        color: var(--text-secondary);
-        white-space: nowrap;
-      }
-    }
-
-    .font-control {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-
-      .control-label {
-        font-size: 13px;
-        color: var(--text-secondary);
-        white-space: nowrap;
       }
     }
   }
@@ -1174,6 +1264,66 @@ watch(
     }
   }
 
+  /* ============ 沉浸全屏模式 ============ */
+  /* 全屏时隐藏顶部工具栏与常规浮动设置按钮，让阅读内容撑满；由右上角浮动控制条替代操作 */
+  &.is-fullscreen {
+    .reader-toolbar {
+      display: none;
+    }
+    .floating-settings-btn {
+      display: none;
+    }
+    /* 全屏下内容区取消圆角/留白以增强沉浸感（视阅读组件自身背景而定） */
+    .reader-content {
+      padding: 0;
+    }
+  }
+
+  /* 全屏模式右上角浮动控制条：设置 + 退出全屏。默认半透明，hover 高亮 */
+  .floating-fs-controls {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 200;
+    display: flex;
+    gap: 8px;
+    padding: 6px;
+    border-radius: 999px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow-card);
+    opacity: 0.4;
+    transition: opacity 0.2s;
+
+    &:hover {
+      opacity: 1;
+    }
+
+    .el-button {
+      margin-left: 0;
+    }
+
+    /* PDF 缩放百分比（点击复位）：与两侧按钮共用同一控制条 */
+    .fs-zoom-percent {
+      min-width: 42px;
+      text-align: center;
+      font-size: 13px;
+      line-height: 1;
+      color: var(--text-secondary, #666);
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    /* 缩放组与设置/退出之间的分隔线 */
+    .fs-divider {
+      width: 1px;
+      align-self: stretch;
+      margin: 2px 2px;
+      background: var(--border-subtle, #e5e5e5);
+    }
+  }
+
   .fade-enter-active,
   .fade-leave-active {
     transition: opacity 0.3s;
@@ -1181,44 +1331,6 @@ watch(
   .fade-enter-from,
   .fade-leave-to {
     opacity: 0;
-  }
-}
-</style>
-
-<!-- 字体下拉面板样式（与设置页字体选择保持一致），非 scoped 以便作用于 body 下的 popper -->
-<style lang="scss">
-.font-select-popper {
-  background: var(--bg-card) !important;
-  border: 1px solid var(--border-subtle) !important;
-
-  .el-select-dropdown__item {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    height: fit-content;
-    color: var(--text-primary) !important;
-
-    &:hover {
-      background: var(--bg-hover) !important;
-    }
-
-    .font-box {
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      height: 72px;
-    }
-
-    .font-name {
-      font-size: 14px;
-      font-weight: 500;
-    }
-
-    .font-preview {
-      font-size: 12px;
-      color: var(--text-muted);
-      margin-top: 4px;
-    }
   }
 }
 </style>

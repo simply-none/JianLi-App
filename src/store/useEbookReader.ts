@@ -2,8 +2,8 @@ import { ref } from 'vue';
 import { defineStore } from 'pinia';
 import { getStore, setStore } from '@/utils/common';
 
-/** 电子书文件格式类型：txt 文本、epub 电子书，空字符串表示未打开任何文件 */
-export type EbookFormat = 'txt' | 'epub' | '';
+/** 电子书文件格式类型：txt 文本、epub 电子书、pdf 文档，空字符串表示未打开任何文件 */
+export type EbookFormat = 'txt' | 'epub' | 'pdf' | '';
 
 /** 电子书阅读主题类型：day 白天、night 夜间、eye 护眼（控制外层工具栏/抽屉主题） */
 export type EbookTheme = 'day' | 'night' | 'eye';
@@ -79,8 +79,14 @@ export interface EbookSettings {
   paragraphSpacing: number;
   /** 首行缩进，单位 em（0 表示不缩进），仅 epub 生效 */
   firstLineIndent: number;
-  /** 下划线 / 双下划线 与文字之间的间隙，单位 px（0 表示贴着基线），仅 epub 生效 */
+  /** 下划线 / 双下划线 与文字之间的间隙，单位 px（0 表示贴着基线），epub / pdf 均生效 */
   underlineGap: number;
+  /** 划线（下划线 / 删除线 / 双下划线）线宽，单位 px，默认 2，pdf 阅读器生效 */
+  hlLineThickness: number;
+  /** 高亮背景块上下外扩间距，单位 px，默认 2，避免高亮紧贴上下行，pdf 阅读器生效 */
+  hlRowPaddingY: number;
+  /** PDF 适应方式：'width' 适应宽度（缩放使页宽撑满阅读区）/ 'height' 适应高度（缩放使单页高度≈视口高，一屏一页），pdf 阅读器生效 */
+  pdfFitMode: 'width' | 'height';
 }
 
 /** 书架条目信息（前端使用 camelCase，对应数据库 ebook_bookshelf 表的一行） */
@@ -135,6 +141,9 @@ const DEFAULT_SETTINGS: EbookSettings = {
   paragraphSpacing: 0,
   firstLineIndent: 0,
   underlineGap: 2,
+  hlLineThickness: 2,
+  hlRowPaddingY: 2,
+  pdfFitMode: 'width',
 };
 
 export default defineStore('ebook-reader', () => {
@@ -396,6 +405,34 @@ export default defineStore('ebook-reader', () => {
   }
 
   /**
+   * 设置划线（下划线 / 删除线 / 双下划线）线宽（px），并同步持久化到本地存储，pdf 阅读器生效
+   * @param value 线宽数值（默认 2，越大线越粗）
+   */
+  function setHlLineThickness(value: number) {
+    settings.value.hlLineThickness = value;
+    setStore(SETTINGS_KEY, settings.value);
+  }
+
+  /**
+   * 设置高亮背景块上下外扩间距（px），并同步持久化到本地存储，pdf 阅读器生效
+   * @param value 间距数值（默认 2，越大高亮块离上下行越远）
+   */
+  function setHlRowPaddingY(value: number) {
+    settings.value.hlRowPaddingY = value;
+    setStore(SETTINGS_KEY, settings.value);
+  }
+
+  /**
+   * 设置 PDF 适应方式并持久化到本地存储，pdf 阅读器生效
+   * @param value 'width' 适应宽度 / 'height' 适应高度
+   * @returns 无返回值
+   */
+  function setPdfFitMode(value: 'width' | 'height') {
+    settings.value.pdfFitMode = value;
+    setStore(SETTINGS_KEY, settings.value);
+  }
+
+  /**
    * 设置翻页效果并持久化到本地存储，仅 epub 阅读器生效
    * @param value 翻页效果（'none' | 'slide' | 'cover' | 'flip3d'）
    * @returns 无返回值
@@ -570,8 +607,14 @@ export default defineStore('ebook-reader', () => {
     setParagraphSpacing,
     // 设置首行缩进（仅 epub 生效）
     setFirstLineIndent,
-    // 设置下划线间隙（仅 epub 生效）
+    // 设置下划线间隙（epub / pdf 均生效）
     setUnderlineGap,
+    // 设置划线线宽（pdf 阅读器生效）
+    setHlLineThickness,
+    // 设置高亮行上下间距（pdf 阅读器生效）
+    setHlRowPaddingY,
+    // 设置 PDF 适应方式（pdf 阅读器生效）
+    setPdfFitMode,
     // 加载书架列表
     loadBookshelf,
     // 添加或更新书架记录

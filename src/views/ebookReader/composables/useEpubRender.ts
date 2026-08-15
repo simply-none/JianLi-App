@@ -151,6 +151,8 @@ export function useEpubRender(ctx: EpubCtx) {
         const doc = contents?.document as Document | undefined;
         if (doc) {
           doc.addEventListener('wheel', onWheelPageTurn, { passive: false });
+          // 滚动模式选区自动滚动兜底：选区拖到 iframe 上下边缘时滚动内容文档
+          doc.addEventListener('mousemove', onContentMouseMove, { passive: true });
         }
         // 内容挂载后注入「字间距 / 段间距 / 首行缩进」扩展样式
         applyTypographyExtrasToContent(contents);
@@ -498,6 +500,29 @@ export function useEpubRender(ctx: EpubCtx) {
     ctx.wheelIdleTimer = setTimeout(() => {
       ctx.wheelAccum = 0;
     }, 200);
+  }
+
+  /**
+   * iframe 内容区 mousemove 兜底：滚动模式（scrolled）下，选区拖拽到 iframe 上下边缘时
+   * 自动滚动其内容文档，使原生选区能继续延伸到可视区之外。
+   * epub.js 在 scrolled 模式下浏览器通常会原生处理选区自动滚动，此处仅做兜底增强：
+   * 仅在确有选区且贴边时滚动，且不阻止默认行为，避免与原生滚动互相干扰。
+   */
+  function onContentMouseMove(e: MouseEvent) {
+    if (ctx.props.scrollMode !== true) return;
+    const doc = e.currentTarget as Document | null;
+    const win = doc?.defaultView as Window | undefined;
+    if (!win) return;
+    const sel = win.getSelection();
+    if (!sel || sel.isCollapsed || !sel.toString()) return;
+    const EDGE = 42;
+    const h = win.innerHeight;
+    const y = e.clientY;
+    if (y < EDGE) {
+      win.scrollBy(0, -Math.max(2, (EDGE - y) * 0.6));
+    } else if (y > h - EDGE) {
+      win.scrollBy(0, Math.max(2, (y - (h - EDGE)) * 0.6));
+    }
   }
 
   /** 键盘事件处理：左右键翻页 */

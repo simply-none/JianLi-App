@@ -399,7 +399,7 @@ defineExpose({
     align-items: center;
     justify-content: center;
     gap: 16px;
-    padding: 10px 24px;
+    padding: 8px 16px;
     border-top: 1px solid var(--border-subtle);
     background: var(--bg-card);
 

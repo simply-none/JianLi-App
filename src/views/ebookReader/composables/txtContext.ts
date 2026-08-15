@@ -48,6 +48,10 @@ export interface TxtAnnotation {
   color: string;
   /** 划线类型：'highlight'（高亮）、'underline'（下划线）、'mark'（删除线）、'markStrong'（双下划线） */
   type: string;
+  /** 创建时间（ISO 字符串） */
+  createdAt: string;
+  /** 更新时间（ISO 字符串） */
+  updatedAt: string;
 }
 
 /** TxtReader 的 Props 定义（与组件 defineProps 一致） */

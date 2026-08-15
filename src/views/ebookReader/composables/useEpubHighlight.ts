@@ -86,16 +86,24 @@ export function useEpubHighlight(ctx: EpubCtx) {
       case 'markStrong':
         // 不在此处写 stroke：避免 <rect> 继承后产生边框。颜色通过 inline style 的 CSS 变量传递。
         // mark / markStrong 借用 underline 覆盖层（底部单线）作为基底，再由 decorateMark 做 SVG 后处理。
+        // 线条用实色（stroke-opacity:1），不再用 mix-blend-mode，避免在深色主题下被 multiply 压暗而看不清。
         return {
-          style: `--hl-stroke:${fill};--hl-stroke-opacity:${opacity};mix-blend-mode:multiply`,
+          style: `--hl-stroke:${fill};--hl-stroke-opacity:1`,
         };
       case 'highlight':
-      default:
+      default: {
+        // 关键：仅用半透明填充，不开启 mix-blend-mode。
+        // 此前开启 multiply 在深色主题下会把高亮矩形压成暗块、遮住浅色文字，导致「高亮无法看清文字」。
+        // 去掉混合模式后，半透明 fill 让文字透过色块清晰可读（与 PDF 高亮处理一致）。
+        // 另外，用户可能选择不带 alpha 的自定义纯色（如 #7CFC00），parseColor 会给出 opacity='1'。
+        // 若直接用 1.0 填充，SVG <rect> 会完全不透明、完全盖住文字（如截图所示）。
+        // 因此必须把 fill-opacity 限制在最大 0.4，确保任何颜色下文字都能透出来。
+        const fillOpacity = String(Math.min(parseFloat(opacity || '1'), 0.4));
         return {
           fill,
-          'fill-opacity': opacity,
-          'mix-blend-mode': 'multiply',
+          'fill-opacity': fillOpacity,
         };
+      }
     }
   }
 
@@ -229,9 +237,28 @@ export function useEpubHighlight(ctx: EpubCtx) {
       ctx.toolbarVisible.value = false;
       return;
     }
+    // 优先用 iframe 内选区矩形换算视口坐标定位工具条，
+    // 避免依赖 lastMouseX/Y（selected 与 mouseup 事件时序不确定，常拿到过期坐标导致工具条偏到视口外）。
+    let x = ctx.lastMouseX;
+    let y = ctx.lastMouseY;
+    try {
+      const win = contents?.window as (Window & typeof globalThis) | undefined;
+      const sel = win?.getSelection?.();
+      if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
+        const r = sel.getRangeAt(0).getBoundingClientRect();
+        const iframe = ctx.readerRef.value?.querySelector('iframe');
+        const ir = iframe?.getBoundingClientRect();
+        if (ir && (r.width || r.height)) {
+          x = ir.left + r.left + r.width / 2;
+          y = ir.top + r.bottom;
+        }
+      }
+    } catch (err) {
+      console.warn('换算 EPUB 选区坐标失败，回退 lastMouse', err);
+    }
     ctx.currentSelection.value = { cfiRange, text };
-    ctx.toolbarX.value = ctx.lastMouseX;
-    ctx.toolbarY.value = ctx.lastMouseY;
+    ctx.toolbarX.value = x;
+    ctx.toolbarY.value = y;
     ctx.toolbarVisible.value = true;
   }
 
@@ -272,7 +299,8 @@ export function useEpubHighlight(ctx: EpubCtx) {
       } else {
         ctx.rendition.annotations.highlight(cfiRange, data, cb, className, styles);
       }
-      ctx.annotations.value.push({ id, anchor: cfiRange, text, note, color, type });
+      const now = new Date().toISOString();
+      ctx.annotations.value.push({ id, anchor: cfiRange, text, note, color, type, createdAt: now, updatedAt: now });
       ctx.emit('annotations-updated', ctx.annotations.value);
     } catch (err) {
       console.error('添加划线异常', err);
@@ -319,6 +347,7 @@ export function useEpubHighlight(ctx: EpubCtx) {
         return;
       }
       created.note = value;
+      created.updatedAt = new Date().toISOString();
       ctx.emit('annotations-updated', ctx.annotations.value);
     } catch {
       // 用户取消，保留为纯划线
@@ -398,6 +427,7 @@ export function useEpubHighlight(ctx: EpubCtx) {
         return;
       }
       annotation.note = ctx.noteInput.value;
+      annotation.updatedAt = new Date().toISOString();
       ctx.emit('annotations-updated', ctx.annotations.value);
       ElMessage.success('笔记已保存');
       ctx.noteDialogVisible.value = false;
@@ -457,6 +487,8 @@ export function useEpubHighlight(ctx: EpubCtx) {
             note,
             color,
             type,
+            createdAt: record.created_at || '',
+            updatedAt: record.updated_at || '',
           });
         } catch (err) {
           console.error('恢复单条划线失败', record, err);

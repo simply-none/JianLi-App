@@ -63,6 +63,15 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
       return ipcRenderer.invoke('ebook:read-txt', filePath)
     },
     /**
+     * 以 base64 读取任意文件原始字节（PDF 等二进制格式用）
+     *
+     * @param filePath - 必填参数，文件绝对路径
+     * @returns 成功返回 Promise<{ base64: string }>；失败返回 Promise<{ error: string }>
+     */
+    readFileBytes(filePath: string) {
+      return ipcRenderer.invoke('ebook:read-file-bytes', filePath)
+    },
+    /**
      * 获取指定电子书文件的阅读进度
      *
      * @param filePath - 必填参数，电子书文件的绝对路径
@@ -167,6 +176,16 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
      */
     removeAnnotation(id: number) {
       return ipcRenderer.invoke('ebook:remove-annotation', id)
+    },
+    /**
+     * 按 file_path 批量删除笔记与划线记录（scope: 'note' | 'highlight' | 'all'）
+     *
+     * @param data - 必填参数，{ filePath: 文件绝对路径, scope: 删除范围 }
+     * @returns 成功返回 Promise<{ success: boolean; deleted?: number; error?: string }>；
+     *          失败返回 Promise 中 success 为 false，并附带 error 错误信息
+     */
+    removeAnnotations(data: { filePath: string; scope: 'note' | 'highlight' | 'all' }) {
+      return ipcRenderer.invoke('ebook:remove-annotations', data)
     },
     /**
      * 批量统计每本书的笔记与划线数量（供书架卡片显示徽标）

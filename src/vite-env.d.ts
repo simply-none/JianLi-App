@@ -35,6 +35,8 @@ interface Window {
     ebook: {
       // 读取 txt 文件内容（自动检测编码）
       readTxt: (filePath: string) => Promise<any>;
+      // 以 base64 读取任意文件原始字节（PDF 等二进制格式）
+      readFileBytes: (filePath: string) => Promise<{ base64?: string; error?: string }>;
       // 获取电子书阅读进度
       getProgress: (filePath: string) => Promise<any>;
       // 保存电子书阅读进度
@@ -53,6 +55,8 @@ interface Window {
       updateAnnotation: (data: { id: number; note?: string | null; color?: string; type?: string }) => Promise<{ success: boolean; error?: string }>;
       // 按 id 删除笔记与划线记录
       removeAnnotation: (id: number) => Promise<{ success: boolean; error?: string }>;
+      // 按 file_path 批量删除笔记与划线记录（scope: 'note' | 'highlight' | 'all'）
+      removeAnnotations: (data: { filePath: string; scope: 'note' | 'highlight' | 'all' }) => Promise<{ success: boolean; deleted?: number; error?: string }>;
       // 批量统计每本书的笔记与划线数量
       getAnnotationCounts: (filePaths: string[]) => Promise<{ success: boolean; data?: { filePath: string; noteCount: number; highlightCount: number }[]; error?: string }>;
       // 导出笔记与划线为 Markdown 文件

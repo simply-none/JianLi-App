@@ -118,10 +118,14 @@ export function useTxtRender(ctx: TxtCtx) {
   /** 页边距 px（缺省 24） */
   const margin = computed(() => ctx.props.margin ?? 24);
 
-  /** 由可用宽度与每屏列数算出单列宽（px） */
+  /** 由可用宽度与每屏列数算出单列宽（px），增加最小宽度保护，避免异常小列宽 */
   function columnWidthFor(availW: number, cols: number): number {
     const n = Math.max(1, cols);
-    return Math.max(1, (availW - (n - 1) * PAGE_GAP) / n);
+    const safeW = isFinite(availW) && availW > 0 ? availW : 1;
+    const raw = (safeW - (n - 1) * PAGE_GAP) / n;
+    // 单栏时列宽不应小于 200px，多栏时不应小于 150px；防止首帧 viewportWidth=0 时产生极窄列
+    const minW = n === 1 ? 200 : 150;
+    return Math.max(minW, raw);
   }
 
   /** 实测视口可用宽高（px），写入响应式 ref 供 flowStyle / measureLayout 共用，保证两者一致 */
@@ -151,7 +155,10 @@ export function useTxtRender(ctx: TxtCtx) {
     } else {
       // 列宽/列高用 JS 实测的具体 px，避免 calc()/百分比在 getComputedStyle 下解析失真
       const cols = Math.max(1, ctx.props.columnCount ?? 1);
-      const availW = ctx.viewportWidth.value;
+      const m = ctx.props.margin ?? 24;
+      // 优先用响应式 viewportWidth；若首帧尚未写入（为 0），回退到直接读取 DOM 宽度，避免 column-width 为 0
+      const fallbackW = Math.max(0, (ctx.viewportRef.value?.clientWidth ?? 0) - m * 2);
+      const availW = ctx.viewportWidth.value || fallbackW;
       const colW = availW > 0 ? columnWidthFor(availW, cols) : 0;
       const step = colW + PAGE_GAP;
       base.columnWidth = `${colW}px`;
@@ -555,6 +562,88 @@ export function useTxtRender(ctx: TxtCtx) {
     emitProgress();
   }
 
+  // ===== 拖拽选区增强：滚动模式贴边自动滚动 / 翻页模式贴边自动翻页 =====
+  // TXT 整本是单一 DOM（CSS 多列分页 / 单列滚动），原生选区天然支持跨列（即跨页）。
+  // 这里只在「拖拽到视口边缘」时辅助原生选区：滚动模式滚视口、翻页模式翻页，
+  // 原生选区会随内容移动自动续接；松手后 useTxtHighlight.onMouseUp 照常读取选区并算偏移。
+  const SELECT_EDGE = 42; // 触发边缘区宽度(px)
+  const FLIP_COOLDOWN = 1000; // 翻页间隔(ms)：放慢节奏，避免一下子翻多页
+  const FLIP_DWELL = 300; // 进入边缘区后需驻留(ms)才允许翻页，避免光标快速划过误翻
+  let isSelecting = false;
+  let selectionClassAdded = false;
+  let lastFlipAt = 0;
+  let inEdgeZone = false; // 当前光标是否处于左右边缘翻页区
+  let edgeEnterAt = 0; // 进入边缘区的时刻，用于驻留判定
+
+  /** 当前是否存在非折叠的文本选区 */
+  function selectionActive(): boolean {
+    const sel = window.getSelection();
+    return !!sel && !sel.isCollapsed && sel.toString().length > 0;
+  }
+
+  function onViewportMouseDown(e: MouseEvent) {
+    if (e.button !== 0) return;
+    isSelecting = true;
+    // 新一次拖拽开始前，清除上一轮可能残留的边缘驻留状态
+    inEdgeZone = false;
+    edgeEnterAt = 0;
+  }
+
+  function onViewportMouseMove(e: MouseEvent) {
+    if (!isSelecting || !selectionActive()) return;
+    // 真实选区已开始后才禁用边缘翻页区，避免其 user-select:none 拦截选区向边缘延伸；
+    // 普通点击（无选区）不会进入这里，故点击翻页不受影响。
+    if (!selectionClassAdded) {
+      selectionClassAdded = true;
+      ctx.txtContainer.value?.classList.add('is-selecting');
+    }
+    const vp = ctx.viewportRef.value;
+    if (!vp) return;
+    const rect = vp.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    if (ctx.props.scrollMode) {
+      // 滚动模式：上下贴边按比例滚动视口，原生选区随内容移动续接
+      const h = rect.height;
+      if (y < SELECT_EDGE) {
+        vp.scrollTop -= Math.max(2, (SELECT_EDGE - y) * 0.6);
+      } else if (y > h - SELECT_EDGE) {
+        vp.scrollTop += Math.max(2, (y - (h - SELECT_EDGE)) * 0.6);
+      }
+    } else {
+      // 翻页模式：左右贴边翻页（同 DOM，transform 不改变 DOM，原生选区跨列续接）
+      const w = rect.width;
+      const atRight = x > w - SELECT_EDGE;
+      const atLeft = x < SELECT_EDGE;
+      if (atRight || atLeft) {
+        const now = Date.now();
+        if (!inEdgeZone) {
+          // 刚进入边缘区：记录进入时刻，需先驻留 FLIP_DWELL 才翻页，
+          // 避免光标快速划过边缘时连续误翻多页（"一下子划了好几页"）。
+          inEdgeZone = true;
+          edgeEnterAt = now;
+        }
+        if (now - edgeEnterAt >= FLIP_DWELL && now - lastFlipAt >= FLIP_COOLDOWN) {
+          lastFlipAt = now;
+          if (atRight) nextPage();
+          else prevPage();
+        }
+      } else {
+        inEdgeZone = false;
+      }
+    }
+  }
+
+  function onDocMouseUp() {
+    if (!isSelecting) return;
+    isSelecting = false;
+    if (selectionClassAdded) {
+      selectionClassAdded = false;
+      ctx.txtContainer.value?.classList.remove('is-selecting');
+    }
+  }
+
   /**
    * 排版/尺寸变化重载：保留当前阅读位置（按偏移），重新测量后跳回。防抖 200ms。
    * 注意：记忆位置时不能用 currentStartOffset()——切换 scrollMode 时该函数在
@@ -601,6 +690,13 @@ export function useTxtRender(ctx: TxtCtx) {
     });
     const observeTarget = ctx.viewportRef.value ?? ctx.txtContainer.value;
     if (observeTarget) ctx.resizeObserver.observe(observeTarget);
+    // 拖拽选区增强：在视口上监听 mousedown/mousemove（贴边自动滚动/翻页），document 上监听 mouseup 收尾
+    const vpEl = ctx.viewportRef.value;
+    if (vpEl) {
+      vpEl.addEventListener('mousedown', onViewportMouseDown);
+      vpEl.addEventListener('mousemove', onViewportMouseMove);
+    }
+    document.addEventListener('mouseup', onDocMouseUp);
   });
 
   // 排版类设置变化会改变容量/列数，需重新测量并按偏移恢复位置
@@ -626,6 +722,14 @@ export function useTxtRender(ctx: TxtCtx) {
         clearTimeout(ctx.reloadTimer);
         ctx.reloadTimer = null;
       }
+      // 切书时清理可能残留的拖拽选区状态（避免旧书的 is-selecting class / 标志位带到新书）
+      isSelecting = false;
+      inEdgeZone = false;
+      edgeEnterAt = 0;
+      if (selectionClassAdded) {
+        selectionClassAdded = false;
+        ctx.txtContainer.value?.classList.remove('is-selecting');
+      }
       // 切书前先落库旧书的当前位置（用旧路径，避免误写进新书条目）
       flushProgress(oldPath);
       ctx.annotations.value = [];
@@ -648,6 +752,12 @@ export function useTxtRender(ctx: TxtCtx) {
     // 卸载前立即落库当前阅读位置，避免最后一次滚动位置丢失
     flushProgress();
     window.removeEventListener('beforeunload', handleBeforeUnload);
+    const vpEl = ctx.viewportRef.value;
+    if (vpEl) {
+      vpEl.removeEventListener('mousedown', onViewportMouseDown);
+      vpEl.removeEventListener('mousemove', onViewportMouseMove);
+    }
+    document.removeEventListener('mouseup', onDocMouseUp);
     if (ctx.resizeObserver) {
       ctx.resizeObserver.disconnect();
       ctx.resizeObserver = null;

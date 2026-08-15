@@ -2,8 +2,9 @@
   <!-- 选中文本后弹出的浮动工具条：仅含「划线」「笔记」两个操作 -->
   <div
     v-if="visible"
+    ref="rootRef"
     class="annotation-toolbar"
-    :style="{ left: `${x}px`, top: `${y}px` }"
+    :style="{ left: `${pos.x}px`, top: `${pos.y}px` }"
     @click.stop
   >
     <!-- 划线按钮：按右上角「阅读设置」中预设的颜色与样式直接划线，不弹颜色/类型选择 -->
@@ -34,7 +35,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from 'vue';
+import { nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import LucideIcon from '@/components/LucideIcon.vue';
 
 /** 组件 Props 定义 */
@@ -46,6 +47,38 @@ const props = defineProps<{
   /** 工具条定位 y 坐标（相对视口，px） */
   y: number;
 }>();
+
+/** 工具条根元素引用，用于测量自身尺寸做视口夹紧 */
+const rootRef = ref<HTMLElement | null>(null);
+/** 实际渲染用的定位（在 props.x/y 基础上做视口夹紧，保证工具条始终可见） */
+const pos = reactive({ x: props.x, y: props.y });
+
+/**
+ * 将工具条定位夹紧到视口内，避免选区结束在边缘/跨页时工具条被顶出屏幕而「看不到」。
+ * 工具条样式为 position:fixed + transform:translate(-50%,-120%)，
+ * 故可视盒子的 left = x - 宽/2、top = y - 高*1.2；据此反算并把盒子完全收进视口（留 8px 边距）。
+ */
+function clampToViewport() {
+  const el = rootRef.value;
+  if (!el) return;
+  const r = el.getBoundingClientRect();
+  if (!r.width || !r.height) return;
+  const pad = 8;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  // 当前盒子左上角（已含 transform 偏移）
+  let boxLeft = r.left;
+  let boxTop = r.top;
+  let nx = props.x;
+  let ny = props.y;
+  // 反算：x = boxLeft + 宽/2；y = boxTop + 高*1.2
+  if (boxLeft < pad) nx = pad + r.width / 2;
+  else if (boxLeft + r.width > vw - pad) nx = vw - pad - r.width / 2;
+  if (boxTop < pad) ny = pad + r.height * 1.2;
+  else if (boxTop + r.height > vh - pad) ny = vh - pad - r.height * 1.2;
+  pos.x = nx;
+  pos.y = ny;
+}
 
 /** 组件 Emits 定义 */
 const emit = defineEmits<{
@@ -133,9 +166,21 @@ watch(
       openTimer = setTimeout(() => {
         justOpened.value = false;
       }, 250);
+      // 等元素渲染后再按视口夹紧，确保工具条始终可见（跨页/边缘选区也不会被顶出屏幕）
+      nextTick(() => clampToViewport());
     } else {
       justOpened.value = false;
     }
+  }
+);
+
+// 定位坐标变化时同步并重新夹紧（如滚动后父组件刷新 x/y）
+watch(
+  () => [props.x, props.y],
+  () => {
+    pos.x = props.x;
+    pos.y = props.y;
+    if (props.visible) nextTick(() => clampToViewport());
   }
 );
 </script>

@@ -1,32 +1,56 @@
 /**
- * TxtReader 标注 / 划线 / 笔记 composable
+ * PdfReader 标注 / 划线 / 笔记 composable
  *
- * 与 useTxtRender 共享同一个 ctx（见 txtContext.ts）。本 composable 负责：
+ * 与 usePdfRender 共享同一个 ctx（见 pdfContext.ts）。本 composable 负责：
  *   - 选中文本后的浮动工具条（划线 / 笔记）交互
- *   - 划线/高亮的增删改（数据库同步、本地列表维护、pageSegments 自动响应式渲染）
+ *   - 划线/高亮的增删改（数据库同步、本地列表维护、调用 render 的 renderHighlights 重绘 overlay）
  *   - 笔记编辑弹窗、按 id 移除/编辑标注
  *   - 加载并恢复已保存标注
- * 渲染/分页/翻页/进度逻辑见 useTxtRender。
+ *
+ * 与 TXT 的区别在于锚点格式：
+ *   - TXT 用 "start-end" 全文字符偏移；
+ *   - PDF 用 "page:rects"：页码 + 矩形数组。
+ *     新划线以 pdf.js 官方 viewport 坐标体系存储：矩形为「PDF 坐标空间的两个角点 [x1,y1,x2,y2]」
+ *     （y 轴向上），由选区顶点相对 canvas 左上角换算得到；重绘时用当前 viewport.convertToViewportPoint
+ *     还原为 css 像素，缩放/布局变化下与页面文字像素级对齐。旧版归一化矩形（0~1）仍兼容。
+ *
+ * 渲染/分页/翻页/进度逻辑见 usePdfRender。
  */
 import { ElMessage, ElMessageBox } from 'element-plus';
-import type { TxtCtx, TxtAnnotation } from './txtContext';
+import type { PdfCtx, PdfAnnotation, PdfSelection } from './pdfContext';
 
-export function useTxtHighlight(ctx: TxtCtx) {
+/** 解析数据库 anchor（"page:rects"）为页码与归一化矩形数组 */
+function parseAnchor(anchor: string): { page: number; rects: number[][] } {
+  let page = 0;
+  let rects: number[][] = [];
+  try {
+    const idx = (anchor || '').indexOf(':');
+    if (idx > 0) {
+      page = parseInt(anchor.slice(0, idx), 10) || 0;
+      const parsed = JSON.parse(anchor.slice(idx + 1));
+      if (Array.isArray(parsed)) rects = parsed;
+    }
+  } catch {
+    rects = [];
+  }
+  return { page, rects };
+}
+
+export function usePdfHighlight(ctx: PdfCtx) {
   /**
-   * 加载指定文件的划线列表（解析 "start-end" 锚点为全文字符偏移）。
+   * 加载指定文件的划线列表（解析 "page:rects" 锚点为页码 + 归一化矩形数组）。
    */
   async function loadAnnotations(filePath: string) {
     try {
       const res = await window.ipcRenderer.ebook.getAnnotations(filePath);
       if (res?.success && Array.isArray(res.data)) {
-        ctx.annotations.value = (res.data as AnnotationRecord[]).map((r): TxtAnnotation => {
-          const parts = (r.anchor || '').split('-');
-          const start = parseInt(parts[0], 10) || 0;
-          const end = parseInt(parts[1], 10) || 0;
+        ctx.annotations.value = (res.data as AnnotationRecord[]).map((r): PdfAnnotation => {
+          const { page, rects } = parseAnchor(r.anchor || '');
           return {
             id: r.id,
-            start,
-            end,
+            anchor: r.anchor || '',
+            page,
+            rects,
             text: r.text || '',
             note: r.note || '',
             color: r.color || 'yellow',
@@ -36,6 +60,8 @@ export function useTxtHighlight(ctx: TxtCtx) {
           };
         });
         ctx.emit('annotations-updated', ctx.annotations.value);
+        // 已渲染的页立即重绘划线层
+        for (const n of ctx.renderedPages) ctx.renderHighlights?.(n);
       }
     } catch (err) {
       console.error('加载划线失败', err);
@@ -43,21 +69,21 @@ export function useTxtHighlight(ctx: TxtCtx) {
   }
 
   /**
-   * 新增划线高亮：持久化到数据库后 push 到本地 annotations 触发响应式重渲染。
+   * 新增划线高亮：持久化到数据库后 push 到本地 annotations 并触发响应式重绘。
    */
   async function addHighlight(
-    start: number,
-    end: number,
+    page: number,
+    rects: number[][],
     text: string,
     note: string = '',
     color: string = 'yellow',
     type: string = 'highlight'
   ): Promise<number | null> {
     try {
-      const anchor = `${start}-${end}`;
+      const anchor = `${page}:${JSON.stringify(rects)}`;
       const res = await window.ipcRenderer.ebook.addAnnotation({
         filePath: ctx.props.filePath,
-        format: 'txt',
+        format: 'pdf',
         anchor,
         text,
         note,
@@ -69,18 +95,10 @@ export function useTxtHighlight(ctx: TxtCtx) {
         return null;
       }
       const now = new Date().toISOString();
-      ctx.annotations.value.push({
-        id: res.id,
-        start,
-        end,
-        text,
-        note,
-        color,
-        type,
-        createdAt: now,
-        updatedAt: now,
-      });
+      const ann: PdfAnnotation = { id: res.id, anchor, page, rects, text, note, color, type, createdAt: now, updatedAt: now };
+      ctx.annotations.value.push(ann);
       ctx.emit('annotations-updated', ctx.annotations.value);
+      ctx.renderHighlights?.(page);
       return res.id;
     } catch (err: any) {
       ElMessage.error(`添加划线失败：${err?.message || String(err)}`);
@@ -89,81 +107,78 @@ export function useTxtHighlight(ctx: TxtCtx) {
   }
 
   /**
-   * 根据 Range 的 container 与 offset 计算全局字符偏移。
-   * 采用「从 .txt-flow 起点构造 Range 到目标点、取 toString().length」的方式，
-   * 与渲染所用的全文字符偏移空间天然一致，且不依赖 data-start 命中，
-   * 在 CSS 多列分页 / 单列滚动 / 跨分段边界等所有布局下都正确。
-   * 修复旧实现：当 endContainer 为元素节点（选区触及分段边界/正文结尾）时，
-   * closest('[data-start]') 会返回 -1 或漏算段内偏移，导致 onMouseUp 判定 start>=end 而隐藏工具条，
-   * 表现为「TXT 划线点了没反应 / 失效」。
-   */
-  function getGlobalOffset(container: Node, offset: number): number {
-    const flow = ctx.flowRef.value;
-    if (!flow) return -1;
-    try {
-      const range = document.createRange();
-      range.setStart(flow, 0);
-      range.setEnd(container, offset);
-      return range.toString().length;
-    } catch {
-      return -1;
-    }
-  }
-
-  /**
-   * 鼠标抬起事件处理：计算选区全局偏移并定位浮动工具条。
+   * 鼠标抬起事件处理：从选区计算「页码 + 归一化矩形数组」并定位浮动工具条。
+   * PDF 文本层由 pdf.js 生成，选区落在 .pdf-text-layer 内的 span 上；
+   * 通过选区起点元素向上找到 .pdf-page 得到页码，再按页面元素矩形把每个 client rect 归一化。
    */
   function onMouseUp(_e: MouseEvent) {
     const selection = window.getSelection();
-    if (!selection || selection.isCollapsed) {
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
       ctx.toolbarVisible.value = false;
       return;
     }
     const text = selection.toString();
-    if (!text) {
+    if (!text.trim()) {
       ctx.toolbarVisible.value = false;
       return;
     }
     const range = selection.getRangeAt(0);
-    const start = getGlobalOffset(range.startContainer, range.startOffset);
-    const end = getGlobalOffset(range.endContainer, range.endOffset);
-    if (start < 0 || end < 0 || start >= end) {
+    const startNode = range.startContainer;
+    const startEl =
+      startNode.nodeType === Node.ELEMENT_NODE
+        ? (startNode as Element)
+        : startNode.parentElement;
+    const pageEl = startEl?.closest('.pdf-page') as HTMLElement | null;
+    if (!pageEl) {
       ctx.toolbarVisible.value = false;
       return;
     }
-    ctx.currentSelection.value = { start, end, text };
-    // 工具条定位到选区「结束端」（用户松手处），比整体并集矩形中心更直观且必在可视区；
-    // 折叠 Range 在部分浏览器无矩形时退回选区整体矩形兜底。
-    const endRange = document.createRange();
-    let rx = 0;
-    let ry = 0;
-    try {
-      endRange.setStart(range.endContainer, range.endOffset);
-      endRange.collapse(true);
-      const endRect = endRange.getBoundingClientRect();
-      if (endRect.width || endRect.height) {
-        rx = endRect.left + endRect.width / 2;
-        ry = endRect.bottom;
-      } else {
-        const r = range.getBoundingClientRect();
-        rx = r.left + r.width / 2;
-        ry = r.bottom;
-      }
-    } catch {
-      const r = range.getBoundingClientRect();
-      rx = r.left + r.width / 2;
-      ry = r.bottom;
+    const page = Number(pageEl.getAttribute('data-page'));
+    // 用 canvas 元素与其当前 viewport 做坐标换算（比 .pdf-page 更精确，消除子像素错位）
+    const canvas = ctx.canvasRefs.get(page);
+    const viewport = ctx.pageViewports.get(page);
+    if (!page || !canvas || !viewport) {
+      ctx.toolbarVisible.value = false;
+      return;
     }
-    ctx.toolbarX.value = rx;
-    ctx.toolbarY.value = ry;
+    const canvasRect = canvas.getBoundingClientRect();
+    if (!canvasRect.width || !canvasRect.height) {
+      ctx.toolbarVisible.value = false;
+      return;
+    }
+    const clientRects = range.getClientRects();
+    const rects: number[][] = [];
+    for (let i = 0; i < clientRects.length; i++) {
+      const rc = clientRects[i];
+      // 选区矩形顶点相对 canvas 左上角的 css 像素坐标（viewport 坐标系：原点左上、y 向下）
+      const vx1 = rc.left - canvasRect.left;
+      const vy1 = rc.top - canvasRect.top;
+      const vx2 = rc.right - canvasRect.left;
+      const vy2 = rc.bottom - canvasRect.top;
+      // 换算到 PDF 坐标空间（y 轴向上），存储为两个角点 [x1,y1,x2,y2]。
+      // 重绘时用当前 viewport.convertToViewportPoint 还原，缩放/布局变化下仍像素级对齐。
+      const [px1, py1] = viewport.convertToPdfPoint(vx1, vy1);
+      const [px2, py2] = viewport.convertToPdfPoint(vx2, vy2);
+      rects.push([px1, py1, px2, py2]);
+    }
+    if (!rects.length) {
+      ctx.toolbarVisible.value = false;
+      return;
+    }
+    const sel: PdfSelection = { page, rects, text };
+    ctx.currentSelection.value = sel;
+    // 工具条定位到选区「结束端」（用户松手处），比整体并集矩形中心更直观且必在可视区
+    const endRect = clientRects[clientRects.length - 1];
+    ctx.toolbarX.value = endRect.left + endRect.width / 2;
+    ctx.toolbarY.value = endRect.bottom;
     ctx.toolbarVisible.value = true;
   }
 
   /** 工具条「划线」按钮：对当前选区执行纯划线（无笔记） */
   async function onToolbarHighlight(): Promise<void> {
     if (!ctx.currentSelection.value) return;
-    const { start, end, text } = ctx.currentSelection.value;
-    await addHighlight(start, end, text, '', ctx.settings.value.highlightColor, ctx.settings.value.highlightType);
+    const { page, rects, text } = ctx.currentSelection.value;
+    await addHighlight(page, rects, text, '', ctx.settings.value.highlightColor, ctx.settings.value.highlightType);
     ctx.toolbarVisible.value = false;
     window.getSelection()?.removeAllRanges();
     ctx.currentSelection.value = null;
@@ -172,10 +187,10 @@ export function useTxtHighlight(ctx: TxtCtx) {
   /** 工具条「笔记」按钮：先保存纯划线，再弹窗输入笔记内容 */
   async function onToolbarNote(): Promise<void> {
     if (!ctx.currentSelection.value) return;
-    const { start, end, text } = ctx.currentSelection.value;
+    const { page, rects, text } = ctx.currentSelection.value;
     const color = ctx.settings.value.highlightColor;
     const type = ctx.settings.value.highlightType;
-    const id = await addHighlight(start, end, text, '', color, type);
+    const id = await addHighlight(page, rects, text, '', color, type);
     if (id !== null) {
       try {
         const { value } = await ElMessageBox.prompt('请输入笔记', '添加笔记', {
@@ -188,7 +203,11 @@ export function useTxtHighlight(ctx: TxtCtx) {
           const upd = await window.ipcRenderer.ebook.updateAnnotation({ id, note, color, type });
           if (upd?.success) {
             const ann = ctx.annotations.value.find((a) => a.id === id);
-            if (ann) ann.note = note;
+            if (ann) {
+              ann.note = note;
+              ann.updatedAt = new Date().toISOString();
+              ctx.renderHighlights?.(ann.page);
+            }
             ctx.emit('annotations-updated', ctx.annotations.value);
           }
         }
@@ -219,11 +238,18 @@ export function useTxtHighlight(ctx: TxtCtx) {
 
     const note = ctx.noteInput.value.trim();
     try {
-      const res = await window.ipcRenderer.ebook.updateAnnotation({ id: ann.id, note });
+      // 回写 color/type，避免 updateAnnotation 默认覆盖为 yellow/highlight
+      const res = await window.ipcRenderer.ebook.updateAnnotation({
+        id: ann.id,
+        note,
+        color: ann.color,
+        type: ann.type,
+      });
       if (res?.success) {
         ann.note = note;
         ann.updatedAt = new Date().toISOString();
         ctx.emit('annotations-updated', ctx.annotations.value);
+        ctx.renderHighlights?.(ann.page);
         ElMessage.success('笔记已保存');
         ctx.noteDialogVisible.value = false;
       } else {
@@ -242,7 +268,7 @@ export function useTxtHighlight(ctx: TxtCtx) {
     ctx.noteDialogVisible.value = false;
   }
 
-  /** 按 id 删除本地划线：确认 → IPC 删除 → 同步本地列表 */
+  /** 按 id 删除本地划线：确认 → IPC 删除 → 同步本地列表 + 重绘 */
   async function deleteAnnotationById(annotationId: number): Promise<void> {
     try {
       await ElMessageBox.confirm('确认删除该划线？', '提示', {
@@ -254,10 +280,13 @@ export function useTxtHighlight(ctx: TxtCtx) {
       return;
     }
     try {
+      const ann = ctx.annotations.value.find((a) => a.id === annotationId);
+      const page = ann?.page;
       const res = await window.ipcRenderer.ebook.removeAnnotation(annotationId);
       if (res?.success) {
         ctx.annotations.value = ctx.annotations.value.filter((a) => a.id !== annotationId);
         ctx.emit('annotations-updated', ctx.annotations.value);
+        if (page) ctx.renderHighlights?.(page);
         ElMessage.success('已删除划线');
       } else {
         ElMessage.error('删除划线失败');
@@ -274,16 +303,16 @@ export function useTxtHighlight(ctx: TxtCtx) {
   }
 
   /**
-   * 点击已有高亮段：带笔记则进编辑弹窗，纯划线则直接删除。
+   * 点击已有高亮块：带笔记则进编辑弹窗，纯划线则直接删除。
    */
-  async function onHighlightClick(annotationId: number | null, noteFromSeg?: string) {
-    if (annotationId === null) return;
+  async function onHighlightClick(annotationId: number): Promise<void> {
+    if (!annotationId) return;
     const sel = window.getSelection();
-    if (sel && !sel.isCollapsed) return;
+    if (sel && !sel.isCollapsed) return; // 正在选区时不误触
 
     const ann = ctx.annotations.value.find((a) => a.id === annotationId);
     if (!ann) return;
-    const hasNote = !!(ann.note || noteFromSeg);
+    const hasNote = !!ann.note;
 
     if (hasNote) {
       editAnnotationNote(ann.id);
@@ -294,12 +323,16 @@ export function useTxtHighlight(ctx: TxtCtx) {
 
   /** 按 id 移除本地划线（不调 IPC，持久化由父组件负责） */
   function removeAnnotationById(id: number): void {
+    const ann = ctx.annotations.value.find((a) => a.id === id);
+    const page = ann?.page;
     ctx.annotations.value = ctx.annotations.value.filter((a) => a.id !== id);
     ctx.emit('annotations-updated', ctx.annotations.value);
+    if (page) ctx.renderHighlights?.(page);
   }
 
   // 暴露给 render composable / 模板的回调与公开方法
   ctx.loadAnnotations = loadAnnotations;
+  ctx.onHighlightClick = onHighlightClick;
 
   return {
     toolbarVisible: ctx.toolbarVisible,

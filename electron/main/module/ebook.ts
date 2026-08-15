@@ -564,6 +564,34 @@ export async function initEbook(): Promise<void> {
     }
   );
 
+  // ============ ebook:read-file-bytes 读取任意文件二进制（base64） ============
+  /**
+   * 以 base64 形式读取文件原始字节（用于 PDF 等需二进制数据的格式）。
+   * 渲染进程无 Node fs 权限，由主进程读取后返回 base64 字符串，避免 IPC 传输 Buffer 的兼容性问题。
+   *
+   * @param _event - IPC 事件对象（未使用）
+   * @param filePath - 必填参数，文件绝对路径
+   * @returns 成功返回 { base64 }；失败返回 { error }
+   */
+  ipcMain.handle(
+    'ebook:read-file-bytes',
+    async (
+      _event,
+      filePath: string
+    ): Promise<{ base64?: string; error?: string }> => {
+      try {
+        if (!filePath || typeof filePath !== 'string') {
+          return { error: '文件路径不能为空' };
+        }
+        const buffer: Buffer = fs.readFileSync(filePath);
+        return { base64: buffer.toString('base64') };
+      } catch (err: any) {
+        log.error('Failed to read file bytes:', err);
+        return { error: `读取文件失败：${err?.message || String(err)}` };
+      }
+    }
+  );
+
   // ============ ebook:get-progress 获取阅读进度 ============
   /**
    * 按 file_path 查询阅读进度
@@ -974,6 +1002,60 @@ export async function initEbook(): Promise<void> {
         return { success: true };
       } catch (err: any) {
         log.error('Failed to remove ebook annotation:', err);
+        return {
+          success: false,
+          error: `删除笔记失败：${err?.message || String(err)}`
+        };
+      }
+    }
+  );
+
+  // ============ ebook:remove-annotations 批量删除笔记与划线 ============
+  /**
+   * 按 file_path 批量删除笔记与划线记录，支持按范围（note / highlight / all）过滤
+   *
+   * scope 含义：
+   * - 'note'      仅删除「笔记」（note 非空且去除首尾空白后不为空）
+   * - 'highlight' 仅删除「划线」（note 为空或去除首尾空白后为空）
+   * - 'all'       删除该书全部笔记与划线
+   *
+   * @param _event - IPC 事件对象（未使用）
+   * @param data - 必填参数，{ filePath, scope }
+   * @returns 成功返回 { success: true, deleted: number }（deleted 为实际删除行数）；
+   *          失败返回 { success: false, error: string }
+   */
+  ipcMain.handle(
+    'ebook:remove-annotations',
+    async (
+      _event,
+      data: { filePath: string; scope: 'note' | 'highlight' | 'all' }
+    ): Promise<{ success: boolean; deleted?: number; error?: string }> => {
+      try {
+        const db = myDb.db;
+        if (!db) {
+          return { success: false, error: '数据库未初始化' };
+        }
+        if (!data || !data.filePath || typeof data.filePath !== 'string') {
+          return { success: false, error: '文件路径不能为空' };
+        }
+        const scope = data.scope || 'all';
+        let sql: string;
+        switch (scope) {
+          case 'note':
+            sql = `DELETE FROM ${EBOOK_ANNOTATION_TABLE} WHERE file_path = ? AND note IS NOT NULL AND TRIM(note) != ''`;
+            break;
+          case 'highlight':
+            sql = `DELETE FROM ${EBOOK_ANNOTATION_TABLE} WHERE file_path = ? AND (note IS NULL OR TRIM(note) = '')`;
+            break;
+          case 'all':
+          default:
+            sql = `DELETE FROM ${EBOOK_ANNOTATION_TABLE} WHERE file_path = ?`;
+            break;
+        }
+        const result = await dbRunAsync(db, sql, [data.filePath]);
+        return { success: true, deleted: result.changes };
+      } catch (err: any) {
+        log.error('Failed to remove ebook annotations:', err);
         return {
           success: false,
           error: `删除笔记失败：${err?.message || String(err)}`

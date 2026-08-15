@@ -7,6 +7,73 @@
     :append-to-body="false"
   >
     <div class="reader-settings">
+      <div class="setting-group-title">字体设置</div>
+
+      <!-- 字号：12~32px，与顶部工具栏原「字号」输入一致 -->
+      <div class="setting-row">
+        <div class="setting-head">
+          <span class="setting-label">字号</span>
+          <span class="setting-value">{{ fontSizeModel }}px</span>
+        </div>
+        <el-input-number
+          v-model="fontSizeModel"
+          :min="12"
+          :max="32"
+          :step="1"
+          size="small"
+          controls-position="right"
+          style="width: 100%"
+        />
+      </div>
+
+      <!-- 中文字体：内置字体 + 系统已安装字体，可在「设置页 → 字体设置」中管理 -->
+      <div class="setting-row">
+        <div class="setting-head">
+          <span class="setting-label">中文字体</span>
+        </div>
+        <el-select-v2
+          v-model="fontFamilyModel"
+          :options="fontOptions"
+          filterable
+          clearable
+          placeholder="默认字体"
+          popper-class="font-select-popper"
+          :item-height="72"
+          style="width: 100%"
+        >
+          <template #default="{ item }">
+            <span class="font-box" :style="{ fontFamily: item.value }">
+              <span class="font-name">{{ item.label }}</span>
+              <span class="font-preview">预览：中文English 123</span>
+            </span>
+          </template>
+        </el-select-v2>
+      </div>
+
+      <!-- 英文字体 -->
+      <div class="setting-row">
+        <div class="setting-head">
+          <span class="setting-label">英文字体</span>
+        </div>
+        <el-select-v2
+          v-model="fontFamilyENModel"
+          :options="fontOptions"
+          filterable
+          clearable
+          placeholder="默认字体"
+          popper-class="font-select-popper"
+          :item-height="72"
+          style="width: 100%"
+        >
+          <template #default="{ item }">
+            <span class="font-box" :style="{ fontFamily: item.value }">
+              <span class="font-name">{{ item.label }}</span>
+              <span class="font-preview">Preview: 中文English 123</span>
+            </span>
+          </template>
+        </el-select-v2>
+      </div>
+
       <div class="setting-group-title">主题外观</div>
       <!-- 主题：日间 / 夜间 / 护眼 预设，点击切换整体主题并重置自定义背景/文字为跟随主题 -->
       <div class="setting-row">
@@ -136,6 +203,18 @@
         </el-radio-group>
       </div>
 
+      <!-- PDF 适应方式：适应宽度 / 适应高度（仅 PDF 生效） -->
+      <div class="setting-row" v-if="currentFile.format === 'pdf'">
+        <div class="setting-head">
+          <span class="setting-label">PDF 适应方式</span>
+        </div>
+        <el-radio-group v-model="pdfFitModeModel">
+          <el-radio-button value="width">适应宽度</el-radio-button>
+          <el-radio-button value="height">适应高度</el-radio-button>
+        </el-radio-group>
+        <div class="setting-tip">适应宽度：单页宽度撑满阅读区；适应高度：单页高度≈一屏</div>
+      </div>
+
       <!-- 行距：紧凑 ~ 宽松 -->
       <div class="setting-row column">
         <div class="setting-head">
@@ -262,8 +341,8 @@
         </el-radio-group>
       </div>
 
-      <!-- 划线间隙：下划线 / 双下划线 与文字之间的间隙，仅 EPUB 生效 -->
-      <div class="setting-row column" v-if="currentFile.format === 'epub'">
+      <!-- 划线间隙：下划线 / 双下划线 与文字之间的间隙，epub 与 pdf 均生效 -->
+      <div class="setting-row column" v-if="currentFile.format === 'epub' || currentFile.format === 'pdf'">
         <div class="setting-head">
           <span class="setting-label">划线间隙</span>
           <span class="setting-value">{{ underlineGapModel }}px</span>
@@ -275,7 +354,39 @@
           :step="1"
           :show-tooltip="false"
         />
-        <div class="setting-tip">下划线 / 双下划线 与文字之间的间隙（0-10px），仅 EPUB 生效</div>
+        <div class="setting-tip">下划线 / 双下划线 与文字之间的间隙（0-10px）；值越大线越往上离开文字基线，避免贴近下一行</div>
+      </div>
+
+      <!-- 划线线宽：下划线 / 删除线 / 双下划线 的线条粗细，pdf 生效 -->
+      <div class="setting-row column" v-if="currentFile.format === 'pdf'">
+        <div class="setting-head">
+          <span class="setting-label">划线线宽</span>
+          <span class="setting-value">{{ hlLineThicknessModel }}px</span>
+        </div>
+        <el-slider
+          v-model="hlLineThicknessModel"
+          :min="1"
+          :max="6"
+          :step="1"
+          :show-tooltip="false"
+        />
+        <div class="setting-tip">划线（下划线 / 删除线 / 双下划线）线条粗细（1-6px）</div>
+      </div>
+
+      <!-- 高亮行间距：高亮背景块上下外扩间距，避免紧贴上下行，pdf 生效 -->
+      <div class="setting-row column" v-if="currentFile.format === 'pdf'">
+        <div class="setting-head">
+          <span class="setting-label">高亮行间距</span>
+          <span class="setting-value">{{ hlRowPaddingYModel }}px</span>
+        </div>
+        <el-slider
+          v-model="hlRowPaddingYModel"
+          :min="0"
+          :max="8"
+          :step="1"
+          :show-tooltip="false"
+        />
+        <div class="setting-tip">高亮背景块上下外扩间距（0-8px）；值越大高亮越远离上下行，不被相邻行挤占</div>
       </div>
 
       <div class="setting-group-title">翻页与交互</div>
@@ -362,10 +473,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import LucideIcon from '@/components/LucideIcon.vue';
 import useEbookReader from '@/store/useEbookReader';
+import useGlobalSetting from '@/store/useGlobalSetting';
 import type { EbookTheme, EbookBgType } from '@/store/useEbookReader';
 import { HIGHLIGHT_COLORS, HIGHLIGHT_TYPES, isPresetColorName } from '../highlightConfig';
 import { THEME_PRESETS, READING_PRESET_BG } from '../themePresets';
@@ -395,6 +507,9 @@ const {
   setParagraphSpacing,
   setFirstLineIndent,
   setUnderlineGap,
+  setHlLineThickness,
+  setHlRowPaddingY,
+  setPdfFitMode,
   setHighlightColor,
   setHighlightType,
   setPageEffect,
@@ -404,6 +519,9 @@ const {
   setEdgeClickPercent,
   setWheelPageEnabled,
   setWheelPageSensitivity,
+  setFontSize,
+  setFontFamily,
+  setFontFamilyEN,
 } = store;
 
 /** 翻页效果选项（仅 epub 生效） */
@@ -492,6 +610,14 @@ const scrollModeModel = computed({
   },
 });
 
+/** PDF 适应方式双向绑定：'width' 适应宽度 / 'height' 适应高度 */
+const pdfFitModeModel = computed({
+  get: () => settings.value.pdfFitMode,
+  set: (val: 'width' | 'height' | undefined) => {
+    if (val === 'width' || val === 'height') setPdfFitMode(val);
+  },
+});
+
 /** 页边距双向绑定 */
 const marginModel = computed({
   get: () => settings.value.margin,
@@ -524,11 +650,27 @@ const firstLineIndentModel = computed({
   },
 });
 
-/** 下划线间隙（px）双向绑定，仅 epub 生效 */
+/** 下划线间隙（px）双向绑定，epub / pdf 均生效 */
 const underlineGapModel = computed({
   get: () => settings.value.underlineGap,
   set: (val: number | undefined) => {
     if (typeof val === 'number') setUnderlineGap(val);
+  },
+});
+
+/** 划线线宽（px）双向绑定，pdf 阅读器生效 */
+const hlLineThicknessModel = computed({
+  get: () => settings.value.hlLineThickness,
+  set: (val: number | undefined) => {
+    if (typeof val === 'number') setHlLineThickness(val);
+  },
+});
+
+/** 高亮行上下间距（px）双向绑定，pdf 阅读器生效 */
+const hlRowPaddingYModel = computed({
+  get: () => settings.value.hlRowPaddingY,
+  set: (val: number | undefined) => {
+    if (typeof val === 'number') setHlRowPaddingY(val);
   },
 });
 
@@ -599,6 +741,33 @@ const wheelPageSensitivityModel = computed({
   set: (val: number) => setWheelPageSensitivity(val),
 });
 
+/** 字体选项来源（与设置页「字体设置」保持一致）：内置字体列表 + 系统已安装字体 */
+const { globalFontOpsC } = storeToRefs(useGlobalSetting());
+/** 系统字体列表（由主进程 get-fonts 返回，结构 { label, value }） */
+const sysFonts = ref<{ label: string; value: string }[]>([]);
+/** 合并后的字体下拉选项 */
+const fontOptions = computed(() => [...(globalFontOpsC.value || []), ...sysFonts.value]);
+
+/** 字号双向绑定（12~32px），与顶部工具栏原「字号」输入一致 */
+const fontSizeModel = computed({
+  get: () => settings.value.fontSize,
+  set: (val: number | undefined) => {
+    if (typeof val === 'number') setFontSize(val);
+  },
+});
+
+/** 中文正文字体双向绑定 */
+const fontFamilyModel = computed({
+  get: () => settings.value.fontFamily,
+  set: (val: string | undefined) => setFontFamily(val ?? ''),
+});
+
+/** 英文正文字体双向绑定 */
+const fontFamilyENModel = computed({
+  get: () => settings.value.fontFamilyEN,
+  set: (val: string | undefined) => setFontFamilyEN(val ?? ''),
+});
+
 /** 背景图文件选择 input 引用 */
 const bgImageInput = ref<HTMLInputElement | null>(null);
 
@@ -637,6 +806,18 @@ function onPickBgImage(e: Event) {
   reader.readAsDataURL(file);
   input.value = '';
 }
+
+// 拉取系统字体供字体选择下拉使用（字体选项同时含设置页管理的「内置字体」）
+onMounted(() => {
+  window.ipcRenderer
+    .handlePromise('get-fonts', {})
+    .then((result) => {
+      sysFonts.value = result || [];
+    })
+    .catch((err) => {
+      console.error('获取系统字体失败', err);
+    });
+});
 </script>
 
 <style scoped lang="scss">
@@ -841,6 +1022,44 @@ function onPickBgImage(e: Event) {
     &.active {
       border-color: var(--color-primary);
       box-shadow: 0 0 0 2px var(--bg-card), 0 0 0 4px var(--color-primary);
+    }
+  }
+}
+</style>
+
+<!-- 字体下拉面板样式（与设置页字体选择保持一致），非 scoped 以便作用于 body 下的 popper -->
+<style lang="scss">
+.font-select-popper {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border-subtle) !important;
+
+  .el-select-dropdown__item {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    height: fit-content;
+    color: var(--text-primary) !important;
+
+    &:hover {
+      background: var(--bg-hover) !important;
+    }
+
+    .font-box {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      height: 72px;
+    }
+
+    .font-name {
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .font-preview {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
     }
   }
 }

@@ -120,6 +120,10 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { storeToRefs } from 'pinia';
+
+/** 禁用默认 attribute 透传：父组件传入的未声明 props 不应落到阅读区根 div，
+ * 避免 PDF / EPUB 专用参数作为 HTML attributes 干扰 TXT 的多列布局。 */
+defineOptions({ inheritAttrs: false });
 import LucideIcon from '@/components/LucideIcon.vue';
 import AnnotationToolbar from './AnnotationToolbar.vue';
 // 阅读设置 store：划线颜色/类型由右上角「阅读设置」预设
@@ -294,7 +298,7 @@ defineExpose({
 
   .txt-footer {
     flex-shrink: 0;
-    padding: 10px 24px;
+    padding: 8px 16px;
     border-top: 1px solid var(--border-subtle);
     background: var(--bg-card);
 
@@ -303,7 +307,7 @@ defineExpose({
       align-items: center;
       justify-content: center;
       gap: 16px;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
 
       .page-info {
         font-size: 13px;
@@ -350,6 +354,14 @@ defineExpose({
     /* 夜间主题下高亮加深不透明度，确保黄底可识别 */
     .txt-flow .txt-highlight {
       background-color: rgba(255, 235, 59, 0.55);
+    }
+  }
+
+  /* 拖拽选区进行中：临时禁用左右边缘翻页区的 pointer-events，
+     避免其 user-select:none 在选区拖到边缘时拦截选区延伸（跨页选区需要选区能延伸到边缘之外） */
+  &.is-selecting {
+    .edge-turn-zone {
+      pointer-events: none;
     }
   }
 

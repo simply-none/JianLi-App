@@ -20,14 +20,24 @@ export interface FlatTocItem extends TocItem {
 export interface ReaderComponentInstance {
   /** 跳转到指定目标（cfi 或 href），仅 EpubReader 实现 */
   displayTarget?: (target: string) => void;
-  /** 跳转到划线位置，两种阅读组件均实现 */
-  jumpToAnnotation?: (anchor: string) => void;
+  /** 跳转到划线位置，两种阅读组件均实现；id 可选，传入后会闪烁高亮对应划线 */
+  jumpToAnnotation?: (anchor: string, id?: number) => void;
   /** 按 id 移除本地划线（笔记抽屉删除后同步子组件高亮），两种阅读组件均实现 */
   removeAnnotationById?: (id: number) => void;
+  /** 从数据库重新加载并渲染标注（批量删除后用于清空本地高亮层），两种阅读组件均实现 */
+  loadAnnotations?: (filePath: string) => Promise<void>;
   /** 按 id 编辑笔记（弹出输入框），两种阅读组件均实现 */
   editAnnotationNote?: (id: number) => void;
-  /** 跳转到书签位置，仅 EpubReader 实现 */
+  /** 跳转到书签位置，EpubReader / PdfReader 均实现 */
   jumpToBookmark?: (cfi: string) => void;
+  /** 跳转到目录项对应页码（href 形如 "page:N"），仅 PdfReader 实现 */
+  goToTocPage?: (page: number) => void;
+  /** PDF 缩放：放大 / 缩小 / 复位到当前适应方式基准，仅 PdfReader 实现 */
+  zoomIn?: () => void;
+  zoomOut?: () => void;
+  zoomReset?: () => void;
+  /** 当前缩放百分比（整数），仅 PdfReader 实现，供父组件在全屏控制条中展示 */
+  scalePercent?: number;
   /** 按 id 删除书签，仅 EpubReader 实现 */
   removeBookmark?: (id: number) => void;
   /** 跳转到全文搜索命中位置，仅 EpubReader 实现 */
@@ -46,6 +56,10 @@ export interface AnnotationDisplayItem {
   text: string;
   /** 笔记内容，可为空 */
   note: string;
+  /** 创建时间（ISO 字符串） */
+  createdAt: string;
+  /** 更新时间（ISO 字符串）；与创建时间相同表示从未修改过 */
+  updatedAt: string;
 }
 
 /** EPUB 标注数据结构（本地维护的划线/笔记项） */
@@ -62,6 +76,10 @@ export interface EpubAnnotation {
   color: string;
   /** 划线类型：'highlight'（高亮）、'underline'（下划线）、'mark'（删除线）、'markStrong'（双下划线） */
   type: string;
+  /** 创建时间（ISO 字符串） */
+  createdAt: string;
+  /** 更新时间（ISO 字符串） */
+  updatedAt: string;
 }
 
 /** EPUB 全文搜索单条命中结果 */

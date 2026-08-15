@@ -21,10 +21,11 @@ export function getFileName(filePath: string): string {
  * @param fileName - 文件名（含扩展名）
  * @returns 格式字符串：'txt'、'epub'；不支持时返回空字符串
  */
-export function getFormat(fileName: string): 'txt' | 'epub' | '' {
+export function getFormat(fileName: string): 'txt' | 'epub' | 'pdf' | '' {
   const ext = fileName.split('.').pop()?.toLowerCase() || '';
   if (ext === 'txt') return 'txt';
   if (ext === 'epub') return 'epub';
+  if (ext === 'pdf') return 'pdf';
   return '';
 }
 

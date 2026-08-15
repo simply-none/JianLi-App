@@ -53,14 +53,23 @@
 
       <!-- 笔记标签页：展示「引用内容 + 笔记」，二者直接并列展示 -->
       <div v-show="annotationTab === 'note'" class="annotation-list">
+        <!-- 一键清空：仅在有笔记时可用 -->
+        <div v-if="noteItems.length > 0" class="annotation-bulk-actions">
+          <el-button size="small" type="danger" plain @click="onDeleteAll('note')">
+            <LucideIcon name="Trash2" :size="13" />
+            一键删除所有笔记
+          </el-button>
+        </div>
         <div
           v-for="item in filteredNoteItems"
           :key="item.id"
           class="annotation-item note-item"
+          :title="timeTooltip(item)"
           @click="onSelect(item)"
         >
           <div class="annotation-text">{{ item.text }}</div>
           <div class="annotation-note">{{ item.note }}</div>
+          <div class="annotation-meta">最后修改：{{ formatTime(item.updatedAt || item.createdAt) }}</div>
           <div class="annotation-actions">
             <el-button size="small" text @click.stop="onEdit(item)">
               <LucideIcon name="SquarePen" :size="13" />
@@ -79,13 +88,22 @@
 
       <!-- 划线标签页：展示纯高亮标注，仅可删除 -->
       <div v-show="annotationTab === 'highlight'" class="annotation-list">
+        <!-- 一键清空：仅在有划线时可用 -->
+        <div v-if="highlightItems.length > 0" class="annotation-bulk-actions">
+          <el-button size="small" type="danger" plain @click="onDeleteAll('highlight')">
+            <LucideIcon name="Trash2" :size="13" />
+            一键删除所有划线
+          </el-button>
+        </div>
         <div
           v-for="item in filteredHighlightItems"
           :key="item.id"
           class="annotation-item"
+          :title="timeTooltip(item)"
           @click="onSelect(item)"
         >
           <div class="annotation-text">{{ item.text }}</div>
+          <div class="annotation-meta">最后修改：{{ formatTime(item.updatedAt || item.createdAt) }}</div>
           <div class="annotation-actions">
             <el-button size="small" text @click.stop="onDelete(item)">
               <LucideIcon name="Trash2" :size="13" />
@@ -140,6 +158,7 @@ const emit = defineEmits<{
   (e: 'update:modelValue', val: boolean): void;
   (e: 'jump', item: AnnotationDisplayItem): void;
   (e: 'delete', item: AnnotationDisplayItem): void;
+  (e: 'delete-all', scope: 'note' | 'highlight'): void;
   (e: 'export'): void;
   (e: 'save-note', payload: { id: number; text: string }): void;
 }>();
@@ -174,6 +193,27 @@ function matchKeyword(item: AnnotationDisplayItem): boolean {
   );
 }
 
+/** 将 ISO 时间格式化为 "YYYY-MM-DD HH:mm"，无效时返回空串 */
+function formatTime(iso?: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/**
+ * 悬浮提示文案：始终显示创建时间；若更新时间晚于创建时间（说明被修改过）则额外显示更新时间。
+ * 用真实换行符拼接，浏览器原生 title 会按行展示。
+ */
+function timeTooltip(item: AnnotationDisplayItem): string {
+  const created = formatTime(item.createdAt);
+  const updated = item.updatedAt && item.updatedAt !== item.createdAt ? formatTime(item.updatedAt) : '';
+  let tip = `创建时间：${created || '—'}`;
+  if (updated) tip += `\n更新时间：${updated}`;
+  return tip;
+}
+
 /** 笔记标签页：在 noteItems 基础上按关键词过滤 */
 const filteredNoteItems = computed(() => noteItems.value.filter(matchKeyword));
 /** 划线标签页：在 highlightItems 基础上按关键词过滤 */
@@ -199,6 +239,11 @@ function onEdit(item: AnnotationDisplayItem) {
 /** 点击删除：通知父组件执行删除（IPC + 同步阅读组件高亮） */
 function onDelete(item: AnnotationDisplayItem) {
   emit('delete', item);
+}
+
+/** 一键删除当前标签页全部（笔记或划线）：通知父组件按范围批量删除 */
+function onDeleteAll(scope: 'note' | 'highlight') {
+  emit('delete-all', scope);
 }
 
 /** 点击导出：通知父组件导出当前笔记与划线 */
@@ -291,6 +336,15 @@ function onSaveNote() {
   overflow: auto;
   padding: 8px 0;
 
+  /* 标签页顶部的「一键删除所有」操作行 */
+  .annotation-bulk-actions {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0 8px 10px;
+    margin-bottom: 4px;
+    border-bottom: 1px dashed var(--border-subtle);
+  }
+
   /* 单条笔记项：hover 高亮、点击跳转 */
   .annotation-item {
     padding: 10px 12px;
@@ -338,6 +392,15 @@ function onSaveNote() {
       justify-content: flex-end;
       gap: 4px;
       margin-top: 6px;
+    }
+
+    /* 时间元信息：最后修改时间，弱化显示 */
+    .annotation-meta {
+      margin-top: 6px;
+      font-size: 11px;
+      line-height: 1.4;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
     }
   }
 
