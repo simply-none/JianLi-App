@@ -34,7 +34,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue';
+import { onMounted, onUnmounted, ref, watch } from 'vue';
 import LucideIcon from '@/components/LucideIcon.vue';
 
 /** 组件 Props 定义 */
@@ -80,6 +80,15 @@ function handleNote(): void {
 }
 
 /**
+ * 打开工具条后的「免关窗口」标记：该窗口内忽略一切外部 click，
+ * 专门用于吸收「选词弹出工具条」同一手势紧跟的那个 click（其 target 在正文文本内），
+ * 避免弹窗刚出现就被立刻关闭（表现为「从不弹窗」）。
+ * 与微任务时序彻底解耦：无论 click 在 nextTick 之前还是之后派发，250ms 内都会被忽略。
+ */
+const justOpened = ref(false);
+let openTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
  * document 点击事件处理（捕获阶段）
  * 用于检测工具条外部点击：点击落在 .annotation-toolbar 内不关闭，
  * 真正点击在工具条外部时触发 close 关闭整个工具条。
@@ -90,6 +99,8 @@ function handleNote(): void {
 function handleDocumentClick(e: MouseEvent): void {
   // 工具条未显示时不处理，避免无意义的 close 事件
   if (!props.visible) return;
+  // 刚打开的 250ms 内忽略（吸收打开手势自带的 click），不关闭
+  if (justOpened.value) return;
 
   const target = e.target as HTMLElement;
   // 点击落在工具条内 → 不关闭工具条
@@ -102,14 +113,31 @@ function handleDocumentClick(e: MouseEvent): void {
 }
 
 onMounted(() => {
-  // 注册 document 点击监听用于检测工具条外部点击（捕获阶段，确保先于冒泡触发）
+  // 常驻监听 document 点击用于检测工具条外部点击（捕获阶段，确保先于冒泡触发）
   document.addEventListener('click', handleDocumentClick, true);
 });
 
 onUnmounted(() => {
   // 移除 document 点击监听，防止内存泄漏
   document.removeEventListener('click', handleDocumentClick, true);
+  if (openTimer) clearTimeout(openTimer);
 });
+
+watch(
+  () => props.visible,
+  (v) => {
+    if (v) {
+      // 打开即进入免关窗口
+      justOpened.value = true;
+      if (openTimer) clearTimeout(openTimer);
+      openTimer = setTimeout(() => {
+        justOpened.value = false;
+      }, 250);
+    } else {
+      justOpened.value = false;
+    }
+  }
+);
 </script>
 
 <style scoped lang="scss">

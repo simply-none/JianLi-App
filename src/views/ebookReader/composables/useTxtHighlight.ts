@@ -85,33 +85,24 @@ export function useTxtHighlight(ctx: TxtCtx) {
 
   /**
    * 根据 Range 的 container 与 offset 计算全局字符偏移。
+   * 采用「从 .txt-flow 起点构造 Range 到目标点、取 toString().length」的方式，
+   * 与渲染所用的全文字符偏移空间天然一致，且不依赖 data-start 命中，
+   * 在 CSS 多列分页 / 单列滚动 / 跨分段边界等所有布局下都正确。
+   * 修复旧实现：当 endContainer 为元素节点（选区触及分段边界/正文结尾）时，
+   * closest('[data-start]') 会返回 -1 或漏算段内偏移，导致 onMouseUp 判定 start>=end 而隐藏工具条，
+   * 表现为「TXT 划线点了没反应 / 失效」。
    */
   function getGlobalOffset(container: Node, offset: number): number {
-    if (container.nodeType === Node.TEXT_NODE) {
-      const span = container.parentElement?.closest('[data-start]') as Element | null;
-      if (!span) return -1;
-      const ds = Number(span.getAttribute('data-start'));
-      return isNaN(ds) ? -1 : ds + offset;
+    const flow = ctx.flowRef.value;
+    if (!flow) return -1;
+    try {
+      const range = document.createRange();
+      range.setStart(flow, 0);
+      range.setEnd(container, offset);
+      return range.toString().length;
+    } catch {
+      return -1;
     }
-    if (container.nodeType === Node.ELEMENT_NODE) {
-      const child = container.childNodes[offset];
-      if (child) {
-        const childEl =
-          child.nodeType === Node.TEXT_NODE ? child.parentElement : (child as Element);
-        const span = childEl?.closest('[data-start]') as Element | null;
-        if (span) {
-          const ds = Number(span.getAttribute('data-start'));
-          return isNaN(ds) ? -1 : ds;
-        }
-      }
-      const selfSpan = (container as Element).closest('[data-start]') as Element | null;
-      if (selfSpan) {
-        const ds = Number(selfSpan.getAttribute('data-start'));
-        const textLen = selfSpan.textContent?.length || 0;
-        return isNaN(ds) ? -1 : ds + textLen;
-      }
-    }
-    return -1;
   }
 
   /**
