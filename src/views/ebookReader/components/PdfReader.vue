@@ -125,7 +125,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import LucideIcon from '@/components/LucideIcon.vue';
 import AnnotationToolbar from './AnnotationToolbar.vue';
@@ -277,11 +277,19 @@ watch(currentPage, (p) => {
   emit('current-href', `page:${p}`);
 });
 
-/** 单页尺寸样式（未算好前给 0，避免布局抖动） */
+/**
+ * 单页背景：
+ * - preset（日间/夜间/护眼）保持不透明白底纸张，避免夜间模式「黑字 + 透明 canvas + 深色底」不可读；
+ * - color / image 自定义模式则使用 readerBg（纯色或背景图），使背景透出 canvas（已设为 transparent）。
+ */
+const pageBg = computed(() => (props.bgType === 'preset' ? '#ffffff' : readerBg.value));
+
+/** 单页尺寸样式：已测量页用真实尺寸，未测量页用首页尺寸占位（懒渲染，避免 0 高度塌陷） */
 function pageStyle(n: number): Record<string, string> {
-  const s = ctx.pageSizes[n];
+  const s = ctx.pageSizes[n] || ctx.firstPageSize.value;
   return {
     width: s ? `${s.w}px` : '0px',
+    background: pageBg.value,
     height: s ? `${s.h}px` : '0px',
   };
 }
@@ -353,7 +361,10 @@ defineExpose({
     .pdf-page {
       position: relative;
       flex-shrink: 0;
-      background: #ffffff;
+      /* 背景交由内联 pageBg 控制（preset 白底 / color|image 透出自定义背景）；
+         canvas 已设为透明渲染，故此处透明不会露出更底层的 .pdf-reader 背景，
+         而是由内联背景绘制页面纸张外观。 */
+      background: transparent;
       box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
       overflow: hidden;
 

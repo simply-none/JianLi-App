@@ -37,6 +37,10 @@ interface Window {
       readTxt: (filePath: string) => Promise<any>;
       // 以 base64 读取任意文件原始字节（PDF 等二进制格式）
       readFileBytes: (filePath: string) => Promise<{ base64?: string; error?: string }>;
+      // 获取文件大小（字节数），供 PDF 区间加载构造传输层 length 使用
+      getFileSize: (filePath: string) => Promise<{ size?: number; error?: string }>;
+      // 按 [start, end) 字节区间读取文件，返回 ArrayBuffer（供 PDF 区间/流式加载按需分块拉取，避免整文件载入）
+      readFileRange: (filePath: string, start: number, end: number) => Promise<{ buffer?: ArrayBuffer; error?: string }>;
       // 计算文件原始内容 sha256（内容身份）
       computeFileHash: (filePath: string) => Promise<{ success: boolean; hash?: string; error?: string }>;
       // 获取电子书阅读进度
@@ -49,6 +53,8 @@ interface Window {
       addToBookshelf: (data: { filePath: string; name: string; format: string; percent: number; contentHash?: string }) => Promise<{ success: boolean; error?: string }>;
       // 按 file_path 删除书架记录
       removeFromBookshelf: (filePath: string) => Promise<{ success: boolean; error?: string }>;
+      // 一键清空书架（仅删除书架记录，不动标注/进度/书签/分类等其它内容）
+      clearBookshelf: () => Promise<{ success: boolean; error?: string }>;
       // 获取全部分类（按创建时间升序），每条含可选颜色 color
       getCategories: () => Promise<{ success: boolean; data?: { id: number; name: string; color?: string }[]; error?: string }>;
       // 新增分类（按名称去重，幂等；color 可选，十六进制色值）
@@ -83,6 +89,12 @@ interface Window {
       removeBookmark: (id: number) => Promise<{ success: boolean; error?: string }>;
       // 保存书籍基本信息（标题/作者/封面），由渲染进程解析后回传，供书架列表秒出
       saveBookMeta: (data: { filePath: string; name?: string; format?: string; title?: string; author?: string; cover?: string; contentHash?: string }) => Promise<{ success: boolean; error?: string }>;
+      // 保存一张阅读背景图（跨格式共享，按来源文件路径去重），返回 id 与是否已存在
+      addBgImage: (imagePath: string, dataUrl: string) => Promise<{ success: boolean; id?: number; existed?: boolean; error?: string }>;
+      // 获取全部已保存的阅读背景图（按加入时间倒序）
+      getBgImages: () => Promise<{ success: boolean; data?: { id: number; imagePath: string; dataUrl: string; createdAt: string }[]; error?: string }>;
+      // 按 id 删除一张已保存的阅读背景图
+      deleteBgImage: (id: number) => Promise<{ success: boolean; error?: string }>;
     };
   }
 }

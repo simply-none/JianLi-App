@@ -290,6 +290,9 @@ export default defineStore('ebook-reader', () => {
   /** 全部分类（来自 ebook_category 表），书架视图用于分类筛选与管理 */
   const categories = ref<{ id: number; name: string; color?: string }[]>([]);
 
+  /** 已保存的阅读背景图库（来自 ebook_bg_image 表，跨格式共享，按来源文件路径去重） */
+  const bgImages = ref<{ id: number; imagePath: string; dataUrl: string; createdAt: string }[]>([]);
+
   /**
    * 设置当前打开的电子书文件，并同步持久化到本地存储
    * @param file 电子书文件信息，包含路径、名称、格式
@@ -690,6 +693,62 @@ export default defineStore('ebook-reader', () => {
   }
 
   /**
+   * 加载全部已保存的阅读背景图（来自 ebook_bg_image 表，按加入时间倒序）
+   */
+  async function loadBgImages() {
+    try {
+      const res = await window.ipcRenderer.ebook.getBgImages();
+      if (res && res.success && Array.isArray(res.data)) {
+        bgImages.value = res.data;
+      } else if (res && !res.success) {
+        console.error('加载背景图库失败：', res.error);
+      }
+    } catch (err) {
+      console.error('加载背景图库异常：', err);
+    }
+  }
+
+  /**
+   * 保存一张阅读背景图（跨格式共享，按来源文件路径去重），成功后刷新图库列表
+   * @param imagePath 背景图来源文件的绝对路径（去重键）
+   * @param dataUrl 背景图 data URL（平铺方式作为阅读区背景）
+   * @returns 成功返回记录 id；失败返回 undefined
+   */
+  async function addBgImage(imagePath: string, dataUrl: string): Promise<number | undefined> {
+    try {
+      const res = await window.ipcRenderer.ebook.addBgImage(imagePath, dataUrl);
+      if (res && res.success && typeof res.id === 'number') {
+        await loadBgImages();
+        return res.id;
+      }
+      if (res && !res.success) {
+        console.error('保存背景图失败：', res.error);
+      }
+      return undefined;
+    } catch (err) {
+      console.error('保存背景图异常：', err);
+      return undefined;
+    }
+  }
+
+  /**
+   * 删除一张已保存的阅读背景图，成功后刷新图库列表
+   * @param id 背景图记录 id
+   */
+  async function deleteBgImage(id: number): Promise<void> {
+    try {
+      const res = await window.ipcRenderer.ebook.deleteBgImage(id);
+      if (res && res.success) {
+        bgImages.value = bgImages.value.filter((b) => b.id !== id);
+      } else if (res && !res.success) {
+        console.error('删除背景图失败：', res.error);
+      }
+    } catch (err) {
+      console.error('删除背景图异常：', err);
+    }
+  }
+
+  /**
    * 替换某本书关联的分类集合，成功后刷新该书架项的 categoryIds
    * @param bookPath 电子书文件绝对路径
    * @param categoryIds 分类 id 数组
@@ -757,6 +816,25 @@ export default defineStore('ebook-reader', () => {
     }
   }
 
+  /**
+   * 一键清空书架：调用主进程清空 ebook_bookshelf 表，成功后本地 bookshelf 置空。
+   * 注意：仅移除书架条目，标注 / 进度 / 书签 / 分类等其它内容由主进程保留，不删除。
+   * @returns 无返回值
+   */
+  async function clearBookshelf() {
+    try {
+      const res = await window.ipcRenderer.ebook.clearBookshelf();
+      if (res && res.success) {
+        // 本地清空，无需重新 loadBookshelf
+        bookshelf.value = [];
+      } else if (res && !res.success) {
+        console.error('清空书架失败：', res.error);
+      }
+    } catch (err) {
+      console.error('清空书架异常：', err);
+    }
+  }
+
   return {
     // 当前打开的文件
     currentFile,
@@ -768,6 +846,12 @@ export default defineStore('ebook-reader', () => {
     bookshelf,
     // 全部分类
     categories,
+    // 已保存的阅读背景图库（跨格式共享）
+    bgImages,
+    // 加载 / 保存 / 删除背景图库
+    loadBgImages,
+    addBgImage,
+    deleteBgImage,
     // 设置当前文件
     setCurrentFile,
     // 设置阅读进度
@@ -838,5 +922,7 @@ export default defineStore('ebook-reader', () => {
     addToBookshelf,
     // 删除书架记录
     removeFromBookshelf,
+    // 一键清空书架（仅移除书架条目）
+    clearBookshelf,
   };
 });

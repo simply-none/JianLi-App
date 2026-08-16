@@ -38,15 +38,6 @@ function ensurePdfWorker(): Worker {
   return pdfWorkerPort;
 }
 
-/** 将 base64 字符串解码为 Uint8Array（供 pdf.js 加载） */
-function base64ToUint8Array(b64: string): Uint8Array {
-  const bin = atob(b64);
-  const len = bin.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
-  return bytes;
-}
-
 export function usePdfRender(ctx: PdfCtx) {
   const ebookStore = useEbookReader();
 
@@ -116,26 +107,7 @@ export function usePdfRender(ctx: PdfCtx) {
   // ===== 渲染 =====
 
   /**
-   * 预计算所有页面在指定缩放下的尺寸（写入响应式 pageSizes，供模板布局）。
-   * 一次性遍历所有页的 viewport，使后续 offsetTop/可视区计算正确，再按需懒渲染 canvas。
-   */
-  async function computeAllPageSizes(scale: number): Promise<void> {
-    const doc = ctx.pdfDoc;
-    if (!doc) return;
-    for (let n = 1; n <= ctx.numPages.value; n++) {
-      try {
-        const page = await doc.getPage(n);
-        const vp = page.getViewport({ scale });
-        // 用 viewport 的原始（可能含小数）css 尺寸，使 .pdf-page / canvas / 划线层
-        // 与 viewport 坐标空间完全一致，划线坐标换算后像素级对齐（不再被 Math.floor 引入偏差）
-        ctx.pageSizes[n] = { w: vp.width, h: vp.height } as PdfPageSize;
-      } catch {
-        /* 单页失败不影响其它页 */
-      }
-    }
-  }
-
-  /** 取消某页进行中的渲染任务（不等待） */
+   * 取消某页进行中的渲染任务（不等待） */
   function cancelPageTask(num: number): void {
     const t = ctx.renderTasks.get(num);
     if (t) {
@@ -234,6 +206,9 @@ export function usePdfRender(ctx: PdfCtx) {
       const renderTask = page.render({
         canvasContext: ctx2d,
         viewport,
+        // 关闭 pdf.js 默认白底，使页面背景变为透明，从而让下方 .pdf-page 的背景图/色透出
+        // （与 TXT/EPUB 阅读区一致）；封面缩略图提取（renderBookMeta）不传此参数，保持白底。
+        background: false,
         transform: outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : undefined,
       } as any);
       ctx.renderTasks.set(num, renderTask);
@@ -273,25 +248,55 @@ export function usePdfRender(ctx: PdfCtx) {
     }
   }
 
-  /** 计算当前可视区页码范围 [first, last]（基于各页 offsetTop 与滚动位置） */
+  /**
+   * 计算当前可视区页码范围 [first, last]。
+   * 页面按文档顺序在滚动容器内纵向排列，其 offsetTop 单调递增；
+   * 因此用二分查找替代遍历全部页（O(N)），每次滚动仅 O(log N) 次 offsetTop 读取，
+   * 大文档（成千上万页）滚动不再卡顿。
+   * 注意：offsetTop 由浏览器布局给出（含未测量页的「首页尺寸占位」近似），
+   * 懒渲染下随滚动逐步精确，二分结果亦随之收敛。
+   */
   function getVisibleRange(): [number, number] {
     const sc = ctx.scrollRef.value;
-    if (!sc) return [1, Math.min(2, ctx.numPages.value)];
+    const N = ctx.numPages.value;
+    if (!sc || !N) return [1, Math.min(2, N)];
     const top = sc.scrollTop;
     const vh = sc.clientHeight;
-    let first = ctx.numPages.value;
-    let last = 1;
-    ctx.pageRefs.forEach((el, num) => {
-      const st = el.offsetTop;
-      const h = ctx.pageSizes[num]?.h || 0;
-      if (st < top + vh && st + h > top) {
-        if (num < first) first = num;
-        if (num > last) last = num;
+    const offsetTopOf = (n: number): number => ctx.pageRefs.get(n)?.offsetTop ?? Number.POSITIVE_INFINITY;
+    const bottomOf = (n: number): number => {
+      const el = ctx.pageRefs.get(n);
+      if (!el) return Number.POSITIVE_INFINITY;
+      return el.offsetTop + el.offsetHeight;
+    };
+    // 二分：首个「底部位于视口内（bottom > top）」的页 = first
+    let lo = 1;
+    let hi = N;
+    let first = N;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (bottomOf(mid) > top) {
+        first = mid;
+        hi = mid - 1;
+      } else {
+        lo = mid + 1;
       }
-    });
+    }
+    // 二分：最后一个「顶部位于视口内（top < top + vh）」的页 = last
+    lo = first;
+    hi = N;
+    let last = first;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (offsetTopOf(mid) < top + vh) {
+        last = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
     if (first > last) {
       first = 1;
-      last = Math.min(2, ctx.numPages.value);
+      last = Math.min(2, N);
     }
     return [first, last];
   }
@@ -312,10 +317,21 @@ export function usePdfRender(ctx: PdfCtx) {
     const sc = ctx.scrollRef.value;
     if (!sc) return;
     const top = sc.scrollTop + 2;
+    // 二分：最后一个 offsetTop <= top 的页（offsetTop 单调，O(log N)）
+    const N = ctx.numPages.value;
+    let lo = 1;
+    let hi = N;
     let cur = 1;
-    ctx.pageRefs.forEach((el, num) => {
-      if (el.offsetTop <= top) cur = Math.max(cur, num);
-    });
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      const el = ctx.pageRefs.get(mid);
+      if (el && el.offsetTop <= top) {
+        cur = Math.max(cur, mid);
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
     if (cur !== ctx.currentPage.value) ctx.currentPage.value = cur;
   }
 
@@ -462,14 +478,18 @@ export function usePdfRender(ctx: PdfCtx) {
 
   // ===== 缩放 =====
 
-  /** 应用新缩放：取消进行中的渲染、清空已渲染、重算所有页尺寸、按需重新渲染 */
+  /** 应用新缩放：取消进行中的渲染、清空已渲染、按新缩放更新占位尺寸、按需重新渲染 */
   async function applyScale(newScale: number): Promise<void> {
     const clamped = Math.min(5, Math.max(0.3, newScale));
     // 先取消并等待所有进行中的渲染结束，否则缩放后重渲染会与旧任务抢同一 canvas
     await cancelAllRenderTasks();
     ctx.scale.value = clamped;
+    if (basePageW && basePageH) {
+      // 更新未测量页的占位尺寸（按首页在 scale=1 下尺寸 × 新缩放），
+      // 避免缩放后未渲染页因尺寸残留而布局错位；已渲染页会在重渲染时写入真实尺寸。
+      ctx.firstPageSize.value = { w: basePageW * clamped, h: basePageH * clamped } as PdfPageSize;
+    }
     clearAllPages();
-    await computeAllPageSizes(clamped);
     await nextTick();
     ensureRenderedRange();
   }
@@ -585,22 +605,56 @@ export function usePdfRender(ctx: PdfCtx) {
     }
   }
 
-  /** 加载 PDF 文档：读字节 → 解析 → 预计算尺寸 → 渲染可视区 → 恢复进度 → 加载划线 */
+  /**
+   * 加载 PDF 文档（区间/流式加载 + 懒渲染）。
+   *
+   * 性能策略（应对大文件初始化慢）：
+   *  - C/D：不再把整文件读入内存并 base64 往返。改用「区间加载」——先取文件大小与头部一小块
+   *    （initialData），再构造 PDFDataRangeTransport；pdf.js 解析期间按需通过 requestDataRange
+   *    回调（在主线程）向主进程按字节区间读盘（ebook:read-file-range），只拉取当前需要的字节，
+   *    不把整文件载入内存，从根本上消除「文件过大导致初始化慢 + 内存爆」的问题。
+   *  - A：首屏前不再遍历全部页预计算尺寸（原 computeAllPageSizes 是首屏最大瓶颈）。
+   *    未测量页用「首页尺寸占位」近似布局，随滚动渲染时写入真实尺寸，逐页收敛。
+   */
   async function loadDocument(filePath: string): Promise<void> {
     if (!filePath) return;
     ctx.loading.value = true;
     try {
-      const res = await window.ipcRenderer.ebook.readFileBytes(filePath);
-      if (res?.error) {
-        ElMessage.error(res.error);
-        return;
-      }
-      const bytes = base64ToUint8Array(res.base64!);
       // 确保 PDF worker 已注入（含 toHex 等 polyfill），再解析文档
       ensurePdfWorker();
+
+      // 1) 取文件总大小（区间加载需要 length）
+      const sizeRes = await window.ipcRenderer.ebook.getFileSize(filePath);
+      if (sizeRes?.error || typeof sizeRes?.size !== 'number') {
+        ElMessage.error(sizeRes?.error || '无法获取文件大小');
+        return;
+      }
+      const fileLength = sizeRes.size;
+
+      // 2) 读取头部一小块作为 initialData（xref 在尾部时由 pdf.js 经 range 回调按需拉取）
+      const firstChunkSize = Math.min(fileLength, 1024 * 1024); // 最多 1MB 头
+      const firstRes = await window.ipcRenderer.ebook.readFileRange(filePath, 0, firstChunkSize);
+      if (firstRes?.error || !firstRes?.buffer) {
+        ElMessage.error(firstRes?.error || '读取文件失败');
+        return;
+      }
+      const initialData = new Uint8Array(firstRes.buffer);
+
+      // 3) 区间传输：pdf.js 解析时用 requestDataRange 按区间向主进程读盘
+      const transport = new pdfjsLib.PDFDataRangeTransport(fileLength, initialData);
+      transport.requestDataRange = async (begin: number, end: number) => {
+        try {
+          const r = await window.ipcRenderer.ebook.readFileRange(filePath, begin, end);
+          if (r?.buffer) transport.onDataRange(begin, new Uint8Array(r.buffer));
+        } catch (e) {
+          console.error('PDF 区间读取失败', begin, end, e);
+        }
+      };
+
       // 说明：pdf.js v6 已移除基于 eval 的字体支持路径（即旧版 isEvalSupported 选项），
       // CVE-2024-4367 涉及的「恶意字体触发 JS 执行」风险在该版本中已不存在，无需再显式关闭。
-      const task = pdfjsLib.getDocument({ data: bytes });
+      // disableAutoFetch:true 避免后台预取整文件，保持按需（懒）加载，大文件内存占用可控。
+      const task = pdfjsLib.getDocument({ range: transport, disableAutoFetch: true });
       ctx.pdfDoc = await task.promise;
       ctx.numPages.value = ctx.pdfDoc.numPages;
       ctx.totalPages.value = ctx.pdfDoc.numPages;
@@ -613,11 +667,15 @@ export function usePdfRender(ctx: PdfCtx) {
       const fitMode = ctx.props.pdfFitMode || 'width';
       ctx.baseScale.value = computeBaseScale(fitMode);
       ctx.scale.value = ctx.baseScale.value;
+      // 未测量页的占位尺寸（按首页在 scale=1 下尺寸 × 当前缩放），保证懒渲染下布局近似正确
+      ctx.firstPageSize.value = {
+        w: baseVp.width * ctx.scale.value,
+        h: baseVp.height * ctx.scale.value,
+      } as PdfPageSize;
 
       await nextTick();
-      await computeAllPageSizes(ctx.scale.value);
-      await nextTick();
       ctx.loading.value = false;
+      // 懒渲染：仅渲染可视区（±1 页），其余页滚动到时按需补渲染；未测量页用首页尺寸占位
       ensureRenderedRange();
       await restoreProgress(filePath);
       await ctx.loadAnnotations?.(filePath);

@@ -1,7 +1,7 @@
 <template>
   <layout-vue>
     <template #main>
-      <div class="ebook-reader-page" :class="[themeClass, { 'is-fullscreen': isFullscreen }]" ref="readerPageRef">
+      <div class="ebook-reader-page" :class="{ 'is-fullscreen': isFullscreen }" ref="readerPageRef">
         <!-- 顶部工具栏 -->
         <header class="reader-toolbar" v-show="settings.readerTopbarVisible">
           <div class="toolbar-left">
@@ -198,6 +198,7 @@
             @delete-category="onDelCat"
             @update-category="onUpdateCat"
             @set-book-categories="onSetBookCats"
+            @clear-all="clearAll"
           />
 
           <!-- 阅读视图：根据格式支持状态与是否打开文件动态切换显示 -->
@@ -348,6 +349,7 @@ const {
   refreshCounts,
   openBook,
   removeBook,
+  clearAll,
   addExternal,
   exportBook,
   exportAll,
@@ -467,9 +469,6 @@ const annotationDrawerTitle = computed(() => {
 
 /** 更多阅读设置抽屉显示状态 */
 const settingsDrawerVisible = ref(false);
-
-/** 当前主题对应的 class（作用于整个电子书阅读页，使工具栏/书架/抽屉等区域跟随切换） */
-const themeClass = computed(() => `theme-${settings.value.theme}`);
 
 /** 主题（预设）双向绑定：写入 store 并持久化 */
 
@@ -1273,93 +1272,10 @@ watch(
     }
   }
 
-  /* ========== 电子书主题：让工具栏 / 书架 / 抽屉等所有区域跟随 day/night/eye 切换 ==========
-     主题（日间 / 夜间 / 护眼）由设置抽屉中的预设卡片切换，作用到整页并覆盖变量，保证外层区域
-     与阅读区预设一致；阅读区的「背景（纯色/图片）/ 文字色」可在同一抽屉里进一步自定义（仅作用于正文）。 */
-  &.theme-day {
-    --bg-base: #f5f6fa;
-    --bg-card: #ffffff;
-    --border-subtle: rgba(0, 0, 0, 0.06);
-    --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.03);
-    --text-primary: #1a1a1a;
-    --text-secondary: #4b5563;
-    --text-muted: #9ca3af;
-    --color-primary: #6366f1;
-    --bg-hover: rgba(0, 0, 0, 0.04);
-    --radius-card: 12px;
-
-    --el-bg-color: #ffffff;
-    --el-bg-color-overlay: #ffffff;
-    --el-bg-color-page: #f5f6fa;
-    --el-text-color-primary: #1a1a1a;
-    --el-text-color-regular: #4b5563;
-    --el-text-color-secondary: #9ca3af;
-    --el-border-color: #dcdfe6;
-    --el-border-color-light: #e4e7ed;
-    --el-border-color-lighter: #ebeef5;
-    --el-fill-color: #f0f2f5;
-    --el-fill-color-light: #f5f7fa;
-    --el-fill-color-lighter: #fafafa;
-    --el-fill-color-blank: #ffffff;
-    --el-color-primary: #6366f1;
-  }
-
-  &.theme-night {
-    --bg-base: #1a1a1a;
-    --bg-card: #2a2a2a;
-    --border-subtle: #3a3a3a;
-    --shadow-top: 0 1px 4px rgba(0, 0, 0, 0.3);
-    --text-primary: #cccccc;
-    --text-secondary: #aaaaaa;
-    --text-muted: #888888;
-    --color-primary: #6366f1;
-    --bg-hover: rgba(255, 255, 255, 0.06);
-    --radius-card: 12px;
-
-    --el-bg-color: #2a2a2a;
-    --el-bg-color-overlay: #2a2a2a;
-    --el-bg-color-page: #1a1a1a;
-    --el-text-color-primary: #cccccc;
-    --el-text-color-regular: #aaaaaa;
-    --el-text-color-secondary: #888888;
-    --el-border-color: #3a3a3a;
-    --el-border-color-light: #3a3a3a;
-    --el-border-color-lighter: #3a3a3a;
-    --el-fill-color: #2a2a2a;
-    --el-fill-color-light: #2a2a2a;
-    --el-fill-color-lighter: #242424;
-    --el-fill-color-blank: #2a2a2a;
-    --el-color-primary: #6366f1;
-    --el-mask-color: rgba(0, 0, 0, 0.5);
-  }
-
-  &.theme-eye {
-    --bg-base: #c7edcc;
-    --bg-card: #e3f5e6;
-    --border-subtle: rgba(44, 62, 80, 0.12);
-    --shadow-top: 0 1px 4px rgba(44, 62, 80, 0.08);
-    --text-primary: #2c3e50;
-    --text-secondary: #4a5d6e;
-    --text-muted: #7a8a96;
-    --color-primary: #2f8f5b;
-    --bg-hover: rgba(44, 62, 80, 0.06);
-    --radius-card: 12px;
-
-    --el-bg-color: #e3f5e6;
-    --el-bg-color-overlay: #e3f5e6;
-    --el-bg-color-page: #c7edcc;
-    --el-text-color-primary: #2c3e50;
-    --el-text-color-regular: #4a5d6e;
-    --el-text-color-secondary: #7a8a96;
-    --el-border-color: rgba(44, 62, 80, 0.2);
-    --el-border-color-light: rgba(44, 62, 80, 0.15);
-    --el-border-color-lighter: rgba(44, 62, 80, 0.1);
-    --el-fill-color: #d4efd8;
-    --el-fill-color-light: #dcf3df;
-    --el-fill-color-lighter: #e8f7ea;
-    --el-fill-color-blank: #e3f5e6;
-    --el-color-primary: #2f8f5b;
-  }
+  /* 外层容器不再定义独立的 day/night/eye 主题变量，
+     改为继承全局系统主题（src/styles/themes/*，由 useTheme 的 data-theme 控制），
+     因此工具栏 / 书架 / 抽屉等区域随系统主题（浅色 / 深色 / 玻璃拟态…）变化；
+     阅读正文区的日间 / 夜间 / 护眼主题由各阅读组件（TxtReader / EpubReader / PdfReader）自行保留。 */
 
   .reader-content {
     flex: 1;

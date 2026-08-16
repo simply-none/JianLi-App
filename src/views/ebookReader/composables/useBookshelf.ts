@@ -43,7 +43,7 @@ export function useBookshelf(opts: UseBookshelfOptions) {
   const store = useEbookReader();
   // 书架列表（响应式，与原 index.vue 中 storeToRefs 解构结果一致）
   const { bookshelf } = storeToRefs(store);
-  const { addToBookshelf, removeFromBookshelf } = store;
+  const { addToBookshelf, removeFromBookshelf, clearBookshelf } = store;
   // 分类相关：全部分类列表 + 增删/设置书籍分类的操作（来自 store）
   const { categories } = storeToRefs(store);
   const { addCategory, deleteCategory, updateCategory, setBookCategories } = store;
@@ -186,6 +186,31 @@ export function useBookshelf(opts: UseBookshelfOptions) {
   }
 
   /**
+   * 一键移除书架上的所有书籍（仅移除书架，保留标注/进度/书签/分类等其它内容）
+   * 流程：二次确认 → 调用 store.clearBookshelf 清空书架表 → 复位徽标数量
+   */
+  async function clearAll(): Promise<void> {
+    if (bookshelf.value.length === 0) return;
+    try {
+      await ElMessageBox.confirm(
+        '将移除书架上的全部书籍，但不会影响它们的标注、进度、书签等其它内容。确认继续？',
+        '清空书架',
+        {
+          confirmButtonText: '清空',
+          cancelButtonText: '取消',
+          type: 'warning',
+        }
+      );
+      await clearBookshelf();
+      ElMessage.success('已清空书架');
+      // 清空后卡片徽标无数据，直接复位
+      annotationCountMap.value = {};
+    } catch {
+      // 用户点击取消，不做操作
+    }
+  }
+
+  /**
    * 书架视图下：打开外部电子书文件并加入书架
    * 停留在书架视图（不切换到阅读视图），支持多选，仅接受 txt / epub，其余格式忽略并提示
    */
@@ -274,6 +299,7 @@ export function useBookshelf(opts: UseBookshelfOptions) {
     refreshCounts,
     openBook,
     removeBook,
+    clearAll,
     addExternal,
     exportBook,
     exportAll,

@@ -24,6 +24,20 @@
           <LucideIcon name="Download" :size="14" />
           导出全部笔记
         </el-button>
+        <el-popconfirm
+          v-if="items.length > 0"
+          title="确认清空书架上的全部书籍？仅移除书架，不影响标注 / 进度 / 书签。"
+          confirm-button-text="清空"
+          cancel-button-text="取消"
+          @confirm="emit('clear-all')"
+        >
+          <template #reference>
+            <el-button size="small" type="danger">
+              <LucideIcon name="Trash2" :size="14" />
+              移除全部
+            </el-button>
+          </template>
+        </el-popconfirm>
       </div>
     </div>
 
@@ -168,8 +182,8 @@
         <!-- 封面：有封面图则显示，否则占位（格式首字母） -->
         <div class="book-cover">
           <img v-if="item.cover" :src="item.cover" :alt="item.title || item.name" class="book-cover-img" />
-          <div v-else class="book-cover-fallback" :class="`fmt-${item.format}`">
-            {{ (item.title || item.name || '?').charAt(0).toUpperCase() }}
+          <div v-else class="book-cover-fallback">
+            {{ (item.format || '?').toUpperCase().charAt(0) }}
           </div>
         </div>
 
@@ -316,6 +330,8 @@ const emit = defineEmits<{
   (e: 'open-annotations', item: BookshelfItem): void;
   (e: 'export', item: BookshelfItem): void;
   (e: 'export-all'): void;
+  /** 一键清空书架（仅移除书架，保留其它内容） */
+  (e: 'clear-all'): void;
   /** 分类筛选切换（null=全部） */
   (e: 'update:selected-category', value: number | null): void;
   /** 名称搜索关键词变化 */
@@ -558,11 +574,11 @@ function formatTime(time: string): string {
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
 
-  &:hover {
-    transform: translateY(-2px);
-    border-color: var(--color-primary);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  }
+    &:hover {
+      transform: translateY(-2px);
+      border-color: var(--color-primary);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
 
   /* 卡片头部：格式徽标 + 删除按钮 */
   .book-card-header {
@@ -634,17 +650,8 @@ function formatTime(time: string): string {
       justify-content: center;
       font-size: 32px;
       font-weight: 700;
-      color: #fff;
-
-      &.fmt-epub {
-        background: linear-gradient(135deg, #f59e0b, #d97706);
-      }
-      &.fmt-pdf {
-        background: linear-gradient(135deg, #ef4444, #dc2626);
-      }
-      &.fmt-txt {
-        background: linear-gradient(135deg, #10b981, #059669);
-      }
+      color: var(--text-secondary);
+      background: var(--bg-base);
     }
   }
 

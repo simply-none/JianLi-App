@@ -152,7 +152,31 @@
             :style="{ backgroundImage: `url(${bgImageModel})` }"
           ></div>
         </div>
-        <div class="setting-tip">图片以平铺方式作为阅读区背景（存储为 data URL，过大图片会占用较多本地空间）</div>
+        <!-- 已保存的背景图库：点击即可切换，按来源文件路径去重（跨格式共享） -->
+        <div class="bg-gallery" v-if="bgImages.length">
+          <div class="bg-gallery-title">已保存的背景图（点击切换）</div>
+          <div class="bg-gallery-list">
+            <div
+              v-for="img in bgImages"
+              :key="img.id"
+              class="bg-gallery-thumb"
+              :class="{ active: bgImageModel === img.dataUrl }"
+              :style="{ backgroundImage: `url(${img.dataUrl})` }"
+              :title="img.imagePath"
+              @click="bgImageModel = img.dataUrl"
+            >
+              <button
+                class="bg-gallery-del"
+                type="button"
+                title="删除"
+                @click.stop="removeBgImage(img.id)"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="setting-tip">图片以平铺方式作为阅读区背景；选过的背景图会保存到数据库，方便后续切换（按文件来源路径自动去重，不分电子书格式）</div>
       </div>
 
       <!-- 文字颜色：自定义前景色，空值回退到主题默认 -->
@@ -494,13 +518,16 @@ const props = defineProps<Props>();
 const visible = defineModel<boolean>({ required: true });
 
 const store = useEbookReader();
-const { settings } = storeToRefs(store);
+const { settings, bgImages } = storeToRefs(store);
 const {
   setTheme,
   setBgType,
   setBgColor,
   setBgImage,
   setTextColor,
+  loadBgImages,
+  addBgImage,
+  deleteBgImage,
   setLineHeight,
   setColumnCount,
   setScrollMode,
@@ -806,20 +833,36 @@ function onBgTypeChange(val: EbookBgType) {
   }
 }
 
-/** 选择本地图片作为阅读区背景图，读取为 data URL 存入 settings.bgImage */
-function onPickBgImage(e: Event) {
+/**
+ * 选择本地图片作为阅读区背景图
+ * 1) 读取为 data URL 应用为当前背景；
+ * 2) 同时按来源文件路径保存到数据库（跨格式共享、按路径去重），便于后续切换展示。
+ */
+async function onPickBgImage(e: Event) {
   const input = e.target as HTMLInputElement;
   const file = input.files?.[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = () => {
-    bgImageModel.value = reader.result as string;
+  reader.onload = async () => {
+    const dataUrl = reader.result as string;
+    bgImageModel.value = dataUrl;
+    // 来源文件路径用于去重（Electron 的 <input type=file> 提供 file.path）
+    const imagePath = (file as unknown as { path?: string }).path || file.name;
+    await addBgImage(imagePath, dataUrl);
   };
   reader.readAsDataURL(file);
   input.value = '';
 }
 
-// 拉取系统字体供字体选择下拉使用（字体选项同时含设置页管理的「内置字体」）
+/**
+ * 从背景图库删除某张背景图（按库记录 id）
+ * @param id 背景图库记录 id
+ */
+async function removeBgImage(id: number) {
+  await deleteBgImage(id);
+}
+
+// 拉取系统字体供字体选择下拉使用（字体选项同时含设置页管理的「内置字体」），并加载已保存的背景图库
 onMounted(() => {
   window.ipcRenderer
     .handlePromise('get-fonts', {})
@@ -829,6 +872,7 @@ onMounted(() => {
     .catch((err) => {
       console.error('获取系统字体失败', err);
     });
+  loadBgImages();
 });
 </script>
 
@@ -999,6 +1043,68 @@ onMounted(() => {
       background-size: cover;
       background-position: center;
       background-repeat: no-repeat;
+    }
+  }
+
+  /* 已保存背景图库：缩略图网格，点击切换、悬停出现删除 */
+  .bg-gallery {
+    width: 100%;
+    margin-top: 10px;
+
+    .bg-gallery-title {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .bg-gallery-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+      gap: 8px;
+    }
+
+    .bg-gallery-thumb {
+      position: relative;
+      aspect-ratio: 1 / 1;
+      border-radius: 8px;
+      border: 2px solid transparent;
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      cursor: pointer;
+      transition: border-color 0.15s ease;
+
+      &:hover {
+        border-color: var(--color-primary);
+      }
+
+      &.active {
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 2px var(--bg-base), 0 0 0 4px var(--color-primary);
+      }
+
+      .bg-gallery-del {
+        position: absolute;
+        top: -6px;
+        right: -6px;
+        width: 18px;
+        height: 18px;
+        line-height: 16px;
+        text-align: center;
+        padding: 0;
+        border: none;
+        border-radius: 50%;
+        background: var(--color-danger, #f56c6c);
+        color: #fff;
+        font-size: 12px;
+        cursor: pointer;
+        opacity: 0;
+        transition: opacity 0.15s ease;
+      }
+
+      &:hover .bg-gallery-del {
+        opacity: 1;
+      }
     }
   }
 

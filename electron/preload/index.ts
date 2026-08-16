@@ -72,6 +72,27 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
       return ipcRenderer.invoke('ebook:read-file-bytes', filePath)
     },
     /**
+     * 获取文件大小（字节数），供 PDF 区间加载构造 PDFDataRangeTransport 的 length 使用。
+     *
+     * @param filePath - 必填参数，文件绝对路径
+     * @returns 成功返回 Promise<{ size: number }>；失败返回 Promise<{ error: string }>
+     */
+    getFileSize(filePath: string) {
+      return ipcRenderer.invoke('ebook:get-file-size', filePath)
+    },
+    /**
+     * 按 [start, end) 字节区间读取文件，返回 ArrayBuffer（无需 base64 往返）。
+     * 供 PDF 区间/流式加载时 pdf.js 按需分块拉取，避免整文件载入内存。
+     *
+     * @param filePath - 必填参数，文件绝对路径
+     * @param start - 区间起始字节（含）
+     * @param end - 区间结束字节（不含）
+     * @returns 成功返回 Promise<{ buffer: ArrayBuffer }>；失败返回 Promise<{ error: string }>
+     */
+    readFileRange(filePath: string, start: number, end: number) {
+      return ipcRenderer.invoke('ebook:read-file-range', filePath, start, end)
+    },
+    /**
      * 计算文件原始内容 sha256（内容身份，用于换路径重新导入时复用标注/进度）
      *
      * @param filePath - 必填参数，文件绝对路径
@@ -136,6 +157,12 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
      */
     removeFromBookshelf(filePath: string) {
       return ipcRenderer.invoke('ebook:remove-from-bookshelf', filePath)
+    },
+    /**
+     * 一键清空书架：仅删除书架记录，不动分类 / 标注 / 进度 / 书签等其它内容
+     */
+    clearBookshelf() {
+      return ipcRenderer.invoke('ebook:clear-bookshelf')
     },
     /**
      * 获取全部分类（按创建时间升序）
@@ -321,6 +348,33 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
      */
     saveBookMeta(data: { filePath: string; name?: string; format?: string; title?: string; author?: string; cover?: string; contentHash?: string }) {
       return ipcRenderer.invoke('ebook:save-book-meta', data)
+    },
+    /**
+     * 保存一张阅读背景图（跨格式共享，按来源文件路径去重）
+     *
+     * @param imagePath - 必填参数，背景图来源文件的绝对路径（去重键）
+     * @param dataUrl - 必填参数，背景图 data URL（平铺方式作为阅读区背景）
+     * @returns 成功返回 Promise<{ success: boolean; id?: number; existed?: boolean; error?: string }>
+     */
+    addBgImage(imagePath: string, dataUrl: string) {
+      return ipcRenderer.invoke('ebook:add-bg-image', imagePath, dataUrl)
+    },
+    /**
+     * 获取全部已保存的阅读背景图（按加入时间倒序）
+     *
+     * @returns 成功返回 Promise<{ success: boolean; data?: { id: number; imagePath: string; dataUrl: string; createdAt: string }[]; error?: string }>
+     */
+    getBgImages() {
+      return ipcRenderer.invoke('ebook:get-bg-images')
+    },
+    /**
+     * 按 id 删除一张已保存的阅读背景图
+     *
+     * @param id - 必填参数，背景图记录主键 id
+     * @returns 成功返回 Promise<{ success: boolean; error?: string }>
+     */
+    deleteBgImage(id: number) {
+      return ipcRenderer.invoke('ebook:delete-bg-image', id)
     },
   },
   on(...args: Parameters<typeof ipcRenderer.on>) {

@@ -126,6 +126,8 @@ export interface PdfCtx {
   hlRefs: Map<number, HTMLElement>;
   /** 每页渲染尺寸（css px），响应式供模板绑定 */
   pageSizes: Record<number, PdfPageSize>;
+  /** 首页在「当前缩放」下的尺寸（作为未测量页的占位估计，供懒渲染布局近似） */
+  firstPageSize: Ref<PdfPageSize>;
   /** 每页当前 viewport（含缩放/旋转变换），用于划线坐标在 PDF 空间与 css 像素间换算 */
   pageViewports: Map<number, any>;
   /** 已渲染的页码集合（懒渲染，避免一次渲染全部页） */
@@ -201,6 +203,7 @@ export function createPdfCtx(
     textRefs: new Map(),
     hlRefs: new Map(),
     pageSizes: reactive({}) as Record<number, PdfPageSize>,
+    firstPageSize: ref<PdfPageSize>({ w: 0, h: 0 }),
     pageViewports: new Map(),
     renderedPages: new Set(),
     renderingPages: new Set(),

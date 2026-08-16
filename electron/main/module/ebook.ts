@@ -42,6 +42,9 @@ const EBOOK_CATEGORY_TABLE = 'ebook_category';
 /** 电子书「书-分类」多对多映射表名（book_path 关联 category_id） */
 const EBOOK_BOOK_CATEGORY_TABLE = 'ebook_book_category';
 
+/** 电子书阅读背景图库表名（保存用户选择过的背景图，按来源文件路径去重，跨格式共享） */
+const EBOOK_BG_IMAGE_TABLE = 'ebook_bg_image';
+
 /**
  * 电子书阅读进度数据结构
  */
@@ -587,6 +590,32 @@ async function createBookCategoryTable(): Promise<void> {
 }
 
 /**
+ * 创建电子书阅读背景图库表（IF NOT EXISTS）
+ *
+ * 表结构：
+ * - id          INTEGER 自增主键
+ * - image_path  TEXT    背景图来源文件的绝对路径（UNIQUE，用于按路径去重，跨格式共享）
+ * - data_url    TEXT    背景图 data URL（平铺方式作为阅读区背景）
+ * - created_at  TEXT    首次加入时间（ISO 字符串）
+ * image_path 唯一约束保证同一张图（无论通过哪种格式的电子书选择）只保存一份。
+ *
+ * @returns 成功 resolve void；失败 reject Error（如数据库未初始化）
+ */
+async function createBgImageTable(): Promise<void> {
+  const db = myDb.db;
+  if (!db) {
+    throw new Error('数据库未初始化');
+  }
+  const sql = `CREATE TABLE IF NOT EXISTS ${EBOOK_BG_IMAGE_TABLE} (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    image_path TEXT UNIQUE,
+    data_url TEXT,
+    created_at TEXT
+  )`;
+  await dbRunAsync(db, sql);
+}
+
+/**
  * 电子书模块初始化
  * 注册所有 ebook 相关 IPC 监听：
  * - ebook:read-txt           读取 txt 文件内容（自动检测编码并转为 UTF-8）
@@ -648,6 +677,13 @@ export async function initEbook(): Promise<void> {
     log.error('Failed to create ebook_book_category table:', err);
   }
 
+  // 3.3 创建阅读背景图库表（与上述表并列，独立 try/catch，互不影响）
+  try {
+    await createBgImageTable();
+  } catch (err) {
+    log.error('Failed to create ebook_bg_image table:', err);
+  }
+
   // 4. 与 newSql.ts 保持一致：确保各表列完整，自动补齐旧库中缺失的列
   //    （例如老版本建表时还没有 type 列，这里会 ALTER TABLE ADD COLUMN 补齐，
   //      否则后续 INSERT/UPDATE 引用 type 会报 SQLITE_ERROR: no column named type）
@@ -681,6 +717,11 @@ export async function initEbook(): Promise<void> {
       EBOOK_BOOK_CATEGORY_TABLE,
       ['category_id'],
       'book_path'
+    );
+    await ensureTableExists(
+      EBOOK_BG_IMAGE_TABLE,
+      ['data_url', 'created_at'],
+      'id'
     );
   } catch (err) {
     log.error('Failed to ensure ebook tables columns:', err);
@@ -755,6 +796,70 @@ export async function initEbook(): Promise<void> {
       } catch (err: any) {
         log.error('Failed to read file bytes:', err);
         return { error: `读取文件失败：${err?.message || String(err)}` };
+      }
+    }
+  );
+
+  // ============ ebook:get-file-size 获取文件大小（区间加载 PDF 需要 length） ============
+  ipcMain.handle(
+    'ebook:get-file-size',
+    async (_event, filePath: string): Promise<{ size?: number; error?: string }> => {
+      try {
+        if (!filePath || typeof filePath !== 'string') {
+          return { error: '文件路径不能为空' };
+        }
+        const st = fs.statSync(filePath);
+        return { size: st.size };
+      } catch (err: any) {
+        log.error('Failed to get file size:', err);
+        return { error: `获取文件大小失败：${err?.message || String(err)}` };
+      }
+    }
+  );
+
+  // ============ ebook:read-file-range 按字节区间读取文件（PDF 区间/流式加载，避免整文件载入） ============
+  /**
+   * 按 [start, end) 字节区间读取文件，返回 ArrayBuffer（结构化克隆传回渲染进程，无需 base64 往返）。
+   * 渲染进程的 pdf.js 通过 PDFDataRangeTransport 的 requestDataRange 回调按需调用本接口，
+   * 只拉取当前需要的字节（xref、指定页等），不把整文件读入内存，从源头解决大文件初始化慢。
+   *
+   * @param _event - IPC 事件对象（未使用）
+   * @param filePath - 必填参数，文件绝对路径
+   * @param start - 区间起始字节（含）
+   * @param end - 区间结束字节（不含）
+   * @returns 成功返回 { buffer: ArrayBuffer }；失败返回 { error: string }
+   */
+  ipcMain.handle(
+    'ebook:read-file-range',
+    async (
+      _event,
+      filePath: string,
+      start: number,
+      end: number
+    ): Promise<{ buffer?: ArrayBuffer; error?: string }> => {
+      try {
+        if (!filePath || typeof filePath !== 'string') {
+          return { error: '文件路径不能为空' };
+        }
+        const st = fs.statSync(filePath);
+        const size = st.size;
+        const s = Math.max(0, Math.floor(start));
+        const e = Math.min(size, Math.floor(end));
+        if (s > e) return { error: '读取区间非法' };
+        const fd = fs.openSync(filePath, 'r');
+        try {
+          const len = e - s;
+          const buf = Buffer.alloc(len);
+          fs.readSync(fd, buf, 0, len, s);
+          // 仅返回真实数据区间对应的 ArrayBuffer（避免把整块 Buffer 的额外 backing 传回）
+          const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+          return { buffer: ab };
+        } finally {
+          fs.closeSync(fd);
+        }
+      } catch (err: any) {
+        log.error('Failed to read file range:', err);
+        return { error: `读取文件区间失败：${err?.message || String(err)}` };
       }
     }
   );
@@ -1074,6 +1179,34 @@ export async function initEbook(): Promise<void> {
     }
   );
 
+  // ============ ebook:clear-bookshelf 清空书架（仅删书架记录） ============
+  /**
+   * 一键清空书架：仅删除 ebook_bookshelf 表中的全部书架记录。
+   * 注意：不删除分类、标注、阅读进度、书签等其它内容，仅把书从书架移除。
+   *
+   * @returns 成功返回 { success: true }；失败返回 { success: false, error: string }
+   */
+  ipcMain.handle(
+    'ebook:clear-bookshelf',
+    async (_event): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const db = myDb.db;
+        if (!db) {
+          return { success: false, error: '数据库未初始化' };
+        }
+        // 仅清空书架表：保留分类映射 / 标注 / 进度 / 书签等其它数据
+        await dbRunAsync(db, `DELETE FROM ${EBOOK_BOOKSHELF_TABLE}`);
+        return { success: true };
+      } catch (err: any) {
+        log.error('Failed to clear ebook bookshelf:', err);
+        return {
+          success: false,
+          error: `清空书架失败：${err?.message || String(err)}`
+        };
+      }
+    }
+  );
+
   // ============ ebook:get-categories 获取全部分类 ============
   /**
    * 查询全部分类（按创建时间升序，保证展示顺序稳定）
@@ -1246,6 +1379,146 @@ export async function initEbook(): Promise<void> {
         return {
           success: false,
           error: `修改分类失败：${err?.message || String(err)}`
+        };
+      }
+    }
+  );
+
+  // ============ ebook:get-bg-images 获取背景图库 ============
+  /**
+   * 查询全部已保存的阅读背景图（按加入时间倒序，最新在最前，便于切换展示）
+   *
+   * @param _event - IPC 事件对象（未使用）
+   * @returns 成功返回 { success: true, data: { id, imagePath, dataUrl, createdAt }[] }（无记录时 data 为空数组）；
+   *          失败返回 { success: false, error: string }
+   */
+  ipcMain.handle(
+    'ebook:get-bg-images',
+    async (): Promise<{
+      success: boolean;
+      data?: { id: number; imagePath: string; dataUrl: string; createdAt: string }[];
+      error?: string;
+    }> => {
+      try {
+        const db = myDb.db;
+        if (!db) {
+          return { success: false, error: '数据库未初始化' };
+        }
+        const rows = await query({
+          tableName: EBOOK_BG_IMAGE_TABLE,
+          columns: ['id', 'image_path', 'data_url', 'created_at'],
+          orderBy: 'created_at',
+          orderByDesc: true
+        });
+        const data = (rows as any[]).map((r) => ({
+          id: r.id,
+          imagePath: r.image_path,
+          dataUrl: r.data_url,
+          createdAt: r.created_at
+        }));
+        return { success: true, data };
+      } catch (err: any) {
+        log.error('Failed to get ebook bg images:', err);
+        return {
+          success: false,
+          error: `获取背景图库失败：${err?.message || String(err)}`
+        };
+      }
+    }
+  );
+
+  // ============ ebook:add-bg-image 新增/更新背景图（按来源文件路径去重） ============
+  /**
+   * 保存一张阅读背景图（跨格式共享，按来源文件路径去重）
+   * - 若 image_path 已存在：更新其 data_url（同一文件重新选择时可刷新），幂等返回 existed: true
+   * - 若不存在：新增一条记录
+   *
+   * @param _event - IPC 事件对象（未使用）
+   * @param imagePath - 必填参数，背景图来源文件的绝对路径（去重键）
+   * @param dataUrl - 必填参数，背景图 data URL（平铺方式作为阅读区背景）
+   * @returns 成功返回 { success: true, id: number, existed?: boolean }；
+   *          失败返回 { success: false, error: string }
+   */
+  ipcMain.handle(
+    'ebook:add-bg-image',
+    async (
+      _event,
+      imagePath: string,
+      dataUrl: string
+    ): Promise<{ success: boolean; id?: number; existed?: boolean; error?: string }> => {
+      try {
+        const db = myDb.db;
+        if (!db) {
+          return { success: false, error: '数据库未初始化' };
+        }
+        if (!imagePath || typeof imagePath !== 'string') {
+          return { success: false, error: '背景图来源路径无效' };
+        }
+        if (!dataUrl || typeof dataUrl !== 'string') {
+          return { success: false, error: '背景图数据无效' };
+        }
+        // 按来源文件路径去重：已存在则刷新 data_url，避免重复入库
+        const existing = await query({
+          tableName: EBOOK_BG_IMAGE_TABLE,
+          columns: ['id'],
+          conditions: { image_path: imagePath }
+        });
+        if (existing.length > 0) {
+          const id = (existing[0] as { id: number }).id;
+          await update({
+            tableName: EBOOK_BG_IMAGE_TABLE,
+            data: { data_url: dataUrl },
+            condition: { id }
+          });
+          return { success: true, id, existed: true };
+        }
+        const res = await insert({
+          tableName: EBOOK_BG_IMAGE_TABLE,
+          data: { image_path: imagePath, data_url: dataUrl, created_at: new Date().toISOString() }
+        });
+        return { success: true, id: res.lastID };
+      } catch (err: any) {
+        log.error('Failed to add ebook bg image:', err);
+        return {
+          success: false,
+          error: `保存背景图失败：${err?.message || String(err)}`
+        };
+      }
+    }
+  );
+
+  // ============ ebook:delete-bg-image 删除背景图 ============
+  /**
+   * 按 id 删除一张已保存的阅读背景图
+   *
+   * @param _event - IPC 事件对象（未使用）
+   * @param id - 必填参数，背景图记录 id
+   * @returns 成功返回 { success: true }；失败返回 { success: false, error: string }
+   */
+  ipcMain.handle(
+    'ebook:delete-bg-image',
+    async (
+      _event,
+      id: number
+    ): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const db = myDb.db;
+        if (!db) {
+          return { success: false, error: '数据库未初始化' };
+        }
+        if (typeof id !== 'number') {
+          return { success: false, error: '背景图 id 无效' };
+        }
+        await del({
+          tableName: EBOOK_BG_IMAGE_TABLE,
+          condition: { id }
+        });
+        return { success: true };
+      } catch (err: any) {
+        log.error('Failed to delete ebook bg image:', err);
+        return {
+          success: false,
+          error: `删除背景图失败：${err?.message || String(err)}`
         };
       }
     }
