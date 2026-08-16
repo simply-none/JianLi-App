@@ -306,6 +306,13 @@ export default defineStore("global-setting", () => {
         opacity: 0.85,
       },
       {
+        label: "诗词首页",
+        value: "14",
+        primaryColor: "#f0ebe3",
+        secondaryColor: "#2c2f33",
+        opacity: 0.92,
+      },
+      {
         label: "自定义",
         value: "3",
         primaryColor: "#000000",

@@ -40,6 +40,7 @@ import MacOSDesktop from '@/views/home/macOSDesktop.vue';
 import NewsReader from '@/views/home/newsReader.vue';
 import CodeEditorTheme from '@/views/home/codeEditorTheme.vue';
 import SearchEngine from '@/views/home/searchEngine.vue';
+import PoetryHome from '@/views/home/poetryHome.vue';
 import LayoutVue from '@/components/layout.vue';
 import useGlobalSetting from '@/store/useGlobalSetting';
 import useSafetyProtection from '@/store/useSafetyProtection';
@@ -91,6 +92,9 @@ watch(() => homeModeC.value[curStatusC.value.value], (n, o) => {
       break;
     case '13':
       curComponent.value = SearchEngine
+      break;
+    case '14':
+      curComponent.value = PoetryHome
       break;
   }
 }, { immediate: true, deep: true })
