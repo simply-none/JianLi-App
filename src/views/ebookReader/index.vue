@@ -156,6 +156,39 @@
               </el-button>
               <span class="fs-divider"></span>
             </template>
+            <!-- 笔记：打开笔记与划线抽屉，附带数量徽标（与顶部工具栏一致，常显） -->
+            <el-badge
+              :value="annotations.length"
+              :hidden="annotations.length === 0"
+              :max="99"
+              type="primary"
+            >
+              <el-button
+                size="small"
+                circle
+                @click="annotationDrawerVisible = true"
+                title="笔记"
+              >
+                <LucideIcon name="NotebookPen" :size="16" />
+              </el-button>
+            </el-badge>
+            <!-- 书签：打开书签抽屉，附带数量徽标（仅 epub / pdf 生效，与顶部工具栏一致） -->
+            <el-badge
+              v-if="currentFile.format === 'epub' || currentFile.format === 'pdf'"
+              :value="bookmarks.length"
+              :hidden="bookmarks.length === 0"
+              :max="99"
+              type="warning"
+            >
+              <el-button
+                size="small"
+                circle
+                @click="bookmarkDrawerVisible = true"
+                title="书签"
+              >
+                <LucideIcon name="Bookmark" :size="16" />
+              </el-button>
+            </el-badge>
             <el-button
               size="small"
               circle
@@ -1321,7 +1354,7 @@ watch(
     }
   }
 
-  /* 全屏模式右上角浮动控制条：设置 + 退出全屏。默认半透明，hover 高亮 */
+  /* 全屏模式右上角浮动控制条：默认完全隐藏，鼠标 hover 到右上角区域才显形，避免遮挡阅读 */
   .floating-fs-controls {
     position: fixed;
     top: 16px;
@@ -1334,8 +1367,8 @@ watch(
     background: var(--bg-card);
     border: 1px solid var(--border-subtle);
     box-shadow: var(--shadow-card);
-    opacity: 0.4;
-    transition: opacity 0.2s;
+    opacity: 0;
+    transition: opacity 0.25s;
 
     &:hover {
       opacity: 1;

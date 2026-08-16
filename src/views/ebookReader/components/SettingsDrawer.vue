@@ -38,6 +38,7 @@
           clearable
           placeholder="默认字体"
           popper-class="font-select-popper"
+          append-to=".ebook-reader-page"
           :item-height="72"
           style="width: 100%"
         >
@@ -62,6 +63,7 @@
           clearable
           placeholder="默认字体"
           popper-class="font-select-popper"
+          append-to=".ebook-reader-page"
           :item-height="72"
           style="width: 100%"
         >
@@ -126,7 +128,7 @@
             @click="bgColorModel = preset.color"
           ></button>
         </div>
-        <el-color-picker v-model="bgColorModel" />
+        <el-color-picker v-model="bgColorModel" append-to=".ebook-reader-page" />
       </div>
 
       <!-- 图片背景：上传本地图片作为阅读区背景 -->
@@ -198,7 +200,7 @@
           ></button>
         </div>
         <div class="text-color-control">
-          <el-color-picker v-model="textColorModel" />
+          <el-color-picker v-model="textColorModel" append-to=".ebook-reader-page" />
           <el-button size="small" text @click="textColorModel = ''">使用主题默认</el-button>
         </div>
       </div>
@@ -361,7 +363,7 @@
           </button>
         </div>
         <div class="highlight-color-custom">
-          <el-color-picker v-model="styleCustomColorModel" size="small" />
+          <el-color-picker v-model="styleCustomColorModel" size="small" append-to=".ebook-reader-page" />
           <span class="custom-tip">自定义颜色</span>
         </div>
         <div class="setting-tip">仅作用于「{{ activeTypeName }}」类型，与其它类型互不影响</div>

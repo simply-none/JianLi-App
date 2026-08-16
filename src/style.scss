@@ -71,6 +71,9 @@ input {
   border-color: var(--border-subtle) !important;
   margin: 24px 0;
 }
+.el-overlay {
+  background-color: #ffffff00;
+}
 
 .el-form-item__label {
   color: var(--text-secondary) !important;
