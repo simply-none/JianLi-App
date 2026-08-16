@@ -2,7 +2,21 @@
 
 变更日志
 
-## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.8.13-rc.1...HEAD) (2026-08-15)
+## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.8.15-rc.1...HEAD) (2026-08-16)
+
+### ✨ Features | 新功能
+
+* 改进通知的持续时间 ([3758708](https://github.com/simply-none/JianLi-App/commit/375870899cabdb5ea37c5b8ec2ad17c9b0459871))
+* 电子书全屏设置和工具条优化 ([fe98c0e](https://github.com/simply-none/JianLi-App/commit/fe98c0efc387bf01bd281f70ae5733af3484ce96))
+* 增加一次诗词首页类型 ([91b1e5b](https://github.com/simply-none/JianLi-App/commit/91b1e5b285f381da902b4e308cd31ea83059a5bf))
+* 电子书笔记标注优化增强 ([20dd01b](https://github.com/simply-none/JianLi-App/commit/20dd01b1967f7e3175619e33dc2b0b186c3f5b9f))
+* 电子书背景及其主题优化 ([c82542f](https://github.com/simply-none/JianLi-App/commit/c82542fda10e123801347521d48965d583df6b9e))
+* 增加电子书分类 ([b9978c7](https://github.com/simply-none/JianLi-App/commit/b9978c77c30e09703525e4cd3afda8c33be50cc4))
+* 标注弹窗显示优化 ([b120973](https://github.com/simply-none/JianLi-App/commit/b120973f7e68b47556168c5d2968bb1365335ee9))
+* 增加电子书哈希，多个副本打开时回显相同的标注/书签/进度 ([d83a6bb](https://github.com/simply-none/JianLi-App/commit/d83a6bb203968f612f9b8d358eb909ed7ed1a085))
+* 优化电子书翻页 ([2785790](https://github.com/simply-none/JianLi-App/commit/27857907e3c2511b92e817c867b6f1bf864fbf32))
+
+## [v26.8.15-rc.1](https://github.com/simply-none/JianLi-App/compare/v26.8.13-rc.1...v26.8.15-rc.1) (2026-08-15)
 
 ### ✨ Features | 新功能
 
