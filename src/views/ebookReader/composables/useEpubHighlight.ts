@@ -349,6 +349,7 @@ export function useEpubHighlight(ctx: EpubCtx) {
         confirmButtonText: '保存',
         cancelButtonText: '取消',
         inputType: 'textarea',
+        appendTo: (document.fullscreenElement as HTMLElement | null) || document.body,
       });
       const res = await window.ipcRenderer.ebook.updateAnnotation({
         id: created.id,
@@ -368,16 +369,41 @@ export function useEpubHighlight(ctx: EpubCtx) {
     }
   }
 
-  /** 点击已有高亮的回调：带笔记则进编辑弹窗，纯划线则直接删除 */
+  /** 点击已有高亮的回调：弹出操作菜单（转为笔记 / 删除），不再直接删除 */
   function onHighlightClick(id: number, cfiRange: string, noteFromCb?: string): void {
     const annotation = ctx.annotations.value.find((a) => a.id === id);
     if (!annotation) return;
     const hasNote = !!(annotation.note || noteFromCb);
-    if (hasNote) {
-      editAnnotationNote(id);
-    } else {
-      void removeHighlight(id, cfiRange);
-    }
+    // 定位：点击必然先 mouseup；handleRenditionMouseup（rendition.on('mouseup')）已在最近一次
+    // mouseup 用 `iframe rect + ev.clientX` 把父视口坐标写进 ctx.lastMouseX/Y，直接复用即为精确点击点，
+    // 无需再依赖回调里的 clientX/offsetX（跨 iframe 不可靠）
+    openAnnotationMenu(id, ctx.lastMouseX, ctx.lastMouseY, hasNote);
+  }
+
+  /** 打开已有标注的操作菜单（提供「转为笔记」「删除」） */
+  function openAnnotationMenu(id: number, x: number, y: number, hasNote: boolean): void {
+    ctx.menuAnnotationId.value = id;
+    ctx.menuHasNote.value = hasNote;
+    ctx.menuX.value = x;
+    ctx.menuY.value = y;
+    ctx.menuVisible.value = true;
+  }
+
+  /** 菜单「转为笔记/编辑笔记」：关闭菜单并打开笔记编辑弹窗 */
+  function onMenuConvert(): void {
+    const id = ctx.menuAnnotationId.value;
+    if (id === null) return;
+    ctx.menuVisible.value = false;
+    editAnnotationNote(id);
+  }
+
+  /** 菜单「删除」：关闭菜单并走删除确认流程（复用 removeHighlight） */
+  function onMenuDelete(): void {
+    const id = ctx.menuAnnotationId.value;
+    if (id === null) return;
+    const annotation = ctx.annotations.value.find((a) => a.id === id);
+    ctx.menuVisible.value = false;
+    if (annotation) void removeHighlight(id, annotation.anchor);
   }
 
   /** 删除划线：确认 → IPC 删除 → 移除 rendition 高亮 → 更新本地列表 → 通知父组件 */
@@ -387,6 +413,7 @@ export function useEpubHighlight(ctx: EpubCtx) {
         confirmButtonText: '删除',
         cancelButtonText: '取消',
         type: 'warning',
+        appendTo: (document.fullscreenElement as HTMLElement | null) || document.body,
       });
     } catch {
       return;
@@ -623,5 +650,11 @@ export function useEpubHighlight(ctx: EpubCtx) {
     jumpToAnnotation,
     removeAnnotationById,
     editAnnotationNote,
+    menuVisible: ctx.menuVisible,
+    menuX: ctx.menuX,
+    menuY: ctx.menuY,
+    menuHasNote: ctx.menuHasNote,
+    onMenuConvert,
+    onMenuDelete,
   };
 }

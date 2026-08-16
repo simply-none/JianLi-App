@@ -973,7 +973,7 @@ export function usePdfRender(ctx: PdfCtx) {
       const hl = target.closest('.pdf-hl') as HTMLElement | null;
       if (hl) {
         const id = Number(hl.getAttribute('data-id'));
-        if (id) ctx.onHighlightClick?.(id);
+        if (id) ctx.onHighlightClick?.(id, e);
       }
     },
     mode,

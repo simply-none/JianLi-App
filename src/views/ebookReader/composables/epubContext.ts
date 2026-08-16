@@ -94,6 +94,16 @@ export interface EpubCtx {
   currentEditAnnotationId: Ref<number | null>;
   /** 笔记编辑弹窗中的输入内容 */
   noteInput: Ref<string>;
+  /** 已有划线操作菜单显示状态（点击划线后弹出，提供「转为笔记」「删除」） */
+  menuVisible: Ref<boolean>;
+  /** 操作菜单定位 x 坐标（相对视口，px） */
+  menuX: Ref<number>;
+  /** 操作菜单定位 y 坐标（相对视口，px） */
+  menuY: Ref<number>;
+  /** 操作菜单当前标注是否带笔记（决定首项是「转为笔记」还是「编辑笔记」） */
+  menuHasNote: Ref<boolean>;
+  /** 操作菜单当前操作的标注 id */
+  menuAnnotationId: Ref<number | null>;
   /** 当前文件的标注列表 */
   annotations: Ref<EpubAnnotation[]>;
   /** 进度持久化防抖定时器句柄 */
@@ -178,6 +188,11 @@ export function createEpubCtx(
     noteDialogVisible: ref(false),
     currentEditAnnotationId: ref(null),
     noteInput: ref(''),
+    menuVisible: ref(false),
+    menuX: ref(0),
+    menuY: ref(0),
+    menuHasNote: ref(false),
+    menuAnnotationId: ref(null),
     annotations: ref<EpubAnnotation[]>([]),
     saveTimer: null,
     locationsReady: false,

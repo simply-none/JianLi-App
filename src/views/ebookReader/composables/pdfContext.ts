@@ -150,6 +150,16 @@ export interface PdfCtx {
   currentEditAnnotationId: Ref<number | null>;
   /** 笔记编辑弹窗输入内容 */
   noteInput: Ref<string>;
+  /** 已有划线操作菜单显示状态（点击划线后弹出，提供「转为笔记」「删除」） */
+  menuVisible: Ref<boolean>;
+  /** 操作菜单定位 x 坐标（相对视口，px） */
+  menuX: Ref<number>;
+  /** 操作菜单定位 y 坐标（相对视口，px） */
+  menuY: Ref<number>;
+  /** 操作菜单当前标注是否带笔记（决定首项是「转为笔记」还是「编辑笔记」） */
+  menuHasNote: Ref<boolean>;
+  /** 操作菜单当前操作的标注 id */
+  menuAnnotationId: Ref<number | null>;
   /** 是否已销毁（组件卸载后置 true，取消进行中的渲染） */
   disposed: boolean;
   /** 进行中的每页渲染任务（page 序号 -> RenderTask），用于取消上一次未完成渲染，避免同一 canvas 并发 render */
@@ -161,7 +171,7 @@ export interface PdfCtx {
   /** 在指定页重绘划线层（render 渲染完一页后调用，highlight 增删后也可主动调用） */
   renderHighlights?: (page: number) => void;
   /** 点击划线层中的高亮块（data-id 携带标注 id）时的回调，由 usePdfHighlight 赋值 */
-  onHighlightClick?: (id: number) => void;
+  onHighlightClick?: (id: number, e?: MouseEvent) => void;
   /** 跳转到指定页码（缩放/目录/书签/搜索共用，由 usePdfRender 注册） */
   goToPage?: (page: number, smooth?: boolean) => void;
   /** 加载 PDF 目录/outline（由 usePdfOutline 注册，loadDocument 完成后调用） */
@@ -215,6 +225,11 @@ export function createPdfCtx(
     noteDialogVisible: ref(false),
     currentEditAnnotationId: ref<number | null>(null),
     noteInput: ref(''),
+    menuVisible: ref(false),
+    menuX: ref(0),
+    menuY: ref(0),
+    menuHasNote: ref(false),
+    menuAnnotationId: ref<number | null>(null),
     disposed: false,
     renderTasks: new Map(),
     initialRenderDone: false,

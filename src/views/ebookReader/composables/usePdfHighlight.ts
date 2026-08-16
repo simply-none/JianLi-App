@@ -200,6 +200,7 @@ export function usePdfHighlight(ctx: PdfCtx) {
           confirmButtonText: '保存',
           cancelButtonText: '取消',
           inputType: 'textarea',
+          appendTo: (document.fullscreenElement as HTMLElement | null) || document.body,
         });
         const note = (value || '').trim();
         if (note) {
@@ -278,6 +279,7 @@ export function usePdfHighlight(ctx: PdfCtx) {
         confirmButtonText: '删除',
         cancelButtonText: '取消',
         type: 'warning',
+        appendTo: (document.fullscreenElement as HTMLElement | null) || document.body,
       });
     } catch {
       return;
@@ -306,9 +308,9 @@ export function usePdfHighlight(ctx: PdfCtx) {
   }
 
   /**
-   * 点击已有高亮块：带笔记则进编辑弹窗，纯划线则直接删除。
+   * 点击已有高亮块：弹出操作菜单（转为笔记 / 删除），不再直接删除。
    */
-  async function onHighlightClick(annotationId: number): Promise<void> {
+  async function onHighlightClick(annotationId: number, e?: MouseEvent): Promise<void> {
     if (!annotationId) return;
     const sel = window.getSelection();
     if (sel && !sel.isCollapsed) return; // 正在选区时不误触
@@ -317,11 +319,35 @@ export function usePdfHighlight(ctx: PdfCtx) {
     if (!ann) return;
     const hasNote = !!ann.note;
 
-    if (hasNote) {
-      editAnnotationNote(ann.id);
-    } else {
-      await deleteAnnotationById(ann.id);
-    }
+    // 定位：PDF 无 iframe，点击事件的 clientX/Y 即父视口坐标，直接取为精确点击点
+    const x = e?.clientX || ctx.toolbarX.value;
+    const y = e?.clientY || ctx.toolbarY.value;
+    openAnnotationMenu(annotationId, x, y, hasNote);
+  }
+
+  /** 打开已有标注的操作菜单（提供「转为笔记」「删除」） */
+  function openAnnotationMenu(id: number, x: number, y: number, hasNote: boolean): void {
+    ctx.menuAnnotationId.value = id;
+    ctx.menuHasNote.value = hasNote;
+    ctx.menuX.value = x;
+    ctx.menuY.value = y;
+    ctx.menuVisible.value = true;
+  }
+
+  /** 菜单「转为笔记/编辑笔记」：关闭菜单并打开笔记编辑弹窗 */
+  function onMenuConvert(): void {
+    const id = ctx.menuAnnotationId.value;
+    if (id === null) return;
+    ctx.menuVisible.value = false;
+    editAnnotationNote(id);
+  }
+
+  /** 菜单「删除」：关闭菜单并走删除确认流程（复用 deleteAnnotationById） */
+  function onMenuDelete(): void {
+    const id = ctx.menuAnnotationId.value;
+    if (id === null) return;
+    ctx.menuVisible.value = false;
+    void deleteAnnotationById(id);
   }
 
   /** 按 id 移除本地划线（不调 IPC，持久化由父组件负责） */
@@ -352,5 +378,11 @@ export function usePdfHighlight(ctx: PdfCtx) {
     onMouseUp,
     removeAnnotationById,
     editAnnotationNote,
+    menuVisible: ctx.menuVisible,
+    menuX: ctx.menuX,
+    menuY: ctx.menuY,
+    menuHasNote: ctx.menuHasNote,
+    onMenuConvert,
+    onMenuDelete,
   };
 }

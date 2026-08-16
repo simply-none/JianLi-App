@@ -25,7 +25,7 @@
           :data-start="seg.globalStart"
           :class="seg.isHighlight ? getTypeClass(seg.type) : ''"
           :style="getSegmentStyle(seg)"
-          @click="seg.isHighlight && onHighlightClick(seg.annotationId, seg.note)"
+          @click="seg.isHighlight && onHighlightClick($event, seg.annotationId, seg.note)"
           >{{ seg.text }}</span
         >
       </div>
@@ -91,7 +91,6 @@
       title="编辑笔记"
       width="400px"
       :close-on-click-modal="false"
-      append-to-body
       class="annotation-note-dialog"
       @closed="onNoteDialogClosed"
     >
@@ -114,6 +113,17 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- 已有划线操作菜单：点击划线后弹出，提供「转为笔记」「删除」两个操作 -->
+    <AnnotationActionMenu
+      :visible="menuVisible"
+      :x="menuX"
+      :y="menuY"
+      :has-note="menuHasNote"
+      @convert="onMenuConvert"
+      @delete="onMenuDelete"
+      @close="menuVisible = false"
+    />
   </div>
 </template>
 
@@ -126,6 +136,8 @@ import { storeToRefs } from 'pinia';
 defineOptions({ inheritAttrs: false });
 import LucideIcon from '@/components/LucideIcon.vue';
 import AnnotationToolbar from './AnnotationToolbar.vue';
+// 已有划线操作菜单：点击划线后弹出，提供「转为笔记」「删除」两个操作
+import AnnotationActionMenu from './AnnotationActionMenu.vue';
 // 阅读设置 store：划线颜色/类型由右上角「阅读设置」预设
 import useEbookReader from '@/store/useEbookReader';
 // 渲染 / 标注逻辑 composable（共享 ctx）
@@ -249,6 +261,12 @@ const {
   saveNote,
   onHighlightClick,
   onMouseUp,
+  menuVisible,
+  menuX,
+  menuY,
+  menuHasNote,
+  onMenuConvert,
+  onMenuDelete,
 } = highlight;
 
 // 暴露跳转到划线、移除本地划线、编辑笔记方法供父组件通过 ref 调用

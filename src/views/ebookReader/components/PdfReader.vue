@@ -98,7 +98,6 @@
       title="编辑笔记"
       width="400px"
       :close-on-click-modal="false"
-      append-to-body
       class="annotation-note-dialog"
       @closed="onNoteDialogClosed"
     >
@@ -121,6 +120,17 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- 已有划线操作菜单：点击划线后弹出，提供「转为笔记」「删除」两个操作 -->
+    <AnnotationActionMenu
+      :visible="menuVisible"
+      :x="menuX"
+      :y="menuY"
+      :has-note="menuHasNote"
+      @convert="onMenuConvert"
+      @delete="onMenuDelete"
+      @close="menuVisible = false"
+    />
   </div>
 </template>
 
@@ -129,6 +139,8 @@ import { ref, watch, computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import LucideIcon from '@/components/LucideIcon.vue';
 import AnnotationToolbar from './AnnotationToolbar.vue';
+// 已有划线操作菜单：点击划线后弹出，提供「转为笔记」「删除」两个操作
+import AnnotationActionMenu from './AnnotationActionMenu.vue';
 // 阅读设置 store：划线颜色/类型由右上角「阅读设置」预设
 import useEbookReader from '@/store/useEbookReader';
 // 渲染 / 标注逻辑 composable（共享 ctx）
@@ -269,6 +281,12 @@ const {
   deleteCurrentAnnotation,
   saveNote,
   onMouseUp,
+  menuVisible,
+  menuX,
+  menuY,
+  menuHasNote,
+  onMenuConvert,
+  onMenuDelete,
 } = highlight;
 const { currentBookmarked, toggleBookmark } = bookmarks;
 

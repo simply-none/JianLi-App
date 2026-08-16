@@ -188,6 +188,9 @@ export function useEpubRender(ctx: EpubCtx) {
           doc.addEventListener('wheel', onWheelPageTurn, { passive: false });
           // 滚动模式选区自动滚动兜底：选区拖到 iframe 上下边缘时滚动内容文档
           doc.addEventListener('mousemove', onContentMouseMove, { passive: true });
+          // 点击 iframe 内非划线区域时关闭「标注操作菜单」：iframe 内 click 不会冒泡到父文档，
+          // 父文档的 document click 监听收不到，故需在此补一条（点中划线本身不关，由 cb 重新定位）
+          doc.addEventListener('click', onContentClick);
         }
         // 内容挂载后注入「字间距 / 段间距 / 首行缩进」扩展样式
         applyTypographyExtrasToContent(contents);
@@ -547,6 +550,17 @@ export function useEpubRender(ctx: EpubCtx) {
     ctx.wheelIdleTimer = setTimeout(() => {
       ctx.wheelAccum = 0;
     }, 200);
+  }
+
+  /**
+   * iframe 内容区 click 处理：点击非划线区域时关闭「标注操作菜单」。
+   * 点击划线本身（class 含 .epub-highlight）不在此关闭，由 useEpubHighlight 的 cb 重新定位菜单。
+   */
+  function onContentClick(e: MouseEvent) {
+    const target = e.target as HTMLElement | null;
+    if (target && !target.closest('.epub-highlight')) {
+      ctx.menuVisible.value = false;
+    }
   }
 
   /**

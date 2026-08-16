@@ -42,7 +42,6 @@
       title="编辑笔记"
       width="400px"
       :close-on-click-modal="false"
-      append-to-body
       class="annotation-note-dialog"
       @closed="onNoteDialogClosed"
     >
@@ -65,6 +64,17 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- 已有划线操作菜单：点击划线后弹出，提供「转为笔记」「删除」两个操作 -->
+    <AnnotationActionMenu
+      :visible="menuVisible"
+      :x="menuX"
+      :y="menuY"
+      :has-note="menuHasNote"
+      @convert="onMenuConvert"
+      @delete="onMenuDelete"
+      @close="menuVisible = false"
+    />
 
     <!-- 底部翻页控制区 -->
     <div class="epub-footer" v-show="props.bottomBarVisible !== false">
@@ -107,6 +117,8 @@ import { storeToRefs } from 'pinia';
 import LucideIcon from '@/components/LucideIcon.vue';
 // 浮动工具条组件：选中文本后弹出，提供「划线」「笔记」两个操作
 import AnnotationToolbar from './AnnotationToolbar.vue';
+// 已有划线操作菜单：点击划线后弹出，提供「转为笔记」「删除」两个操作
+import AnnotationActionMenu from './AnnotationActionMenu.vue';
 // 划线颜色/类型统一配置（颜色映射、默认值等）
 import useEbookReader from '@/store/useEbookReader';
 // 阅读设置 store：划线颜色/类型由右上角「阅读设置」预设
@@ -233,6 +245,12 @@ const {
   noteInput,
   deleteCurrentAnnotation,
   saveNote,
+  menuVisible,
+  menuX,
+  menuY,
+  menuHasNote,
+  onMenuConvert,
+  onMenuDelete,
 } = highlight;
 const { currentBookmarked, toggleBookmark } = bookmarks;
 const { printPage, hasPageList } = pageNumbers;
