@@ -145,6 +145,7 @@ export const iconMap: Record<string, string> = {
   todoList: 'CircleCheckBig',
   ttsTest: 'AudioLines',
   ebookReader: 'BookOpenText',
+  screenshot: 'Camera',
 };
 
 export { getLightColor, getDarkColor } from './color';

@@ -40,6 +40,8 @@ export const RouteNames = {
   TODO_MINI_WINDOW: "todoMiniWindow",
   TTS_TEST: "ttsTest",
   EBOOK_READER: "ebookReader",
+  SCREENSHOT: "screenshot",
+  SCREENSHOT_SELECT: "screenshotSelect",
 } as const;
 
 export type RouteNameType = typeof RouteNames[keyof typeof RouteNames];
@@ -247,6 +249,14 @@ export const layoutRouters: RouteRecordRaw[] = [
       title: "电子书阅读器",
     },
   },
+  {
+    path: "/screenshot",
+    name: RouteNames.SCREENSHOT,
+    component: () => import("@/views/screenshot/index.vue"),
+    meta: {
+      title: "截图工具",
+    },
+  },
 ];
 
 const routers: RouteRecordRaw[] = [
@@ -294,6 +304,11 @@ const routers: RouteRecordRaw[] = [
     path: "/todoMiniWindow",
     name: RouteNames.TODO_MINI_WINDOW,
     component: () => import("@/views/todoMiniWindow/index.vue"),
+  },
+  {
+    path: "/screenshotSelect",
+    name: RouteNames.SCREENSHOT_SELECT,
+    component: () => import("@/views/screenshotSelect/index.vue"),
   },
 ];
 

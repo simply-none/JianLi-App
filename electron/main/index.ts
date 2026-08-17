@@ -23,6 +23,7 @@ import { initLocation } from "./module/location.ts";
 import { initBing } from "./module/bing.ts";
 import { initTTS } from "./module/tts.ts";
 import { initEbook } from "./module/ebook.ts";
+import { initScreenshot } from "./module/screenshot.ts";
 
 registerJlocalProtocolBefore()
 
@@ -89,6 +90,8 @@ async function createWindow() {
   initTTS();
   // 电子书阅读模块
   await initEbook();
+  // 截图模块
+  initScreenshot();
 }
 
 app.whenReady().then(async () => {
