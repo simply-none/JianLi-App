@@ -30,6 +30,7 @@
       <button class="tool-btn" data-tool="rect">矩形</button>
       <button class="tool-btn" data-tool="ellipse">椭圆</button>
       <button class="tool-btn" data-tool="brush">画笔</button>
+      <button class="tool-btn" data-tool="marker">记号笔</button>
       <button class="tool-btn" data-tool="text">文字</button>
       <button class="tool-btn" data-tool="mosaic">马赛克</button>
       <button class="tool-btn" data-tool="eyedropper">吸管</button>
@@ -98,8 +99,12 @@
         <button id="rectFill" class="tbtn">填充</button>
         <button id="rectFillOpaque" class="tbtn">不透明填充</button>
       </div>
+      <div class="prow" id="markerRow" style="display:none">
+        <span class="plabel">记号笔</span>
+        <div id="markerPalette" class="swatches"></div>
+      </div>
     </div>
-    <div id="hint2">选区内可加 箭头/矩形/椭圆/画笔/文字/马赛克/吸管 · 滚轮调整：箭头/矩形/椭圆/画笔=粗细，文字=字号，马赛克=强度（上滚增大、下滚减小；选中标注时改该标注） · 吸管：移动鼠标看放大预览、滚轮或滑杆调整倍数取更精确颜色，方向键可逐像素微调定位，单击即取色并设为当前颜色（右侧「复制」按钮可将色值写入剪贴板） · 选择工具：拖选区内部可平移、拖边缘 8 手柄可缩放选区，点中标注后可拖动（四角缩放、顶部圆点旋转） · Enter 复制 · Esc 取消 · Delete 删除</div>
+    <div id="hint2">选区内可加 箭头/矩形/椭圆/画笔/记号笔/文字/马赛克/吸管 · 滚轮调整：箭头/矩形/椭圆/画笔/记号笔=粗细，文字=字号，马赛克=强度（上滚增大、下滚减小；选中标注时改该标注） · 记号笔为半透明荧光笔，属性面板可选多种预设色 · 吸管：移动鼠标看放大预览、滚轮或滑杆调整倍数取更精确颜色，方向键可逐像素微调定位，单击即取色并设为当前颜色（右侧「复制」按钮可将色值写入剪贴板） · 选择工具：拖选区内部可平移、拖边缘 8 手柄可缩放选区，点中标注后可拖动（四角缩放、顶部圆点旋转） · Enter 复制 · Esc 取消 · Delete 删除</div>
     <input id="textInput" type="text" maxlength="200" />
   </div>
 </template>
@@ -161,6 +166,8 @@ onMounted(() => {
   var rectRow = document.getElementById("rectRow");
   var rectFill = document.getElementById("rectFill");
   var rectFillOpaque = document.getElementById("rectFillOpaque");
+  var markerRow = document.getElementById("markerRow");
+  var markerPalette = document.getElementById("markerPalette");
   var eyedropperRow = document.getElementById("eyedropperRow");
   var eyedropperZoomInput = document.getElementById("eyedropperZoom");
   var eyedropperZoomVal = document.getElementById("eyedropperZoomVal");
@@ -175,11 +182,14 @@ onMounted(() => {
   // ===== 默认样式（按工具分别保存，参考 Snipaste） =====
   var PALETTE = ["#ff4d4f", "#fa8c16", "#fadb14", "#52c41a", "#13c2c2",
                  "#1890ff", "#722ed1", "#ffffff", "#000000", "#8c8c8c"];
+  // 记号笔（荧光笔）预设色：半透明覆盖，下层内容仍可见
+  var MARKER_PRESETS = ["#ffe066", "#b2f2bb", "#ffc9c9", "#a5d8ff", "#ffd8a8", "#d0bfff"];
   var DEFAULTS = {
     arrow:   { color: "#ff4d4f", lw: 4,  head: "filled", ends: "single" },
     rect:    { color: "#ff4d4f", lw: 3,  fill: "none" },
     ellipse: { color: "#ff4d4f", lw: 3,  fill: "none" },
     brush:   { color: "#ff4d4f", lw: 4 },
+    marker:  { color: "#ffe066", lw: 16, alpha: 0.4 },
     text:    { color: "#ff4d4f", bgColor: null, fontSize: 18, weight: 400, italic: false },
     mosaic:  { block: 14, mode: "mosaic" },
   };
@@ -188,6 +198,7 @@ onMounted(() => {
     rect:    { label: "粗细", min: 1,  max: 40, step: 1 },
     ellipse: { label: "粗细", min: 1,  max: 40, step: 1 },
     brush:   { label: "粗细", min: 1,  max: 60, step: 1 },
+    marker:  { label: "粗细", min: 4,  max: 60, step: 1 },
     text:    { label: "字号", min: 10, max: 80, step: 1 },
     mosaic:  { label: "强度", min: 6,  max: 40, step: 1 },
   };
@@ -315,8 +326,9 @@ onMounted(() => {
     if (!col) return;
     activeColor = col.hex;
     style.arrow.color = col.hex; style.text.color = col.hex;
-    style.rect.color = col.hex; style.ellipse.color = col.hex; style.brush.color = col.hex;
+    style.rect.color = col.hex; style.ellipse.color = col.hex; style.brush.color = col.hex; style.marker.color = col.hex;
     markSwatch(col.hex);
+    if (editTool === "marker") markMarkerSwatch(col.hex);
     if (eyedropperHex) eyedropperHex.textContent = col.hex;
   }
   // 吸管放大镜：以可调倍数放大光标周围区域，十字准星中心即取色点，并显示 hex
@@ -512,6 +524,18 @@ onMounted(() => {
     ctx.stroke();
     ctx.restore();
   }
+  // 记号笔（荧光笔）：半透明覆盖，下层内容仍可见；画法同画笔，仅 strokeStyle 带 alpha
+  function paintMarker(ctx, a, kd) {
+    if (!a.points || a.points.length === 0) return;
+    ctx.save();
+    ctx.lineWidth = a.lw * kd; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    ctx.strokeStyle = hexToRgba(a.color, a.alpha != null ? a.alpha : 0.4);
+    ctx.beginPath();
+    ctx.moveTo(a.points[0].x * kd, a.points[0].y * kd);
+    for (var i = 1; i < a.points.length; i++) ctx.lineTo(a.points[i].x * kd, a.points[i].y * kd);
+    ctx.stroke();
+    ctx.restore();
+  }
   // 应用二次变换（缩放 + 旋转）后绘制标注本身
   function withTransform(ctx, a, kd, fn) {
     var b = bbox(a);
@@ -531,6 +555,7 @@ onMounted(() => {
       else if (a.type === "rect") paintRect(ctx, a, kd);
       else if (a.type === "ellipse") paintEllipse(ctx, a, kd);
       else if (a.type === "brush") paintBrush(ctx, a, kd);
+      else if (a.type === "marker") paintMarker(ctx, a, kd);
       else if (a.type === "text") paintText(ctx, a, kd);
       else if (a.type === "mosaic") paintMosaic(ctx, a, kd, f, img);
     });
@@ -659,7 +684,7 @@ onMounted(() => {
         if (lx >= a.x && lx <= a.x + w && ly >= a.y && ly <= a.y + a.fontSize) return i;
       } else if (a.type === "rect" || a.type === "ellipse") {
         if (rectEllipseHit(a, lx, ly)) return i;
-      } else if (a.type === "brush") {
+      } else if (a.type === "brush" || a.type === "marker") {
         if (brushHit(a, lx, ly)) return i;
       } else if (a.type === "mosaic") {
         if (lx >= a.x && lx <= a.x + a.w && ly >= a.y && ly <= a.y + a.h) return i;
@@ -675,7 +700,7 @@ onMounted(() => {
     if (a.type === "text") {
       return { x: a.x - 4, y: a.y - 4, w: textWidth(a) + 8, h: a.fontSize + 8 };
     }
-    if (a.type === "brush") {
+    if (a.type === "brush" || a.type === "marker") {
       var xs = a.points.map(function (p) { return p.x; });
       var ys = a.points.map(function (p) { return p.y; });
       var minx = Math.min.apply(null, xs), miny = Math.min.apply(null, ys);
@@ -687,7 +712,7 @@ onMounted(() => {
   function moveAnnotation(a, dx, dy) {
     if (a.type === "arrow" || a.type === "rect" || a.type === "ellipse") {
       a.x1 += dx; a.y1 += dy; a.x2 += dx; a.y2 += dy;
-    } else if (a.type === "brush") {
+    } else if (a.type === "brush" || a.type === "marker") {
       for (var i = 0; i < a.points.length; i++) { a.points[i].x += dx; a.points[i].y += dy; }
     } else {
       a.x += dx; a.y += dy;
@@ -761,6 +786,10 @@ onMounted(() => {
     var s = style.brush;
     return { type: "brush", color: s.color, lw: s.lw, points: [{ x: x, y: y }] };
   }
+  function newMarker(x, y) {
+    var s = style.marker;
+    return { type: "marker", color: s.color, lw: s.lw, alpha: s.alpha, points: [{ x: x, y: y }] };
+  }
   function newMosaic(x, y, w, h) {
     var s = style.mosaic;
     return { type: "mosaic", x: x, y: y, w: w, h: h, block: s.block, mode: s.mode };
@@ -774,7 +803,7 @@ onMounted(() => {
       if (Math.hypot(d.x2 - d.x1, d.y2 - d.y1) > 3) { annotations.push(d); pushed = true; }
     } else if (d.type === "rect" || d.type === "ellipse") {
       if (Math.hypot(d.x2 - d.x1, d.y2 - d.y1) > 3) { annotations.push(d); pushed = true; }
-    } else if (d.type === "brush") {
+    } else if (d.type === "brush" || d.type === "marker") {
       if (d.points.length > 1) { annotations.push(d); pushed = true; }
     } else {
       var rr = normRect(d);
@@ -844,6 +873,12 @@ onMounted(() => {
       sw[i].classList.toggle("active", sw[i].getAttribute("data-color") === c);
     customColor.value = c;
   }
+  function markMarkerSwatch(c) {
+    if (!markerPalette) return;
+    var sw = markerPalette.querySelectorAll(".swatch");
+    for (var i = 0; i < sw.length; i++)
+      sw[i].classList.toggle("active", sw[i].getAttribute("data-color") === c);
+  }
   function markBgSwatch(c) {
     var sw = bgPalette.querySelectorAll(".swatch");
     for (var i = 0; i < sw.length; i++)
@@ -867,7 +902,7 @@ onMounted(() => {
       var cfg = SIZE_CFG[tool];
       sizeLabel2.textContent = cfg.label;
       sizeRange.min = cfg.min; sizeRange.max = cfg.max; sizeRange.step = cfg.step;
-      var v = (tool === "arrow" || tool === "rect" || tool === "ellipse" || tool === "brush")
+      var v = (tool === "arrow" || tool === "rect" || tool === "ellipse" || tool === "brush" || tool === "marker")
         ? src.lw : tool === "text" ? src.fontSize : src.block;
       sizeRange.value = v; sizeVal.textContent = v;
     } else sizeRow.style.display = "none";
@@ -881,6 +916,8 @@ onMounted(() => {
     if (eyedropperHex) eyedropperHex.style.display = isE ? "inline-block" : "none";
     if (eyedropperCopy) eyedropperCopy.style.display = isE ? "inline-block" : "none";
     rectRow.style.display = (tool === "rect" || tool === "ellipse") ? "flex" : "none";
+    markerRow.style.display = (tool === "marker") ? "flex" : "none";
+    if (tool === "marker") markMarkerSwatch(src ? (src.type === "marker" ? src.color : activeColor) : activeColor);
     if (tool === "arrow") { arrowHead.value = src.head; arrowEnds.value = src.ends; }
     if (tool === "text") { textWeight.value = String(src.weight || 400); textItalic.classList.toggle("active", !!src.italic); }
     if (tool === "mosaic") { mosaicMode.value = src.mode; }
@@ -899,8 +936,10 @@ onMounted(() => {
       renderAnno();
     }
     style.arrow.color = c; style.text.color = c;
-    style.rect.color = c; style.ellipse.color = c; style.brush.color = c;
+    style.rect.color = c; style.ellipse.color = c; style.brush.color = c; style.marker.color = c;
     markSwatch(c);
+    if (editTool === "marker" || (selectedIndex >= 0 && annotations[selectedIndex].type === "marker"))
+      markMarkerSwatch(c);
   }
   function setBgColor(c) {
     if (selectedIndex >= 0) {
@@ -918,7 +957,7 @@ onMounted(() => {
       else a.lw = v;
       renderAnno();
     }
-    if (editTool === "arrow" || editTool === "rect" || editTool === "ellipse" || editTool === "brush")
+    if (editTool === "arrow" || editTool === "rect" || editTool === "ellipse" || editTool === "brush" || editTool === "marker")
       style[editTool].lw = v;
     else if (editTool === "text") style.text.fontSize = v;
     else if (editTool === "mosaic") style.mosaic.block = v;
@@ -1204,6 +1243,7 @@ onMounted(() => {
             : editTool === "rect" ? newRect(x, y)
             : editTool === "ellipse" ? newEllipse(x, y)
             : editTool === "brush" ? newBrush(x, y)
+            : editTool === "marker" ? newMarker(x, y)
             : newMosaic(x, y, 0, 0);
   });
   // 标注阶段拖动交互（窗口级，支持拖出画布范围）：缩放 / 旋转 / 移动 / 绘制
@@ -1235,7 +1275,7 @@ onMounted(() => {
     if (drawing.type === "arrow") { drawing.x2 = x; drawing.y2 = y; }
     else if (drawing.type === "mosaic") { drawing.w = x - dragStart.x; drawing.h = y - dragStart.y; }
     else if (drawing.type === "rect" || drawing.type === "ellipse") { drawing.x2 = x; drawing.y2 = y; }
-    else if (drawing.type === "brush") { drawing.points.push({ x: x, y: y }); }
+    else if (drawing.type === "brush" || drawing.type === "marker") { drawing.points.push({ x: x, y: y }); }
     renderAnno();
   });
 
@@ -1276,6 +1316,15 @@ onMounted(() => {
     s.addEventListener("click", function () { setColor(c); });
     palette.appendChild(s);
   });
+  // 记号笔预设色：点击即设为当前记号笔颜色（半透明荧光效果）
+  if (markerPalette) {
+    MARKER_PRESETS.forEach(function (c) {
+      var s = document.createElement("span");
+      s.className = "swatch"; s.style.background = c; s.setAttribute("data-color", c);
+      s.addEventListener("click", function () { setColor(c); markMarkerSwatch(c); });
+      markerPalette.appendChild(s);
+    });
+  }
   customColor.addEventListener("input", function () { setColor(customColor.value); });
   PALETTE.forEach(function (c) {
     var s = document.createElement("span");
