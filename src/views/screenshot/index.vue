@@ -58,6 +58,7 @@
                 class="sticker-restore-select"
                 @change="onRestoreLimitChange"
               >
+                <el-option label="不恢复" :value="0" />
                 <el-option v-for="n in 20" :key="n" :label="n + ' 个'" :value="n" />
               </el-select>
             </div>
@@ -413,7 +414,7 @@ function toggleStickerPanel() {
   }
 }
 
-/** 读取「重启恢复钉屏数量」偏好（默认 1，限制 1~20） */
+/** 读取「重启恢复钉屏数量」偏好（默认 1，限制 0~20，0 = 不恢复） */
 function loadRestoreLimit() {
   window.ipcRenderer
     .handlePromise("new-sql:query", {
@@ -424,7 +425,7 @@ function loadRestoreLimit() {
       const rows = res?.success ? res.data || [] : [];
       if (rows.length) {
         const n = parseInt(rows[0].value, 10);
-        if (!isNaN(n)) restoreLimit.value = Math.min(20, Math.max(1, n));
+        if (!isNaN(n)) restoreLimit.value = Math.min(20, Math.max(0, n));
       }
     })
     .catch(() => {});
@@ -432,7 +433,8 @@ function loadRestoreLimit() {
 
 /** 修改重启恢复数量：写入 settings 表（key-value），先查后改/插，避免重复行 */
 function onRestoreLimitChange(v: number) {
-  const n = Math.min(20, Math.max(1, Number(v) || 1));
+  // 0 合法：表示「不恢复」。注意不能用 Number(v) || 1，否则 0 会被误转为 1
+  const n = Math.min(20, Math.max(0, Number(v) || 0));
   restoreLimit.value = n;
   window.ipcRenderer
     .handlePromise("new-sql:query", {
@@ -835,7 +837,8 @@ onMounted(() => {
   loadCounts();
   loadStickerOpen(); // 刷新右上角「钉屏」角标数量
   loadRestoreLimit(); // 读取「重启恢复钉屏数量」偏好（默认 1）
-  loadSources(); // 右侧面板：捕获所有屏幕 + 打开的应用窗口
+  // 关闭这个，有点卡，让其手动加载
+  // loadSources(); // 右侧面板：捕获所有屏幕 + 打开的应用窗口
   nextTick(refreshHistoryViewport);
   window.addEventListener("resize", refreshHistoryViewport);
   window.ipcRenderer.on("screenshot:result", onScreenshotResult);

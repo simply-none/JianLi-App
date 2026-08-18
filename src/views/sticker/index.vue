@@ -111,8 +111,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 6px;
-  opacity: 0;
-  transition: opacity 0.15s ease;
+  /* 关闭按钮常显，用户无需悬停即可关闭贴图 */
+  opacity: 1;
 }
 
 .sticker-zoom {
@@ -123,10 +123,6 @@ onUnmounted(() => {
   background: rgba(0, 0, 0, 0.55);
   color: #fff;
   user-select: none;
-}
-
-.sticker-root:hover .sticker-toolbar {
-  opacity: 1;
 }
 
 .sticker-btn {

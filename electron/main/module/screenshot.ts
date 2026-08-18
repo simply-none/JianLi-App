@@ -16,7 +16,7 @@ import fs from "node:fs";
 import moment from "moment";
 import { win } from "./mainWindow.ts";
 import { store } from "./store.ts";
-import { insert, del, query } from "./newSql.ts";
+import { insert, del, query, update, ensureTableExists } from "./newSql.ts";
 import {
   VITE_DEV_SERVER_URL,
   indexHtml,
@@ -386,7 +386,9 @@ async function persistScreenshot(
       fs.writeFileSync(filePath, image.toPNG());
     }
 
-    // 落库（路径 / 时间 / 动作 / 尺寸），并返回自增主键 id
+    // 落库（路径 / 时间 / 动作 / 尺寸），并返回自增主键 id。
+    // 贴图记录额外标记 sticker_status=visible：表示「应当展示」，
+    // 用户点关闭后会被更新为 closed，从而下次启动不再自动恢复。
     const ins = await insert({
       tableName: "screenshots",
       data: {
@@ -395,6 +397,7 @@ async function persistScreenshot(
         action,
         width: size.width,
         height: size.height,
+        ...(action === "sticker" ? { sticker_status: "visible" } : {}),
       },
     });
 
@@ -508,13 +511,27 @@ function openStickerWindow(
 }
 
 /**
- * 重启后自动恢复所有钉屏：读取数据库中所有 action='sticker' 的记录，
- * 把每一张重新以浮动窗口钉到桌面（Snipaste 风格）。记录被删除才会消失，
- * 仅关闭浮动窗口不会删除 DB 记录（可再次展示）。
+ * 确保 screenshots 表存在 sticker_status 列（旧库迁移）。
+ * 新贴图 insert 时也会自动建列，这里在启动恢复前显式补一次，避免旧库
+ * 从未插入过贴图时 restoreStickers 的查询因缺列而报错。
+ */
+async function ensureStickerStatusColumn() {
+  try {
+    await ensureTableExists("screenshots", ["sticker_status"]);
+  } catch {
+    /* 忽略 */
+  }
+}
+
+/**
+ * 重启后自动恢复钉屏：读取数据库中所有「应展示」的 action='sticker' 记录
+ * （sticker_status 为空或 visible，即未被用户关闭），把每一张重新以浮动窗口钉到桌面。
+ * 用户点关闭后 sticker_status 会被更新为 closed，从而下次启动不再恢复。
  */
 async function restoreStickers() {
   try {
-    // 读取「重启恢复钉屏数量」偏好（持久化在 settings 表），默认 1，限制 1~20
+    await ensureStickerStatusColumn();
+    // 读取「重启恢复钉屏数量」偏好（持久化在 settings 表），默认 1，限制 0~20（0 = 不恢复任何贴图）
     let limit = 1;
     try {
       const settingRows = await query({
@@ -523,14 +540,17 @@ async function restoreStickers() {
       });
       if (settingRows && settingRows.length) {
         const n = parseInt(settingRows[0].value, 10);
-        if (!isNaN(n)) limit = Math.min(20, Math.max(1, n));
+        if (!isNaN(n)) limit = Math.min(20, Math.max(0, n));
       }
     } catch {
       /* 读取失败则用默认 1 */
     }
+    // 用户选择 0：启动时不恢复任何贴图
+    if (limit <= 0) return;
     const rows = await query({
       tableName: "screenshots",
-      conditions: { action: "sticker" },
+      // 仅恢复未被关闭的贴图（旧记录无 sticker_status 视为 visible）
+      whereStr: "action = 'sticker' AND (sticker_status IS NULL OR sticker_status <> 'closed')",
       orderBy: "created_at",
       orderByDesc: true,
       limit,
@@ -983,7 +1003,8 @@ export function initScreenshot() {
     return { success: true, dataUrl: entry?.dataUrl || "" };
   });
 
-  // 浮动贴图窗口：关闭（用户点 × / 双击 / ESC）—— 仅销毁浮动窗口，不删除 DB 记录
+  // 浮动贴图窗口：关闭（用户点 × / 双击 / ESC）—— 销毁浮动窗口，
+  // 并把该贴图记录标记为 closed，下次启动不再自动恢复（记录仍在 DB，可再次展示）。
   ipcMain.on("sticker:close", (e) => {
     const entry = getStickerEntryBySender(e.sender.id);
     if (entry) {
@@ -992,6 +1013,14 @@ export function initScreenshot() {
         if (!entry.win.isDestroyed()) entry.win.destroy();
       } catch {
         /* noop */
+      }
+      // 更新数据库状态：closed（仅对真实 DB 记录 id 生效，负 id 为兜底无行可改）
+      if (entry.recordId > 0) {
+        update({
+          tableName: "screenshots",
+          data: { sticker_status: "closed" },
+          condition: { id: entry.recordId },
+        }).catch(() => {});
       }
     }
   });
@@ -1027,6 +1056,14 @@ export function initScreenshot() {
           { width: Number(r.width) || 200, height: Number(r.height) || 200 },
           id
         );
+        // 重新展示即标记为 visible，下次启动会恢复
+        if (id > 0) {
+          await update({
+            tableName: "screenshots",
+            data: { sticker_status: "visible" },
+            condition: { id },
+          }).catch(() => {});
+        }
         return { success: true };
       } catch (e: any) {
         return { success: false, error: e?.message || String(e) };
@@ -1034,7 +1071,7 @@ export function initScreenshot() {
     }
   );
 
-  // 按记录 id 关闭一张钉屏浮动窗口（不删除 DB 记录）
+  // 按记录 id 关闭一张钉屏浮动窗口（不删除 DB 记录，但标记为 closed 以免下次自动恢复）
   ipcMain.handle(
     "sticker:close-by-id",
     async (_e, payload: { recordId: number }) => {
@@ -1047,11 +1084,18 @@ export function initScreenshot() {
       } catch {
         /* noop */
       }
+      if (id! > 0) {
+        await update({
+          tableName: "screenshots",
+          data: { sticker_status: "closed" },
+          condition: { id: id! },
+        }).catch(() => {});
+      }
       return { success: true };
     }
   );
 
-  // 关闭所有钉屏浮动窗口
+  // 关闭所有钉屏浮动窗口（不删除 DB 记录，但统一标记为 closed 以免下次自动恢复）
   ipcMain.handle("sticker:close-all", async () => {
     const ids = Array.from(stickerWindows.keys());
     for (const id of ids) {
@@ -1061,6 +1105,13 @@ export function initScreenshot() {
         if (entry && !entry.win.isDestroyed()) entry.win.destroy();
       } catch {
         /* noop */
+      }
+      if (id > 0) {
+        await update({
+          tableName: "screenshots",
+          data: { sticker_status: "closed" },
+          condition: { id },
+        }).catch(() => {});
       }
     }
     return { success: true, count: ids.length };
