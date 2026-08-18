@@ -1020,7 +1020,7 @@ onMounted(() => {
   function showEditor(rect) {
     editor.classList.add("active");
     var tw = editor.offsetWidth || 420, th = editor.offsetHeight || 42;
-    editor.style.left = clamp(rect.x + rect.w / 2 - tw / 2, 4, W - tw - 4) + "px";
+    // editor.style.left = clamp(rect.x + rect.w / 2 - tw / 2, 4, W - tw - 4) + "px";
     editor.style.top = "8px";
   }
   function showProps() { props.classList.add("active"); }
