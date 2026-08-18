@@ -42,6 +42,7 @@ export const RouteNames = {
   EBOOK_READER: "ebookReader",
   SCREENSHOT: "screenshot",
   SCREENSHOT_SELECT: "screenshotSelect",
+  STICKER: "sticker",
 } as const;
 
 export type RouteNameType = typeof RouteNames[keyof typeof RouteNames];
@@ -309,6 +310,11 @@ const routers: RouteRecordRaw[] = [
     path: "/screenshotSelect",
     name: RouteNames.SCREENSHOT_SELECT,
     component: () => import("@/views/screenshotSelect/index.vue"),
+  },
+  {
+    path: "/sticker",
+    name: RouteNames.STICKER,
+    component: () => import("@/views/sticker/index.vue"),
   },
 ];
 

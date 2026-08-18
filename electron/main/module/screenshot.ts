@@ -48,7 +48,7 @@ import {
  *   handlePromise("screenshot:open-path", { path })         —— 系统默认程序打开截图文件
  *   handlePromise("screenshot:delete-screenshot", { id, path }) —— 删除记录（文件 + DB 行）
  *   handlePromise("screenshot:capture-sources", {})           —— 捕获所有屏幕 + 打开的应用窗口缩略图（右侧面板用）
- *   handlePromise("screenshot:persist", { dataUrl, action })  —— 直接写入缓存目录 + 落库（无弹窗），action: copy|save
+ *   handlePromise("screenshot:persist", { dataUrl, action })  —— 直接写入缓存目录 + 落库（无弹窗），action: copy|save|sticker（sticker 同 save，仅落库）
  *   on("screenshot:result", ({ dataUrl, width, height, savedPath })) —— 主进程回传截图结果
  *   截图历史：复制 / 保存 都会写入 <用户缓存目录>/screenshots 并插入 screenshots 表，
  *            截图工具页左侧栏通过 new-sql:query 分页读取（LIMIT 20, created_at DESC）。
@@ -56,7 +56,13 @@ import {
  *   send("screenshot:select-ready")                          —— 层就绪（主进程据此捕获整屏）
  *   send("screenshot:select-rect", { rect })                 —— 选区（CSS 像素，相对选框层窗口）
  *   send("screenshot:select-cancel")                         —— 取消（关闭选框层）
- *   send("screenshot:capture-region", { dataUrl, action })   —— action: copy | save（含标注的最终图）
+ *   send("screenshot:capture-region", { dataUrl, action })   —— action: copy | save | sticker（含标注的最终图；sticker 落库 + 打开浮动钉屏窗口）
+ *   浮动钉屏窗口额外 IPC（钉屏管理）：
+ *     handlePromise("sticker:list", {})            —— 返回当前已打开钉屏对应的 screenshots 记录 id 数组
+ *     handlePromise("sticker:open", { recordId })  —— 按记录 id 重新钉屏（打开浮动窗口）
+ *     handlePromise("sticker:close-by-id", { recordId }) —— 按记录 id 关闭浮动窗口（不删 DB 记录）
+ *     handlePromise("sticker:close-all", {})       —— 关闭所有钉屏浮动窗口
+ *   应用启动时会依据 screenshots 表中 action='sticker' 的记录自动恢复（重建）所有钉屏浮动窗口。
  *   on("screenshot:captured", { dataUrl, width, height, mode, rect, kind }) —— 主进程回传
  *       kind="full"：整屏冻结图（进入选区阶段）  kind="crop"：裁剪后的选区图（进入标注阶段）
  *   on("screenshot:select-error", { message })               —— 捕获失败（如未授权）
@@ -81,6 +87,17 @@ let selectMode: "region" | "full" | null = null;
 // 捕获整屏时所用的显示器（用于 full 模式预选整屏的 rect），在创建选框层之前确定
 let selectCaptureDisplay: ReturnType<typeof getTargetDisplay> | null = null;
 let currentAccel: string | null = null; // 当前已注册的全局快捷键（null = 未设置）
+
+/** 浮动「贴图」窗口集合：键为 DB 记录 id（screenshots.id），值为窗口与待显示的图（Snipaste 风格钉屏） */
+let stickerWindows = new Map<number, { win: BrowserWindow; dataUrl: string; recordId: number }>();
+
+/** 按 webContents.id 反查当前浮动贴图窗口条目（渲染进程 sticker:get/close 用 sender 匹配） */
+function getStickerEntryBySender(senderId: number) {
+  for (const entry of stickerWindows.values()) {
+    if (entry.win.webContents.id === senderId) return entry;
+  }
+  return undefined;
+}
 
 /** 把 CSS 像素选区换算为图片像素裁剪矩形 */
 function toCropRect(rect: { x: number; y: number; w: number; h: number }, scale: number) {
@@ -350,9 +367,9 @@ async function resolveShotDir(): Promise<string> {
 
 async function persistScreenshot(
   dataUrl: string,
-  action: "copy" | "save",
+  action: "copy" | "save" | "sticker",
   destPath?: string
-): Promise<{ filePath: string } | null> {
+): Promise<{ filePath: string; id?: number } | null> {
   try {
     const image = nativeImage.createFromDataURL(dataUrl);
     const size = image.getSize();
@@ -369,8 +386,8 @@ async function persistScreenshot(
       fs.writeFileSync(filePath, image.toPNG());
     }
 
-    // 落库（路径 / 时间 / 动作 / 尺寸）
-    await insert({
+    // 落库（路径 / 时间 / 动作 / 尺寸），并返回自增主键 id
+    const ins = await insert({
       tableName: "screenshots",
       data: {
         path: filePath,
@@ -381,7 +398,7 @@ async function persistScreenshot(
       },
     });
 
-    return { filePath };
+    return { filePath, id: ins?.lastID };
   } catch (e: any) {
     console.error("截图持久化失败:", e);
     return null;
@@ -393,7 +410,7 @@ async function persistScreenshot(
  * —— 复制 / 保存 都写入 cache/screenshots 并落库；保存不再弹窗。
  * @param dataUrl 选框层用 canvas 合成的最终 PNG（已裁剪到选区并叠加箭头/文字/马赛克）
  */
-async function finalizeCapture(dataUrl: string, action: "copy" | "save") {
+async function finalizeCapture(dataUrl: string, action: "copy" | "save" | "sticker") {
   try {
     const image = nativeImage.createFromDataURL(dataUrl);
     const size = image.getSize();
@@ -423,6 +440,153 @@ async function finalizeCapture(dataUrl: string, action: "copy" | "save") {
     });
   } finally {
     // 无论成败都关闭选框层
+    closeSelect();
+  }
+}
+
+/**
+ * 打开一个「浮动贴图」窗口（Snipaste 风格钉屏）：
+ * 把截图以 always-on-top 的 frameless 透明窗口钉在桌面上，可拖拽 / 滚轮缩放 / 关闭。
+ * 同时在主窗口截图历史里刷新（贴图记录已落库）。
+ */
+function openStickerWindow(
+  dataUrl: string,
+  size: { width: number; height: number },
+  recordId: number
+) {
+  // 同一记录已存在浮动窗口则聚焦，避免重复钉屏
+  const existing = stickerWindows.get(recordId);
+  if (existing) {
+    try {
+      if (!existing.win.isDestroyed()) existing.win.focus();
+    } catch {
+      /* noop */
+    }
+    return;
+  }
+  try {
+    const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+    // 初始尺寸：等比缩放到工作区的 50%×60% 以内，避免大图占满屏
+    const maxW = Math.max(120, Math.round(display.workAreaSize.width * 0.5));
+    const maxH = Math.max(120, Math.round(display.workAreaSize.height * 0.6));
+    const fit = Math.min(1, maxW / size.width, maxH / size.height);
+    const w = Math.max(80, Math.round(size.width * fit));
+    const h = Math.max(80, Math.round(size.height * fit));
+    const x = Math.round(display.bounds.x + (display.bounds.width - w) / 2);
+    const y = Math.round(display.bounds.y + (display.bounds.height - h) / 2);
+
+    const win = new BrowserWindow({
+      x,
+      y,
+      width: w,
+      height: h,
+      transparent: true,
+      frame: false,
+      resizable: true,
+      movable: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      hasShadow: false,
+      show: false,
+      webPreferences: { preload },
+    });
+    win.setAlwaysOnTop(true, "screen-saver");
+    win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+
+    stickerWindows.set(recordId, { win, dataUrl, recordId });
+    loadRoute(win, "sticker");
+
+    win.once("ready-to-show", () => {
+      if (!win.isDestroyed()) win.show();
+    });
+    win.on("closed", () => {
+      stickerWindows.delete(recordId);
+    });
+  } catch (e: any) {
+    console.error("打开贴图窗口失败:", e);
+  }
+}
+
+/**
+ * 重启后自动恢复所有钉屏：读取数据库中所有 action='sticker' 的记录，
+ * 把每一张重新以浮动窗口钉到桌面（Snipaste 风格）。记录被删除才会消失，
+ * 仅关闭浮动窗口不会删除 DB 记录（可再次展示）。
+ */
+async function restoreStickers() {
+  try {
+    // 读取「重启恢复钉屏数量」偏好（持久化在 settings 表），默认 1，限制 1~20
+    let limit = 1;
+    try {
+      const settingRows = await query({
+        tableName: "settings",
+        conditions: { name: "sticker_restore_limit" },
+      });
+      if (settingRows && settingRows.length) {
+        const n = parseInt(settingRows[0].value, 10);
+        if (!isNaN(n)) limit = Math.min(20, Math.max(1, n));
+      }
+    } catch {
+      /* 读取失败则用默认 1 */
+    }
+    const rows = await query({
+      tableName: "screenshots",
+      conditions: { action: "sticker" },
+      orderBy: "created_at",
+      orderByDesc: true,
+      limit,
+    });
+    if (!rows || !rows.length) return;
+    for (const r of rows) {
+      if (stickerWindows.has(r.id)) continue; // 已打开则跳过
+      const p: string = r.path;
+      if (!p || !fs.existsSync(p)) continue;
+      let dataUrl: string;
+      try {
+        dataUrl = "data:image/png;base64," + fs.readFileSync(p).toString("base64");
+      } catch {
+        continue;
+      }
+      try {
+        openStickerWindow(
+          dataUrl,
+          { width: Number(r.width) || 200, height: Number(r.height) || 200 },
+          r.id
+        );
+      } catch {
+        /* 单条失败不影响其余 */
+      }
+    }
+  } catch (e: any) {
+    console.error("恢复钉屏失败:", e);
+  }
+}
+
+/**
+ * 贴图动作收口：落库（action=sticker）+ 打开浮动钉屏窗口 + 通知主窗口刷新历史。
+ * 与 复制 / 保存 平行——落库逻辑复用 persistScreenshot，但不再写剪贴板、不弹保存框。
+ */
+async function finalizeSticker(dataUrl: string) {
+  try {
+    const image = nativeImage.createFromDataURL(dataUrl);
+    const size = image.getSize();
+    const rec = await persistScreenshot(dataUrl, "sticker");
+    openStickerWindow(dataUrl, size, rec?.id ?? -Date.now());
+    // 通知主窗口截图页：刷新左侧历史（新记录已落库）
+    win?.webContents.send("screenshot:result", {
+      dataUrl,
+      width: size.width,
+      height: size.height,
+      action: "sticker",
+      savedPath: rec?.filePath || "",
+    });
+  } catch (e: any) {
+    win?.webContents.send("screenshot:result", {
+      dataUrl: "",
+      width: 0,
+      height: 0,
+      error: e?.message || String(e),
+    });
+  } finally {
     closeSelect();
   }
 }
@@ -581,8 +745,14 @@ export function initScreenshot() {
   // 选框层合成图（含标注）复制/保存，并回传路由页
   ipcMain.on(
     "screenshot:capture-region",
-    (_e, payload: { dataUrl: string; action?: "copy" | "save" }) => {
-      finalizeCapture(payload.dataUrl, payload.action === "save" ? "save" : "copy");
+    (_e, payload: { dataUrl: string; action?: "copy" | "save" | "sticker" }) => {
+      // 贴图：落库 + 打开浮动钉屏窗口（Snipaste 风格），不写剪贴板、不弹保存框
+      if (payload.action === "sticker") {
+        finalizeSticker(payload.dataUrl);
+        return;
+      }
+      const action = payload.action === "save" ? "save" : "copy";
+      finalizeCapture(payload.dataUrl, action);
     }
   );
 
@@ -717,6 +887,16 @@ export function initScreenshot() {
           }
         }
         if (payload?.id) {
+          // 若该记录正以钉屏浮动窗口展示，先关闭窗口
+          const entry = stickerWindows.get(payload.id);
+          if (entry) {
+            stickerWindows.delete(payload.id);
+            try {
+              if (!entry.win.isDestroyed()) entry.win.destroy();
+            } catch {
+              /* noop */
+            }
+          }
           try {
             await del({ tableName: "screenshots", condition: { id: payload.id } });
           } catch {
@@ -778,7 +958,7 @@ export function initScreenshot() {
   // action: copy  —— 落库 + 复制到剪贴板
   ipcMain.handle(
     "screenshot:persist",
-    async (_e, payload: { dataUrl: string; action: "copy" | "save" }) => {
+    async (_e, payload: { dataUrl: string; action: "copy" | "save" | "sticker" }) => {
       try {
         if (!payload?.dataUrl) return { success: false, error: "数据为空" };
         const rec = await persistScreenshot(payload.dataUrl, payload.action);
@@ -796,4 +976,98 @@ export function initScreenshot() {
       }
     }
   );
+
+  // 浮动贴图窗口：渲染进程加载后索取要显示的图（按 webContents.id 匹配）
+  ipcMain.handle("sticker:get", async (e) => {
+    const entry = getStickerEntryBySender(e.sender.id);
+    return { success: true, dataUrl: entry?.dataUrl || "" };
+  });
+
+  // 浮动贴图窗口：关闭（用户点 × / 双击 / ESC）—— 仅销毁浮动窗口，不删除 DB 记录
+  ipcMain.on("sticker:close", (e) => {
+    const entry = getStickerEntryBySender(e.sender.id);
+    if (entry) {
+      stickerWindows.delete(entry.recordId);
+      try {
+        if (!entry.win.isDestroyed()) entry.win.destroy();
+      } catch {
+        /* noop */
+      }
+    }
+  });
+
+  // 列出当前已打开的钉屏浮动窗口对应的 DB 记录 id（渲染进程「钉屏」面板用）
+  ipcMain.handle("sticker:list", async () => {
+    return { success: true, data: Array.from(stickerWindows.keys()) };
+  });
+
+  // 按记录 id 重新展示（打开）一张钉屏浮动窗口
+  ipcMain.handle(
+    "sticker:open",
+    async (_e, payload: { recordId: number }) => {
+      try {
+        const id = payload?.recordId;
+        if (!id) return { success: false, error: "缺少 recordId" };
+        if (stickerWindows.has(id)) {
+          try {
+            const w = stickerWindows.get(id)!.win;
+            if (!w.isDestroyed()) w.focus();
+          } catch {
+            /* noop */
+          }
+          return { success: true, alreadyOpen: true };
+        }
+        const rows = await query({ tableName: "screenshots", conditions: { id } });
+        const r = rows && rows[0];
+        if (!r || !r.path || !fs.existsSync(r.path))
+          return { success: false, error: "记录或文件不存在" };
+        const dataUrl = "data:image/png;base64," + fs.readFileSync(r.path).toString("base64");
+        openStickerWindow(
+          dataUrl,
+          { width: Number(r.width) || 200, height: Number(r.height) || 200 },
+          id
+        );
+        return { success: true };
+      } catch (e: any) {
+        return { success: false, error: e?.message || String(e) };
+      }
+    }
+  );
+
+  // 按记录 id 关闭一张钉屏浮动窗口（不删除 DB 记录）
+  ipcMain.handle(
+    "sticker:close-by-id",
+    async (_e, payload: { recordId: number }) => {
+      const id = payload?.recordId;
+      const entry = id != null ? stickerWindows.get(id) : undefined;
+      if (!entry) return { success: false, error: "窗口不存在" };
+      stickerWindows.delete(id!);
+      try {
+        if (!entry.win.isDestroyed()) entry.win.destroy();
+      } catch {
+        /* noop */
+      }
+      return { success: true };
+    }
+  );
+
+  // 关闭所有钉屏浮动窗口
+  ipcMain.handle("sticker:close-all", async () => {
+    const ids = Array.from(stickerWindows.keys());
+    for (const id of ids) {
+      const entry = stickerWindows.get(id);
+      stickerWindows.delete(id);
+      try {
+        if (entry && !entry.win.isDestroyed()) entry.win.destroy();
+      } catch {
+        /* noop */
+      }
+    }
+    return { success: true, count: ids.length };
+  });
+
+  // 重启后自动恢复所有钉屏（应用就绪后再重建浮动窗口；记录仍在 DB 中即恢复）
+  app.whenReady().then(() => {
+    restoreStickers().catch((e) => console.error("恢复钉屏异常:", e));
+  });
 }

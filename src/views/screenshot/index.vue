@@ -38,6 +38,49 @@
             <el-button v-else size="small" @click="closeListen">取消</el-button>
           </template>
         </div>
+        <div class="sticker-menu">
+          <el-badge :value="stickerOpenCount" :hidden="stickerOpenCount === 0" type="warning">
+            <el-button @click.stop="toggleStickerPanel">
+              <LucideIcon name="Layers" :size="15" />
+              钉屏
+            </el-button>
+          </el-badge>
+          <div v-if="stickerPanelOpen" class="sticker-dropdown" @click.stop>
+            <div class="sticker-dropdown-head">
+              <span>最近 5 个钉屏</span>
+              <button class="link-btn" @click="closeAllStickers">全部关闭</button>
+            </div>
+            <div class="sticker-restore">
+              <span class="sticker-restore-label">重启恢复</span>
+              <el-select
+                v-model="restoreLimit"
+                size="small"
+                class="sticker-restore-select"
+                @change="onRestoreLimitChange"
+              >
+                <el-option v-for="n in 20" :key="n" :label="n + ' 个'" :value="n" />
+              </el-select>
+            </div>
+            <div v-if="!stickerRecent.length" class="sticker-empty">暂无钉屏记录</div>
+            <div v-for="item in stickerRecent" :key="item.id" class="sticker-row">
+              <img :src="stickerThumb(item)" class="sticker-mini" draggable="false" @error="onThumbError" />
+              <div class="sticker-info">
+                <div class="history-time sticker-time">{{ item.created_at }}</div>
+                <span :class="['sticker-state', isStickerOpen(item.id) ? 'on' : 'off']">
+                  {{ isStickerOpen(item.id) ? '展示中' : '已关闭' }}
+                </span>
+              </div>
+              <el-button
+                v-if="isStickerOpen(item.id)"
+                size="small"
+                type="danger"
+                plain
+                @click="closeSticker(item)"
+              >关闭</el-button>
+              <el-button v-else size="small" type="primary" plain @click="showSticker(item)">展示</el-button>
+            </div>
+          </div>
+        </div>
         <el-button type="primary" :loading="capturing" @click="startCapture">
           <LucideIcon name="Webcam" :size="15" />
           截图
@@ -51,7 +94,18 @@
         <div class="panel-title">
           <LucideIcon name="History" :size="15" />
           <span>截图记录</span>
-          <span v-if="historyList.length" class="dim-badge">{{ historyList.length }}</span>
+        </div>
+        <!-- 按 action 分类筛选 -->
+        <div class="history-filter">
+          <button
+            v-for="f in filterOptions"
+            :key="f.value"
+            :class="['filter-tab', { active: historyFilter === f.value }]"
+            @click="setFilter(f.value)"
+          >
+            {{ f.label }}
+            <span class="filter-count">{{ f.count }}</span>
+          </button>
         </div>
         <div class="history-scroll" ref="viewportRef" @scroll="onHistoryScroll">
           <div class="history-spacer" :style="{ height: historyTotalH + 'px' }">
@@ -75,10 +129,10 @@
                 <div class="history-sub">
                   <el-tag
                     size="small"
-                    :type="v.item.action === 'copy' ? 'info' : 'success'"
+                    :type="v.item.action === 'copy' ? 'info' : v.item.action === 'sticker' ? 'warning' : 'success'"
                     effect="plain"
                   >
-                    {{ v.item.action === 'copy' ? '复制' : '保存' }}
+                    {{ v.item.action === 'copy' ? '复制' : v.item.action === 'sticker' ? '贴图' : '保存' }}
                   </el-tag>
                   <span class="history-size" v-if="v.item.width">
                     {{ v.item.width }}×{{ v.item.height }}
@@ -248,6 +302,14 @@ const shortcut = ref<string | null>(null);
 const listening = ref(false);
 const pendingAccel = ref<string | null>(null);
 
+// 钉屏（浮动窗口）管理：右上角按钮 + 下拉面板
+const stickerPanelOpen = ref(false);
+const stickerRecent = ref<any[]>([]);
+const stickerOpenIds = ref<number[]>([]);
+const stickerOpenCount = computed(() => stickerOpenIds.value.length);
+// 重启后自动恢复的钉屏数量上限（持久化在 settings 表，默认 1，范围 1~20）
+const restoreLimit = ref(1);
+
 /* ----------------------------- 截图历史（左侧栏） ----------------------------- */
 const ITEM_HEIGHT = 96; // 每条记录固定高度（含间隔）
 const HISTORY_PAGE = 20; // 每页条数
@@ -258,6 +320,9 @@ const historyOffset = ref(0);
 const historyScrollTop = ref(0);
 const historyViewportH = ref(0);
 const viewportRef = ref<HTMLElement | null>(null);
+// 按 action 分类筛选："" = 全部；copy / save / sticker
+const historyFilter = ref<string>("");
+const historyCounts = ref<Record<string, number>>({});
 
 const startIdx = computed(() =>
   Math.max(0, Math.floor(historyScrollTop.value / ITEM_HEIGHT) - 3)
@@ -275,7 +340,161 @@ const visibleHistory = computed(() =>
 );
 const historyTotalH = computed(() => historyList.value.length * ITEM_HEIGHT);
 
-/** 分页读取 screenshots 表（created_at 倒序） */
+/** 各分类筛选项（含数量），用于顶部「按 action 分类展示」 */
+const filterOptions = computed(() => {
+  const c = historyCounts.value || {};
+  const total = (c.copy || 0) + (c.save || 0) + (c.sticker || 0);
+  return [
+    { value: "", label: "全部", count: total },
+    { value: "copy", label: "复制", count: c.copy || 0 },
+    { value: "save", label: "保存", count: c.save || 0 },
+    { value: "sticker", label: "贴图", count: c.sticker || 0 },
+  ];
+});
+
+/** 切换分类筛选 */
+function setFilter(v: string) {
+  if (historyFilter.value === v) return;
+  historyFilter.value = v;
+  loadHistory(true);
+}
+
+/** 统计各 action 的记录数（顶部 tab 角标用） */
+function loadCounts() {
+  window.ipcRenderer
+    .handlePromise("new-sql:query", {
+      tableName: "screenshots",
+      SqlStr: "SELECT action, COUNT(*) as c FROM screenshots GROUP BY action",
+    })
+    .then((res: any) => {
+      const map: Record<string, number> = {};
+      (res?.data || []).forEach((r: any) => {
+        map[r.action] = r.c;
+      });
+      historyCounts.value = map;
+    })
+    .catch(() => {});
+}
+
+/* ----------------------------- 钉屏（浮动钉屏窗口）管理 ----------------------------- */
+/** 读取最近 5 条钉屏记录（DB 中 action='sticker'） */
+function loadStickerRecent() {
+  window.ipcRenderer
+    .handlePromise("new-sql:query", {
+      tableName: "screenshots",
+      conditions: { action: "sticker" },
+      columns: ["id", "path", "created_at", "width", "height"],
+      orderBy: "created_at",
+      orderByDesc: true,
+      limit: 5,
+    })
+    .then((res: any) => {
+      stickerRecent.value = res?.success ? res.data || [] : [];
+    })
+    .catch(() => {});
+}
+
+/** 读取当前已打开的钉屏浮动窗口对应的记录 id */
+function loadStickerOpen() {
+  window.ipcRenderer
+    .handlePromise("sticker:list", {})
+    .then((res: any) => {
+      stickerOpenIds.value = res?.success ? res.data || [] : [];
+    })
+    .catch(() => {});
+}
+
+function toggleStickerPanel() {
+  stickerPanelOpen.value = !stickerPanelOpen.value;
+  if (stickerPanelOpen.value) {
+    loadStickerRecent();
+    loadStickerOpen();
+    loadRestoreLimit();
+  }
+}
+
+/** 读取「重启恢复钉屏数量」偏好（默认 1，限制 1~20） */
+function loadRestoreLimit() {
+  window.ipcRenderer
+    .handlePromise("new-sql:query", {
+      tableName: "settings",
+      conditions: { name: "sticker_restore_limit" },
+    })
+    .then((res: any) => {
+      const rows = res?.success ? res.data || [] : [];
+      if (rows.length) {
+        const n = parseInt(rows[0].value, 10);
+        if (!isNaN(n)) restoreLimit.value = Math.min(20, Math.max(1, n));
+      }
+    })
+    .catch(() => {});
+}
+
+/** 修改重启恢复数量：写入 settings 表（key-value），先查后改/插，避免重复行 */
+function onRestoreLimitChange(v: number) {
+  const n = Math.min(20, Math.max(1, Number(v) || 1));
+  restoreLimit.value = n;
+  window.ipcRenderer
+    .handlePromise("new-sql:query", {
+      tableName: "settings",
+      conditions: { name: "sticker_restore_limit" },
+    })
+    .then((res: any) => {
+      const rows = res?.success ? res.data || [] : [];
+      const payload = { tableName: "settings", data: { name: "sticker_restore_limit", value: String(n) } };
+      if (rows.length) {
+        return window.ipcRenderer.handlePromise("new-sql:update", {
+          tableName: "settings",
+          data: { value: String(n) },
+          condition: { name: "sticker_restore_limit" },
+        });
+      }
+      return window.ipcRenderer.handlePromise("new-sql:insert", payload);
+    })
+    .catch(() => {});
+}
+
+function isStickerOpen(id: number) {
+  return stickerOpenIds.value.includes(id);
+}
+
+function showSticker(item: any) {
+  window.ipcRenderer
+    .handlePromise("sticker:open", { recordId: item.id })
+    .then(() => loadStickerOpen())
+    .catch(() => {});
+}
+
+function closeSticker(item: any) {
+  window.ipcRenderer
+    .handlePromise("sticker:close-by-id", { recordId: item.id })
+    .then(() => loadStickerOpen())
+    .catch(() => {});
+}
+
+function closeAllStickers() {
+  window.ipcRenderer
+    .handlePromise("sticker:close-all", {})
+    .then(() => {
+      loadStickerOpen();
+      loadStickerRecent();
+    })
+    .catch(() => {});
+}
+
+function stickerThumb(item: any) {
+  return fileUrl(item.path);
+}
+
+/** 点击面板外部时收起下拉 */
+function onDocClick(e: MouseEvent) {
+  if (!stickerPanelOpen.value) return;
+  const t = e.target as HTMLElement;
+  if (t && t.closest && t.closest(".sticker-menu")) return;
+  stickerPanelOpen.value = false;
+}
+
+/** 分页读取 screenshots 表（created_at 倒序；按 action 分类筛选） */
 function loadHistory(reset = false) {
   if (historyLoading.value) return;
   if (reset) {
@@ -285,9 +504,11 @@ function loadHistory(reset = false) {
   }
   if (!historyHasMore.value) return;
   historyLoading.value = true;
+  const conditions = historyFilter.value ? { action: historyFilter.value } : undefined;
   window.ipcRenderer
     .handlePromise("new-sql:query", {
       tableName: "screenshots",
+      conditions,
       orderBy: "created_at",
       orderByDesc: true,
       limit: HISTORY_PAGE,
@@ -344,6 +565,7 @@ function deleteHistory(item: any) {
       if (res?.success) {
         ElMessage.success("已删除");
         loadHistory(true);
+        loadCounts();
       } else {
         ElMessage.error("删除失败：" + (res?.error || ""));
       }
@@ -517,6 +739,7 @@ function persistSource(s: any, action: "copy" | "save") {
         );
         // 刷新左侧历史（新记录已落库）
         loadHistory(true);
+        loadCounts();
       } else {
         ElMessage.error("保存失败：" + (res?.error || "未知错误"));
       }
@@ -566,11 +789,16 @@ function onScreenshotResult(_e: any, payload: any) {
     ElMessage.success("已截取并复制到剪贴板");
   } else if (payload?.action === "save") {
     ElMessage.success("已截取并保存到缓存目录");
+  } else if (payload?.action === "sticker") {
+    ElMessage.success("已贴图到桌面（浮动窗口）+ 已保存记录");
+    loadStickerRecent();
+    loadStickerOpen();
   } else {
     ElMessage.success("截图完成");
   }
   // 刷新左侧历史（新记录已落库）
   loadHistory(true);
+  loadCounts();
 }
 
 function copyImage() {
@@ -604,15 +832,20 @@ onMounted(() => {
   loadDisplays();
   loadShortcut();
   loadHistory();
+  loadCounts();
+  loadStickerOpen(); // 刷新右上角「钉屏」角标数量
+  loadRestoreLimit(); // 读取「重启恢复钉屏数量」偏好（默认 1）
   loadSources(); // 右侧面板：捕获所有屏幕 + 打开的应用窗口
   nextTick(refreshHistoryViewport);
   window.addEventListener("resize", refreshHistoryViewport);
   window.ipcRenderer.on("screenshot:result", onScreenshotResult);
+  document.addEventListener("click", onDocClick);
 });
 
 onUnmounted(() => {
   window.ipcRenderer.off?.("screenshot:result", onScreenshotResult);
   window.removeEventListener("resize", refreshHistoryViewport);
+  document.removeEventListener("click", onDocClick);
   closeListen();
 });
 </script>
@@ -755,6 +988,52 @@ onUnmounted(() => {
 
 /* 左侧历史：虚拟列表 */
 .history-panel {
+  /* 按 action 分类筛选 tab */
+  .history-filter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
+
+    .filter-tab {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      font-size: 12px;
+      line-height: 1.4;
+      color: var(--text-secondary);
+      background: var(--bg-base);
+      border: 1px solid var(--border-subtle);
+      border-radius: 999px;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.15s ease;
+
+      &:hover {
+        border-color: var(--color-primary);
+      }
+
+      &.active {
+        color: #fff;
+        background: var(--color-primary);
+        border-color: var(--color-primary);
+      }
+
+      .filter-count {
+        font-size: 11px;
+        opacity: 0.75;
+        padding: 0 5px;
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.08);
+
+        .filter-tab.active & {
+          background: rgba(255, 255, 255, 0.25);
+        }
+      }
+    }
+  }
+
   .history-scroll {
     flex: 1;
     min-height: 0;
@@ -999,6 +1278,119 @@ onUnmounted(() => {
     gap: 4px;
     font-size: 12px;
     color: var(--text-muted);
+  }
+}
+
+/* 钉屏管理（右上角按钮 + 下拉面板） */
+.sticker-menu {
+  position: relative;
+  flex: 0 0 auto;
+
+  .sticker-dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 50;
+    width: 268px;
+    max-height: 340px;
+    overflow-y: auto;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-card);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+    padding: 10px;
+
+    .sticker-dropdown-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+
+      .link-btn {
+        border: none;
+        background: none;
+        color: var(--color-primary);
+        font-size: 12px;
+        cursor: pointer;
+        padding: 0;
+      }
+    }
+
+    .sticker-restore {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 0;
+      margin-bottom: 4px;
+      border-bottom: 1px solid var(--border-subtle);
+
+      .sticker-restore-label {
+        font-size: 13px;
+        color: var(--text-secondary);
+        white-space: nowrap;
+      }
+
+      .sticker-restore-select {
+        width: 88px;
+      }
+    }
+
+    .sticker-empty {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-align: center;
+      padding: 16px 0;
+    }
+
+    .sticker-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 0;
+      border-top: 1px solid var(--border-subtle);
+
+      .sticker-mini {
+        width: 44px;
+        height: 44px;
+        object-fit: cover;
+        border-radius: 4px;
+        background: var(--bg-base);
+        border: 1px solid var(--border-subtle);
+        flex-shrink: 0;
+      }
+
+      .sticker-info {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+
+        .sticker-time {
+          font-size: 12px;
+          color: var(--text-primary);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .sticker-state {
+          font-size: 11px;
+
+          &.on { color: var(--el-color-success, #67c23a); }
+          &.off { color: var(--text-muted); }
+        }
+      }
+
+      .el-button {
+        margin-left: 0 !important;
+        flex-shrink: 0;
+      }
+    }
   }
 }
 </style>

@@ -39,6 +39,7 @@
       <span class="divider"></span>
       <button class="act primary" data-act="copy">复制</button>
       <button class="act" data-act="save">保存</button>
+      <button class="act" data-act="sticker">贴图</button>
       <button class="act" data-act="reset">重选</button>
       <button class="act" data-act="cancel">取消</button>
     </div>
@@ -1116,6 +1117,11 @@ onMounted(() => {
     if (!img) return;
     ipc.send("screenshot:capture-region", { dataUrl: composeFinalImage(), action: "save" });
   }
+  function doSticker() {
+    if (!img) return;
+    // 贴图：与复制/保存一致，合成最终图并落库（action=sticker）
+    ipc.send("screenshot:capture-region", { dataUrl: composeFinalImage(), action: "sticker" });
+  }
 
   // ====================== 事件 ======================
   window.addEventListener("mousedown", function (e) {
@@ -1321,6 +1327,7 @@ onMounted(() => {
     var act = btn.getAttribute("data-act");
     if (act === "copy") doCopy();
     else if (act === "save") doSave();
+    else if (act === "sticker") doSticker();
     else if (act === "reset") { selectedIndex = -1; resetSelection(); }
     else if (act === "cancel") { selectedIndex = -1; ipc.send("screenshot:select-cancel"); }
   });
