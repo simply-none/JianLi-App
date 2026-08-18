@@ -402,9 +402,11 @@ onMounted(() => {
     var lw = a.lw * kd;
     var head = lw * 4;
     var spread = Math.PI / 7;
-    // 箭头躯干应停在三角形底边处，避免粗线圆帽顶出箭头。
-    // shaftInset = 从箭头顶点到躯干末端的距离。
-    var shaftInset = head * Math.cos(spread) - lw / 2;
+    var isFilled = a.head !== "hollow";
+    // 实心箭头：圆帽补到三角形底边，被填充区域盖住，看不出外溢。
+    // 空心箭头：必须用平帽停在三角形底边，否则圆帽会填充空心内部。
+    var baseDepth = head * Math.cos(spread);
+    var shaftInset = isFilled ? baseDepth - lw / 2 : baseDepth;
     if (shaftInset < 0) shaftInset = 0;
 
     var ang = Math.atan2(a.y2 - a.y1, a.x2 - a.x1);
@@ -414,7 +416,7 @@ onMounted(() => {
     var totalInset = shaftInset * (isDouble ? 2 : 1);
 
     ctx.save();
-    ctx.lineWidth = lw; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    ctx.lineWidth = lw; ctx.lineCap = isFilled ? "round" : "butt"; ctx.lineJoin = "round";
     ctx.strokeStyle = a.color; ctx.fillStyle = a.color;
 
     // 仅当长度够两个箭头 + 躯干时才画线；否则只画箭头
