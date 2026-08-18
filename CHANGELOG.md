@@ -2,7 +2,28 @@
 
 变更日志
 
-## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.8.15-rc.1...HEAD) (2026-08-16)
+## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.8.16-rc.1...HEAD) (2026-08-18)
+
+### ✨ Features | 新功能
+
+* 贴图功能优化，增加贴图数量及其样式 ([ad7f940](https://github.com/simply-none/JianLi-App/commit/ad7f9408cc3990ba395d8bb4d63f610266a5e6a8))
+* 截图增加贴图功能 ([30714df](https://github.com/simply-none/JianLi-App/commit/30714df73915ea1b308f35b2813b7f9cb9a8e194))
+* 截图增加橡皮擦功能 ([a73f8d4](https://github.com/simply-none/JianLi-App/commit/a73f8d416914c077dd795a185c737532b2568f55))
+* 截图增加记号笔标注 ([fa6e23e](https://github.com/simply-none/JianLi-App/commit/fa6e23e836b53446da671d7bcc1bc0993163d770))
+* 截图工具增加吸管功能 ([060c5d7](https://github.com/simply-none/JianLi-App/commit/060c5d79ab6d20e17d29d92d0943fa2185728151))
+* 截图工具路由页功能优化，增加截图记录、当前截图结果、显示器与窗口功能 ([795f980](https://github.com/simply-none/JianLi-App/commit/795f980ae4f6aa139fca107c1713e310c6c85566))
+* 优化截图的表现 ([f75b913](https://github.com/simply-none/JianLi-App/commit/f75b91384bd235675667507a26dc5bed602ca412))
+* 增加截图功能 ([14e87fb](https://github.com/simply-none/JianLi-App/commit/14e87fbc9f4a0f81564b25c34e86ff159936a671))
+
+### 🐛 Bug Fixes | Bug 修复
+
+* 修复截图铺不满整屏，少了任务栏的问题 ([df5ac50](https://github.com/simply-none/JianLi-App/commit/df5ac50a68d65f7b88b01e89dee0abdaf824330b))
+* 截图标注增加滚轮效果 ([ef33fed](https://github.com/simply-none/JianLi-App/commit/ef33fed424737d4808c444948fa8f273c12550af))
+* 矩形标注优化 ([60408c2](https://github.com/simply-none/JianLi-App/commit/60408c259f5f04c57dc2060332cd9de822b1dd5e))
+* 箭头标注优化 ([1f32f62](https://github.com/simply-none/JianLi-App/commit/1f32f626e1cd68f3429d9031de442907730ca073))
+* 修复截图标注内容不显示的问题 ([e2f0400](https://github.com/simply-none/JianLi-App/commit/e2f04001bf820e9b818f9abbda361f87eff62052))
+
+## [v26.8.16-rc.1](https://github.com/simply-none/JianLi-App/compare/v26.8.15-rc.1...v26.8.16-rc.1) (2026-08-16)
 
 ### ✨ Features | 新功能
 
