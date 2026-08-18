@@ -46,7 +46,61 @@
     </div>
 
     <div class="page-body">
-      <!-- 左侧：结果与操作 -->
+      <!-- 左侧：截图历史（虚拟列表，触底加载） -->
+      <section class="history-panel">
+        <div class="panel-title">
+          <LucideIcon name="History" :size="15" />
+          <span>截图记录</span>
+          <span v-if="historyList.length" class="dim-badge">{{ historyList.length }}</span>
+        </div>
+        <div class="history-scroll" ref="viewportRef" @scroll="onHistoryScroll">
+          <div class="history-spacer" :style="{ height: historyTotalH + 'px' }">
+            <div
+              v-for="v in visibleHistory"
+              :key="(v.item.id ?? 'n') + '-' + v.index"
+              class="history-item"
+              :style="{
+                transform: `translateY(${v.index * ITEM_HEIGHT}px)`,
+                height: ITEM_HEIGHT + 'px',
+              }"
+            >
+              <img
+                :src="fileUrl(v.item.path)"
+                class="history-thumb"
+                draggable="false"
+                @error="onThumbError"
+              />
+              <div class="history-meta">
+                <div class="history-time">{{ v.item.created_at || '—' }}</div>
+                <div class="history-sub">
+                  <el-tag
+                    size="small"
+                    :type="v.item.action === 'copy' ? 'info' : 'success'"
+                    effect="plain"
+                  >
+                    {{ v.item.action === 'copy' ? '复制' : '保存' }}
+                  </el-tag>
+                  <span class="history-size" v-if="v.item.width">
+                    {{ v.item.width }}×{{ v.item.height }}
+                  </span>
+                </div>
+              </div>
+              <div class="history-ops">
+                <el-button size="small" @click="openHistory(v.item)">打开</el-button>
+                <el-button size="small" type="danger" plain @click="deleteHistory(v.item)">删除</el-button>
+              </div>
+            </div>
+          </div>
+          <div v-if="historyLoading" class="history-tip">加载中…</div>
+          <div v-else-if="!historyHasMore && historyList.length" class="history-tip">没有更多了</div>
+          <div v-if="!historyList.length && !historyLoading" class="history-tip history-empty">
+            <LucideIcon name="ImageOff" :size="28" />
+            <p>暂无截图记录</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 中间：结果与操作 -->
       <section class="result-panel">
         <div class="panel-title">
           <LucideIcon name="Image" :size="15" />
@@ -80,13 +134,66 @@
         </div>
       </section>
 
-      <!-- 右侧：显示器信息 -->
+      <!-- 右侧：显示器与窗口截图 -->
       <aside class="display-panel">
         <div class="panel-title">
           <LucideIcon name="MonitorDot" :size="15" />
-          <span>显示器信息（{{ displays.length }}）</span>
+          <span>显示器与窗口</span>
+          <el-button
+            size="small"
+            :loading="sourcesLoading"
+            class="refresh-btn"
+            @click="loadSources"
+          >
+            <LucideIcon name="RefreshCw" :size="13" />
+            刷新
+          </el-button>
         </div>
         <el-scrollbar class="display-scroll">
+          <!-- 所有屏幕 / 打开应用的截图 -->
+          <div v-if="sourcesLoading" class="source-tip">正在捕获截图…</div>
+          <div v-else-if="!sources.length" class="source-tip source-empty">
+            <LucideIcon name="ImageOff" :size="26" />
+            <p>点击右上角「刷新」获取屏幕与应用截图</p>
+          </div>
+          <div
+            v-for="s in sources"
+            :key="s.id"
+            class="source-card"
+          >
+            <div class="source-head">
+              <el-tag
+                size="small"
+                :type="s.type === 'screen' ? 'primary' : 'info'"
+                effect="plain"
+              >
+                {{ s.type === 'screen' ? '屏幕' : '窗口' }}
+              </el-tag>
+              <span class="source-name" :title="s.name">{{ s.name }}</span>
+            </div>
+            <img
+              :src="s.dataUrl"
+              class="source-thumb"
+              draggable="false"
+              @error="onSourceError"
+            />
+            <div class="source-ops">
+              <el-button size="small" type="primary" @click="persistSource(s, 'copy')">
+                <LucideIcon name="ClipboardCopy" :size="13" />
+                复制
+              </el-button>
+              <el-button size="small" @click="persistSource(s, 'save')">
+                <LucideIcon name="Download" :size="13" />
+                保存
+              </el-button>
+            </div>
+          </div>
+
+          <!-- 显示器静态信息（保留） -->
+          <div class="display-static-title">
+            <LucideIcon name="Monitor" :size="13" />
+            显示器信息（{{ displays.length }}）
+          </div>
           <div
             v-for="d in displays"
             :key="d.id"
@@ -110,7 +217,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted, nextTick } from "vue";
 import { ElMessage } from "element-plus";
 import LucideIcon from "@/components/LucideIcon.vue";
 
@@ -124,6 +231,10 @@ interface DisplayInfo {
 }
 
 const displays = ref<DisplayInfo[]>([]);
+const sources = ref<
+  { id: string; name: string; type: "screen" | "window"; dataUrl: string; width: number; height: number }[]
+>([]);
+const sourcesLoading = ref(false);
 const preview = ref<string>("");
 const imgWidth = ref(0);
 const imgHeight = ref(0);
@@ -137,6 +248,114 @@ const shortcut = ref<string | null>(null);
 const listening = ref(false);
 const pendingAccel = ref<string | null>(null);
 
+/* ----------------------------- 截图历史（左侧栏） ----------------------------- */
+const ITEM_HEIGHT = 96; // 每条记录固定高度（含间隔）
+const HISTORY_PAGE = 20; // 每页条数
+const historyList = ref<any[]>([]);
+const historyLoading = ref(false);
+const historyHasMore = ref(true);
+const historyOffset = ref(0);
+const historyScrollTop = ref(0);
+const historyViewportH = ref(0);
+const viewportRef = ref<HTMLElement | null>(null);
+
+const startIdx = computed(() =>
+  Math.max(0, Math.floor(historyScrollTop.value / ITEM_HEIGHT) - 3)
+);
+const endIdx = computed(() =>
+  Math.min(
+    historyList.value.length,
+    Math.ceil((historyScrollTop.value + historyViewportH.value) / ITEM_HEIGHT) + 3
+  )
+);
+const visibleHistory = computed(() =>
+  historyList.value
+    .slice(startIdx.value, endIdx.value)
+    .map((item, i) => ({ item, index: startIdx.value + i }))
+);
+const historyTotalH = computed(() => historyList.value.length * ITEM_HEIGHT);
+
+/** 分页读取 screenshots 表（created_at 倒序） */
+function loadHistory(reset = false) {
+  if (historyLoading.value) return;
+  if (reset) {
+    historyList.value = [];
+    historyOffset.value = 0;
+    historyHasMore.value = true;
+  }
+  if (!historyHasMore.value) return;
+  historyLoading.value = true;
+  window.ipcRenderer
+    .handlePromise("new-sql:query", {
+      tableName: "screenshots",
+      orderBy: "created_at",
+      orderByDesc: true,
+      limit: HISTORY_PAGE,
+      offset: historyOffset.value,
+    })
+    .then((res: any) => {
+      const rows: any[] = res?.success ? res.data || [] : [];
+      historyList.value.push(...rows);
+      historyOffset.value += rows.length;
+      if (rows.length < HISTORY_PAGE) historyHasMore.value = false;
+    })
+    .catch(() => {})
+    .finally(() => (historyLoading.value = false));
+}
+
+function onHistoryScroll(e: Event) {
+  const el = e.target as HTMLElement;
+  historyScrollTop.value = el.scrollTop;
+  historyViewportH.value = el.clientHeight;
+  if (
+    historyHasMore.value &&
+    !historyLoading.value &&
+    el.scrollTop + el.clientHeight >= historyTotalH.value - ITEM_HEIGHT * 2
+  ) {
+    loadHistory();
+  }
+}
+
+/** 把磁盘绝对路径转成渲染进程可加载的 file:// URL */
+function fileUrl(p?: string): string {
+  if (!p) return "";
+  const fp = p.replace(/\\/g, "/");
+  return "file:///" + encodeURI(fp);
+}
+
+function onThumbError(e: Event) {
+  (e.target as HTMLImageElement).style.visibility = "hidden";
+}
+
+function openHistory(item: any) {
+  if (!item?.path) return;
+  window.ipcRenderer
+    .handlePromise("screenshot:open-path", { path: item.path })
+    .then((res: any) => {
+      if (!res?.success) ElMessage.error("打开失败：" + (res?.error || ""));
+    })
+    .catch((err: any) => ElMessage.error("打开异常：" + (err?.message || err)));
+}
+
+function deleteHistory(item: any) {
+  window.ipcRenderer
+    .handlePromise("screenshot:delete-screenshot", { id: item.id, path: item.path })
+    .then((res: any) => {
+      if (res?.success) {
+        ElMessage.success("已删除");
+        loadHistory(true);
+      } else {
+        ElMessage.error("删除失败：" + (res?.error || ""));
+      }
+    })
+    .catch((err: any) => ElMessage.error("删除异常：" + (err?.message || err)));
+}
+
+function refreshHistoryViewport() {
+  historyViewportH.value = viewportRef.value?.clientHeight || 0;
+}
+
+/* ----------------------------- 快捷键相关 ----------------------------- */
 /** 把 Electron accelerator 翻译成中文 / Mac 符号显示 */
 function displayAccel(accel: string | null): string {
   if (!accel) return "";
@@ -270,6 +489,45 @@ function loadDisplays() {
     .catch(() => {});
 }
 
+/** 捕获所有屏幕 + 打开的应用窗口缩略图（右侧面板） */
+function loadSources() {
+  if (sourcesLoading.value) return;
+  sourcesLoading.value = true;
+  window.ipcRenderer
+    .handlePromise("screenshot:capture-sources", {})
+    .then((res: any) => {
+      if (res?.success) {
+        sources.value = res.data || [];
+      } else {
+        ElMessage.error("捕获屏幕/窗口失败：" + (res?.error || "未知错误"));
+      }
+    })
+    .catch((err: any) => ElMessage.error("捕获异常：" + (err?.message || err)))
+    .finally(() => (sourcesLoading.value = false));
+}
+
+/** 直接把某张来源截图写入缓存目录 + 落库（无弹窗）；action=copy 同时复制到剪贴板 */
+function persistSource(s: any, action: "copy" | "save") {
+  window.ipcRenderer
+    .handlePromise("screenshot:persist", { dataUrl: s.dataUrl, action })
+    .then((res: any) => {
+      if (res?.success) {
+        ElMessage.success(
+          action === "copy" ? "已复制到剪贴板并保存" : "已保存到截图记录"
+        );
+        // 刷新左侧历史（新记录已落库）
+        loadHistory(true);
+      } else {
+        ElMessage.error("保存失败：" + (res?.error || "未知错误"));
+      }
+    })
+    .catch((err: any) => ElMessage.error("保存异常：" + (err?.message || err)));
+}
+
+function onSourceError(e: Event) {
+  (e.target as HTMLImageElement).style.visibility = "hidden";
+}
+
 function launchCapture() {
   capturing.value = true;
   window.ipcRenderer
@@ -292,7 +550,7 @@ function launchCapture() {
 }
 
 function startCapture() {
-    launchCapture();
+  launchCapture();
 }
 
 // 主进程回传截图结果
@@ -307,10 +565,12 @@ function onScreenshotResult(_e: any, payload: any) {
   if (payload?.action === "copy") {
     ElMessage.success("已截取并复制到剪贴板");
   } else if (payload?.action === "save") {
-    ElMessage.success("已截取并打开保存对话框");
+    ElMessage.success("已截取并保存到缓存目录");
   } else {
     ElMessage.success("截图完成");
   }
+  // 刷新左侧历史（新记录已落库）
+  loadHistory(true);
 }
 
 function copyImage() {
@@ -343,11 +603,16 @@ function saveImage() {
 onMounted(() => {
   loadDisplays();
   loadShortcut();
+  loadHistory();
+  loadSources(); // 右侧面板：捕获所有屏幕 + 打开的应用窗口
+  nextTick(refreshHistoryViewport);
+  window.addEventListener("resize", refreshHistoryViewport);
   window.ipcRenderer.on("screenshot:result", onScreenshotResult);
 });
 
 onUnmounted(() => {
   window.ipcRenderer.off?.("screenshot:result", onScreenshotResult);
+  window.removeEventListener("resize", refreshHistoryViewport);
   closeListen();
 });
 </script>
@@ -370,6 +635,9 @@ onUnmounted(() => {
   gap: 12px;
 
   .header-text {
+    flex: 1 1 auto;
+    min-width: 0;
+
     h2 {
       margin: 0;
       font-size: 22px;
@@ -387,13 +655,19 @@ onUnmounted(() => {
     display: flex;
     align-items: center;
     gap: 12px;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
 
     .shortcut-box {
       display: inline-flex;
       align-items: center;
       gap: 8px;
+      flex-wrap: nowrap;
+      height: 32px;
 
       .shortcut-tag {
+        height: 32px;
         display: inline-flex;
         align-items: center;
         gap: 4px;
@@ -401,6 +675,12 @@ onUnmounted(() => {
         color: var(--text-secondary);
         cursor: pointer;
         user-select: none;
+        white-space: nowrap;
+        flex-shrink: 0;
+
+        :deep(.el-tag__content) {
+          display: inline-flex;
+        }
 
         &.listening {
           cursor: default;
@@ -408,6 +688,7 @@ onUnmounted(() => {
 
         .shortcut-label {
           margin: 0 2px;
+          white-space: nowrap;
         }
 
         .shortcut-clear {
@@ -415,6 +696,8 @@ onUnmounted(() => {
           font-size: 14px;
           line-height: 1;
           opacity: 0.6;
+          white-space: nowrap;
+          flex-shrink: 0;
 
           &:hover {
             opacity: 1;
@@ -454,10 +737,11 @@ onUnmounted(() => {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 1fr 300px;
+  grid-template-columns: 260px 1fr 300px;
   gap: 16px;
 }
 
+.history-panel,
 .result-panel,
 .display-panel {
   background: var(--bg-card);
@@ -467,6 +751,95 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+
+/* 左侧历史：虚拟列表 */
+.history-panel {
+  .history-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    position: relative;
+
+    .history-spacer {
+      position: relative;
+      width: 100%;
+    }
+
+    .history-item {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 4px;
+      box-sizing: border-box;
+
+      .history-thumb {
+        width: 72px;
+        height: 72px;
+        object-fit: cover;
+        border-radius: 6px;
+        background: var(--bg-base);
+        border: 1px solid var(--border-subtle);
+        flex-shrink: 0;
+      }
+
+      .history-meta {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+
+        .history-time {
+          font-size: 13px;
+          color: var(--text-primary);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .history-sub {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+
+          .history-size {
+            font-size: 12px;
+            color: var(--text-muted);
+          }
+        }
+      }
+
+      .history-ops {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        flex-shrink: 0;
+
+        .el-button {
+          margin-left: 0 !important;
+        }
+      }
+    }
+
+    .history-tip {
+      padding: 16px 4px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-muted);
+
+      &.history-empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+      }
+    }
+  }
 }
 
 .result-stage {
@@ -523,6 +896,77 @@ onUnmounted(() => {
 .display-scroll {
   flex: 1;
   min-height: 0;
+}
+
+.refresh-btn {
+  margin-left: auto !important;
+}
+
+.source-tip {
+  padding: 16px 4px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.source-card {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-btn);
+  padding: 10px;
+  margin-bottom: 10px;
+  background: var(--bg-base);
+
+  .source-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+
+    .source-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+
+  .source-thumb {
+    width: 100%;
+    max-height: 180px;
+    object-fit: contain;
+    border-radius: 6px;
+    background: #000;
+    border: 1px solid var(--border-subtle);
+    display: block;
+    user-select: none;
+  }
+
+  .source-ops {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+
+    .el-button {
+      flex: 1;
+      margin-left: 0 !important;
+    }
+  }
+}
+
+.display-static-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin: 6px 0 10px;
 }
 
 .display-card {

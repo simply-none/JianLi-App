@@ -8,6 +8,7 @@ import {
   app,
   globalShortcut,
   BrowserWindow,
+  shell,
 } from "electron";
 import type { DesktopCapturerSource } from "electron";
 import path from "node:path";
@@ -15,6 +16,7 @@ import fs from "node:fs";
 import moment from "moment";
 import { win } from "./mainWindow.ts";
 import { store } from "./store.ts";
+import { insert, del, query } from "./newSql.ts";
 import {
   VITE_DEV_SERVER_URL,
   indexHtml,
@@ -40,10 +42,16 @@ import {
  *
  * 渲染进程（路由页 /screenshot）通过 window.ipcRenderer 调用：
  *   handlePromise("screenshot:start", {})                   —— 打开选框层（统一入口，区域模式）
- *   handlePromise("screenshot:save", { dataUrl })           —— 保存结果到文件
- *   handlePromise("screenshot:copy", { dataUrl })           —— 复制结果到剪贴板
+ *   handlePromise("screenshot:save", { dataUrl })           —— 弹窗保存到文件（并落库 screenshots 表）
+ *   handlePromise("screenshot:copy", { dataUrl })           —— 复制到剪贴板（并落库 screenshots 表）
  *   handlePromise("screenshot:get-displays", {})            —— 显示器信息
- *   on("screenshot:result", ({ dataUrl, width, height }))   —— 主进程回传截图结果
+ *   handlePromise("screenshot:open-path", { path })         —— 系统默认程序打开截图文件
+ *   handlePromise("screenshot:delete-screenshot", { id, path }) —— 删除记录（文件 + DB 行）
+ *   handlePromise("screenshot:capture-sources", {})           —— 捕获所有屏幕 + 打开的应用窗口缩略图（右侧面板用）
+ *   handlePromise("screenshot:persist", { dataUrl, action })  —— 直接写入缓存目录 + 落库（无弹窗），action: copy|save
+ *   on("screenshot:result", ({ dataUrl, width, height, savedPath })) —— 主进程回传截图结果
+ *   截图历史：复制 / 保存 都会写入 <用户缓存目录>/screenshots 并插入 screenshots 表，
+ *            截图工具页左侧栏通过 new-sql:query 分页读取（LIMIT 20, created_at DESC）。
  * 选框层（路由 /#/screenshotSelect）通信：
  *   send("screenshot:select-ready")                          —— 层就绪（主进程据此捕获整屏）
  *   send("screenshot:select-rect", { rect })                 —— 选区（CSS 像素，相对选框层窗口）
@@ -109,7 +117,7 @@ function pickScreenSource(
 /** 抽样判断截图是否整体接近黑色（排查透明窗口被桌面复制合成成黑屏的情况） */
 function isLikelyBlack(image: ReturnType<typeof nativeImage.createEmpty>): boolean {
   try {
-    const bmp = image.getBitmap();
+    const bmp: any = image.getBitmap();
     if (!bmp || bmp.length < 4) return false;
     const w = image.getSize().width;
     const h = image.getSize().height;
@@ -264,23 +272,124 @@ function sendCapturedToSelect(
  * 接收选框层合成好的最终图（含标注），按 action 复制/保存并回传路由页
  * @param dataUrl 选框层用 canvas 合成的最终 PNG（已裁剪到选区并叠加箭头/文字/马赛克）
  */
+/**
+ * 持久化一张截图：写入磁盘（cache/screenshots，未配置 destPath 时）并插入 screenshots 表。
+ * —— 复制 / 保存 两种动作都会落库，便于截图工具页左侧历史栏读取。
+ * @param dataUrl 最终 PNG 的 dataURL
+ * @param action  copy | save（仅用于记录）
+ * @param destPath 已存在的目标文件路径（如路由页「保存到文件」弹窗所选路径）；
+ *                 不传则自动写入 <用户缓存目录>/screenshots/<时间戳>.png
+ * @returns 实际落盘的文件路径（失败返回 null）
+ */
+/**
+ * 解析截图保存目录：
+ * 1. 优先读取 basic_info 表 key=fileCachePath 的配置（用户自定义缓存目录）；
+ *    该 value 经 set-store 写入时已 JSON.stringify，读取时尝试 JSON.parse，解析失败则按原字符串使用。
+ * 2. 若该值为空 / 不存在，则回退到 app.getPath("pictures")。
+ * 3. 最终在其下建立 screenshots 子目录并返回。
+ */
+async function resolveShotDir(): Promise<string> {
+  let base = "";
+  try {
+    const rows = await query({
+      tableName: "basic_info",
+      conditions: { key: "fileCachePath" },
+      columns: ["key", "value"],
+    });
+    if (rows && rows.length > 0) {
+      const raw = rows[0].value;
+      if (raw !== undefined && raw !== null) {
+        let parsed: any = raw;
+        // basic_info 的 value 经 set-store 写入时 JSON.stringify 过（字符串会带引号）
+        if (typeof raw === "string" && raw.trim().startsWith('"')) {
+          try {
+            parsed = JSON.parse(raw);
+          } catch {
+            /* 解析失败则保留原始字符串 */
+          }
+        }
+        base = typeof parsed === "string" ? parsed : String(raw);
+      }
+    }
+  } catch {
+    /* 查询异常则回退到 pictures */
+  }
+
+  if (!base || !base.trim()) {
+    base = app.getPath("pictures");
+  }
+
+  const shotDir = path.join(base, "screenshots");
+  try {
+    fs.mkdirSync(shotDir, { recursive: true });
+  } catch {
+    /* 万一自定义目录不可写，再兜底到 pictures */
+    const fallback = path.join(app.getPath("pictures"), "screenshots");
+    try {
+      fs.mkdirSync(fallback, { recursive: true });
+    } catch {
+      /* noop */
+    }
+    return fallback;
+  }
+  return shotDir;
+}
+
+async function persistScreenshot(
+  dataUrl: string,
+  action: "copy" | "save",
+  destPath?: string
+): Promise<{ filePath: string } | null> {
+  try {
+    const image = nativeImage.createFromDataURL(dataUrl);
+    const size = image.getSize();
+
+    let filePath = destPath;
+    if (!filePath) {
+      // 自动保存到截图目录（basic_info.fileCachePath 或 pictures 下的 screenshots）
+      const shotDir = await resolveShotDir();
+      // 文件名带上动作：screenshot-[action]-时间戳.png
+      const defaultName = `screenshot-${action}-${moment().format(
+        "YYYYMMDD-HHmmss"
+      )}.png`;
+      filePath = path.join(shotDir, defaultName);
+      fs.writeFileSync(filePath, image.toPNG());
+    }
+
+    // 落库（路径 / 时间 / 动作 / 尺寸）
+    await insert({
+      tableName: "screenshots",
+      data: {
+        path: filePath,
+        created_at: moment().format("YYYY-MM-DD HH:mm:ss"),
+        action,
+        width: size.width,
+        height: size.height,
+      },
+    });
+
+    return { filePath };
+  } catch (e: any) {
+    console.error("截图持久化失败:", e);
+    return null;
+  }
+}
+
+/**
+ * 接收选框层合成好的最终图（含标注），按 action 复制/保存并回传路由页。
+ * —— 复制 / 保存 都写入 cache/screenshots 并落库；保存不再弹窗。
+ * @param dataUrl 选框层用 canvas 合成的最终 PNG（已裁剪到选区并叠加箭头/文字/马赛克）
+ */
 async function finalizeCapture(dataUrl: string, action: "copy" | "save") {
   try {
     const image = nativeImage.createFromDataURL(dataUrl);
     const size = image.getSize();
 
-    if (action === "save") {
-      const defaultName = `screenshot-${moment().format("YYYYMMDD-HHmmss")}.png`;
-      const { canceled, filePath } = await dialog.showSaveDialog({
-        title: "保存截图",
-        defaultPath: path.join(app.getPath("pictures"), defaultName),
-        filters: [{ name: "PNG 图片", extensions: ["png"] }],
-      });
-      if (!canceled && filePath) {
-        fs.writeFileSync(filePath, image.toPNG());
-      }
-    } else {
-      // 默认：复制到剪贴板
+    // 写入 cache/screenshots 并落库（保存不再弹窗）
+    const rec = await persistScreenshot(dataUrl, action);
+
+    if (action === "copy") {
+      // 复制到剪贴板
       clipboard.writeImage(image);
     }
 
@@ -290,6 +399,7 @@ async function finalizeCapture(dataUrl: string, action: "copy" | "save") {
       width: size.width,
       height: size.height,
       action,
+      savedPath: rec?.filePath || "",
     });
   } catch (e: any) {
     win?.webContents.send("screenshot:result", {
@@ -463,7 +573,7 @@ export function initScreenshot() {
     }
   );
 
-  // 保存到本地文件（路由页手动保存结果）
+  // 保存到本地文件（路由页手动保存结果，保留原弹窗行为并落库）
   ipcMain.handle(
     "screenshot:save",
     async (_e, payload: { dataUrl: string; defaultName?: string }) => {
@@ -481,6 +591,8 @@ export function initScreenshot() {
           return { success: false, canceled: true };
         }
         fs.writeFileSync(filePath, image.toPNG());
+        // 落库（使用用户自选路径）
+        await persistScreenshot(payload.dataUrl, "save", filePath);
         return { success: true, filePath };
       } catch (e: any) {
         return { success: false, error: e?.message || String(e) };
@@ -488,11 +600,13 @@ export function initScreenshot() {
     }
   );
 
-  // 复制到系统剪贴板（路由页手动复制结果）
+  // 复制到系统剪贴板（路由页手动复制结果，并落库）
   ipcMain.handle("screenshot:copy", async (_e, payload: { dataUrl: string }) => {
     try {
       const image = nativeImage.createFromDataURL(payload.dataUrl);
       clipboard.writeImage(image);
+      // 落库（自动写入 cache/screenshots）
+      await persistScreenshot(payload.dataUrl, "copy");
       return { success: true };
     } catch (e: any) {
       return { success: false, error: e?.message || String(e) };
@@ -551,4 +665,111 @@ export function initScreenshot() {
     if (res.ok) persistShortcut(null);
     return res;
   });
+
+  // 用系统默认程序打开历史截图文件
+  ipcMain.handle(
+    "screenshot:open-path",
+    async (_e, payload: { path: string }) => {
+      try {
+        if (!payload?.path) return { success: false, error: "路径为空" };
+        await shell.openPath(payload.path);
+        return { success: true };
+      } catch (e: any) {
+        return { success: false, error: e?.message || String(e) };
+      }
+    }
+  );
+
+  // 删除一条截图记录（同时删除磁盘文件 + DB 行）
+  ipcMain.handle(
+    "screenshot:delete-screenshot",
+    async (_e, payload: { id?: number; path: string }) => {
+      try {
+        if (payload?.path) {
+          try {
+            fs.unlinkSync(payload.path);
+          } catch {
+            /* 文件可能已不存在，忽略 */
+          }
+        }
+        if (payload?.id) {
+          try {
+            await del({ tableName: "screenshots", condition: { id: payload.id } });
+          } catch {
+            /* 忽略 */
+          }
+        }
+        return { success: true };
+      } catch (e: any) {
+        return { success: false, error: e?.message || String(e) };
+      }
+    }
+  );
+
+  // 捕获所有显示器 + 打开的应用窗口缩略图（右侧面板「显示器与窗口」用）
+  // 返回列表：{ id, name, type:'screen'|'window', dataUrl, width, height }
+  ipcMain.handle("screenshot:capture-sources", async () => {
+    try {
+      // 缩略图目标尺寸：取最大显示器的物理分辨率（封顶，避免内存过高）
+      let tw = 0;
+      let th = 0;
+      try {
+        const all = screen.getAllDisplays();
+        for (const d of all) {
+          tw = Math.max(tw, Math.round(d.bounds.width * d.scaleFactor));
+          th = Math.max(th, Math.round(d.bounds.height * d.scaleFactor));
+        }
+      } catch {
+        /* 忽略，使用默认尺寸 */
+      }
+      tw = Math.min(tw || 1920, 2560);
+      th = Math.min(th || 1080, 1440);
+
+      const sources = await desktopCapturer.getSources({
+        types: ["screen", "window"],
+        thumbnailSize: { width: tw, height: th },
+      });
+
+      const list = sources
+        .filter((s) => s.thumbnail && !s.thumbnail.isEmpty())
+        .map((s) => {
+          const size = s.thumbnail.getSize();
+          return {
+            id: s.id,
+            name: s.name,
+            type: /^screen/i.test(s.id) ? "screen" : "window",
+            dataUrl: s.thumbnail.toDataURL(),
+            width: size.width,
+            height: size.height,
+          };
+        });
+      return { success: true, data: list };
+    } catch (e: any) {
+      return { success: false, error: e?.message || String(e) };
+    }
+  });
+
+  // 直接将某张图（来自右侧来源截图）写入缓存目录 + 落库（无弹窗）
+  // action: save  —— 仅落库（同 persistScreenshot 的 save 行为）
+  // action: copy  —— 落库 + 复制到剪贴板
+  ipcMain.handle(
+    "screenshot:persist",
+    async (_e, payload: { dataUrl: string; action: "copy" | "save" }) => {
+      try {
+        if (!payload?.dataUrl) return { success: false, error: "数据为空" };
+        const rec = await persistScreenshot(payload.dataUrl, payload.action);
+        if (!rec) return { success: false, error: "持久化失败" };
+        if (payload.action === "copy") {
+          try {
+            clipboard.writeImage(nativeImage.createFromDataURL(payload.dataUrl));
+          } catch {
+            /* 复制失败不影响落库结果 */
+          }
+        }
+        return { success: true, filePath: rec.filePath };
+      } catch (e: any) {
+        return { success: false, error: e?.message || String(e) };
+      }
+    }
+  );
 }
