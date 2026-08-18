@@ -654,6 +654,7 @@ onMounted(() => {
     // 这样属性面板可继续编辑其颜色 / 形态 / 大小
     selectedIndex = pushed ? annotations.length - 1 : -1;
     updateToolButtons(); syncPanel(); renderAnno();
+    console.log(annotations, 'annotations in openTextInput')
   }
 
   function openTextInput(cx, cy, x, y) {
@@ -1044,6 +1045,7 @@ onMounted(() => {
       e.preventDefault();
       return;
     }
+    e.preventDefault();
     dragStart = { x: x, y: y };
     drawing = editTool === "arrow" ? newArrow(x, y)
             : editTool === "rect" ? newRect(x, y)
