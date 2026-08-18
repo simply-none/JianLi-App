@@ -225,27 +225,18 @@ async function launchSelect(mode: "region" | "full") {
     selectWin.focus();
     return;
   }
-  // 关键修复（v9.3）：捕获前先临时最小化主窗口。
-  // 原因：Windows WGC 桌面复制会把当前 Electron 进程的可见窗口合成进截图，
-  // 导致 desktopCapturer 返回黑屏或仅含应用自身内容（见用户截图）。
-  // 即使把捕获提前到覆盖层创建之前也不够——主窗口 win 本身就会污染截图。
-  // 最小化 → 等 DWM 合成完成 → 捕获纯净桌面 → 恢复主窗。与 Snipaste 行为一致。
-  const wasMinimized = win?.isMinimized() || false;
+  // 捕获整屏前不再显隐主窗口（v18 需求）：
+  // - 应用本身未显示（最小化/隐藏）→ 无需「先显示再隐藏」，直接截；
+  // - 应用本身已显示 → 也无需隐藏，直接截（截图包含桌面当前内容，符合常规截图工具行为）。
+  // 注：早期 v9.3 为规避 Windows WGC 把本进程前景窗口合成成黑屏，曾在捕获前最小化主窗；
+  // 现改为直接捕获。若个别机器上「从应用内触发截图」出现纯黑，再针对性处理（如仅对前景窗口降级）。
   try {
     selectCaptureDisplay = getTargetDisplay();
-    // 1. 最小化主窗口
-    if (win && !win.isMinimized()) win.minimize();
-    // 2. 等待 DWM 完成合成（通常 50-100ms 足够，保守取 120ms）
-    await new Promise((r) => setTimeout(r, 120));
-    // 3. 捕获整屏（此时桌面上无本应用任何可见窗口）
     selectImage = await captureFullDisplay(selectCaptureDisplay);
     selectScale = selectCaptureDisplay.scaleFactor || 1;
   } catch (e) {
     selectImage = null;
     selectCaptureDisplay = null;
-  } finally {
-    // 4. 无论成败都恢复主窗口（仅在之前未最小化的情况下恢复）
-    if (win && !wasMinimized && win.isMinimized()) win.restore();
   }
   openSelectLayer(mode);
 }
