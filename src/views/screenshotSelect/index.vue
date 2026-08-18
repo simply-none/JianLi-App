@@ -96,6 +96,7 @@
       <div class="prow" id="rectRow">
         <span class="plabel">形状</span>
         <button id="rectFill" class="tbtn">填充</button>
+        <button id="rectFillOpaque" class="tbtn">不透明填充</button>
       </div>
     </div>
     <div id="hint2">选区内可加 箭头/矩形/椭圆/画笔/文字/马赛克/吸管 · 吸管：移动鼠标看放大预览、滚轮或滑杆调整倍数取更精确颜色，方向键可逐像素微调定位，单击即取色并设为当前颜色（右侧「复制」按钮可将色值写入剪贴板） · 选择工具：拖选区内部可平移、拖边缘 8 手柄可缩放选区，点中标注后可拖动（四角缩放、顶部圆点旋转） · Enter 复制 · Esc 取消 · Delete 删除</div>
@@ -159,6 +160,7 @@ onMounted(() => {
   var mosaicMode = document.getElementById("mosaicMode");
   var rectRow = document.getElementById("rectRow");
   var rectFill = document.getElementById("rectFill");
+  var rectFillOpaque = document.getElementById("rectFillOpaque");
   var eyedropperRow = document.getElementById("eyedropperRow");
   var eyedropperZoomInput = document.getElementById("eyedropperZoom");
   var eyedropperZoomVal = document.getElementById("eyedropperZoomVal");
@@ -175,8 +177,8 @@ onMounted(() => {
                  "#1890ff", "#722ed1", "#ffffff", "#000000", "#8c8c8c"];
   var DEFAULTS = {
     arrow:   { color: "#ff4d4f", lw: 4,  head: "filled", ends: "single" },
-    rect:    { color: "#ff4d4f", lw: 3,  fill: false },
-    ellipse: { color: "#ff4d4f", lw: 3,  fill: false },
+    rect:    { color: "#ff4d4f", lw: 3,  fill: "none" },
+    ellipse: { color: "#ff4d4f", lw: 3,  fill: "none" },
     brush:   { color: "#ff4d4f", lw: 4 },
     text:    { color: "#ff4d4f", bgColor: null, fontSize: 18, weight: 400, italic: false },
     mosaic:  { block: 14, mode: "mosaic" },
@@ -468,13 +470,21 @@ onMounted(() => {
     ctx.drawImage(tmp, 0, 0, stepsX, stepsY, a.x * kd, a.y * kd, a.w * kd, a.h * kd);
     ctx.imageSmoothingEnabled = true;
   }
+  // 兼容旧的布尔 fill（true=半透明），统一映射为填充模式
+  function fillMode(a) {
+    if (!a || a.fill === false || a.fill === "none" || a.fill === undefined) return "none";
+    if (a.fill === true) return "translucent";
+    return a.fill; // "translucent" | "opaque"
+  }
   function paintRect(ctx, a, kd) {
     ctx.save();
     ctx.lineWidth = a.lw * kd; ctx.lineJoin = "round";
     ctx.strokeStyle = a.color;
     var x = Math.min(a.x1, a.x2) * kd, y = Math.min(a.y1, a.y2) * kd;
     var w = Math.abs(a.x2 - a.x1) * kd, h = Math.abs(a.y2 - a.y1) * kd;
-    if (a.fill) { ctx.fillStyle = hexToRgba(a.color, 0.25); ctx.fillRect(x, y, w, h); }
+    var fm = fillMode(a);
+    if (fm === "translucent") { ctx.fillStyle = hexToRgba(a.color, 0.25); ctx.fillRect(x, y, w, h); }
+    else if (fm === "opaque") { ctx.fillStyle = a.color; ctx.fillRect(x, y, w, h); }
     ctx.strokeRect(x, y, w, h);
     ctx.restore();
   }
@@ -485,7 +495,9 @@ onMounted(() => {
     var cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
     var rx = Math.abs(x2 - x1) / 2, ry = Math.abs(y2 - y1) / 2;
     ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
-    if (a.fill) { ctx.fillStyle = hexToRgba(a.color, 0.25); ctx.fill(); }
+    var efm = fillMode(a);
+    if (efm === "translucent") { ctx.fillStyle = hexToRgba(a.color, 0.25); ctx.fill(); }
+    else if (efm === "opaque") { ctx.fillStyle = a.color; ctx.fill(); }
     ctx.strokeStyle = a.color; ctx.stroke();
     ctx.restore();
   }
@@ -872,7 +884,11 @@ onMounted(() => {
     if (tool === "arrow") { arrowHead.value = src.head; arrowEnds.value = src.ends; }
     if (tool === "text") { textWeight.value = String(src.weight || 400); textItalic.classList.toggle("active", !!src.italic); }
     if (tool === "mosaic") { mosaicMode.value = src.mode; }
-    if (tool === "rect" || tool === "ellipse") { rectFill.classList.toggle("active", !!src.fill); }
+    if (tool === "rect" || tool === "ellipse") {
+      var fm = fillMode(src);
+      rectFill.classList.toggle("active", fm === "translucent");
+      if (rectFillOpaque) rectFillOpaque.classList.toggle("active", fm === "opaque");
+    }
   }
   // 属性写入：若已选中元素则改该元素，同时更新对应默认
   function setColor(c) {
@@ -908,15 +924,19 @@ onMounted(() => {
     else if (editTool === "mosaic") style.mosaic.block = v;
     sizeVal.textContent = v;
   }
-  function toggleFill() {
-    var cur = selectedIndex >= 0 && annotations[selectedIndex].fill !== undefined
-      ? annotations[selectedIndex].fill : (style.rect.fill || style.ellipse.fill);
-    var nb = !cur;
-    if (selectedIndex >= 0 && annotations[selectedIndex].fill !== undefined) {
+  function setRectFillMode(mode) {
+    // mode: "translucent" | "opaque"；再次点同一个则关闭（none）
+    var cur = selectedIndex >= 0 &&
+      (annotations[selectedIndex].type === "rect" || annotations[selectedIndex].type === "ellipse")
+      ? fillMode(annotations[selectedIndex]) : fillMode(style.rect);
+    var nb = cur === mode ? "none" : mode;
+    if (selectedIndex >= 0 &&
+      (annotations[selectedIndex].type === "rect" || annotations[selectedIndex].type === "ellipse")) {
       annotations[selectedIndex].fill = nb; renderAnno();
     }
     style.rect.fill = nb; style.ellipse.fill = nb;
-    rectFill.classList.toggle("active", nb);
+    rectFill.classList.toggle("active", nb === "translucent");
+    if (rectFillOpaque) rectFillOpaque.classList.toggle("active", nb === "opaque");
   }
   function setProp(key, val) {
     if (selectedIndex >= 0) { annotations[selectedIndex][key] = val; renderAnno(); }
@@ -1271,7 +1291,8 @@ onMounted(() => {
   mosaicMode.addEventListener("change", function () { setProp("mode", mosaicMode.value); });
   textWeight.addEventListener("change", function () { setTextWeight(textWeight.value); });
   textItalic.addEventListener("click", toggleItalic);
-  rectFill.addEventListener("click", toggleFill);
+  rectFill.addEventListener("click", function () { setRectFillMode("translucent"); });
+  if (rectFillOpaque) rectFillOpaque.addEventListener("click", function () { setRectFillMode("opaque"); });
   // 吸管：放大倍数滑杆
   if (eyedropperZoomInput) {
     eyedropperZoomInput.addEventListener("input", function () {
@@ -1288,6 +1309,22 @@ onMounted(() => {
     eyedropperZoomInput.value = String(eyedropperZoom);
     if (eyedropperZoomVal) eyedropperZoomVal.textContent = eyedropperZoom.toFixed(1) + "×";
     showEyedropperMag(lastEyedropperPos.x, lastEyedropperPos.y);
+  }, { passive: false });
+  // 矩形/椭圆：滚轮调整粗细（上滚变粗，下滚变细）
+  anno.addEventListener("wheel", function (e) {
+    if (phase !== "annotate") return;
+    if (editTool !== "rect" && editTool !== "ellipse") return;
+    e.preventDefault();
+    var cfg = SIZE_CFG[editTool];
+    var sel = selectedIndex >= 0 ? annotations[selectedIndex] : null;
+    var isSel = sel && (sel.type === "rect" || sel.type === "ellipse");
+    var cur = isSel ? sel.lw : style[editTool].lw;
+    var next = clamp(Math.round(cur + (e.deltaY < 0 ? 1 : -1)), cfg.min, cfg.max);
+    if (next === cur) return;
+    if (isSel) { sel.lw = next; renderAnno(); }
+    style[editTool].lw = next;
+    sizeRange.value = String(next);
+    sizeVal.textContent = String(next);
   }, { passive: false });
   // 吸管：复制当前预览色到剪贴板
   if (eyedropperCopy) {
