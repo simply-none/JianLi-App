@@ -33,6 +33,7 @@
       <button class="tool-btn" data-tool="marker">记号笔</button>
       <button class="tool-btn" data-tool="text">文字</button>
       <button class="tool-btn" data-tool="mosaic">马赛克</button>
+      <button class="tool-btn" data-tool="eraser">橡皮擦</button>
       <button class="tool-btn" data-tool="eyedropper">吸管</button>
       <button id="undoBtn">撤回</button>
       <span class="divider"></span>
@@ -104,7 +105,7 @@
         <div id="markerPalette" class="swatches"></div>
       </div>
     </div>
-    <div id="hint2">选区内可加 箭头/矩形/椭圆/画笔/记号笔/文字/马赛克/吸管 · 滚轮调整：箭头/矩形/椭圆/画笔/记号笔=粗细，文字=字号，马赛克=强度（上滚增大、下滚减小；选中标注时改该标注） · 记号笔为半透明荧光笔，属性面板可选多种预设色 · 吸管：移动鼠标看放大预览、滚轮或滑杆调整倍数取更精确颜色，方向键可逐像素微调定位，单击即取色并设为当前颜色（右侧「复制」按钮可将色值写入剪贴板） · 选择工具：拖选区内部可平移、拖边缘 8 手柄可缩放选区，点中标注后可拖动（四角缩放、顶部圆点旋转） · Enter 复制 · Esc 取消 · Delete 删除</div>
+    <div id="hint2">选区内可加 箭头/矩形/椭圆/画笔/记号笔/文字/马赛克/橡皮擦/吸管 · 滚轮调整：箭头/矩形/椭圆/画笔/记号笔=粗细，文字=字号，马赛克=强度（上滚增大、下滚减小；选中标注时改该标注） · 记号笔为半透明荧光笔，属性面板可选多种预设色 · 吸管：移动鼠标看放大预览、滚轮或滑杆调整倍数取更精确颜色，方向键可逐像素微调定位，单击即取色并设为当前颜色（右侧「复制」按钮可将色值写入剪贴板） · 选择工具：拖选区内部可平移、拖边缘 8 手柄可缩放选区，点中标注后可拖动（四角缩放、顶部圆点旋转） · Enter 复制 · Esc 取消 · Delete 删除</div>
     <input id="textInput" type="text" maxlength="200" />
   </div>
 </template>
@@ -192,6 +193,8 @@ onMounted(() => {
     marker:  { color: "#ffe066", lw: 16, alpha: 0.4 },
     text:    { color: "#ff4d4f", bgColor: null, fontSize: 18, weight: 400, italic: false },
     mosaic:  { block: 14, mode: "mosaic" },
+    // 橡皮擦：默认白色，覆盖在选区/标注之上「擦除」内容（自由笔触，纯色覆盖）
+    eraser:  { color: "#ffffff", lw: 20 },
   };
   var SIZE_CFG = {
     arrow:   { label: "粗细", min: 1,  max: 40, step: 1 },
@@ -201,6 +204,7 @@ onMounted(() => {
     marker:  { label: "粗细", min: 4,  max: 60, step: 1 },
     text:    { label: "字号", min: 10, max: 80, step: 1 },
     mosaic:  { label: "强度", min: 6,  max: 40, step: 1 },
+    eraser:  { label: "粗细", min: 1,  max: 80, step: 1 },
   };
   var style = JSON.parse(JSON.stringify(DEFAULTS)); // 当前默认
   var activeColor = "#ff4d4f";
@@ -327,6 +331,7 @@ onMounted(() => {
     activeColor = col.hex;
     style.arrow.color = col.hex; style.text.color = col.hex;
     style.rect.color = col.hex; style.ellipse.color = col.hex; style.brush.color = col.hex; style.marker.color = col.hex;
+    if (editTool === "eraser") style.eraser.color = col.hex;
     markSwatch(col.hex);
     if (editTool === "marker") markMarkerSwatch(col.hex);
     if (eyedropperHex) eyedropperHex.textContent = col.hex;
@@ -556,6 +561,7 @@ onMounted(() => {
       else if (a.type === "ellipse") paintEllipse(ctx, a, kd);
       else if (a.type === "brush") paintBrush(ctx, a, kd);
       else if (a.type === "marker") paintMarker(ctx, a, kd);
+      else if (a.type === "eraser") paintBrush(ctx, a, kd); // 橡皮擦：纯色覆盖，复用画笔绘制
       else if (a.type === "text") paintText(ctx, a, kd);
       else if (a.type === "mosaic") paintMosaic(ctx, a, kd, f, img);
     });
@@ -684,7 +690,7 @@ onMounted(() => {
         if (lx >= a.x && lx <= a.x + w && ly >= a.y && ly <= a.y + a.fontSize) return i;
       } else if (a.type === "rect" || a.type === "ellipse") {
         if (rectEllipseHit(a, lx, ly)) return i;
-      } else if (a.type === "brush" || a.type === "marker") {
+      } else if (a.type === "brush" || a.type === "marker" || a.type === "eraser") {
         if (brushHit(a, lx, ly)) return i;
       } else if (a.type === "mosaic") {
         if (lx >= a.x && lx <= a.x + a.w && ly >= a.y && ly <= a.y + a.h) return i;
@@ -700,7 +706,7 @@ onMounted(() => {
     if (a.type === "text") {
       return { x: a.x - 4, y: a.y - 4, w: textWidth(a) + 8, h: a.fontSize + 8 };
     }
-    if (a.type === "brush" || a.type === "marker") {
+    if (a.type === "brush" || a.type === "marker" || a.type === "eraser") {
       var xs = a.points.map(function (p) { return p.x; });
       var ys = a.points.map(function (p) { return p.y; });
       var minx = Math.min.apply(null, xs), miny = Math.min.apply(null, ys);
@@ -712,7 +718,7 @@ onMounted(() => {
   function moveAnnotation(a, dx, dy) {
     if (a.type === "arrow" || a.type === "rect" || a.type === "ellipse") {
       a.x1 += dx; a.y1 += dy; a.x2 += dx; a.y2 += dy;
-    } else if (a.type === "brush" || a.type === "marker") {
+    } else if (a.type === "brush" || a.type === "marker" || a.type === "eraser") {
       for (var i = 0; i < a.points.length; i++) { a.points[i].x += dx; a.points[i].y += dy; }
     } else {
       a.x += dx; a.y += dy;
@@ -794,6 +800,10 @@ onMounted(() => {
     var s = style.mosaic;
     return { type: "mosaic", x: x, y: y, w: w, h: h, block: s.block, mode: s.mode };
   }
+  function newEraser(x, y) {
+    var s = style.eraser;
+    return { type: "eraser", color: s.color, lw: s.lw, points: [{ x: x, y: y }] };
+  }
 
   function commitDrawing() {
     if (!drawing) return;
@@ -803,7 +813,7 @@ onMounted(() => {
       if (Math.hypot(d.x2 - d.x1, d.y2 - d.y1) > 3) { annotations.push(d); pushed = true; }
     } else if (d.type === "rect" || d.type === "ellipse") {
       if (Math.hypot(d.x2 - d.x1, d.y2 - d.y1) > 3) { annotations.push(d); pushed = true; }
-    } else if (d.type === "brush" || d.type === "marker") {
+    } else if (d.type === "brush" || d.type === "marker" || d.type === "eraser") {
       if (d.points.length > 1) { annotations.push(d); pushed = true; }
     } else {
       var rr = normRect(d);
@@ -902,7 +912,7 @@ onMounted(() => {
       var cfg = SIZE_CFG[tool];
       sizeLabel2.textContent = cfg.label;
       sizeRange.min = cfg.min; sizeRange.max = cfg.max; sizeRange.step = cfg.step;
-      var v = (tool === "arrow" || tool === "rect" || tool === "ellipse" || tool === "brush" || tool === "marker")
+      var v = (tool === "arrow" || tool === "rect" || tool === "ellipse" || tool === "brush" || tool === "marker" || tool === "eraser")
         ? src.lw : tool === "text" ? src.fontSize : src.block;
       sizeRange.value = v; sizeVal.textContent = v;
     } else sizeRow.style.display = "none";
@@ -932,11 +942,16 @@ onMounted(() => {
     activeColor = c;
     if (selectedIndex >= 0) {
       var a = annotations[selectedIndex];
-      if (a.type !== "mosaic") a.color = c;
+      if (a.type !== "mosaic") a.color = c; // 橡皮擦使用颜色（白/背景），马赛克无颜色
       renderAnno();
     }
-    style.arrow.color = c; style.text.color = c;
-    style.rect.color = c; style.ellipse.color = c; style.brush.color = c; style.marker.color = c;
+    // 橡皮擦默认色独立（通常白/背景），不随其它工具前景色变化；仅当橡皮擦激活/选中时改其色
+    if (editTool === "eraser") {
+      style.eraser.color = c;
+    } else {
+      style.arrow.color = c; style.text.color = c;
+      style.rect.color = c; style.ellipse.color = c; style.brush.color = c; style.marker.color = c;
+    }
     markSwatch(c);
     if (editTool === "marker" || (selectedIndex >= 0 && annotations[selectedIndex].type === "marker"))
       markMarkerSwatch(c);
@@ -1244,6 +1259,7 @@ onMounted(() => {
             : editTool === "ellipse" ? newEllipse(x, y)
             : editTool === "brush" ? newBrush(x, y)
             : editTool === "marker" ? newMarker(x, y)
+            : editTool === "eraser" ? newEraser(x, y)
             : newMosaic(x, y, 0, 0);
   });
   // 标注阶段拖动交互（窗口级，支持拖出画布范围）：缩放 / 旋转 / 移动 / 绘制
@@ -1275,7 +1291,7 @@ onMounted(() => {
     if (drawing.type === "arrow") { drawing.x2 = x; drawing.y2 = y; }
     else if (drawing.type === "mosaic") { drawing.w = x - dragStart.x; drawing.h = y - dragStart.y; }
     else if (drawing.type === "rect" || drawing.type === "ellipse") { drawing.x2 = x; drawing.y2 = y; }
-    else if (drawing.type === "brush" || drawing.type === "marker") { drawing.points.push({ x: x, y: y }); }
+    else if (drawing.type === "brush" || drawing.type === "marker" || drawing.type === "eraser") { drawing.points.push({ x: x, y: y }); }
     renderAnno();
   });
 
