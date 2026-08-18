@@ -32,6 +32,7 @@
       <button class="tool-btn" data-tool="brush">画笔</button>
       <button class="tool-btn" data-tool="text">文字</button>
       <button class="tool-btn" data-tool="mosaic">马赛克</button>
+      <button class="tool-btn" data-tool="eyedropper">吸管</button>
       <button id="undoBtn">撤回</button>
       <span class="divider"></span>
       <button class="act primary" data-act="copy">复制</button>
@@ -44,6 +45,8 @@
         <span class="plabel" id="fgLabel">颜色</span>
         <div id="palette" class="swatches"></div>
         <input type="color" id="customColor" value="#ff4d4f" title="自定义颜色" />
+        <span id="eyedropperHex" class="eyedropper-hex" style="display:none" title="当前预览颜色，点击右侧「复制」写入剪贴板">#000000</span>
+        <button id="eyedropperCopy" class="tbtn eyedropper-copy" type="button" style="display:none">复制</button>
       </div>
       <div class="prow" id="bgColorRow" style="display:none">
         <span class="plabel">背景</span>
@@ -85,12 +88,17 @@
           <option value="blur">模糊</option>
         </select>
       </div>
+      <div class="prow" id="eyedropperRow" style="display:none">
+        <span class="plabel">放大</span>
+        <input type="range" id="eyedropperZoom" min="1" max="20" step="0.5" value="4" />
+        <span id="eyedropperZoomVal" class="pval">4×</span>
+      </div>
       <div class="prow" id="rectRow">
         <span class="plabel">形状</span>
         <button id="rectFill" class="tbtn">填充</button>
       </div>
     </div>
-    <div id="hint2">选区内可加 箭头/矩形/椭圆/画笔/文字/马赛克 · 选择工具：拖选区内部可平移、拖边缘 8 手柄可缩放选区，点中标注后可拖动（四角缩放、顶部圆点旋转） · Enter 复制 · Esc 取消 · Delete 删除</div>
+    <div id="hint2">选区内可加 箭头/矩形/椭圆/画笔/文字/马赛克/吸管 · 吸管：移动鼠标看放大预览、滚轮或滑杆调整倍数取更精确颜色，方向键可逐像素微调定位，单击即取色并设为当前颜色（右侧「复制」按钮可将色值写入剪贴板） · 选择工具：拖选区内部可平移、拖边缘 8 手柄可缩放选区，点中标注后可拖动（四角缩放、顶部圆点旋转） · Enter 复制 · Esc 取消 · Delete 删除</div>
     <input id="textInput" type="text" maxlength="200" />
   </div>
 </template>
@@ -112,6 +120,10 @@ onMounted(() => {
   var bar = document.getElementById("bar");
   var mag = document.getElementById("mag");
   var magCtx = mag.getContext("2d");
+  // 吸管：离屏 1x1 画布，用于在任意缩放级别精确取色
+  var pickCanvas = document.createElement("canvas");
+  pickCanvas.width = 1; pickCanvas.height = 1;
+  var pickCtx = pickCanvas.getContext("2d", { willReadFrequently: true });
   var hint = document.getElementById("hint");
   var hint2 = document.getElementById("hint2");
   var anno = document.getElementById("anno");
@@ -147,6 +159,11 @@ onMounted(() => {
   var mosaicMode = document.getElementById("mosaicMode");
   var rectRow = document.getElementById("rectRow");
   var rectFill = document.getElementById("rectFill");
+  var eyedropperRow = document.getElementById("eyedropperRow");
+  var eyedropperZoomInput = document.getElementById("eyedropperZoom");
+  var eyedropperZoomVal = document.getElementById("eyedropperZoomVal");
+  var eyedropperHex = document.getElementById("eyedropperHex");
+  var eyedropperCopy = document.getElementById("eyedropperCopy");
 
   var W = window.innerWidth, H = window.innerHeight;
   var dpr = window.devicePixelRatio || 1;
@@ -174,6 +191,9 @@ onMounted(() => {
   };
   var style = JSON.parse(JSON.stringify(DEFAULTS)); // 当前默认
   var activeColor = "#ff4d4f";
+  // 吸管：当前放大倍数（1~20）与最近一次光标位置（用于滚轮缩放后重绘放大镜）
+  var eyedropperZoom = 4;
+  var lastEyedropperPos = { x: 0, y: 0 };
 
   var phase = "select"; // select | annotate
   var selRect = { x: 0, y: 0, w: 0, h: 0 };
@@ -269,6 +289,85 @@ onMounted(() => {
   }
   function hideMagnifier() { mag.classList.remove("active"); }
 
+  // ====================== 吸管取色 ======================
+  function rgbToHex(r, g, b) {
+    return "#" + [r, g, b].map(function (v) {
+      var s = (v & 0xff).toString(16);
+      return s.length === 1 ? "0" + s : s;
+    }).join("").toUpperCase();
+  }
+  // 从整屏冻结图 bgImage 采样某 CSS 坐标处的精确像素颜色
+  function sampleColorAt(cx, cy) {
+    if (!bgImage || !bgImage.complete) return null;
+    var f = fullW > 0 ? bgImage.naturalWidth / fullW : 1; // 图片像素 / CSS 像素
+    var ix = clamp(Math.round(cx * f), 0, bgImage.naturalWidth - 1);
+    var iy = clamp(Math.round(cy * f), 0, bgImage.naturalHeight - 1);
+    pickCtx.clearRect(0, 0, 1, 1);
+    pickCtx.drawImage(bgImage, ix, iy, 1, 1, 0, 0, 1, 1);
+    var d = pickCtx.getImageData(0, 0, 1, 1).data;
+    return { r: d[0], g: d[1], b: d[2], a: d[3], hex: rgbToHex(d[0], d[1], d[2]) };
+  }
+  // 取色后写入当前绘制颜色（箭头/矩形/椭圆/画笔/文字默认色），并同步调色板与自定义色
+  function pickColorAt(x, y) {
+    var col = sampleColorAt(x, y);
+    if (!col) return;
+    activeColor = col.hex;
+    style.arrow.color = col.hex; style.text.color = col.hex;
+    style.rect.color = col.hex; style.ellipse.color = col.hex; style.brush.color = col.hex;
+    markSwatch(col.hex);
+    if (eyedropperHex) eyedropperHex.textContent = col.hex;
+  }
+  // 吸管放大镜：以可调倍数放大光标周围区域，十字准星中心即取色点，并显示 hex
+  function showEyedropperMag(cx, cy) {
+    if (!bgImage || !bgImage.complete) return;
+    lastEyedropperPos = { x: cx, y: cy };
+    mag.classList.add("active");
+    magCtx.clearRect(0, 0, 140, 140);
+    var f = fullW > 0 ? bgImage.naturalWidth / fullW : 1;
+    var span = 140 / eyedropperZoom;        // 取样区域宽度（图片像素）
+    var m = span / 2;
+    var sx = clamp(cx * f - m, 0, bgImage.naturalWidth - span);
+    var sy = clamp(cy * f - m, 0, bgImage.naturalHeight - span);
+    magCtx.imageSmoothingEnabled = false;
+    magCtx.drawImage(bgImage, sx, sy, span, span, 0, 0, 140, 140);
+    magCtx.imageSmoothingEnabled = true;
+    // 十字准星
+    magCtx.strokeStyle = "rgba(64,158,255,.9)";
+    magCtx.lineWidth = 1;
+    magCtx.beginPath();
+    magCtx.moveTo(70, 0); magCtx.lineTo(70, 140);
+    magCtx.moveTo(0, 70); magCtx.lineTo(140, 70);
+    magCtx.stroke();
+    // 中心像素高亮框（框住准星正中的那一像素，便于精确定位）
+    var box = Math.max(2, eyedropperZoom);
+    magCtx.strokeStyle = "rgba(255,255,255,.95)";
+    magCtx.lineWidth = 2;
+    magCtx.strokeRect(70 - box / 2 - 1, 70 - box / 2 - 1, box + 2, box + 2);
+    // hex 文本（圆形放大镜：居中于底部圆弧内，避免被圆形边缘裁切）
+    var col = sampleColorAt(cx, cy);
+    magCtx.font = "bold 13px monospace";
+    magCtx.textAlign = "center";
+    magCtx.textBaseline = "middle";
+    var txt = col ? col.hex : "#000000";
+    var tw = magCtx.measureText(txt).width;
+    var bw = tw + 14, bh = 20;
+    var bx = 70 - bw / 2, by = 122 - bh; // 靠近底部、水平居中，落在圆形区域内
+    magCtx.fillStyle = "rgba(0,0,0,.62)";
+    magCtx.fillRect(bx, by, bw, bh);
+    magCtx.fillStyle = "#fff";
+    magCtx.fillText(txt, 70, by + bh / 2 + 1);
+    magCtx.textAlign = "left";
+    magCtx.textBaseline = "alphabetic";
+    // 注意：面板色值文本不在此处实时更新（否则会随鼠标移动变化）；
+    // 只有单击确认取色时（pickColorAt）才写，保证与颜色栏一致、复制的是确认色。
+    // 跟随光标，避免遮挡
+    var mx = cx + 18, my = cy + 18;
+    if (mx + 140 > W) mx = cx - 158;
+    if (my + 140 > H) my = cy - 158;
+    mag.style.left = mx + "px";
+    mag.style.top = my + "px";
+  }
+
   function pointInSel(px, py) {
     return hasSelection() &&
       px >= selRect.x && px <= selRect.x + selRect.w &&
@@ -301,14 +400,34 @@ onMounted(() => {
   }
   function paintArrow(ctx, a, kd) {
     var lw = a.lw * kd;
+    var head = lw * 4;
+    var spread = Math.PI / 7;
+    // 箭头躯干应停在三角形底边处，避免粗线圆帽顶出箭头。
+    // shaftInset = 从箭头顶点到躯干末端的距离。
+    var shaftInset = head * Math.cos(spread) - lw / 2;
+    if (shaftInset < 0) shaftInset = 0;
+
+    var ang = Math.atan2(a.y2 - a.y1, a.x2 - a.x1);
+    var dx = Math.cos(ang), dy = Math.sin(ang);
+    var len = Math.hypot(a.x2 - a.x1, a.y2 - a.y1) * kd;
+    var isDouble = a.ends === "double";
+    var totalInset = shaftInset * (isDouble ? 2 : 1);
+
     ctx.save();
     ctx.lineWidth = lw; ctx.lineCap = "round"; ctx.lineJoin = "round";
     ctx.strokeStyle = a.color; ctx.fillStyle = a.color;
-    ctx.beginPath(); ctx.moveTo(a.x1 * kd, a.y1 * kd); ctx.lineTo(a.x2 * kd, a.y2 * kd); ctx.stroke();
-    var head = lw * 4;
-    var ang = Math.atan2(a.y2 - a.y1, a.x2 - a.x1);
+
+    // 仅当长度够两个箭头 + 躯干时才画线；否则只画箭头
+    if (len > totalInset + Math.max(1, lw * 0.5)) {
+      var sx = a.x1 * kd + (isDouble ? dx * shaftInset : 0);
+      var sy = a.y1 * kd + (isDouble ? dy * shaftInset : 0);
+      var ex = a.x2 * kd - dx * shaftInset;
+      var ey = a.y2 * kd - dy * shaftInset;
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.stroke();
+    }
+
     drawHead(ctx, a.x2 * kd, a.y2 * kd, ang, head, a.color, a.head);
-    if (a.ends === "double") drawHead(ctx, a.x1 * kd, a.y1 * kd, ang + Math.PI, head, a.color, a.head);
+    if (isDouble) drawHead(ctx, a.x1 * kd, a.y1 * kd, ang + Math.PI, head, a.color, a.head);
     ctx.restore();
   }
   function textFontStyle(a, fs) {
@@ -687,6 +806,7 @@ onMounted(() => {
   // ====================== 工具栏 / 属性面板 ======================
   function setTool(t) {
     editTool = t;
+    if (t !== "eyedropper") hideMagnifier();
     if (t !== "select") {
       selectedIndex = -1;
       // 非选择工具：仅隐藏缩放手柄（避免误触缩放选区），保留暗化遮罩，便于在画布上绘制
@@ -741,6 +861,11 @@ onMounted(() => {
     arrowRow.style.display = tool === "arrow" ? "flex" : "none";
     textRow.style.display = tool === "text" ? "flex" : "none";
     mosaicRow.style.display = tool === "mosaic" ? "flex" : "none";
+    eyedropperRow.style.display = tool === "eyedropper" ? "flex" : "none";
+    // 色值文本 + 复制按钮跟随吸管工具，显示在颜色栏后
+    var isE = tool === "eyedropper";
+    if (eyedropperHex) eyedropperHex.style.display = isE ? "inline-block" : "none";
+    if (eyedropperCopy) eyedropperCopy.style.display = isE ? "inline-block" : "none";
     rectRow.style.display = (tool === "rect" || tool === "ellipse") ? "flex" : "none";
     if (tool === "arrow") { arrowHead.value = src.head; arrowEnds.value = src.ends; }
     if (tool === "text") { textWeight.value = String(src.weight || 400); textItalic.classList.toggle("active", !!src.italic); }
@@ -1045,6 +1170,12 @@ onMounted(() => {
       e.preventDefault();
       return;
     }
+    if (editTool === "eyedropper") {
+      e.preventDefault();
+      pickColorAt(lastEyedropperPos.x, lastEyedropperPos.y);
+      showEyedropperMag(lastEyedropperPos.x, lastEyedropperPos.y);
+      return;
+    }
     e.preventDefault();
     dragStart = { x: x, y: y };
     drawing = editTool === "arrow" ? newArrow(x, y)
@@ -1058,6 +1189,7 @@ onMounted(() => {
     if (phase !== "annotate") return;
     var r = anno.getBoundingClientRect();
     var x = e.clientX - r.left, y = e.clientY - r.top;
+    if (editTool === "eyedropper") { showEyedropperMag(x, y); return; }
     if (transformMode) {
       var a = annotations[selectedIndex];
       if (!a) { transformMode = null; return; }
@@ -1138,6 +1270,42 @@ onMounted(() => {
   textWeight.addEventListener("change", function () { setTextWeight(textWeight.value); });
   textItalic.addEventListener("click", toggleItalic);
   rectFill.addEventListener("click", toggleFill);
+  // 吸管：放大倍数滑杆
+  if (eyedropperZoomInput) {
+    eyedropperZoomInput.addEventListener("input", function () {
+      eyedropperZoom = parseFloat(eyedropperZoomInput.value) || 4;
+      if (eyedropperZoomVal) eyedropperZoomVal.textContent = eyedropperZoom.toFixed(1) + "×";
+      showEyedropperMag(lastEyedropperPos.x, lastEyedropperPos.y);
+    });
+  }
+  // 吸管：鼠标滚轮调整放大倍数（更顺手）
+  anno.addEventListener("wheel", function (e) {
+    if (phase !== "annotate" || editTool !== "eyedropper") return;
+    e.preventDefault();
+    eyedropperZoom = clamp(eyedropperZoom + (e.deltaY < 0 ? 0.6 : -0.6), 1, 20);
+    eyedropperZoomInput.value = String(eyedropperZoom);
+    if (eyedropperZoomVal) eyedropperZoomVal.textContent = eyedropperZoom.toFixed(1) + "×";
+    showEyedropperMag(lastEyedropperPos.x, lastEyedropperPos.y);
+  }, { passive: false });
+  // 吸管：复制当前预览色到剪贴板
+  if (eyedropperCopy) {
+    eyedropperCopy.addEventListener("click", function () {
+      var hex = eyedropperHex ? eyedropperHex.textContent : "";
+      if (!hex || hex.length < 7) return;
+      ipc.invoke("screenshot:copy-text", hex)
+        .then(function (res: any) {
+          if (!res || !res.success) return;
+          var prev = eyedropperCopy.textContent;
+          eyedropperCopy.textContent = "已复制";
+          eyedropperCopy.classList.add("copied");
+          setTimeout(function () {
+            eyedropperCopy.textContent = prev;
+            eyedropperCopy.classList.remove("copied");
+          }, 1000);
+        })
+        .catch(function () { /* noop */ });
+    });
+  }
 
   textInput.addEventListener("keydown", function (e) {
     e.stopPropagation();
@@ -1161,8 +1329,22 @@ onMounted(() => {
       else if (e.key === "Enter") doCopy();
       else if ((e.ctrlKey || e.metaKey) && (e.key === "z" || e.key === "Z")) {
         annotations.pop(); selectedIndex = -1; renderAnno();
-      } else if (e.key === "Delete" || e.key === "Backspace") {
+      }       else if (e.key === "Delete" || e.key === "Backspace") {
         if (selectedIndex >= 0) { annotations.splice(selectedIndex, 1); selectedIndex = -1; renderAnno(); }
+      }
+      else if (editTool === "eyedropper" &&
+        (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+        // 方向键以「1 图像像素」为最精细步进，解决鼠标移动过快、难以精准取色的问题
+        var ef = fullW > 0 && bgImage && bgImage.complete ? bgImage.naturalWidth / fullW : 1;
+        var step = 1 / ef; // 1 图像像素对应的 CSS 像素
+        if (e.key === "ArrowLeft") lastEyedropperPos.x -= step;
+        else if (e.key === "ArrowRight") lastEyedropperPos.x += step;
+        else if (e.key === "ArrowUp") lastEyedropperPos.y -= step;
+        else if (e.key === "ArrowDown") lastEyedropperPos.y += step;
+        lastEyedropperPos.x = clamp(lastEyedropperPos.x, 0, W);
+        lastEyedropperPos.y = clamp(lastEyedropperPos.y, 0, H);
+        showEyedropperMag(lastEyedropperPos.x, lastEyedropperPos.y);
+        e.preventDefault();
       }
     }
   });
@@ -1233,6 +1415,7 @@ onMounted(() => {
 .handle.sw { left: -5px; bottom: -5px; cursor: nesw-resize; }
 .handle.w  { left: -5px; top: 50%; margin-top: -5px; cursor: ew-resize; }
 #sizeLabel {
+  user-select: none;
   position: absolute; left: 0; top: -24px; white-space: nowrap;
   font-size: 12px; line-height: 18px; padding: 1px 7px; color: #fff;
   background: #409eff; border-radius: 4px; pointer-events: none;
@@ -1305,6 +1488,17 @@ onMounted(() => {
 #props .prow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 #props .plabel { color: #cfd3da; font-size: 12px; min-width: 30px; }
 #props .pval { color: #fff; min-width: 24px; text-align: right; font-size: 12px; }
+#props .eyedropper-hex {
+  color: #fff; font: 12px monospace;
+  background: #2b2f37; border: 1px solid #4a4f59; border-radius: 4px;
+  padding: 2px 6px; letter-spacing: 0.5px; cursor: default;
+}
+#props .eyedropper-copy {
+  background: #409eff; color: #fff; border: none; border-radius: 5px;
+  padding: 3px 10px; font-size: 12px; cursor: pointer; white-space: nowrap;
+}
+#props .eyedropper-copy:hover { background: #66b1ff; }
+#props .eyedropper-copy.copied { background: #67c23a; }
 #props .swatches { display: flex; gap: 5px; }
 #props .swatch { width: 18px; height: 18px; border-radius: 4px; cursor: pointer; border: 2px solid transparent; }
 #props .swatch.active { border-color: #fff; box-shadow: 0 0 0 1px #409eff; }

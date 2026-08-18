@@ -613,6 +613,17 @@ export function initScreenshot() {
     }
   });
 
+  // 复制文本（如吸管取到的色值）到系统剪贴板
+  ipcMain.handle("screenshot:copy-text", async (_e, text: string) => {
+    try {
+      if (typeof text !== "string" || !text) return { success: false, error: "空内容" };
+      clipboard.writeText(text);
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e?.message || String(e) };
+    }
+  });
+
   // 获取多显示器信息
   ipcMain.handle("screenshot:get-displays", async () => {
     try {
