@@ -99,7 +99,7 @@
         <button id="rectFillOpaque" class="tbtn">不透明填充</button>
       </div>
     </div>
-    <div id="hint2">选区内可加 箭头/矩形/椭圆/画笔/文字/马赛克/吸管 · 吸管：移动鼠标看放大预览、滚轮或滑杆调整倍数取更精确颜色，方向键可逐像素微调定位，单击即取色并设为当前颜色（右侧「复制」按钮可将色值写入剪贴板） · 选择工具：拖选区内部可平移、拖边缘 8 手柄可缩放选区，点中标注后可拖动（四角缩放、顶部圆点旋转） · Enter 复制 · Esc 取消 · Delete 删除</div>
+    <div id="hint2">选区内可加 箭头/矩形/椭圆/画笔/文字/马赛克/吸管 · 滚轮调整：箭头/矩形/椭圆/画笔=粗细，文字=字号，马赛克=强度（上滚增大、下滚减小；选中标注时改该标注） · 吸管：移动鼠标看放大预览、滚轮或滑杆调整倍数取更精确颜色，方向键可逐像素微调定位，单击即取色并设为当前颜色（右侧「复制」按钮可将色值写入剪贴板） · 选择工具：拖选区内部可平移、拖边缘 8 手柄可缩放选区，点中标注后可拖动（四角缩放、顶部圆点旋转） · Enter 复制 · Esc 取消 · Delete 删除</div>
     <input id="textInput" type="text" maxlength="200" />
   </div>
 </template>
@@ -1310,19 +1310,34 @@ onMounted(() => {
     if (eyedropperZoomVal) eyedropperZoomVal.textContent = eyedropperZoom.toFixed(1) + "×";
     showEyedropperMag(lastEyedropperPos.x, lastEyedropperPos.y);
   }, { passive: false });
-  // 矩形/椭圆：滚轮调整粗细（上滚变粗，下滚变细）
+  // 标注工具：滚轮调整粗细 / 字号 / 强度（上滚增大，下滚减小）。
+  // 吸管（eyedropper）另有专属滚轮处理「放大倍数」，此处跳过；选择工具无需滚轮。
   anno.addEventListener("wheel", function (e) {
     if (phase !== "annotate") return;
-    if (editTool !== "rect" && editTool !== "ellipse") return;
+    if (editTool === "select" || editTool === "eyedropper") return;
+    if (!SIZE_CFG[editTool]) return;
     e.preventDefault();
     var cfg = SIZE_CFG[editTool];
-    var sel = selectedIndex >= 0 ? annotations[selectedIndex] : null;
-    var isSel = sel && (sel.type === "rect" || sel.type === "ellipse");
-    var cur = isSel ? sel.lw : style[editTool].lw;
-    var next = clamp(Math.round(cur + (e.deltaY < 0 ? 1 : -1)), cfg.min, cfg.max);
+    var sel = (selectedIndex >= 0 && annotations[selectedIndex]) ? annotations[selectedIndex] : null;
+    var isSel = sel && sel.type === editTool; // 仅当选中元素类型与当前工具一致时才改该元素
+    // 取当前值：选中元素取元素值，否则取该工具默认样式值
+    var cur = isSel
+      ? (sel.type === "mosaic" ? sel.block : sel.type === "text" ? sel.fontSize : sel.lw)
+      : (editTool === "mosaic" ? style.mosaic.block
+         : editTool === "text" ? style.text.fontSize
+         : style[editTool].lw);
+    var step = cfg.step || 1;
+    var next = clamp(Math.round(cur + (e.deltaY < 0 ? step : -step)), cfg.min, cfg.max);
     if (next === cur) return;
-    if (isSel) { sel.lw = next; renderAnno(); }
-    style[editTool].lw = next;
+    if (isSel) {
+      if (sel.type === "mosaic") sel.block = next;
+      else if (sel.type === "text") sel.fontSize = next;
+      else sel.lw = next;
+      renderAnno();
+    }
+    if (editTool === "mosaic") style.mosaic.block = next;
+    else if (editTool === "text") style.text.fontSize = next;
+    else style[editTool].lw = next;
     sizeRange.value = String(next);
     sizeVal.textContent = String(next);
   }, { passive: false });
