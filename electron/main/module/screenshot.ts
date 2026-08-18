@@ -196,13 +196,15 @@ function openSelectLayer(mode: "region" | "full") {
   selectWin = new BrowserWindow({
     x: display.bounds.x,
     y: display.bounds.y,
-    width: display.size.width,
-    height: display.size.height,
+    width: display.bounds.width,
+    height: display.bounds.height,
     transparent: true,
     frame: false,
     resizable: false,
     movable: false,
-    fullscreenable: false,
+    // 允许全屏：确保窗口可覆盖整块显示器（含任务栏区域），
+    // 否则 Windows 下 frameless 窗口可能被任务栏占位挤到工作区高度。
+    fullscreenable: true,
     skipTaskbar: true,
     hasShadow: false,
     show: false, // 先隐藏：等 screenshot:select-ready 发来冻结图后再显示，体验更流畅
@@ -215,6 +217,17 @@ function openSelectLayer(mode: "region" | "full") {
   });
   selectWin.setAlwaysOnTop(true, "screen-saver");
   selectWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  // 关键修复：显式把窗口边界设为「完整显示器矩形」，强制覆盖整个屏幕（含任务栏）。
+  // Windows 下仅按 display.size 传构造参数时，非全屏的 frameless 窗口可能被任务栏
+  // 占位「挤」到工作区高度，导致 window.innerHeight 少了任务栏那一截 ——
+  // 表现为冻结背景 / 全屏截图「没有占满整个屏幕，去掉了任务栏的高度」。
+  // 这里的 setBounds 能确保窗口真正铺满整屏，使后续 image.innerWidth/innerHeight 即整屏尺寸。
+  selectWin.setBounds({
+    x: display.bounds.x,
+    y: display.bounds.y,
+    width: display.bounds.width,
+    height: display.bounds.height,
+  });
 
   // 以路由形式加载（Vue 组件）：#/screenshotSelect
   loadRoute(selectWin, "screenshotSelect");
