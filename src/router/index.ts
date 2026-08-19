@@ -33,6 +33,8 @@ export const RouteNames = {
   JOB_TIP_WINDOW: "jobTipWindow",
   MINI_NOTEBOOK: "miniNotebook",
   CATEGORIZABLE_NOTES: "categorizableNotes",
+  THEME_CONVERSATION: "themeConversation",
+  THEME_CONVERSATION_MINI: "themeConversationMini",
   ROUTE_SETTING: "routeSetting",
   BROWSER: "browser",
   QUICK_NOTE: "quickNote",
@@ -144,6 +146,14 @@ export const layoutRouters: RouteRecordRaw[] = [
     component: () => import("@/views/categorizableNotes/index.vue"),
     meta: {
       title: "可归类的笔记",
+    },
+  },
+  {
+    path: "/themeConversation",
+    name: RouteNames.THEME_CONVERSATION,
+    component: () => import("@/views/themeConversation/index.vue"),
+    meta: {
+      title: "主题对话",
     },
   },
   {
@@ -315,6 +325,11 @@ const routers: RouteRecordRaw[] = [
     path: "/sticker",
     name: RouteNames.STICKER,
     component: () => import("@/views/sticker/index.vue"),
+  },
+  {
+    path: "/themeConversationMini",
+    name: RouteNames.THEME_CONVERSATION_MINI,
+    component: () => import("@/views/themeConversationMiniWindow/index.vue"),
   },
 ];
 

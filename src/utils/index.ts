@@ -132,6 +132,7 @@ export const iconMap: Record<string, string> = {
   clipboard: 'FileText',
   notebookApp: 'Notebook',
   categorizableNotes: 'LibraryBig',
+  themeConversation: 'MessagesSquare',
   registerShortcut: 'Lightbulb',
   safetyProtection: 'Lock',
   netRequest: 'MapPin',
