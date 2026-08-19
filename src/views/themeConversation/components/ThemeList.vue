@@ -6,9 +6,14 @@
         <LucideIcon name="MessagesSquare" :size="16" />
         <span>对话主题</span>
       </div>
-      <button class="tl-new" title="新建主题" @click="openCreate">
-        <LucideIcon name="Plus" :size="16" />
-      </button>
+      <div class="tl-header-actions">
+        <button class="tl-clear" title="清空全部主题与对话数据" @click="onClearAll">
+          <LucideIcon name="Trash" :size="16" />
+        </button>
+        <button class="tl-new" title="新建主题" @click="openCreate">
+          <LucideIcon name="Plus" :size="16" />
+        </button>
+      </div>
     </div>
 
     <!-- 主题列表 -->
@@ -19,28 +24,42 @@
         class="tl-item"
         :class="{ active: theme.id === currentThemeId, matched: isMatched(theme) }"
         @click="selectTheme(theme.id)"
+        @contextmenu.prevent="onContextMenu($event, theme)"
       >
-        <div class="tl-item-main">
-          <div class="tl-item-title">
+        <!-- 上层：左=主题名称，右=功能按钮 + 对话数量 -->
+        <div class="tl-row-top">
+          <div class="tl-name-wrap">
             <LucideIcon name="Hash" :size="13" class="tl-hash" />
             <span class="tl-name">{{ theme.title || '未命名主题' }}</span>
+          </div>
+          <div class="tl-right">
+            <div class="tl-actions">
+              <button
+                class="tl-edit"
+                title="修改主题"
+                @click.stop="openEdit(theme)"
+              >
+                <LucideIcon name="Pencil" :size="14" />
+              </button>
+              <button
+                class="tl-del"
+                title="删除主题"
+                @click.stop="removeTheme(theme)"
+              >
+                <LucideIcon name="Trash2" :size="14" />
+              </button>
+            </div>
             <span class="tl-count">{{ themeCounts[theme.id] || 0 }}</span>
           </div>
-          <div class="tl-tags" v-if="parsedTags(theme).length">
-            <TagChip
-              v-for="tid in parsedTags(theme)"
-              :key="tid"
-              :id="tid"
-            />
-          </div>
         </div>
-        <button
-          class="tl-del"
-          title="删除主题"
-          @click.stop="removeTheme(theme)"
-        >
-          <LucideIcon name="Trash2" :size="14" />
-        </button>
+        <!-- 下层：标签 -->
+        <div class="tl-tags" v-if="parsedTags(theme).length">
+          <TagChip
+            v-for="tid in parsedTags(theme)"
+            :key="tid"
+            :id="tid"
+          />
+        </div>
       </div>
 
       <div class="tl-empty" v-if="!themes.length">还没有主题，点击右上角 + 创建</div>
@@ -65,6 +84,30 @@
         <el-button type="primary" @click="submit">确定</el-button>
       </template>
     </el-dialog>
+
+    <!-- 主题右键上下文菜单：修改 / 删除 -->
+    <Teleport to="body">
+      <div
+        v-if="ctxMenu.visible"
+        class="tl-menu-backdrop"
+        @click="closeCtxMenu"
+        @contextmenu.prevent="closeCtxMenu"
+      ></div>
+      <div
+        v-if="ctxMenu.visible"
+        class="tl-context-menu"
+        :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }"
+      >
+        <button class="ctx-item" @click="ctxEdit">
+          <LucideIcon name="Pencil" :size="14" />
+          修改主题
+        </button>
+        <button class="ctx-item danger" @click="ctxDelete">
+          <LucideIcon name="Trash2" :size="14" />
+          删除主题
+        </button>
+      </div>
+    </Teleport>
   </aside>
 </template>
 
@@ -85,6 +128,7 @@ const {
   createTheme,
   updateTheme,
   deleteTheme,
+  clearAllData,
   parseArr,
 } = useThemeConversation();
 
@@ -109,6 +153,60 @@ function openCreate() {
   formTitle.value = '';
   formTags.value = [];
   dialogVisible.value = true;
+}
+
+/** 清空全部主题对话数据（对话 / 主题 / 标签），二次确认后执行 */
+async function onClearAll() {
+  try {
+    await ElMessageBox.confirm(
+      '将清空全部主题、对话以及标签数据，此操作不可恢复。确定继续？',
+      '清空确认',
+      { type: 'warning', confirmButtonText: '清空', cancelButtonText: '取消' }
+    );
+  } catch {
+    return;
+  }
+  await clearAllData();
+  ElMessage.success('已清空全部数据');
+}
+
+/** 打开编辑：用主题现有标题/标签预填表单 */
+function openEdit(theme: any) {
+  editingId.value = theme.id;
+  formTitle.value = theme.title || '';
+  formTags.value = parseArr(theme.tags);
+  dialogVisible.value = true;
+}
+
+/** 右键上下文菜单：修改 / 删除主题 */
+const ctxMenu = ref<{ visible: boolean; x: number; y: number; theme: any }>({
+  visible: false,
+  x: 0,
+  y: 0,
+  theme: null,
+});
+
+function onContextMenu(e: MouseEvent, theme: any) {
+  // 简单防溢出：菜单宽约 160、高约 88，贴边时回退
+  const x = Math.min(e.clientX, window.innerWidth - 170);
+  const y = Math.min(e.clientY, window.innerHeight - 96);
+  ctxMenu.value = { visible: true, x, y, theme };
+}
+
+function closeCtxMenu() {
+  ctxMenu.value.visible = false;
+}
+
+function ctxEdit() {
+  const t = ctxMenu.value.theme;
+  closeCtxMenu();
+  if (t) openEdit(t);
+}
+
+function ctxDelete() {
+  const t = ctxMenu.value.theme;
+  closeCtxMenu();
+  if (t) removeTheme(t);
 }
 
 async function removeTheme(theme: any) {
@@ -174,7 +272,14 @@ async function submit() {
     }
   }
 
-  .tl-new {
+  .tl-header-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .tl-new,
+  .tl-clear {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -186,11 +291,17 @@ async function submit() {
     color: var(--text-muted);
     cursor: pointer;
     transition: background 0.2s, color 0.2s;
+  }
 
-    &:hover {
-      background: var(--color-primary-light);
-      color: var(--color-primary);
-    }
+  .tl-new:hover {
+    background: var(--color-primary-light);
+    color: var(--color-primary);
+  }
+
+  /* 清空按钮：危险操作，hover 呈红色警示 */
+  .tl-clear:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--color-danger, #ef4444);
   }
 }
 
@@ -209,19 +320,20 @@ async function submit() {
 .tl-item {
   position: relative;
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
+  flex-direction: column;
+  gap: 6px;
   padding: 10px 12px;
   border-radius: var(--radius-btn);
   cursor: pointer;
-  border: 1px solid transparent;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-base);
   transition: background 0.2s, border-color 0.2s;
 
   &:hover {
     background: var(--bg-hover);
+    border-color: var(--color-primary-light);
 
-    .tl-del { opacity: 1; }
+    .tl-actions { opacity: 1; }
   }
 
   &.active {
@@ -236,15 +348,20 @@ async function submit() {
     box-shadow: 0 0 0 1px var(--color-primary);
   }
 
-  .tl-item-main {
-    flex: 1;
-    min-width: 0;
+  /* 上层：左=名称，右=数量 + 功能按钮 */
+  .tl-row-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
   }
 
-  .tl-item-title {
+  .tl-name-wrap {
     display: flex;
     align-items: center;
     gap: 4px;
+    flex: 1;
+    min-width: 0;
 
     .tl-hash { color: var(--text-muted); flex-shrink: 0; }
 
@@ -256,36 +373,94 @@ async function submit() {
       overflow: hidden;
       text-overflow: ellipsis;
     }
-
-    .tl-count {
-      font-size: 11px;
-      color: var(--text-muted);
-      background: var(--bg-active-btn);
-      border-radius: 10px;
-      padding: 0 7px;
-      flex-shrink: 0;
-    }
   }
 
+  .tl-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .tl-count {
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--bg-active-btn);
+    border-radius: 10px;
+    padding: 0 7px;
+    flex-shrink: 0;
+  }
+
+  /* 下层：标签 */
   .tl-tags {
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
-    margin-top: 6px;
   }
 
-  .tl-del {
+  .tl-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
     flex-shrink: 0;
     opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .tl-edit,
+  .tl-del {
     border: none;
     background: transparent;
     color: var(--text-muted);
     cursor: pointer;
     padding: 2px;
     border-radius: 4px;
-    transition: opacity 0.2s, color 0.2s;
+    transition: color 0.2s, background 0.2s;
 
-    &:hover { color: var(--color-danger, #ef4444); }
+    &:hover { background: var(--bg-hover); }
+  }
+
+  .tl-edit:hover { color: var(--color-primary); }
+  .tl-del:hover { color: var(--color-danger, #ef4444); }
+}
+
+/* 主题右键上下文菜单 */
+.tl-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+}
+
+.tl-context-menu {
+  position: fixed;
+  z-index: 2001;
+  min-width: 150px;
+  padding: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  box-shadow: var(--shadow-card, 0 6px 24px rgba(0, 0, 0, 0.12));
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  .ctx-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--text-primary);
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s, color 0.15s;
+
+    &:hover { background: var(--bg-hover); }
+    &.danger { color: var(--color-danger, #ef4444); }
+    &.danger:hover { background: rgba(239, 68, 68, 0.1); }
   }
 }
 

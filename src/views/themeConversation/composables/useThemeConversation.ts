@@ -202,6 +202,22 @@ async function deleteTheme(id: number) {
   }
 }
 
+/**
+ * 清空主题对话功能相关的全部数据库数据（对话 / 主题 / 标签），
+ * 并重置内存状态。属不可逆的破坏性操作，调用方需先二次确认。
+ */
+async function clearAllData() {
+  await dbExecute(`DELETE FROM ${TABLE.CONVERSATION}`);
+  await dbExecute(`DELETE FROM ${TABLE.THEME}`);
+  await dbExecute(`DELETE FROM ${TABLE.TAG}`);
+  themes.value = [];
+  themeCounts.value = {};
+  tags.value = [];
+  conversations.value = [];
+  currentThemeId.value = null;
+  await loadThemeCounts();
+}
+
 /* ============================ 对话相关 ============================ */
 
 /** 新建对话 */
@@ -617,6 +633,7 @@ export function useThemeConversation() {
     createTheme,
     updateTheme,
     deleteTheme,
+    clearAllData,
     // 对话
     createConversation,
     updateConversation,
