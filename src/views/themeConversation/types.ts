@@ -23,6 +23,10 @@
  *    - annotate_time 对话标注时间（标注/批注时间，可选）【必须】
  *    - pinned        是否置顶（'0'/'1'）
  *    - is_deleted    软删除标记（'0'/'1'）
+ *    - is_rich       内容是否为富文本（'0'/'1'）：
+ *                     '1' -> content 为 HTML，展示用富文本组件、编辑弹窗用 QuillEditor；
+ *                     '0' -> content 为纯文本，展示按纯文本转义、编辑弹窗用普通 textarea。
+ *                     同时驱动「展示组件」与「编辑弹窗编辑器类型」。
  *
  * 3) conversation_tag 对话标签表（对话与主题共用）
  *    - id        标签id（主键，自增）
@@ -77,6 +81,7 @@ export interface ConversationItem {
   annotate_time: string;
   pinned?: string;
   is_deleted?: string;
+  is_rich?: string;
 }
 
 export interface TagItem {

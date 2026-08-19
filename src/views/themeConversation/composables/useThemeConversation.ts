@@ -14,6 +14,7 @@ import { ref, computed } from 'vue';
 import moment from 'moment';
 import { dbQuery, dbInsert, dbUpdate, dbDelete, dbExecute } from '../db';
 import { TABLE, TAG_SCOPE } from '../types';
+import { isRichContent, stripTags } from './richText';
 
 /* ============================ 工具函数 ============================ */
 
@@ -214,9 +215,12 @@ async function createConversation(payload: {
   const themeId = currentThemeId.value;
   if (!themeId) throw new Error('请先选择或创建一个主题');
   const t = nowStr();
+  // 按内容是否含实际格式归一化：富文本存 HTML，纯文本去标签存纯文本，并写 is_rich
+  const rich = isRichContent(payload.content);
   const data = {
     theme_id: themeId,
-    content: payload.content,
+    content: rich ? payload.content : stripTags(payload.content),
+    is_rich: rich ? '1' : '0',
     // 注意：列名 ref_ids（避免用保留字 references 触发 SQLITE_ERROR）
     ref_ids: JSON.stringify(payload.references || []),
     tags: JSON.stringify(payload.tags || []),
@@ -242,6 +246,12 @@ async function updateConversation(id: number, patch: any) {
   if (patch.references !== undefined) data.ref_ids = JSON.stringify(patch.references);
   else if (patch.ref_ids !== undefined && Array.isArray(patch.ref_ids)) {
     data.ref_ids = JSON.stringify(patch.ref_ids);
+  }
+  // 内容变更时按是否含格式归一化，并同步 is_rich
+  if (patch.content !== undefined) {
+    const rich = isRichContent(patch.content);
+    data.content = rich ? patch.content : stripTags(patch.content);
+    data.is_rich = rich ? '1' : '0';
   }
   await dbUpdate(TABLE.CONVERSATION, data, { id });
   const idx = conversations.value.findIndex((c) => c.id === id);
@@ -509,6 +519,7 @@ async function ensureSchema() {
     `ALTER TABLE ${TABLE.CONVERSATION} ADD COLUMN annotate_time TEXT`,
     `ALTER TABLE ${TABLE.CONVERSATION} ADD COLUMN pinned TEXT`,
     `ALTER TABLE ${TABLE.CONVERSATION} ADD COLUMN is_deleted TEXT`,
+    `ALTER TABLE ${TABLE.CONVERSATION} ADD COLUMN is_rich TEXT`,
     `ALTER TABLE ${TABLE.TAG} ADD COLUMN name TEXT`,
     `ALTER TABLE ${TABLE.TAG} ADD COLUMN color TEXT`,
     `ALTER TABLE ${TABLE.TAG} ADD COLUMN scope TEXT`,
@@ -520,6 +531,22 @@ async function ensureSchema() {
     } catch {
       // 列已存在时 SQLite 报 duplicate column name，忽略即可
     }
+  }
+
+  /**
+   * 数据迁移：新增 is_rich 列后，按既有 content 是否含 HTML 标签回填，
+   * 让历史富文本继续以富文本组件展示，其余标记为纯文本。
+   * 幂等：仅处理 is_rich 仍为空的旧行，新写入的行已自带该字段。
+   */
+  try {
+    await dbExecute(
+      `UPDATE ${TABLE.CONVERSATION} SET is_rich = '1' WHERE is_rich IS NULL AND content LIKE '%<%'`
+    );
+    await dbExecute(
+      `UPDATE ${TABLE.CONVERSATION} SET is_rich = '0' WHERE is_rich IS NULL`
+    );
+  } catch {
+    // 忽略
   }
 
   /**

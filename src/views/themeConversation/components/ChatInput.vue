@@ -30,15 +30,57 @@
       </div>
     </div>
 
-    <!-- 输入主体 -->
-    <div class="input-main">
-      <textarea
-        ref="taRef"
-        v-model="content"
-        class="ta"
-        placeholder="记录此刻的思考波动…（Enter 发送，Shift+Enter 换行）"
+    <!-- 输入主体：折叠=contenteditable 普通元素；展开=vue-quill 富文本 -->
+    <div
+      class="input-main"
+      :class="{ expanded, manual: !!manualHeight }"
+      :style="heightStyle"
+      ref="inputMainRef"
+    >
+      <!-- 顶部拖拽手柄：上下拖动调整输入区高度（双击恢复自适应） -->
+      <div
+        class="resize-handle"
+        title="拖动调整高度，双击恢复"
+        @mousedown.prevent="startResize"
+        @dblclick="resetHeight"
+      >
+        <!-- <LucideIcon name="GripHorizontal" :size="16" /> -->
+      </div>
+
+      <!-- 折叠态：用一个普通 div（contenteditable）模拟输入框效果 -->
+      <div
+        v-show="!expanded"
+        ref="plainRef"
+        class="ta plain"
+        contenteditable="true"
+        :data-placeholder="placeholder"
+        @input="onPlainInput"
         @keydown.enter.exact.prevent="send"
-      ></textarea>
+        @paste="onPlainPaste"
+      ></div>
+
+      <!-- 展开态：vue-quill 富文本编辑器，高度更高 -->
+      <QuillEditor
+        v-if="expanded"
+        ref="editorRef"
+        v-model:content="content"
+        content-type="html"
+        :toolbar="toolbar"
+        :placeholder="placeholder"
+        theme="snow"
+        class="ta rich"
+        @ready="onEditorReady"
+      />
+
+      <!-- 右上角：拉伸 / 收起按钮 -->
+      <button
+        class="expand-btn"
+        :class="{ active: expanded }"
+        :title="expanded ? '收起为纯文本' : '展开富文本编辑'"
+        @click="toggleExpand"
+      >
+        <LucideIcon :name="expanded ? 'Minimize2' : 'Maximize2'" :size="16" />
+      </button>
     </div>
 
     <!-- 工具条 -->
@@ -67,7 +109,7 @@
           size="small"
         />
       </div>
-      <button class="send-btn" :disabled="!content.trim()" @click="send">
+      <button class="send-btn" :disabled="isEmpty" @click="send">
         <LucideIcon name="Send" :size="15" />
         发送
       </button>
@@ -99,12 +141,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick } from 'vue';
+import { ref, computed, nextTick, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
+import { QuillEditor } from '@vueup/vue-quill';
+import '@vueup/vue-quill/dist/vue-quill.snow.css';
 import LucideIcon from '@/components/LucideIcon.vue';
 import TagSelector from './TagSelector.vue';
 import TagChip from './TagChip.vue';
 import { useThemeConversation } from '../composables/useThemeConversation';
+import { stripTags, toQuillContent, snippetOf } from '../composables/richText';
 
 const {
   conversations,
@@ -118,24 +163,62 @@ const {
   clearPendingRefs,
 } = useThemeConversation();
 
+/** 是否处于「富文本展开」态 */
+const expanded = ref(false);
+/** 输入框内容：纯文本（折叠态）或 HTML（展开态应用了格式时） */
 const content = ref('');
 const tagIds = ref<string[]>([]);
 const annotateTime = ref('');
 const pinned = ref('0');
 const refDialog = ref(false);
-const taRef = ref<HTMLTextAreaElement | null>(null);
+const plainRef = ref<HTMLDivElement | null>(null);
+const editorRef = ref<any>(null);
+const inputMainRef = ref<HTMLElement | null>(null);
+
+/** 拖拽设定的输入区高度（px）；null=自适应。持久化到 localStorage 以便下次恢复 */
+const HEIGHT_KEY = 'tc_chat_input_height';
+const HEIGHT_MIN = 90;
+const HEIGHT_MAX = 760;
+const manualHeight = ref<number | null>(loadSavedHeight());
+const heightStyle = computed(() =>
+  manualHeight.value ? { height: manualHeight.value + 'px' } : null,
+);
+
+/** 读取持久化的高度（越界或缺失返回 null=自适应） */
+function loadSavedHeight(): number | null {
+  try {
+    const v = localStorage.getItem(HEIGHT_KEY);
+    if (!v) return null;
+    const n = Number(v);
+    return Number.isFinite(n) && n >= HEIGHT_MIN && n <= HEIGHT_MAX ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+const placeholder = '记录此刻的思考波动…（Enter 发送，Shift+Enter 换行）';
+
+/** 富文本工具栏：飞书式精简配置 */
+const toolbar = [
+  ['bold', 'italic', 'underline', 'strike'],
+  ['blockquote', 'code-block'],
+  [{ list: 'ordered' }, { list: 'bullet' }],
+  ['link'],
+  [{ header: [1, 2, 3, false] }],
+];
+
+/** 判空：去标签后是否为空白（兼容纯文本与 HTML 两种 content） */
+const isEmpty = computed(() => !stripTags(content.value).trim());
 
 function snippet(text: string): string {
-  const t = (text || '').replace(/\s+/g, ' ').trim();
-  return t.length > 60 ? t.slice(0, 60) + '…' : t || '(空对话)';
+  return snippetOf(text, 60);
 }
 
 /** 输入框中引用 chip 的短预览 */
 function refSnippet(rid: string): string {
   const t = conversations.value.find((c) => c.id === Number(rid));
   if (!t) return `对话 #${rid}`;
-  const text = (t.content || '').replace(/\s+/g, ' ').trim();
-  return text.length > 18 ? text.slice(0, 18) + '…' : text || '(空)';
+  return snippetOf(t.content, 18);
 }
 
 function toggleRef(c: any) {
@@ -158,15 +241,103 @@ function previewRef(rid: string) {
   if (target) showConversationDetail(target);
 }
 
+/** 折叠态输入：实时把 div 的纯文本同步给 content，并自适应高度 */
+function onPlainInput() {
+  if (!plainRef.value) return;
+  // contenteditable 删除到空时会残留 <br>，清空使其触发 :empty 占位符
+  if (!plainRef.value.innerText.trim()) plainRef.value.innerHTML = '';
+  content.value = plainRef.value.innerText;
+  autoGrow();
+}
+
+/** 折叠态粘贴：只接受纯文本，避免富文本碎片混入 */
+function onPlainPaste(e: ClipboardEvent) {
+  e.preventDefault();
+  const text = e.clipboardData?.getData('text/plain') || '';
+  document.execCommand('insertText', false, text);
+}
+
+/** 折叠态自适应高度（上限 200px，超出滚动）。拖拽高度模式下由容器统一控制，跳过 */
+function autoGrow() {
+  if (manualHeight.value) return;
+  const el = plainRef.value;
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 200) + 'px';
+}
+
+/** 把 content（HTML）的纯文本回写到折叠态 div，供展示与继续编辑 */
+function syncPlainFromContent() {
+  if (plainRef.value) plainRef.value.innerText = stripTags(content.value);
+  nextTick(autoGrow);
+}
+
+/** 拉伸 / 收起：切换输入模式 */
+function toggleExpand() {
+  expanded.value = !expanded.value;
+  if (expanded.value) {
+    // 进入富文本：把当前内容转成 quill 可识别的 HTML 再交给编辑器
+    content.value = toQuillContent(content.value);
+    nextTick(() => editorRef.value?.focus?.());
+  } else {
+    // 收起：content 已由 v-model 实时同步为 HTML，把纯文本回写回普通元素
+    nextTick(syncPlainFromContent);
+  }
+}
+
+/**
+ * 顶部手柄拖拽：以输入区顶部为锚点，向上拖动增大、向下拖动减小。
+ * 用 document 级监听，保证鼠标移出组件范围也能继续拖。
+ */
+function startResize(e: MouseEvent) {
+  const el = inputMainRef.value;
+  if (!el) return;
+  const startY = e.clientY;
+  const startH = el.getBoundingClientRect().height;
+  const onMove = (ev: MouseEvent) => {
+    const dy = startY - ev.clientY; // 向上拖动 => 高度增加
+    manualHeight.value = Math.max(HEIGHT_MIN, Math.min(startH + dy, HEIGHT_MAX));
+  };
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
+    try {
+      if (manualHeight.value) localStorage.setItem(HEIGHT_KEY, String(manualHeight.value));
+    } catch {
+      /* 忽略持久化失败 */
+    }
+  };
+  document.body.style.userSelect = 'none';
+  document.body.style.cursor = 'row-resize';
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+/** 双击手柄恢复自适应高度 */
+function resetHeight() {
+  manualHeight.value = null;
+  try {
+    localStorage.removeItem(HEIGHT_KEY);
+  } catch {
+    /* 忽略 */
+  }
+}
+
+function onEditorReady() {
+  nextTick(() => editorRef.value?.focus?.());
+}
+
 async function send() {
-  const text = content.value.trim();
+  const text = stripTags(content.value).trim();
   if (!text) {
     ElMessage.warning('请输入对话内容');
     return;
   }
   try {
     await createConversation({
-      content: text,
+      content: content.value, // 有格式时存 HTML，纯文本时存纯文本
       references: pendingRefIds.value,
       tags: tagIds.value,
       annotateTime: annotateTime.value,
@@ -179,6 +350,7 @@ async function send() {
     annotateTime.value = '';
     pinned.value = '0';
     refDialog.value = false;
+    nextTick(syncPlainFromContent);
   } catch (e: any) {
     ElMessage.error(e?.message || '发送失败');
   }
@@ -186,8 +358,13 @@ async function send() {
 
 /** 供父组件「新建对话」按钮聚焦输入框 */
 function focus() {
-  nextTick(() => taRef.value?.focus());
+  nextTick(() => {
+    if (expanded.value) editorRef.value?.focus?.();
+    else plainRef.value?.focus();
+  });
 }
+
+onMounted(() => nextTick(syncPlainFromContent));
 
 defineExpose({ focus });
 </script>
@@ -197,7 +374,7 @@ defineExpose({ focus });
   flex-shrink: 0;
   border-top: 1px solid var(--border-subtle);
   background: var(--bg-card);
-  padding: 12px 16px 14px;
+  padding: 6px 0px 14px 16px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -241,26 +418,148 @@ defineExpose({ focus });
 }
 
 .input-main {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+
+  /* 拖拽设定高度后放宽最小高度限制，允许更紧凑 */
+  &.manual { min-height: 0; }
+  &.expanded { min-height: 520px; }
+
+  /* 顶部拖拽手柄：上下拖动调整输入区高度 */
+  .resize-handle {
+    flex-shrink: 0;
+    height: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: row-resize;
+    color: var(--text-muted);
+    border-radius: var(--radius-btn) var(--radius-btn) 0 0;
+    transition: background 0.2s, color 0.2s;
+
+    &:hover {
+      background: var(--bg-hover);
+      color: var(--color-primary);
+    }
+    &:active {
+      background: var(--color-primary-light);
+      color: var(--color-primary);
+    }
+  }
+
   .ta {
     width: 100%;
-    min-height: 64px;
-    max-height: 180px;
-    resize: vertical;
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-btn);
     background: var(--bg-base);
     color: var(--text-primary);
     font-size: 14px;
     line-height: 1.6;
-    padding: 10px 12px;
+    padding: 10px 44px 10px 12px; // 右侧留白给拉伸按钮
     box-sizing: border-box;
     outline: none;
     font-family: inherit;
     transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  /* 折叠态：contenteditable 普通元素 */
+  .ta.plain {
+    flex: 1 1 auto;
+    min-height: 64px;
+    max-height: 200px;
+    overflow-y: auto;
+    resize: none;
+    white-space: pre-wrap;
+    word-break: break-word;
+
+    &:empty:before {
+      content: attr(data-placeholder);
+      color: var(--text-muted);
+      pointer-events: none;
+    }
 
     &:focus {
       border-color: var(--color-primary);
       box-shadow: 0 0 0 2px var(--color-primary-light);
+    }
+  }
+
+  /* 拖拽高度时取消文本域上限，由容器统一约束并内部滚动 */
+  &.manual .ta.plain { max-height: none; }
+
+  /* 展开态：vue-quill 富文本 —— 工具栏 + 编辑区填满容器 */
+  :deep(.ql-toolbar.ql-snow) {
+    flex-shrink: 0;
+    border: 1px solid var(--border-subtle);
+    border-bottom: 1px solid var(--border-subtle);
+    border-radius: var(--radius-btn) var(--radius-btn) 0 0;
+    background: var(--bg-card);
+    padding: 15px 8px;
+  }
+  :deep(.ta.rich) {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 0;
+
+    
+
+    &.ql-container.ql-snow {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      height: auto;
+      border: 1px solid var(--border-subtle);
+      border-top: none;
+      border-radius: 0 0 var(--radius-btn) var(--radius-btn);
+      background: var(--bg-card);
+      color: var(--text-primary);
+      font-size: 14px;
+      font-family: inherit;
+    }
+
+    .ql-editor {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      line-height: 1.65;
+    }
+
+    .ql-editor.ql-blank::before {
+      color: var(--text-muted);
+      font-style: normal;
+    }
+  }
+
+  /* 右上角拉伸 / 收起按钮 */
+  .expand-btn {
+    position: absolute;
+    top: 20px;
+    right: 8px;
+    z-index: 3;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    background: var(--bg-card);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover {
+      border-color: var(--color-primary);
+      color: var(--color-primary);
+    }
+    &.active {
+      border-color: var(--color-primary);
+      color: var(--color-primary);
+      background: var(--color-primary-light);
     }
   }
 }

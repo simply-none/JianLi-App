@@ -20,7 +20,7 @@
             <LucideIcon name="Hash" :size="12" />{{ item.theme_title }}
           </span>
         </div>
-        <div class="ref-content">{{ item.content }}</div>
+        <div class="ref-content" v-html="renderContent(item)"></div>
         <div class="ref-tags" v-if="tagArr(item).length">
           <TagChip v-for="tid in tagArr(item)" :key="tid" :id="tid" />
         </div>
@@ -43,6 +43,7 @@ import { computed } from 'vue';
 import LucideIcon from '@/components/LucideIcon.vue';
 import TagChip from './TagChip.vue';
 import { useThemeConversation } from '../composables/useThemeConversation';
+import { escapeHtml } from '../composables/richText';
 
 const { referenceDrawer, parseArr, locateConversation } = useThemeConversation();
 
@@ -59,6 +60,12 @@ function locate(id: number) {
 
 function tagArr(item: any): string[] {
   return parseArr(item.tags);
+}
+
+/** 渲染内容：is_rich='1' 走 v-html（HTML 渲染），否则先转义 */
+function renderContent(item: any): string {
+  const s = (item?.content || '');
+  return item?.is_rich === '1' ? s : escapeHtml(s);
 }
 </script>
 

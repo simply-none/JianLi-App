@@ -143,7 +143,8 @@ async function submit() {
 
 <style scoped lang="scss">
 .theme-list {
-  width: 260px;
+  width: 25%;
+  max-width: 500px;
   flex-shrink: 0;
   height: 100%;
   display: flex;
@@ -157,7 +158,7 @@ async function submit() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 16px;
+  padding: 0px 16px 14px 16px;
   border-bottom: 1px solid var(--border-subtle);
 
   .tl-title {
@@ -196,7 +197,7 @@ async function submit() {
 .tl-body {
   flex: 1;
   overflow-y: auto;
-  padding: 8px;
+  padding: 8px 24px 8px 0;
   display: flex;
   flex-direction: column;
   gap: 4px;

@@ -2,16 +2,27 @@
   <el-dialog
     v-model="visible"
     title="编辑对话"
-    width="560px"
+    width="640px"
     append-to-body
     @open="onOpen"
   >
     <div class="edit-form" v-if="form">
       <label class="f-label">对话内容</label>
+      <div v-if="isRichEdit">
+        <QuillEditor
+          v-model:content="form.content"
+          content-type="html"
+          :toolbar="toolbar"
+          placeholder="记录你的思考…"
+          theme="snow"
+          class="edit-rich"
+        />
+      </div>
       <el-input
+        v-else
         v-model="form.content"
         type="textarea"
-        :rows="5"
+        autosize
         placeholder="记录你的思考…"
         resize="vertical"
       />
@@ -29,7 +40,7 @@
           @click="toggleRef(c)"
         >
           <LucideIcon :name="form.references.includes(String(c.id)) ? 'CheckSquare' : 'Square'" :size="15" />
-          <span class="cand-text">{{ snippet(c.content) }}</span>
+          <span class="cand-text">{{ snippetOf(c.content) }}</span>
           <span class="cand-time">{{ c.create_time }}</span>
         </div>
         <div class="cand-empty" v-if="!candidates.length">当前主题暂无其它对话可引用</div>
@@ -65,11 +76,14 @@
 <script setup lang="ts">
 import { ref, reactive, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { QuillEditor } from '@vueup/vue-quill';
+import '@vueup/vue-quill/dist/vue-quill.snow.css';
 import LucideIcon from '@/components/LucideIcon.vue';
 import TagSelector from './TagSelector.vue';
 import { useThemeConversation } from '../composables/useThemeConversation';
 import { dbExecute } from '../db';
 import { TABLE } from '../types';
+import { stripTags, snippetOf } from '../composables/richText';
 
 const props = defineProps<{ modelValue: boolean; conv: any }>();
 const emit = defineEmits<{
@@ -79,8 +93,19 @@ const emit = defineEmits<{
 
 const { updateConversation, deleteConversation, parseArr, currentThemeId } = useThemeConversation();
 
+/** 富文本工具栏（与输入框保持一致） */
+const toolbar = [
+  ['bold', 'italic', 'underline', 'strike'],
+  ['blockquote', 'code-block'],
+  [{ list: 'ordered' }, { list: 'bullet' }],
+  ['link'],
+  [{ header: [1, 2, 3, false] }],
+];
+
 const visible = ref(false);
 const candidates = ref<any[]>([]);
+/** 编辑弹窗是否使用富文本编辑器：由该对话 is_rich 决定 */
+const isRichEdit = ref(false);
 const form = reactive<{
   content: string;
   tags: string[];
@@ -99,6 +124,8 @@ watch(visible, (v) => emit('update:modelValue', v));
 async function onOpen() {
   const c = props.conv;
   if (!c) return;
+  // is_rich='1' 用富文本编辑器（content 已是 HTML）；否则用纯文本 textarea
+  isRichEdit.value = c.is_rich === '1';
   form.content = c.content || '';
   form.tags = parseArr(c.tags);
   form.references = parseArr(c.ref_ids);
@@ -118,8 +145,7 @@ async function onOpen() {
 }
 
 function snippet(text: string): string {
-  const t = (text || '').replace(/\s+/g, ' ').trim();
-  return t.length > 40 ? t.slice(0, 40) + '…' : t || '(空对话)';
+  return snippetOf(text, 40);
 }
 
 function toggleRef(c: any) {
@@ -130,7 +156,7 @@ function toggleRef(c: any) {
 }
 
 async function onSave() {
-  if (!form.content.trim()) {
+  if (!stripTags(form.content).trim()) {
     ElMessage.warning('对话内容不能为空');
     return;
   }
@@ -170,6 +196,37 @@ async function onDelete() {
     color: var(--text-secondary);
     font-weight: 500;
     margin-top: 4px;
+  }
+
+  :deep(.ql-toolbar.ql-snow) {
+      border: 1px solid var(--border-subtle);
+      border-bottom: 1px solid var(--border-subtle);
+      border-radius: 8px 8px 0 0;
+      background: var(--bg-card);
+      padding: 6px 8px;
+    }
+
+  :deep(.edit-rich) {
+    &.ql-container.ql-snow {
+      border: 1px solid var(--border-subtle);
+      border-radius: 0 0 var(--radius-btn) var(--radius-btn);
+      background: var(--bg-card);
+      color: var(--text-primary);
+      font-size: 14px;
+      font-family: inherit;
+    }
+
+    .ql-editor {
+      min-height: 320px;
+      max-height: 460px;
+      overflow-y: auto;
+      line-height: 1.65;
+    }
+
+    .ql-editor.ql-blank::before {
+      color: var(--text-muted);
+      font-style: normal;
+    }
   }
 
   .ref-candidates {

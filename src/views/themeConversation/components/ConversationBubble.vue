@@ -51,8 +51,12 @@
       </button>
     </div>
 
-    <!-- 对话内容 -->
-    <div class="bubble-content">{{ conv.content }}</div>
+    <!-- 对话内容：含标签按富文本渲染，否则转义后显示 -->
+    <div
+      class="bubble-content"
+      :class="{ 'is-rich': conv.is_rich === '1' }"
+      v-html="renderedContent"
+    ></div>
 
     <!-- 标签：不同标签样式不同（颜色区分） -->
     <div class="bubble-tags" v-if="tagArr.length">
@@ -97,6 +101,7 @@ import { computed } from 'vue';
 import LucideIcon from '@/components/LucideIcon.vue';
 import TagChip from './TagChip.vue';
 import { useThemeConversation } from '../composables/useThemeConversation';
+import { escapeHtml, snippetOf } from '../composables/richText';
 
 const props = defineProps<{
   conv: any;
@@ -119,6 +124,12 @@ const { parseArr, referencedIds, conversations, pendingRefIds, multiselect, sele
 
 const tagArr = computed(() => parseArr(props.conv.tags));
 const refIds = computed(() => parseArr(props.conv.ref_ids));
+
+/** 渲染内容：is_rich='1' 走 v-html（HTML 渲染），否则先转义（等价于原 `{{ }}` 行为） */
+const renderedContent = computed(() => {
+  const c = props.conv.content || '';
+  return props.conv.is_rich === '1' ? c : escapeHtml(c);
+});
 
 /** 是否「引用了别人」 */
 const isReferencing = computed(() => refIds.value.length > 0);
@@ -145,8 +156,7 @@ function onBubbleClick(e: MouseEvent) {
 function refSnippet(rid: string): string {
   const target = conversations.value.find((c) => c.id === Number(rid));
   if (target) {
-    const text = (target.content || '').replace(/\s+/g, ' ').trim();
-    return text.length > 24 ? text.slice(0, 24) + '…' : text || '(空)';
+    return snippetOf(target.content, 24);
   }
   return `对话 #${rid}`;
 }
@@ -160,8 +170,8 @@ function refSnippet(rid: string): string {
   border-radius: 12px;
   padding: 12px 14px;
   margin: 0 0 0 auto;
-  max-width: 760px;
-  width: 100%;
+  max-width: 960px;
+  width: 80%;
   box-sizing: border-box;
   transition: box-shadow 0.2s, border-color 0.2s;
 
@@ -266,8 +276,115 @@ function refSnippet(rid: string): string {
   font-size: 14px;
   line-height: 1.65;
   color: var(--text-primary);
+  /* 纯文本：保留换行；富文本切换为 normal，由块级元素自身 margin 控制间距 */
   white-space: pre-wrap;
   word-break: break-word;
+
+  &.is-rich { white-space: normal; }
+
+  /* —— 富文本内部元素默认样式 ——
+     v-html 注入的内容不带 scoped 属性，需用 :deep 穿透方能命中 */
+
+  :deep(p) {
+    margin: 0 0 8px;
+    &:last-child { margin-bottom: 0; }
+  }
+
+  :deep(strong),
+  :deep(b) { font-weight: 600; }
+
+  :deep(em) { font-style: italic; }
+
+  :deep(u) {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  :deep(s),
+  :deep(del) { text-decoration: line-through; }
+
+  :deep(a) {
+    color: var(--color-primary);
+    text-decoration: none;
+    border-bottom: 1px solid var(--color-primary-light);
+    cursor: pointer;
+    transition: opacity 0.2s;
+    &:hover { opacity: 0.8; }
+  }
+
+  :deep(h1),
+  :deep(h2),
+  :deep(h3) {
+    margin: 4px 0 8px;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--text-primary);
+  }
+  :deep(h1) { font-size: 1.4em; }
+  :deep(h2) { font-size: 1.25em; }
+  :deep(h3) { font-size: 1.1em; }
+
+  :deep(ul),
+  :deep(ol) {
+    margin: 0 0 8px;
+    padding-left: 22px;
+  }
+  :deep(li) {
+    margin: 2px 0;
+    &::marker { color: var(--text-muted); }
+  }
+
+  :deep(blockquote) {
+    margin: 0 0 8px;
+    padding: 4px 12px;
+    border-left: 3px solid var(--color-primary);
+    border-radius: 0 8px 8px 0;
+    background: var(--color-primary-light);
+    color: var(--text-secondary);
+    p { margin: 0; }
+  }
+
+  :deep(pre.ql-syntax),
+  :deep(pre),
+  :deep(code) {
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 12.5px;
+  }
+  :deep(pre.ql-syntax),
+  :deep(pre) {
+    margin: 0 0 8px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--bg-code, rgba(0, 0, 0, 0.04));
+    overflow-x: auto;
+    white-space: pre;
+  }
+  :deep(code) {
+    padding: 1px 5px;
+    border-radius: 5px;
+    background: var(--bg-code, rgba(0, 0, 0, 0.04));
+  }
+  :deep(pre code) { padding: 0; background: transparent; }
+
+  :deep(img) {
+    max-width: 100%;
+    border-radius: 8px;
+    margin: 4px 0;
+  }
+
+  :deep(hr) {
+    border: none;
+    border-top: 1px solid var(--border-subtle);
+    margin: 10px 0;
+  }
+
+  /* Quill 对齐 / 缩进工具类 */
+  :deep(.ql-align-center) { text-align: center; }
+  :deep(.ql-align-right) { text-align: right; }
+  :deep(.ql-align-justify) { text-align: justify; }
+  :deep(.ql-indent-1) { padding-left: 2em; }
+  :deep(.ql-indent-2) { padding-left: 4em; }
+  :deep(.ql-indent-3) { padding-left: 6em; }
 }
 
 .bubble-tags {
