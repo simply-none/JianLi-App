@@ -81,6 +81,7 @@
     "@vue-flow/core": "^1.47.0",
     "@vue-flow/node-resizer": "^1.5.0",
     "@vue-flow/node-toolbar": "^1.1.1",
+    "@vueup/vue-quill": "latest",
     "chardet": "^2.2.0",
     "electron-log": "^5.4.3",
     "epubjs": "^0.3.93",

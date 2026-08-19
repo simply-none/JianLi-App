@@ -6,6 +6,8 @@
 
 - node: v20.13.1
 
+安装：cnpm install @vueup/vue-quill@latest --save --registry=https://registry.npmjs.org/
+
 安装：
 
 - npm i -g cnpm
