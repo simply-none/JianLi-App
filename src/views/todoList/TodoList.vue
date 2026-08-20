@@ -58,6 +58,10 @@
             </span>
           </div>
           <div class="todo-footer">
+            <span class="todo-record" @click.stop="emit('record', todo)">
+              <LucideIcon name="FileText" class="footer-icon" />
+              记录进展
+            </span>
             <span class="todo-due" v-if="todo.dueDate">
               <LucideIcon name="Calendar" class="footer-icon" />
               {{ formatDate(todo.dueDate) }}
@@ -138,7 +142,7 @@ const props = defineProps<{
   hasMore: boolean;
 }>();
 
-const emit = defineEmits(['view', 'edit', 'delete', 'load-more', 'status-change']);
+const emit = defineEmits(['view', 'edit', 'delete', 'load-more', 'status-change', 'record']);
 
 onMounted(() => {
   console.log('TodoList mounted');
@@ -485,6 +489,26 @@ async function handleDelete(todo: TodoItem) {
       display: flex;
       align-items: center;
       gap: 4px;
+
+      .footer-icon {
+        font-size: 12px;
+      }
+    }
+
+    .todo-record {
+      font-size: 12px;
+      color: var(--color-primary);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      font-weight: 500;
+      user-select: none;
+      transition: opacity 0.2s ease;
+
+      &:hover {
+        opacity: 0.75;
+      }
 
       .footer-icon {
         font-size: 12px;

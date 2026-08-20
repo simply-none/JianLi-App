@@ -116,6 +116,7 @@
           @edit="handleEditTodo"
           @delete="handleDeleteTodo"
           @status-change="handleStatusChange"
+          @record="handleRecord"
         />
       </div>
     </div>
@@ -127,6 +128,12 @@
       @update:visible="dialogVisible = $event"
       @save="handleDialogSave"
       @tag-update="fetchTags"
+    />
+
+    <RecordProgressDialog
+      :visible="recordDialogVisible"
+      :todo="recordTodo"
+      @update:visible="recordDialogVisible = $event"
     />
   </div>
 </template>
@@ -140,6 +147,7 @@ import moment from 'moment';
 import useTheme from '@/store/useTheme';
 import TodoList from './TodoList.vue';
 import TodoDetailDialog from './TodoDetailDialog.vue';
+import RecordProgressDialog from './RecordProgressDialog.vue';
 import { TODO_STATUS_LIST, deriveStatusFromCompleted } from './statusConfig';
 
 const themeStore = useTheme();
@@ -178,6 +186,8 @@ const allTags = ref<Tag[]>([]);
 const allTodos = ref<TodoItem[]>([]);
 const dialogVisible = ref(false);
 const currentTodo = ref<TodoItem | null>(null);
+const recordDialogVisible = ref(false);
+const recordTodo = ref<TodoItem | null>(null);
 const pageSize = ref(10);
 const currentPage = ref(1);
 const loading = ref(false);
@@ -310,6 +320,12 @@ function handleStatusChange(todo: TodoItem) {
   if (index > -1) {
     rawTodos.value[index] = todo;
   }
+}
+
+/** 打开「记录进展」弹窗，把进展保存到以待办名称为主题的主题对话中 */
+function handleRecord(todo: TodoItem) {
+  recordTodo.value = { ...todo };
+  recordDialogVisible.value = true;
 }
 
 async function handleDialogSave(todoData: TodoItem) {
