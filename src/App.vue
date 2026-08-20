@@ -55,6 +55,14 @@ if (!isSecondWindow) {
       });
     }
   });
+
+  // 待办截止提醒触发：弹系统/站内通知（点击行为与原提醒一致）
+  window.ipcRenderer.on('todo-reminder-trigger', (event, todo: any) => {
+    const title = `待办提醒：${todo?.title || '待办事项'}`;
+    const content = todo?.dueDate ? `即将到期（截止 ${todo.dueDate}）` : '即将到期';
+    sysNotify(title, content, '');
+    appNotify(title, content, 5000);
+  });
 }
 
 // 监听事件

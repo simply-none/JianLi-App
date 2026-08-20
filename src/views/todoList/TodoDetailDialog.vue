@@ -56,6 +56,35 @@
           />
         </el-form-item>
 
+        <el-form-item label="截止提醒">
+          <el-switch
+            v-model="form.deadlineReminder"
+            :active-value="1"
+            :inactive-value="0"
+            active-text="开启"
+            inactive-text="关闭"
+          />
+          <span class="form-hint">开启后将在截止时间前按间隔多次提醒</span>
+        </el-form-item>
+
+        <template v-if="form.deadlineReminder === 1">
+          <el-form-item label="提醒次数">
+            <el-input-number v-model="form.remindCount" :min="1" :max="20" :step="1" />
+            <span class="form-hint">截止前共提醒的次数</span>
+          </el-form-item>
+
+          <el-form-item label="提醒间隔">
+            <div class="interval-wrap">
+              <el-input-number v-model="form.remindInterval" :min="1" :max="1440" :step="1" />
+              <el-select v-model="form.remindIntervalUnit" class="interval-unit">
+                <el-option label="分钟" value="minute" />
+                <el-option label="小时" value="hour" />
+              </el-select>
+            </div>
+            <span class="form-hint">相邻两次提醒之间的间隔</span>
+          </el-form-item>
+        </template>
+
         <el-form-item label="标签">
           <div class="tag-selector">
             <div class="selected-tags" v-if="selectedTags.length > 0">
@@ -124,6 +153,14 @@ interface TodoItem {
   completedTime: string;
   priority: string;
   dueDate: string;
+  /** 是否开启截止时间提醒（0/1），默认 0 */
+  deadlineReminder?: number;
+  /** 提醒次数，默认 1 */
+  remindCount?: number;
+  /** 提醒间隔数值，默认 30 */
+  remindInterval?: number;
+  /** 提醒间隔单位：minute(分钟) / hour(小时)，默认 minute */
+  remindIntervalUnit?: string;
   createTime: string;
   updateTime: string;
 }
@@ -150,9 +187,24 @@ const form = ref<TodoItem>({
   completedTime: '',
   priority: 'medium',
   dueDate: '',
+  deadlineReminder: 0,
+  remindCount: 1,
+  remindInterval: 30,
+  remindIntervalUnit: 'minute',
   createTime: '',
   updateTime: '',
 });
+
+/** 待办日期/提醒字段入库后可能为字符串，加载到表单时统一为正确类型 */
+function normalizeTodo(todo: TodoItem): TodoItem {
+  return {
+    ...todo,
+    deadlineReminder: Number(todo.deadlineReminder) || 0,
+    remindCount: Number(todo.remindCount) || 1,
+    remindInterval: Number(todo.remindInterval) || 30,
+    remindIntervalUnit: todo.remindIntervalUnit === 'hour' ? 'hour' : 'minute',
+  };
+}
 
 const newTagName = ref('');
 
@@ -175,7 +227,7 @@ const selectedTags = computed(() => {
 watch(() => props.visible, (val) => {
   if (val) {
     if (props.todo) {
-      form.value = { ...props.todo };
+      form.value = normalizeTodo({ ...props.todo });
     } else {
       form.value = {
         key: '',
@@ -186,6 +238,10 @@ watch(() => props.visible, (val) => {
         completedTime: '',
         priority: 'medium',
         dueDate: '',
+        deadlineReminder: 0,
+        remindCount: 1,
+        remindInterval: 30,
+        remindIntervalUnit: 'minute',
         createTime: '',
         updateTime: '',
       };
@@ -196,7 +252,7 @@ watch(() => props.visible, (val) => {
 
 watch(() => props.todo, (val) => {
   if (val && props.visible) {
-    form.value = { ...val };
+    form.value = normalizeTodo({ ...val });
   }
 });
 
@@ -289,6 +345,8 @@ async function handleSave() {
 
   if (result.success) {
     ElMessage.success('保存成功');
+    // 通知主进程按最新待办重新排程截止提醒
+    window.ipcRenderer.send('update-todo-reminders');
     emit('save', todoData);
     emit('update:visible', false);
   } else {
@@ -304,6 +362,22 @@ function handleClose() {
 <style scoped lang="scss">
 .todo-form {
   padding: 8px 0;
+}
+
+.form-hint {
+  margin-left: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.interval-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  .interval-unit {
+    width: 96px;
+  }
 }
 
 .tag-selector {

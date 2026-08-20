@@ -38,6 +38,10 @@
               <LucideIcon name="Calendar" class="footer-icon" />
               {{ formatDate(todo.dueDate) }}
             </span>
+            <span class="todo-remind" v-if="Number(todo.deadlineReminder)">
+              <LucideIcon name="Bell" class="footer-icon" />
+              提前{{ Number(todo.remindInterval) || 30 }}{{ todo.remindIntervalUnit === 'hour' ? '小时' : '分钟' }} · 提醒{{ Number(todo.remindCount) || 1 }}次
+            </span>
             <span class="todo-completed-time" v-if="todo.completedTime">
               <LucideIcon name="CheckCircle" class="footer-icon" />
               {{ formatDate(todo.completedTime) }}
@@ -92,6 +96,10 @@ interface TodoItem {
   completedTime: string;
   priority: string;
   dueDate: string;
+  deadlineReminder?: number;
+  remindCount?: number;
+  remindInterval?: number;
+  remindIntervalUnit?: string;
   createTime: string;
   updateTime: string;
 }
@@ -186,6 +194,8 @@ async function handleToggleComplete(todo: TodoItem) {
 
   if (result.success) {
     emit('toggle-complete', todoData);
+    // 完成/取消完成会改变提醒资格，通知主进程重新排程
+    window.ipcRenderer.send('update-todo-reminders');
     ElMessage.success(newCompleted === 1 ? '已完成' : '已取消完成');
   } else {
     ElMessage.error('操作失败:' + result.error);
@@ -207,6 +217,8 @@ async function handleDelete(todo: TodoItem) {
 
     if (result.success) {
       ElMessage.success('删除成功');
+      // 删除后移除其截止提醒排程
+      window.ipcRenderer.send('update-todo-reminders');
       emit('delete', todo);
     } else {
       ElMessage.error('删除失败');
@@ -415,7 +427,8 @@ async function handleDelete(todo: TodoItem) {
     flex-wrap: wrap;
 
     .todo-due,
-    .todo-completed-time {
+    .todo-completed-time,
+    .todo-remind {
       font-size: 12px;
       color: var(--text-muted);
       display: flex;
@@ -425,6 +438,10 @@ async function handleDelete(todo: TodoItem) {
       .footer-icon {
         font-size: 12px;
       }
+    }
+
+    .todo-remind {
+      color: #f59e0b;
     }
 
     .todo-completed-time {

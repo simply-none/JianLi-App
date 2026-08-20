@@ -150,6 +150,10 @@ interface TodoItem {
   completedTime: string;
   priority: string;
   dueDate: string;
+  deadlineReminder?: number;
+  remindCount?: number;
+  remindInterval?: number;
+  remindIntervalUnit?: string;
   createTime: string;
   updateTime: string;
 }
