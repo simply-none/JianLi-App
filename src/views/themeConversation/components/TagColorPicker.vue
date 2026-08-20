@@ -10,14 +10,20 @@
       @click="pick(c)"
     />
     <!-- 自定义颜色：el-color-picker 提供取色器，选择后写入 v-model -->
+    <!-- 注意：el-tooltip 的触发子节点必须是单一元素根（ElTooltip 会用 ElOnlyChild
+         给子节点克隆并绑定 v-show 等运行时指令）。直接把 el-color-picker 作为子节点时，
+         该组件根节点为 fragment，Vue 会报
+         "Runtime directive used on component with non-element root node"。
+         因此这里用 <span> 包一层，让指令绑定到 span 上。 -->
     <el-tooltip content="自定义颜色" placement="top">
-      <el-color-picker
-        v-model="customColor"
-        size="small"
-        :predefine="colorList"
-        class="custom-color"
-        @change="onCustom"
-      />
+      <span class="custom-color">
+        <el-color-picker
+          v-model="customColor"
+          size="small"
+          :predefine="colorList"
+          @change="onCustom"
+        />
+      </span>
     </el-tooltip>
   </div>
 </template>
