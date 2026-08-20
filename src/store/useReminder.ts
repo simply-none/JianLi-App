@@ -2,7 +2,6 @@ import { computed, onMounted, ref, toRaw, unref } from "vue";
 import { defineStore } from "pinia";
 import { setStore, send } from "../utils/common";
 import { initPiniaStatus, type defaultField } from "@/utils/store";
-import { sysNotify, appNotify } from "@/utils/notify";
 
 export type ReminderMode = 'time' | 'interval';
 export type ReminderRepeat = 'once' | 'daily' | 'weekly' | 'hourly' | 'monthly' | 'yearly';
@@ -24,6 +23,8 @@ export interface Reminder {
   // 周期模式
   interval?: number;    // 间隔数值
   unit?: number;        // 1000 / 60000 / 3600000
+  // 提醒结束后是否跳转到「主题对话」记录当前情绪
+  recordAfter?: boolean;
 }
 
 export default defineStore("reminder", () => {
@@ -71,14 +72,6 @@ export default defineStore("reminder", () => {
     }
   }
 
-  // 到点提醒：弹系统通知 + 站内通知
-  function reminderTriggerFn(_event: Electron.IpcRendererEvent, arg: Reminder) {
-    const title = arg?.title || '定时提醒';
-    const content = arg?.content || title;
-    sysNotify(title, content, '');
-    appNotify(title, content, 5000);
-  }
-
   function init() {
     const objectVars: defaultField[] = [
       { field: 'reminders', default: [], map: reminders },
@@ -94,7 +87,6 @@ export default defineStore("reminder", () => {
 
   onMounted(() => {
     init();
-    window.ipcRenderer?.on('reminder-trigger', reminderTriggerFn);
   });
 
   return {

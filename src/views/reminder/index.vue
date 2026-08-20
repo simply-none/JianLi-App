@@ -24,6 +24,9 @@
           <el-tag size="small" :type="item.mode === 'time' ? 'primary' : 'success'" class="mode-tag" effect="plain">
             {{ item.mode === 'time' ? '定点' : '周期' }}
           </el-tag>
+          <el-tag v-if="item.recordAfter" size="small" type="warning" effect="plain" class="record-tag">
+            记录
+          </el-tag>
           <el-switch :model-value="item.enabled" @change="(val: boolean) => toggle(item.id, val)" />
           <div class="reminder-actions">
             <el-button size="small" @click="openDialog(item)" class="act-btn edit">
@@ -128,6 +131,14 @@
               </div>
             </div>
           </template>
+
+          <div class="form-item">
+            <span class="form-label">是否结束后记录</span>
+            <div class="record-after-wrap">
+              <el-switch v-model="form.recordAfter" />
+              <span class="form-hint">开启后，提醒结束会自动跳转到「主题对话」并记录当前情绪</span>
+            </div>
+          </div>
         </div>
         <template #footer>
           <el-button @click="dialogVisible = false">取消</el-button>
@@ -212,6 +223,7 @@ function defaultForm(): Reminder {
     month: 1,
     interval: 30,
     unit: 60 * 1000,
+    recordAfter: false,
   };
 }
 
@@ -419,6 +431,10 @@ function del(item: Reminder) {
     flex-shrink: 0;
   }
 
+  .record-tag {
+    flex-shrink: 0;
+  }
+
   .reminder-actions {
     display: flex;
     gap: 6px;
@@ -480,6 +496,18 @@ function del(item: Reminder) {
     .form-select {
       width: 100%;
       font-size: 14px;
+    }
+
+    .record-after-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+
+      .form-hint {
+        font-size: 12px;
+        color: var(--text-muted);
+      }
     }
 
     .form-number {

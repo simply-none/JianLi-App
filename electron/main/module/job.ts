@@ -1,7 +1,7 @@
 import { ipcMain } from "electron";
 import { CronJob } from "cron";
 import momemt from "moment";
-import { win, hideApp, focusAppToTop } from "./mainWindow.ts";
+import { win, hideApp, focusAppToTop, showApp } from "./mainWindow.ts";
 import { createOtherWindow, closeOtherWindow, hideOtherWindow, showOtherWindow } from "./newWindow.ts";
 import { queryByConditions, upsertData } from "../utils/sql.ts";
 import { myDb } from "./sql.ts";
@@ -113,6 +113,11 @@ function buildReminderCronExpr(reminder: any): string {
 
 // 到点触发提醒
 function triggerReminder(reminder: any) {
+  // 若开启「结束后记录」且主窗口处于隐藏/最小化状态，先唤起主窗口，
+  // 以便用户在主题对话页进行情绪记录。
+  if (reminder?.recordAfter) {
+    showApp();
+  }
   win?.webContents.send('reminder-trigger', {
     ...reminder,
     triggerTime: Date.now(),

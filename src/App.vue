@@ -6,8 +6,9 @@ import { watch, ref } from 'vue';
 import useOpenWindow from '@/hooks/useOpenWindow';
 import useRuntimeVariables from '@/store/useRuntimeVariables';
 import useTheme from '@/store/useTheme';
-import { layoutRouters } from '@/router';
+import { layoutRouters, RouteNames } from '@/router';
 import { ElMessageBox } from 'element-plus';
+import { sysNotify, appNotify } from '@/utils/notify';
 
 const router = useRouter()
 const route = useRoute()
@@ -34,6 +35,27 @@ router.beforeEach((to, from, next) => {
 
 // 使用不同窗口打开时分别处理的hook
 useOpenWindow()
+
+// 定时提醒触发：弹通知；若开启「结束后记录」则跳转到主题对话并记录情绪。
+// 仅主窗口处理，避免第二窗口重复弹通知/跳转。
+const isSecondWindow = location.href.includes('isSecondWindow=true');
+if (!isSecondWindow) {
+  window.ipcRenderer.on('reminder-trigger', (event, reminder: any) => {
+    const title = reminder?.title || '定时提醒';
+    const content = reminder?.content || title;
+    sysNotify(title, content, '');
+    appNotify(title, content, 5000);
+    if (reminder?.recordAfter) {
+      router.push({
+        name: RouteNames.THEME_CONVERSATION,
+        query: {
+          recordReminder: reminder.title,
+          rt: String(reminder.triggerTime || Date.now()),
+        },
+      });
+    }
+  });
+}
 
 // 监听事件
 window.ipcRenderer.on('open-match-page', (event, url) => {

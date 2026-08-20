@@ -21,11 +21,15 @@
 
     <!-- 子主题创建弹窗（全局，由对话右键 / 多选 / 主题右键唤起；创建成功后聚焦输入框） -->
     <SubThemeDialog @confirmed="onNewConversation" />
+
+    <!-- 提醒「结束后记录」：跳转携带 query 时弹出的情绪记录弹窗 -->
+    <RecordEmotionDialog v-model="recordDialogVisible" :reminder-title="recordReminderTitle" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import ThemeList from './ThemeList.vue';
 import ConversationToolbar from './ConversationToolbar.vue';
 import ConversationList from './ConversationList.vue';
@@ -33,6 +37,7 @@ import ChatInput from './ChatInput.vue';
 import ReferenceDrawer from './ReferenceDrawer.vue';
 import CrossThemeRefDialog from './CrossThemeRefDialog.vue';
 import SubThemeDialog from './SubThemeDialog.vue';
+import RecordEmotionDialog from './RecordEmotionDialog.vue';
 import { useThemeConversation } from '../composables/useThemeConversation';
 
 withDefaults(defineProps<{ compact?: boolean }>(), { compact: false });
@@ -43,6 +48,31 @@ const {
   addPendingCrossRefs,
 } = useThemeConversation();
 const chatInputRef = ref<InstanceType<typeof ChatInput> | null>(null);
+
+const route = useRoute();
+const router = useRouter();
+const recordDialogVisible = ref(false);
+const recordReminderTitle = ref('');
+
+// 提醒「结束后记录」场景：从其它路由跳转并带 query 时，自动弹出情绪记录弹窗
+watch(
+  () => route.query.rt,
+  (val) => {
+    const title = route.query.recordReminder;
+    if (val && title) {
+      recordReminderTitle.value = String(title);
+      recordDialogVisible.value = true;
+    }
+  },
+  { immediate: true },
+);
+
+// 弹窗关闭（取消或保存）后清理 query，避免再次进入页面时重复弹出
+watch(recordDialogVisible, (open) => {
+  if (!open && (route.query.recordReminder || route.query.rt)) {
+    router.replace({ query: {} });
+  }
+});
 
 function onNewConversation() {
   chatInputRef.value?.focus();

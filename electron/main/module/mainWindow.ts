@@ -29,6 +29,15 @@ export function hideApp() {
   win?.hide();
 }
 
+/** 确保主窗口可见并置前（用于提醒触发后需要用户记录等场景）。
+ *  与 focusAppToTop 不同，本函数不强制全屏，仅还原最小化/取消隐藏并聚焦。 */
+export function showApp() {
+  if (!win) return;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+}
+
 export function exitApp() {
   globalShortcut.unregisterAll();
   destroyTray();

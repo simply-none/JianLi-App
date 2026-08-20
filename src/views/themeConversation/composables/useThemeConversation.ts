@@ -208,6 +208,22 @@ async function createTheme(title: string, tagIds: string[] = [], parentId?: numb
   return item;
 }
 
+/**
+ * 按标题查找主题，不存在则新建。
+ * 提醒「结束后记录」场景使用：同名提醒的情绪会汇总到同一主题下，
+ * 而不是每次都新建重复主题。
+ */
+async function findOrCreateThemeByTitle(title: string) {
+  await loadThemes();
+  const existing = themes.value.find((t) => t.title === title);
+  if (existing) {
+    currentThemeId.value = existing.id;
+    if (!conversations.value.length) await loadConversations(existing.id);
+    return existing;
+  }
+  return await createTheme(title);
+}
+
 /** 更新主题（标题 / 标签 / 备注） */
 async function updateTheme(id: number, patch: { title?: string; tags?: string[]; remark?: string }) {
   const data: any = { update_time: nowStr() };
@@ -913,6 +929,7 @@ export function useThemeConversation() {
     loadConversations,
     loadThemeCounts,
     createTheme,
+    findOrCreateThemeByTitle,
     updateTheme,
     deleteTheme,
     clearAllData,
