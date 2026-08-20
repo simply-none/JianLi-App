@@ -6,8 +6,10 @@
     </div>
 
     <div class="content-area">
-      <div class="mini-header" @dblclick="cycleTheme">
-        <span class="header-title">主题对话</span>
+      <div class="mini-header">
+        <button class="header-theme-btn" @click="cycleTheme" title="切换主题">
+          <LucideIcon name="Palette" :size="14" />
+        </button>
       </div>
       <ThemeConversationPage :compact="true" />
       <div class="mini-footer">
@@ -19,6 +21,7 @@
 
 <script setup lang="ts">
 import ThemeConversationPage from '../themeConversation/components/ThemeConversationPage.vue';
+import LucideIcon from '@/components/LucideIcon.vue';
 
 const STORE_KEY = 'window-mode:themeConversationMini';
 
@@ -151,18 +154,33 @@ loadConfig();
 .mini-header {
   display: flex;
   align-items: center;
-  padding-bottom: 8px;
-  margin-bottom: 8px;
-  border-bottom: 1px solid var(--skin-border);
-  // Electron 原生窗口拖拽区域：顶部可拖拽移动小窗
+  justify-content: flex-end;
+  height: 24px;
+  flex-shrink: 0;
+  // 顶部拖拽条：保留拖拽能力，但去除突兀的标题文字
   -webkit-app-region: drag;
   cursor: default;
-  flex-shrink: 0;
 
-  .header-title {
-    font-size: 1.2em;
-    font-weight: 600;
-    color: var(--skin-text-primary);
+  .header-theme-btn {
+    // 按钮需排除拖拽区域，才能正常点击
+    -webkit-app-region: no-drag;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--skin-text-secondary);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+
+    &:hover {
+      background: var(--skin-btn-hover);
+      color: var(--skin-text-primary);
+    }
   }
 }
 
