@@ -120,7 +120,13 @@ import LucideIcon from '@/components/LucideIcon.vue';
 import { useThemeConversation } from '../composables/useThemeConversation';
 import { snippetOf } from '../composables/richText';
 
-const props = defineProps<{ modelValue: boolean }>();
+const props = defineProps<{
+  modelValue: boolean;
+  /** 排除的主题 id：跨主题引用不应包含该主题。编辑场景传被编辑对话所属主题；不传则回退到当前主题 */
+  excludeThemeId?: number | null;
+  /** 预选中的跨主题引用（编辑场景回显已有引用） */
+  initialRefs?: Array<{ themeId: number; convId: number }>;
+}>();
 const emit = defineEmits<{
   (e: 'update:modelValue', v: boolean): void;
   (e: 'confirm', refs: Array<{ themeId: number; convId: number }>): void;
@@ -143,6 +149,12 @@ const visible = computed({
   set: (v) => emit('update:modelValue', v),
 });
 
+/** 排除主题：编辑场景用传入的 excludeThemeId，否则回退到当前主题（与输入框行为一致） */
+const effectiveExcludeId = computed(() => {
+  const e = props.excludeThemeId;
+  return e != null ? e : currentThemeId.value;
+});
+
 const keyword = ref('');
 /** 各主题的对话缓存：themeId -> 对话列表（含 theme_title），打开时一次加载 */
 const themeConvs = ref<Record<number, any[]>>({});
@@ -155,9 +167,9 @@ const selected = ref<Array<{ themeId: number; convId: number }>>([]);
 
 /* ============================ 主题树 ============================ */
 
-/** 排除当前主题后的主题树（含父子层级，与左侧主题列表一致） */
+/** 排除“指定主题”后的主题树（含父子层级，与左侧主题列表一致） */
 const themeTree = computed(() => {
-  const others = themes.value.filter((t) => t.id !== currentThemeId.value);
+  const others = themes.value.filter((t) => t.id !== effectiveExcludeId.value);
   const map = new Map<number, any>();
   others.forEach((t) => map.set(t.id, { theme: t, children: [] }));
   const roots: any[] = [];
@@ -252,11 +264,12 @@ function selectTheme(id: number) {
 
 async function onOpen() {
   keyword.value = '';
-  selected.value = [];
+  // 预选中传入的已有跨主题引用（编辑场景回显），未传则为空
+  selected.value = (props.initialRefs || []).map((r) => ({ ...r }));
   collapsedThemes.value = new Set();
   // 刷新全局引用统计（「被引用 / 被跨引用」徽标依赖）
   await Promise.all([loadReferencedByCounts(), loadCrossReferenced()]);
-  const others = themes.value.filter((t) => t.id !== currentThemeId.value);
+  const others = themes.value.filter((t) => t.id !== effectiveExcludeId.value);
   const titleMap = new Map(others.map((t) => [t.id, t.title]));
   // 一次加载全部其它主题的对话，并为对话补上所属主题名（搜索平铺时展示）
   const list = await Promise.all(

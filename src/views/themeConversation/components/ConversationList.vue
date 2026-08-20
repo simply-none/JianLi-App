@@ -1,5 +1,31 @@
 <template>
   <div class="conv-list">
+    <!-- 置顶会话快捷区：固定置顶于列表顶部（位于滚动区之外），可折叠，点击跳转定位并高亮闪烁 -->
+    <div class="pin-panel" v-if="!isSearching && pinnedConversations.length">
+      <button class="pin-head" type="button" @click="togglePinPanel">
+        <LucideIcon :name="pinnedExpanded ? 'ChevronDown' : 'ChevronRight'" :size="15" />
+        <LucideIcon name="Pin" :size="13" />
+        <span class="pin-head-title">置顶 ({{ pinnedConversations.length }})</span>
+        <span class="pin-head-hint" v-if="!pinnedExpanded">点击展开</span>
+      </button>
+      <transition name="pin-fade">
+        <div class="pin-list" v-show="pinnedExpanded">
+          <button
+            v-for="c in pinnedConversations"
+            :key="c.id"
+            class="pin-item"
+            type="button"
+            :title="snippetOf(c.content, 120)"
+            @click="jumpTo(c)"
+          >
+            <LucideIcon name="Pin" :size="12" class="pin-item-ico" />
+            <span class="pin-item-text">{{ snippetOf(c.content) }}</span>
+            <span class="pin-item-time">{{ c.create_time }}</span>
+          </button>
+        </div>
+      </transition>
+    </div>
+
     <!-- 可滚动的对话列表区域 -->
     <div class="conv-scroll" ref="listRef">
       <!-- 搜索结果提示条 -->
@@ -102,6 +128,10 @@
       <button class="ctx-item" @click="ctxQuote">
         <LucideIcon name="Link" :size="14" /> 引用此对话
       </button>
+      <button class="ctx-item" @click="ctxTogglePin">
+        <LucideIcon :name="ctxMenu.conv?.pinned === '1' ? 'PinOff' : 'Pin'" :size="14" />
+        {{ ctxMenu.conv?.pinned === '1' ? '取消置顶' : '置顶' }}
+      </button>
       <button class="ctx-item" @click="ctxCrossRef">
         <LucideIcon name="Layers" :size="14" /> 跨主题引用…
       </button>
@@ -125,12 +155,15 @@ import LucideIcon from '@/components/LucideIcon.vue';
 import ConversationBubble from './ConversationBubble.vue';
 import ConversationEditDialog from './ConversationEditDialog.vue';
 import { useThemeConversation } from '../composables/useThemeConversation';
+import { snippetOf } from '../composables/richText';
 
 const {
   displayConversations,
+  conversations,
   isSearching,
   clearSearch,
   deleteConversation,
+  updateConversation,
   showReferenceTargets,
   showReferencedBy,
   showCrossReferencedBy,
@@ -150,6 +183,7 @@ const {
   // 子主题：发起子主题弹窗（右键 / 多选共用）
   openSubThemeDialog,
   // 高亮定位（从引用弹窗跳转到对话项）
+  locateConversation,
   highlightConvId,
   highlightTick,
 } = useThemeConversation();
@@ -199,7 +233,7 @@ watch(
       node.classList.remove('highlight');
       void node.offsetWidth;
       node.classList.add('highlight');
-      setTimeout(() => node.classList.remove('highlight'), 5000);
+      setTimeout(() => node.classList.remove('highlight'), 3000);
     }, 80);
   }
 );
@@ -207,6 +241,39 @@ watch(
 function openEdit(conv: any) {
   editingConv.value = conv;
   editVisible.value = true;
+}
+
+/* ============================ 置顶会话快捷区 ============================ */
+
+/** 置顶数量超过该阈值时，首次出现默认折叠，避免占用过多空间 */
+const PIN_COLLAPSE_THRESHOLD = 1;
+
+/** 当前主题下被置顶的对话（过滤 pinned === '1'） */
+const pinnedConversations = computed(() =>
+  conversations.value.filter((c: any) => c.pinned === '1'),
+);
+
+/** 置顶区折叠状态：首次出现较多置顶项时默认折叠，少量则默认展开 */
+const pinnedExpanded = ref(true);
+watch(
+  () => pinnedConversations.value.length,
+  (n, o) => {
+    if (o === 0 && n > 0) pinnedExpanded.value = n <= PIN_COLLAPSE_THRESHOLD;
+  },
+);
+
+function togglePinPanel() {
+  pinnedExpanded.value = !pinnedExpanded.value;
+}
+
+/** 点击置顶项：跳转到主列表对应位置并高亮闪烁（复用 locateConversation + 既有高亮机制） */
+function jumpTo(conv: any) {
+  locateConversation(conv.id);
+}
+
+/** 切换某条对话的置顶状态 */
+async function togglePin(conv: any) {
+  await updateConversation(conv.id, { pinned: conv.pinned === '1' ? '0' : '1' });
 }
 
 async function removeConv(conv: any) {
@@ -248,6 +315,12 @@ function ctxQuote() {
     addPendingRef(ctxMenu.value.conv.id);
     ElMessage.success('已引用该对话，发送新对话时会带上此引用');
   }
+  closeCtx();
+}
+
+/** 右键「置顶 / 取消置顶」 */
+async function ctxTogglePin() {
+  if (ctxMenu.value.conv) await togglePin(ctxMenu.value.conv);
   closeCtx();
 }
 
@@ -392,7 +465,7 @@ function batchQuote() {
 /* 从引用弹窗「定位」时：高亮目标对话项，便于回溯（持续 5 秒闪烁） */
 .bubble-wrap.highlight :deep(.conv-bubble) {
   /* 总时长约 5 秒，更从容 */
-  animation: conv-blink 1.2s ease-in-out 5;
+  animation: conv-blink 1s ease-in-out 3;
 }
 
 @keyframes conv-blink {
@@ -447,6 +520,97 @@ function batchQuote() {
 
   .ms-hint { color: var(--text-muted); font-size: 12px; }
   .ms-count { color: var(--text-secondary); }
+}
+
+/* ===================== 置顶会话快捷区 ===================== */
+/* 注意：不要用 position: sticky —— 在 flex + overflow-y:auto 容器里
+   sticky 的 flex item 会出现渲染塌缩/不可见。这里面板放在 .conv-scroll
+   之外、作为 .conv-list 的直接子元素，天然固定在列表顶部，滚动时始终可见。 */
+.pin-panel {
+  flex-shrink: 0;
+  margin: 12px 16px 0;
+  border: 1px solid var(--color-primary);
+  border-left: 3px solid var(--color-primary);
+  border-radius: 12px;
+  background: var(--bg-card);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.10);
+  overflow: hidden;
+}
+
+.pin-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: var(--color-primary);
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+
+  :deep(.lucide-icon) { color: var(--color-primary); }
+
+  &:hover { background: var(--bg-hover); }
+
+  .pin-head-title { flex: 1; }
+  .pin-head-hint { font-size: 11px; font-weight: 400; color: var(--text-muted); }
+}
+
+.pin-list {
+  display: flex;
+  flex-direction: column;
+  padding: 0 6px 6px;
+  gap: 2px;
+}
+
+.pin-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.18s;
+
+  &:hover { background: var(--bg-hover); }
+
+  .pin-item-ico { color: var(--color-primary); flex-shrink: 0; }
+
+  .pin-item-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-primary);
+  }
+
+  .pin-item-time {
+    flex-shrink: 0;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+}
+
+/* 折叠 / 展开过渡 */
+.pin-fade-enter-active,
+.pin-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.pin-fade-enter-from,
+.pin-fade-leave-to {
+  opacity: 0;
 }
 
 /* 右键上下文菜单 */

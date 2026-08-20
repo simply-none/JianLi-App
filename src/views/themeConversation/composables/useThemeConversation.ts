@@ -95,7 +95,7 @@ const crossReferencedBy = ref<Record<number, any[]>>({});
 /** 是否处于搜索/筛选状态 */
 const isSearching = computed(() => !!searchKeyword.value.trim() || !!activeTagFilter.value);
 
-/** 实际展示的对话列表：搜索时展示跨主题结果，否则展示当前主题对话 */
+/** 实际展示的对话列表：搜索时展示跨主题结果，否则展示当前主题对话（保持真实时间顺序，置顶项不重排） */
 const displayConversations = computed(() => {
   if (isSearching.value) return searchResults.value;
   return conversations.value;

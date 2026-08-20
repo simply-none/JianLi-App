@@ -46,6 +46,43 @@
         <div class="cand-empty" v-if="!candidates.length">当前主题暂无其它对话可引用</div>
       </div>
 
+      <label class="f-label">跨主题引用（引用其它主题的对话）</label>
+      <div class="cross-ref-wrap">
+        <button class="add-cross" type="button" @click="crossPicker = true">
+          <LucideIcon name="Plus" :size="14" />
+          <span>添加跨主题引用</span>
+        </button>
+
+        <div class="cross-chips" v-if="crossRefViews.length">
+          <span
+            v-for="v in crossRefViews"
+            :key="`${v.themeId}:${v.convId}`"
+            class="cross-chip"
+            :title="`${v.themeTitle} › ${v.snippet}`"
+          >
+            <LucideIcon name="Layers" :size="12" class="cross-chip-ico" />
+            <span class="cross-chip-text">
+              <span class="chip-theme">{{ v.themeTitle }}</span>
+              <span class="chip-sep">›</span>
+              <span class="chip-snippet">{{ v.snippet }}</span>
+            </span>
+            <button
+              class="cross-chip-x"
+              type="button"
+              title="移除"
+              @click="removeCrossRef(v)"
+            >
+              <LucideIcon name="X" :size="12" />
+            </button>
+          </span>
+        </div>
+
+        <div class="cross-empty" v-else>
+          <LucideIcon name="Layers" :size="15" />
+          <span>暂无跨主题引用，点击上方按钮添加</span>
+        </div>
+      </div>
+
       <div class="row-2">
         <div class="row-item">
           <label class="f-label">标注时间</label>
@@ -71,15 +108,24 @@
       <el-button type="primary" @click="onSave">保存</el-button>
     </template>
   </el-dialog>
+
+  <!-- 跨主题引用选择抽屉：排除被编辑对话自身所属主题，并预选已有跨主题引用 -->
+  <CrossThemeRefDialog
+    v-model="crossPicker"
+    :exclude-theme-id="convThemeId"
+    :initial-refs="form.crossRefs"
+    @confirm="onCrossConfirm"
+  />
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue';
+import { ref, reactive, watch, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { QuillEditor } from '@vueup/vue-quill';
 import '@vueup/vue-quill/dist/vue-quill.snow.css';
 import LucideIcon from '@/components/LucideIcon.vue';
 import TagSelector from './TagSelector.vue';
+import CrossThemeRefDialog from './CrossThemeRefDialog.vue';
 import { useThemeConversation } from '../composables/useThemeConversation';
 import { dbExecute } from '../db';
 import { TABLE } from '../types';
@@ -91,7 +137,15 @@ const emit = defineEmits<{
   (e: 'saved'): void;
 }>();
 
-const { updateConversation, deleteConversation, parseArr, currentThemeId } = useThemeConversation();
+const {
+  updateConversation,
+  deleteConversation,
+  loadCrossReferenced,
+  loadThemes,
+  parseArr,
+  getConversationsByTheme,
+  themes,
+} = useThemeConversation();
 
 /** 富文本工具栏（与输入框保持一致） */
 const toolbar = [
@@ -110,9 +164,80 @@ const form = reactive<{
   content: string;
   tags: string[];
   references: string[];
+  crossRefs: Array<{ themeId: number; convId: number }>;
   annotateTime: string;
   pinned: string;
-}>({ content: '', tags: [], references: [], annotateTime: '', pinned: '0' });
+}>({ content: '', tags: [], references: [], crossRefs: [], annotateTime: '', pinned: '0' });
+
+/** 被编辑对话自身所属主题 id（用于跨主题引用抽屉排除自身主题） */
+const convThemeId = computed(() => Number(props.conv?.theme_id));
+
+/** 跨主题引用选择抽屉开关 */
+const crossPicker = ref(false);
+/** 跨主题引用对话摘要缓存：key = `${themeId}:${convId}` */
+const crossSnippetMap = ref<Record<string, string>>({});
+
+/** 跨主题引用展示列表（主题名 › 对话摘要），由 form.crossRefs 派生 */
+const crossRefViews = computed(() =>
+  (form.crossRefs || []).map((r) => {
+    const theme = themes.value.find((t) => t.id === r.themeId);
+    return {
+      themeId: r.themeId,
+      convId: r.convId,
+      themeTitle: theme ? theme.title || '未命名主题' : `主题 ${r.themeId}`,
+      snippet: crossSnippetMap.value[`${r.themeId}:${r.convId}`] || '(加载中…)',
+    };
+  }),
+);
+
+/** 解析 cross_refs 字段（兼容数组 / JSON 字符串） */
+function parseCrossRefs(value: any): Array<{ themeId: number; convId: number }> {
+  if (!value) return [];
+  if (Array.isArray(value)) return value as Array<{ themeId: number; convId: number }>;
+  try {
+    const arr = JSON.parse(value);
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
+/** 按已选跨主题引用，批量加载目标对话摘要（供 chip 展示） */
+async function loadCrossSnippets() {
+  const refs = form.crossRefs || [];
+  if (!refs.length) {
+    crossSnippetMap.value = {};
+    return;
+  }
+  // 编辑弹窗可能在小窗中打开，兜底确保主题列表已加载
+  if (!themes.value.length) await loadThemes();
+  const themeIds = Array.from(new Set(refs.map((r) => r.themeId)));
+  await Promise.all(
+    themeIds.map(async (tid) => {
+      const list = await getConversationsByTheme(tid);
+      list.forEach((c: any) => {
+        const cid = Number(c.id);
+        if (refs.some((r) => r.themeId === tid && r.convId === cid)) {
+          crossSnippetMap.value[`${tid}:${cid}`] = snippetOf(c.content, 40);
+        }
+      });
+    }),
+  );
+  crossSnippetMap.value = { ...crossSnippetMap.value };
+}
+
+/** 抽屉确认：写入选中的跨主题引用并刷新摘要 */
+function onCrossConfirm(refs: Array<{ themeId: number; convId: number }>) {
+  form.crossRefs = refs.map((r) => ({ ...r }));
+  void loadCrossSnippets();
+}
+
+/** 移除某条跨主题引用 chip */
+function removeCrossRef(v: { themeId: number; convId: number }) {
+  form.crossRefs = (form.crossRefs || []).filter(
+    (r) => !(r.themeId === v.themeId && r.convId === v.convId),
+  );
+}
 
 watch(
   () => props.modelValue,
@@ -129,8 +254,12 @@ async function onOpen() {
   form.content = c.content || '';
   form.tags = parseArr(c.tags);
   form.references = parseArr(c.ref_ids);
+  form.crossRefs = parseCrossRefs(c.cross_refs);
   form.annotateTime = c.annotate_time || '';
   form.pinned = c.pinned === '1' ? '1' : '0';
+
+  // 加载跨主题引用对话摘要（供 chip 展示「主题名 › 对话摘要」）
+  void loadCrossSnippets();
 
   // 引用候选：同主题下、且非自身的对话
   try {
@@ -164,9 +293,12 @@ async function onSave() {
     content: form.content,
     tags: form.tags,
     ref_ids: form.references,
+    crossRefs: form.crossRefs,
     annotate_time: form.annotateTime,
     pinned: form.pinned,
   });
+  // 同步全局「被跨引用」索引，保证主列表徽标实时更新
+  await loadCrossReferenced();
   ElMessage.success('已保存');
   visible.value = false;
   emit('saved');
@@ -273,6 +405,126 @@ async function onDelete() {
       text-align: center;
       font-size: 12px;
       color: var(--text-muted);
+    }
+  }
+
+  /* ===================== 跨主题引用 ===================== */
+  .cross-ref-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+
+    .add-cross {
+      display: inline-flex;
+      align-items: center;
+      align-self: flex-start;
+      gap: 6px;
+      padding: 7px 13px;
+      border: 1px dashed rgba(6, 182, 212, 0.7);
+      border-radius: 9px;
+      background: rgba(6, 182, 212, 0.10);
+      color: #0e7490;
+      font-size: 13px;
+      font-weight: 500;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s, transform 0.1s;
+
+      :deep(.lucide-icon) { color: #0e7490; }
+
+      &:hover {
+        background: #0e7490;
+        border-color: #0e7490;
+        color: #fff;
+        :deep(.lucide-icon) { color: #fff; }
+      }
+      &:active { transform: scale(0.98); }
+    }
+
+    .cross-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .cross-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      max-width: 100%;
+      padding: 5px 8px 5px 9px;
+      border: 1px solid rgba(6, 182, 212, 0.35);
+      border-radius: 999px;
+      background: rgba(6, 182, 212, 0.10);
+      color: var(--text-primary);
+      transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+
+      &:hover {
+        background: rgba(6, 182, 212, 0.16);
+        border-color: rgba(6, 182, 212, 0.6);
+        box-shadow: 0 1px 6px rgba(6, 182, 212, 0.18);
+      }
+
+      .cross-chip-ico { color: #0e7490; flex-shrink: 0; }
+
+      .cross-chip-text {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        min-width: 0;
+        font-size: 12.5px;
+        line-height: 1.4;
+        overflow: hidden;
+
+        .chip-theme {
+          font-weight: 600;
+          color: #0e7490;
+          white-space: nowrap;
+        }
+        .chip-sep { color: var(--text-muted); }
+        .chip-snippet {
+          color: var(--text-secondary);
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+      }
+
+      .cross-chip-x {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 18px;
+        height: 18px;
+        padding: 0;
+        margin-left: 2px;
+        border: none;
+        border-radius: 50%;
+        background: transparent;
+        color: var(--text-muted);
+        cursor: pointer;
+        flex-shrink: 0;
+        transition: background 0.15s, color 0.15s;
+
+        &:hover {
+          background: rgba(6, 182, 212, 0.22);
+          color: #0e7490;
+        }
+      }
+    }
+
+    .cross-empty {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 14px;
+      border: 1px dashed var(--border-subtle);
+      border-radius: 10px;
+      font-size: 12.5px;
+      color: var(--text-muted);
+      background: var(--bg-base);
+
+      :deep(.lucide-icon) { color: var(--text-muted); flex-shrink: 0; }
     }
   }
 
