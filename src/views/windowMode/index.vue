@@ -617,6 +617,155 @@
           </div>
         </div>
 
+        <div class="section">
+          <h2 class="section-title">
+            <LucideIcon name="MessagesSquare" :size="16" />
+            主题对话小窗口
+          </h2>
+
+          <div class="toggle-card">
+            <span class="toggle-label">小窗口状态</span>
+            <div class="toggle-group">
+              <el-button 
+                :type="showThemeConversationMiniWindowCc ? 'primary' : 'default'"
+                :plain="!showThemeConversationMiniWindowCc"
+                @click="changeShowThemeConversationMiniWindowFn(true)"
+                class="toggle-btn"
+              >
+                <LucideIcon name="MonitorCheck" :size="14" />
+                开启
+              </el-button>
+              <el-button 
+                :type="!showThemeConversationMiniWindowCc ? 'primary' : 'default'"
+                :plain="showThemeConversationMiniWindowCc"
+                @click="changeShowThemeConversationMiniWindowFn(false)"
+                class="toggle-btn"
+              >
+                <LucideIcon name="MonitorX" :size="14" />
+                关闭
+              </el-button>
+              <el-button 
+                type="primary"
+                @click="applyThemeConversationWindow"
+                class="apply-btn"
+              >
+                <LucideIcon name="MonitorCloud" :size="14" />
+                应用
+              </el-button>
+            </div>
+          </div>
+
+          <div class="window-card">
+            <div class="config-section">
+              <div class="config-label">
+                <LucideIcon name="MousePointerClick" :size="16" />
+                位置选择
+              </div>
+              <div class="position-wrapper">
+                <div class="position-grid">
+                  <el-button 
+                    v-for="pos in positionOptions" 
+                    :key="pos.value"
+                    :type="themeConversationConfig.position === pos.value ? 'primary' : 'default'"
+                    :plain="themeConversationConfig.position !== pos.value"
+                    @click="selectPosition('themeConversation', pos.value)"
+                    class="position-card"
+                  >
+                    {{ pos.icon }}
+                  </el-button>
+                </div>
+                <el-button 
+                  type="default"
+                  plain
+                  @click="openCustomModal('themeConversation', 'position')"
+                  class="custom-btn"
+                >
+                  <LucideIcon name="Columns3Cog" :size="14" />
+                  自定义
+                  <span v-if="customDisplay.themeConversation.position" class="custom-value">{{ customDisplay.themeConversation.position }}</span>
+                </el-button>
+              </div>
+            </div>
+
+            <div class="config-section">
+              <div class="config-label">
+                <LucideIcon name="MonitorCog" :size="16" />
+                窗口尺寸
+              </div>
+              <div class="size-row">
+                <el-button 
+                  v-for="size in themeConversationSizeOptions" 
+                  :key="size.label"
+                  :type="themeConversationConfig.width === size.width && themeConversationConfig.height === size.height ? 'primary' : 'default'"
+                  :plain="themeConversationConfig.width !== size.width || themeConversationConfig.height !== size.height"
+                  @click="selectSize('themeConversation', size.width, size.height)"
+                  class="config-option"
+                >
+                  {{ size.label }}
+                </el-button>
+                <el-button 
+                  type="default"
+                  plain
+                  @click="openCustomModal('themeConversation', 'size')"
+                  class="config-option custom-option"
+                >
+                  <LucideIcon name="Columns3Cog" :size="14" />
+                  自定义
+                  <span v-if="customDisplay.themeConversation.size" class="custom-value">{{ customDisplay.themeConversation.size }}</span>
+                </el-button>
+              </div>
+            </div>
+
+            <div class="config-section">
+              <div class="config-label">
+                <LucideIcon name="UnfoldVertical" :size="16" />
+                边缘间隙
+              </div>
+              <div class="gap-row">
+                <el-button 
+                  v-for="gap in gapOptions" 
+                  :key="gap"
+                  :type="themeConversationConfig.gap === gap ? 'primary' : 'default'"
+                  :plain="themeConversationConfig.gap !== gap"
+                  @click="selectGap('themeConversation', gap)"
+                  class="config-option"
+                >
+                  {{ gap }}px
+                </el-button>
+                <el-button 
+                  type="default"
+                  plain
+                  @click="openCustomModal('themeConversation', 'gap')"
+                  class="config-option custom-option"
+                >
+                  <LucideIcon name="Columns3Cog" :size="14" />
+                  自定义
+                  <span v-if="customDisplay.themeConversation.gap" class="custom-value">{{ customDisplay.themeConversation.gap }}</span>
+                </el-button>
+              </div>
+            </div>
+
+            <div class="config-section">
+              <div class="config-label">
+                <LucideIcon name="PaintbrushVertical" :size="16" />
+                皮肤主题
+              </div>
+              <div class="theme-row">
+                <el-button 
+                  v-for="theme in skinOptions" 
+                  :key="theme.value"
+                  :type="themeConversationConfig.skin === theme.value ? 'primary' : 'default'"
+                  :plain="themeConversationConfig.skin !== theme.value"
+                  @click="selectThemeConversationSkin(theme.value)"
+                  class="config-option theme-option"
+                >
+                  {{ theme.label }}
+                </el-button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div v-if="showModal" class="modal-overlay" @click="closeModal">
           <div class="modal-content" @click.stop>
             <div class="modal-header">
@@ -677,22 +826,26 @@ const {
   showMiniNotebookWindowC,
   showQuickNoteWindowC,
   showTodoWindowC,
+  showThemeConversationMiniWindowC,
   pomodoroMiniWindowConfig,
   miniNotebookWindowConfig,
   quickNoteWindowConfig,
-  todoWindowConfig
+  todoWindowConfig,
+  themeConversationMiniWindowConfig
 } = storeToRefs(useWindowMode());
-const { setShowPomodoroMiniWindow, setShowMiniNotebookWindow, setShowQuickNoteWindow, setShowTodoWindow } = useWindowMode();
+const { setShowPomodoroMiniWindow, setShowMiniNotebookWindow, setShowQuickNoteWindow, setShowTodoWindow, setShowThemeConversationMiniWindow } = useWindowMode();
 
 const showPomodoroMiniWindowCc = ref(showPomodoroMiniWindowC.value);
 const showMiniNotebookWindowCc = ref(showMiniNotebookWindowC.value);
 const showQuickNoteWindowCc = ref(showQuickNoteWindowC.value);
 const showTodoWindowCc = ref(showTodoWindowC.value);
+const showThemeConversationMiniWindowCc = ref(showThemeConversationMiniWindowC.value);
 
 const pomodoroConfig = ref({ ...pomodoroMiniWindowConfig.value });
 const notebookConfig = ref({ ...miniNotebookWindowConfig.value });
 const quickNoteConfig = ref({ ...quickNoteWindowConfig.value });
 const todoConfig = ref({ ...todoWindowConfig.value });
+const themeConversationConfig = ref({ ...themeConversationMiniWindowConfig.value });
 
 watch(showPomodoroMiniWindowC, (val) => {
   showPomodoroMiniWindowCc.value = JSON.parse(JSON.stringify(val));
@@ -724,6 +877,14 @@ watch(showTodoWindowC, (val) => {
 
 watch(todoWindowConfig, (val) => {
   todoConfig.value = { ...val };
+}, { deep: true });
+
+watch(showThemeConversationMiniWindowC, (val) => {
+  showThemeConversationMiniWindowCc.value = JSON.parse(JSON.stringify(val));
+});
+
+watch(themeConversationMiniWindowConfig, (val) => {
+  themeConversationConfig.value = { ...val };
 }, { deep: true });
 
 function changeShowPomodoroMiniWindowFn(val: boolean) {
@@ -786,6 +947,21 @@ function applyTodoWindow() {
   }
 }
 
+function changeShowThemeConversationMiniWindowFn(val: boolean) {
+  setShowThemeConversationMiniWindow(toRaw(val));
+}
+
+function applyThemeConversationWindow() {
+  if (showThemeConversationMiniWindowCc.value) {
+    changeShowThemeConversationMiniWindowFn(false);
+    setTimeout(() => {
+      changeShowThemeConversationMiniWindowFn(true);
+    }, 300);
+  } else {
+    changeShowThemeConversationMiniWindowFn(true);
+  }
+}
+
 const positionOptions = [
   { value: 'top-left', icon: '↖' },
   { value: 'center-top', icon: '↑' },
@@ -814,6 +990,12 @@ const quickNoteSizeOptions = [
   { label: '400×300', width: 400, height: 300 },
   { label: '600×400', width: 600, height: 400 },
   { label: '800×500', width: 800, height: 500 },
+];
+
+const themeConversationSizeOptions = [
+  { label: '400×300', width: 400, height: 300 },
+  { label: '600×400', width: 600, height: 400 },
+  { label: '600×700', width: 600, height: 700 },
 ];
 
 const gapOptions = [10, 20, 30, 50];
@@ -871,6 +1053,12 @@ function selectTodoSkin(value: string) {
   setStore('window-mode:todoMiniWindow', { ...todoWindowConfig.value });
 }
 
+function selectThemeConversationSkin(value: string) {
+  themeConversationConfig.value.skin = value;
+  themeConversationMiniWindowConfig.value.skin = value;
+  setStore('window-mode:themeConversationMini', { ...themeConversationMiniWindowConfig.value });
+}
+
 function selectQuickNoteLayout(value: string) {
   quickNoteConfig.value.layout = value;
   quickNoteWindowConfig.value.layout = value;
@@ -890,6 +1078,10 @@ function selectPosition(type: string, value: string) {
     todoConfig.value.position = value;
     todoWindowConfig.value.position = value;
     setStore('window-mode:todoMiniWindow', { ...todoWindowConfig.value });
+  } else if (type === 'themeConversation') {
+    themeConversationConfig.value.position = value;
+    themeConversationMiniWindowConfig.value.position = value;
+    setStore('window-mode:themeConversationMini', { ...themeConversationMiniWindowConfig.value });
   } else {
     quickNoteConfig.value.position = value;
     quickNoteWindowConfig.value.position = value;
@@ -916,6 +1108,12 @@ function selectSize(type: string, width: number, height: number) {
     todoWindowConfig.value.width = width;
     todoWindowConfig.value.height = height;
     setStore('window-mode:todoMiniWindow', { ...todoWindowConfig.value });
+  } else if (type === 'themeConversation') {
+    themeConversationConfig.value.width = width;
+    themeConversationConfig.value.height = height;
+    themeConversationMiniWindowConfig.value.width = width;
+    themeConversationMiniWindowConfig.value.height = height;
+    setStore('window-mode:themeConversationMini', { ...themeConversationMiniWindowConfig.value });
   } else {
     quickNoteConfig.value.width = width;
     quickNoteConfig.value.height = height;
@@ -938,6 +1136,10 @@ function selectGap(type: string, gap: number) {
     todoConfig.value.gap = gap;
     todoWindowConfig.value.gap = gap;
     setStore('window-mode:todoMiniWindow', { ...todoWindowConfig.value });
+  } else if (type === 'themeConversation') {
+    themeConversationConfig.value.gap = gap;
+    themeConversationMiniWindowConfig.value.gap = gap;
+    setStore('window-mode:themeConversationMini', { ...themeConversationMiniWindowConfig.value });
   } else {
     quickNoteConfig.value.gap = gap;
     quickNoteWindowConfig.value.gap = gap;
@@ -947,7 +1149,7 @@ function selectGap(type: string, gap: number) {
 
 const showModal = ref(false);
 const modalType = ref<'position' | 'size' | 'gap'>('position');
-const modalTarget = ref<'pomodoro' | 'notebook' | 'quickNote' | 'todo'>('pomodoro');
+const modalTarget = ref<'pomodoro' | 'notebook' | 'quickNote' | 'todo' | 'themeConversation'>('pomodoro');
 
 // 判断各窗口类型的各字段是否为自定义模式，并返回展示值
 const customDisplay = computed(() => {
@@ -994,6 +1196,11 @@ const customDisplay = computed(() => {
       size: getSizeCustom(todoConfig.value, quickNoteSizeOptions),
       gap: getGapCustom(todoConfig.value),
     },
+    themeConversation: {
+      position: getPositionCustom(themeConversationConfig.value),
+      size: getSizeCustom(themeConversationConfig.value, themeConversationSizeOptions),
+      gap: getGapCustom(themeConversationConfig.value),
+    },
   };
 });
 
@@ -1010,11 +1217,11 @@ const modalTitle = computed(() => {
   return titles[modalType.value];
 });
 
-function openCustomModal(target: 'pomodoro' | 'notebook' | 'quickNote' | 'todo', type: 'position' | 'size' | 'gap') {
+function openCustomModal(target: 'pomodoro' | 'notebook' | 'quickNote' | 'todo' | 'themeConversation', type: 'position' | 'size' | 'gap') {
   modalTarget.value = target;
   modalType.value = type;
   
-  const config = target === 'pomodoro' ? pomodoroConfig.value : target === 'notebook' ? notebookConfig.value : target === 'todo' ? todoConfig.value : quickNoteConfig.value;
+  const config = target === 'pomodoro' ? pomodoroConfig.value : target === 'notebook' ? notebookConfig.value : target === 'todo' ? todoConfig.value : target === 'themeConversation' ? themeConversationConfig.value : quickNoteConfig.value;
   
   if (type === 'position') {
     customPosition.value = { x: 0, y: 0 };
@@ -1052,6 +1259,12 @@ function confirmCustom() {
         todoWindowConfig.value.x = customPosition.value.x;
         todoWindowConfig.value.y = customPosition.value.y;
         setStore('window-mode:todoMiniWindow', { ...todoWindowConfig.value });
+      } else if (modalTarget.value === 'themeConversation') {
+        themeConversationConfig.value.position = 'custom';
+        themeConversationMiniWindowConfig.value.position = 'custom';
+        themeConversationMiniWindowConfig.value.x = customPosition.value.x;
+        themeConversationMiniWindowConfig.value.y = customPosition.value.y;
+        setStore('window-mode:themeConversationMini', { ...themeConversationMiniWindowConfig.value });
       } else {
         quickNoteConfig.value.position = 'custom';
         quickNoteWindowConfig.value.position = 'custom';
@@ -1080,6 +1293,12 @@ function confirmCustom() {
         todoWindowConfig.value.width = customSize.value.width;
         todoWindowConfig.value.height = customSize.value.height;
         setStore('window-mode:todoMiniWindow', { ...todoWindowConfig.value });
+      } else if (modalTarget.value === 'themeConversation') {
+        themeConversationConfig.value.width = customSize.value.width;
+        themeConversationConfig.value.height = customSize.value.height;
+        themeConversationMiniWindowConfig.value.width = customSize.value.width;
+        themeConversationMiniWindowConfig.value.height = customSize.value.height;
+        setStore('window-mode:themeConversationMini', { ...themeConversationMiniWindowConfig.value });
       } else {
         quickNoteConfig.value.width = customSize.value.width;
         quickNoteConfig.value.height = customSize.value.height;
@@ -1102,6 +1321,10 @@ function confirmCustom() {
         todoConfig.value.gap = customGap.value;
         todoWindowConfig.value.gap = customGap.value;
         setStore('window-mode:todoMiniWindow', { ...todoWindowConfig.value });
+      } else if (modalTarget.value === 'themeConversation') {
+        themeConversationConfig.value.gap = customGap.value;
+        themeConversationMiniWindowConfig.value.gap = customGap.value;
+        setStore('window-mode:themeConversationMini', { ...themeConversationMiniWindowConfig.value });
       } else {
         quickNoteConfig.value.gap = customGap.value;
         quickNoteWindowConfig.value.gap = customGap.value;

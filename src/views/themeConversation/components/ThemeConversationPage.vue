@@ -106,8 +106,27 @@ onMounted(() => {
   }
 }
 
-/* 小窗模式：整体收紧间距，方便后续作为独立小窗口引入 */
+/* 小窗模式：整体收紧间距，并把内部依赖的「应用主题变量」重映射为皮肤变量，
+   使对话页内部与外壳视觉一致（仅靠 CSS 变量继承生效，子组件无需改动）。
+   中间色（卡片背景/静音文字）用 color-mix 基于皮肤变量派生，深浅皮肤自动适配。 */
 .theme-conversation-page.compact {
+  /* —— 背景类 —— */
+  --bg-base: var(--skin-bg);
+  --bg-card: color-mix(in srgb, var(--skin-bg) 88%, var(--skin-text-primary) 12%);
+  --bg-hover: var(--skin-btn-hover);
+  --bg-active-btn: var(--skin-btn-bg);
+  /* —— 文字类 —— */
+  --text-primary: var(--skin-text-primary);
+  --text-secondary: var(--skin-text-secondary);
+  --text-muted: color-mix(in srgb, var(--skin-text-secondary) 70%, var(--skin-bg) 30%);
+  /* —— 主色类 —— */
+  --color-primary: var(--skin-dot);
+  --color-primary-light: var(--skin-btn-bg);
+  --color-primary-solid: var(--skin-dot);
+  /* —— 边框/滚动条（阴影、圆角保持原应用主题，不影响皮肤感） —— */
+  --border-subtle: var(--skin-border);
+  --scrollbar-thumb: var(--skin-border);
+
   :deep(.theme-list) { width: 200px; }
   :deep(.tcp-toolbar) { padding: 8px 12px; }
   :deep(.tcp-list) { padding: 10px; gap: 10px; }

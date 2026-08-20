@@ -108,6 +108,32 @@ export default defineStore("window-mode", () => {
     }
   });
 
+  const showThemeConversationMiniWindow = ref();
+  const showThemeConversationMiniWindowC = computed(() => showThemeConversationMiniWindow.value);
+  function setShowThemeConversationMiniWindow(value: boolean) {
+    showThemeConversationMiniWindow.value = value;
+    setStore("showThemeConversationMiniWindow", value);
+  }
+
+  const themeConversationMiniWindowConfig = ref({
+    position: 'bottom-right',
+    width: 600,
+    height: 700,
+    gap: 30,
+    x: 0,
+    y: 0,
+    skin: 'white',
+  });
+
+  watch(showThemeConversationMiniWindow, (newValue) => {
+    if (newValue == true) {
+      console.log("打开主题对话小窗口", themeConversationMiniWindowConfig.value);
+      send("open-new-window", "themeConversationMini", themeConversationMiniWindowConfig.value);
+    } else {
+      send("close-new-window", "themeConversationMini");
+    }
+  });
+
   watch(pomodoroMiniWindowConfig, (newVal) => {
     send('sync-data-to-other-window', {
       pomodoroMiniWindowConfig: toRaw(newVal),
@@ -117,6 +143,12 @@ export default defineStore("window-mode", () => {
   watch(quickNoteWindowConfig, (newVal) => {
     send('sync-data-to-other-window', {
       quickNoteWindowConfig: toRaw(newVal),
+    });
+  }, { deep: true });
+
+  watch(themeConversationMiniWindowConfig, (newVal) => {
+    send('sync-data-to-other-window', {
+      themeConversationMiniWindowConfig: toRaw(newVal),
     });
   }, { deep: true });
 
@@ -141,6 +173,11 @@ export default defineStore("window-mode", () => {
         field: "showTodoWindow",
         default: false,
         map: showTodoWindow,
+      },
+      {
+        field: "showThemeConversationMiniWindow",
+        default: false,
+        map: showThemeConversationMiniWindow,
       },
     ];
 
@@ -221,6 +258,19 @@ export default defineStore("window-mode", () => {
         },
         map: todoWindowConfig,
       },
+      {
+        field: "window-mode:themeConversationMini",
+        default: {
+          position: 'bottom-right',
+          width: 600,
+          height: 700,
+          gap: 30,
+          x: 0,
+          y: 0,
+          skin: 'white',
+        },
+        map: themeConversationMiniWindowConfig,
+      },
     ];
 
     const allVars: defaultField[] = [
@@ -243,6 +293,13 @@ export default defineStore("window-mode", () => {
         const currentConfig = quickNoteWindowConfig.value;
         if (JSON.stringify(newConfig) !== JSON.stringify(currentConfig)) {
           quickNoteWindowConfig.value = { ...currentConfig, ...newConfig };
+        }
+      }
+      if (arg?.themeConversationMiniWindowConfig) {
+        const newConfig = arg.themeConversationMiniWindowConfig;
+        const currentConfig = themeConversationMiniWindowConfig.value;
+        if (JSON.stringify(newConfig) !== JSON.stringify(currentConfig)) {
+          themeConversationMiniWindowConfig.value = { ...currentConfig, ...newConfig };
         }
       }
     });
@@ -273,6 +330,10 @@ export default defineStore("window-mode", () => {
     showTodoWindowC,
     setShowTodoWindow,
     todoWindowConfig,
+    showThemeConversationMiniWindow,
+    showThemeConversationMiniWindowC,
+    setShowThemeConversationMiniWindow,
+    themeConversationMiniWindowConfig,
     $reset,
   };
 });
