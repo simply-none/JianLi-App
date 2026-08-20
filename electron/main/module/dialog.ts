@@ -348,11 +348,11 @@ export function initFile() {
     }
   });
 
-  // 监听文件保存
-  ipcMain.on("save-file", async (e, fileSaveObj: FileSaveObjType) => {
-    let result = await saveFile(fileSaveObj);
+  // 监听文件保存（改用 handle + invoke 异步通道，避免大文件分片经同步 IPC 阻塞渲染进程）
+  ipcMain.handle("save-file", async (e, fileSaveObj: FileSaveObjType) => {
+    const result = await saveFile(fileSaveObj);
     console.log(result, "result");
-    e.returnValue = result;
+    return result;
   });
 
   // 监听文件夹复制

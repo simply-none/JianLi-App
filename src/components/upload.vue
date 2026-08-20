@@ -50,7 +50,6 @@ import type { UploadFile } from 'element-plus'
 import useCacheSetStore from '@/store/useCacheSet'
 import useResourceManage from '@/store/useResourceManage';
 import { storeToRefs } from 'pinia';
-import { sendSync } from '@/utils/common';
 
 const props = defineProps({
   limit: {
@@ -143,22 +142,27 @@ function readerFile({
   return new Promise((resolve, reject) => {
     let reader = new FileReader();
 
-    reader.onload = function (e: any) {
-      const res = reader.result;
+    reader.onload = async function () {
+      try {
+        const res = reader.result;
 
-      const val = sendSync('save-file', {
-        content: res,
-        chunkLength,
-        path,
-        name,
-        tempSplit,
-        currentChunkIndex: curentChunk,
-      })
+        // 改用 ipcRenderer.invoke 走异步通道，避免大文件分片经同步 IPC 阻塞渲染进程
+        const val = await window.ipcRenderer.invoke('save-file', {
+          content: res,
+          chunkLength,
+          path,
+          name,
+          tempSplit,
+          currentChunkIndex: curentChunk,
+        })
 
-      if (!(val || '').includes('error')) {
-        resolve(val);
-      } else {
-        reject(val);
+        if (!(val || '').includes('error')) {
+          resolve(val);
+        } else {
+          reject(val);
+        }
+      } catch (err) {
+        reject(err);
       }
     };
 

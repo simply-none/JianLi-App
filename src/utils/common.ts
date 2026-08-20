@@ -24,6 +24,12 @@ function toPlain(value: any, seen = new WeakSet()): any {
   if (value === null || value === undefined) return value;
   if (isRef(value)) return toPlain(unref(value), seen);
   if (isProxy(value)) return toPlain(toRaw(value), seen);
+  // 二进制类型保持原样，交给结构化克隆序列化：
+  // 否则会被当成普通对象用 Object.keys 遍历而塌缩成 {}，
+  // 导致主进程 Buffer.from 收到空对象而报 ERR_INVALID_ARG_TYPE。
+  if (typeof ArrayBuffer !== 'undefined' && value instanceof ArrayBuffer) return value;
+  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(value)) return value;
+  if (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(value)) return value; // TypedArray / DataView
   if (typeof value === 'object') {
     // 原始类型（Date 等结构化克隆原生支持）直接返回
     if (value instanceof Date || value instanceof RegExp || value instanceof Map || value instanceof Set) {
