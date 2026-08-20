@@ -307,6 +307,7 @@
           @delete="onAnnotationDelete"
           @delete-all="onDeleteAll"
           @export="exportCurrentAnnotations"
+          @export-to-conversation="exportAnnotationsToConversation"
           @save-note="saveShelfNote"
         />
 
@@ -354,6 +355,7 @@ import BookmarksDrawer from './components/BookmarksDrawer.vue';
 import SearchPanel from './components/SearchPanel.vue';
 import Bookshelf from './components/Bookshelf.vue';
 import { useBookshelf, handleExportResult } from './composables/useBookshelf';
+import { useThemeConversation } from '@/views/themeConversation/composables/useThemeConversation';
 import { getFileName, getFormat } from './utils/fileUtils';
 import type { TocItem, FlatTocItem, ReaderComponentInstance, AnnotationDisplayItem, EpubSearchResult } from './types';
 
@@ -399,6 +401,17 @@ const {
   // 打开书时写入 store 并切换到阅读视图（复用统一的 loadFile 加载器）
   openBook: (item) => loadFile(item.path, item.name, item.format as 'txt' | 'epub'),
 });
+
+// 主题对话单例（与主题对话页面共享）：用于把笔记/划线导出为「主题=书名」下的对话
+const {
+  themes,
+  selectTheme,
+  createTheme,
+  createConversation,
+  loadThemes,
+  getConversationsByTheme,
+  deleteConversation,
+} = useThemeConversation();
 
 /** 分类筛选切换（null 表示全部） */
 function onSelectCategory(v: number | null): void {
@@ -1113,6 +1126,64 @@ async function exportCurrentAnnotations(): Promise<void> {
     });
     handleExportResult(res);
   }
+}
+
+/**
+ * 将当前抽屉里的全部笔记/划线导出到「主题对话」：
+ * - 主题名 = 书名（去扩展名）；每条标注生成一条对话。
+ * - 对话内容：划分线原文在前、笔记在后，分别用【划线】【笔记】标注，不附带引用。
+ * - 若已存在同名主题，弹窗询问「覆盖」（清空该主题旧对话后写入）或「追加」（取消则保留旧对话并追加）。
+ */
+async function exportAnnotationsToConversation(): Promise<void> {
+  if (!annotations.value.length) {
+    ElMessage.warning('当前没有可导出的笔记或划线');
+    return;
+  }
+  // 取书名（去掉扩展名）；书架来源用书架书名，否则用当前文件标题/名称
+  let bookTitle = '电子书';
+  if (annotationSourceFile.value) {
+    const book = bookshelf.value.find((b) => b.path === annotationSourceFile.value);
+    bookTitle = book?.name?.replace(/\.[^.]+$/, '') || '电子书';
+  } else if (currentFile.value.title || currentFile.value.name) {
+    bookTitle = (currentFile.value.title || currentFile.value.name).replace(/\.[^.]+$/, '');
+  }
+
+  await loadThemes();
+  const existing = themes.value.find((t: any) => t.title === bookTitle);
+
+  if (existing) {
+    try {
+      await ElMessageBox.confirm(
+        `已存在同名主题「${bookTitle}」，是否覆盖其全部对话？（取消则追加到该主题）`,
+        '导出到主题对话',
+        { confirmButtonText: '覆盖', cancelButtonText: '追加', type: 'warning' }
+      );
+      // 覆盖：先清空该主题现有对话，再写入
+      const oldConvs = await getConversationsByTheme(existing.id);
+      for (const c of oldConvs) {
+        await deleteConversation(c.id);
+      }
+      await selectTheme(existing.id);
+    } catch {
+      // 用户点「追加」或关闭弹窗：保留旧对话，追加到已有主题
+      await selectTheme(existing.id);
+    }
+  } else {
+    await createTheme(bookTitle);
+  }
+
+  let count = 0;
+  for (const a of annotations.value) {
+    const text = (a.text || '').trim();
+    const note = (a.note || '').trim();
+    let content = text ? `【划线】${text}` : '';
+    if (note) content += (content ? '\n' : '') + `【笔记】${note}`;
+    if (!content) continue;
+    await createConversation({ content });
+    count += 1;
+  }
+
+  ElMessage.success(`已导出 ${count} 条到主题「${bookTitle}」`);
 }
 
 /**

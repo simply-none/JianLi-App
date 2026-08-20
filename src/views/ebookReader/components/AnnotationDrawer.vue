@@ -14,6 +14,10 @@
             <LucideIcon :name="expanded ? 'ListCollapse' : 'UnfoldVertical'" :size="13" />
             {{ expanded ? '省略' : '展示所有' }}
           </el-button>
+          <el-button size="small" @click="onExportToConversation">
+            <LucideIcon name="BookOpenText" :size="13" />
+            导出到主题对话
+          </el-button>
         </div>
         <el-button size="small" @click="onExport">
           <LucideIcon name="Download" :size="13" />
@@ -166,6 +170,7 @@ const emit = defineEmits<{
   (e: 'delete', item: AnnotationDisplayItem): void;
   (e: 'delete-all', scope: 'note' | 'highlight'): void;
   (e: 'export'): void;
+  (e: 'export-to-conversation'): void;
   (e: 'save-note', payload: { id: number; text: string }): void;
 }>();
 
@@ -269,6 +274,11 @@ function onDeleteAll(scope: 'note' | 'highlight') {
 /** 点击导出：通知父组件导出当前笔记与划线 */
 function onExport() {
   emit('export');
+}
+
+/** 点击导出到主题对话：通知父组件将全部笔记/划线写入「主题对话」 */
+function onExportToConversation() {
+  emit('export-to-conversation');
 }
 
 /** 保存笔记：将编辑结果回传父组件（IPC + 同步阅读组件）并关闭弹窗 */
