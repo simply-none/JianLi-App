@@ -80,7 +80,7 @@
           :disabled="!selectedIds.length"
           @click="batchSubTheme"
         >
-          <LucideIcon name="FolderPlus" :size="15" />
+          <LucideIcon name="MessageSquarePlus" :size="15" />
           <span>新增子主题 ({{ selectedIds.length }})</span>
         </button>
         <button class="ms-btn" @click="toggleMultiselect">退出多选</button>
@@ -106,7 +106,7 @@
         <LucideIcon name="Layers" :size="14" /> 跨主题引用…
       </button>
       <button class="ctx-item" @click="ctxSubTheme">
-        <LucideIcon name="FolderPlus" :size="14" /> 发起子主题…
+        <LucideIcon name="MessageSquarePlus" :size="14" /> 发起子主题…
       </button>
       <button class="ctx-item" @click="ctxEdit">
         <LucideIcon name="Pencil" :size="14" /> 编辑
@@ -199,7 +199,7 @@ watch(
       node.classList.remove('highlight');
       void node.offsetWidth;
       node.classList.add('highlight');
-      setTimeout(() => node.classList.remove('highlight'), 3000);
+      setTimeout(() => node.classList.remove('highlight'), 5000);
     }, 80);
   }
 );
@@ -389,15 +389,16 @@ function batchQuote() {
   }
 }
 
-/* 从引用弹窗「定位」时：高亮目标对话项，便于回溯（持续 3 秒闪烁） */
+/* 从引用弹窗「定位」时：高亮目标对话项，便于回溯（持续 5 秒闪烁） */
 .bubble-wrap.highlight :deep(.conv-bubble) {
-  animation: conv-blink 0.5s ease-in-out 6; /* 6 × 0.5s = 3 秒 */
+  /* 总时长约 5 秒，更从容 */
+  animation: conv-blink 1.2s ease-in-out 5;
 }
 
 @keyframes conv-blink {
   0%, 100% {
     border-color: var(--color-primary) !important;
-    box-shadow: 0 0 0 4px var(--color-primary-light);
+    box-shadow: 0 0 8px var(--color-primary-light); /* 稍微增大阴影扩散，更柔和 */
     /* 独有高亮背景：定位态使用专属强调底色，确保与引用/被引用等其它样式区分 */
     background: var(--conv-highlight-bg, rgba(59, 130, 246, 0.16)) !important;
   }

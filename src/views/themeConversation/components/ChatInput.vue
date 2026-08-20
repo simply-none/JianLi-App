@@ -103,7 +103,7 @@
           <span>引用</span>
         </button>
         <button class="tool" @click="openCrossRefPicker" title="引用其它主题的对话">
-          <LucideIcon name="Layers" :size="15" />
+          <LucideIcon name="Unlink" :size="15" />
           <span>跨主题引用</span>
         </button>
         <TagSelector v-model="tagIds" :scope="'conversation'" />
@@ -126,7 +126,7 @@
         />
       </div>
       <button class="send-btn" :disabled="isEmpty" @click="send">
-        <LucideIcon name="Send" :size="15" />
+        <LucideIcon name="SendIcon" :size="15" />
         发送
       </button>
     </div>
@@ -552,7 +552,7 @@ defineExpose({ focus });
     border: 1px solid var(--border-subtle);
     border-bottom: 1px solid var(--border-subtle);
     border-radius: var(--radius-btn) var(--radius-btn) 0 0;
-    background: var(--bg-card);
+    background: var(--bg-base);
     padding: 15px 8px;
   }
   :deep(.ta.rich) {
@@ -573,7 +573,7 @@ defineExpose({ focus });
       border: 1px solid var(--border-subtle);
       border-top: none;
       border-radius: 0 0 var(--radius-btn) var(--radius-btn);
-      background: var(--bg-card);
+      background: var(--bg-base);
       color: var(--text-primary);
       font-size: 14px;
       font-family: inherit;

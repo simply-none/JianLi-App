@@ -202,7 +202,7 @@ async function onDelete() {
       border: 1px solid var(--border-subtle);
       border-bottom: 1px solid var(--border-subtle);
       border-radius: 8px 8px 0 0;
-      background: var(--bg-card);
+      background: var(--bg-base);
       padding: 6px 8px;
     }
 
@@ -210,7 +210,7 @@ async function onDelete() {
     &.ql-container.ql-snow {
       border: 1px solid var(--border-subtle);
       border-radius: 0 0 var(--radius-btn) var(--radius-btn);
-      background: var(--bg-card);
+      background: var(--bg-base);
       color: var(--text-primary);
       font-size: 14px;
       font-family: inherit;

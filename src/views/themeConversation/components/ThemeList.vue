@@ -119,7 +119,7 @@
         :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }"
       >
         <button class="ctx-item" @click="ctxNewSub">
-          <LucideIcon name="Layers" :size="14" />
+          <LucideIcon name="MessageSquarePlus" :size="14" />
           新增子主题
         </button>
         <button class="ctx-item" @click="ctxEdit">
