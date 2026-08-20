@@ -1,9 +1,9 @@
 <template>
-  <div class="section">
+  <div class="reminder-page">
     <div class="section-header">
       <h2 class="section-title">
         <LucideIcon name="BellRing" />
-        定时提醒
+        提醒
       </h2>
       <el-button type="primary" size="small" @click="openDialog()" class="add-btn">
         <LucideIcon name="AlarmClockPlus" />
@@ -296,8 +296,8 @@ function del(item: Reminder) {
 
 <style scoped lang="scss">
 
-.section {
-  margin-bottom: 24px;
+.reminder-page {
+  width: 100%;
 
   .section-header {
     display: flex;

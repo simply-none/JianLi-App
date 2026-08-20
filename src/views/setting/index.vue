@@ -141,8 +141,7 @@
           </div>
         </div>
 
-        <!-- 定时提醒 -->
-        <Reminder />
+        <!-- 定时提醒已迁移至独立路由页「提醒」 -->
 
         <div class="section">
           <h2 class="section-title">
@@ -261,7 +260,6 @@ import { timeUnit } from '@/utils/time';
 import confirmDialog from '@/utils/confirmDialog';
 import CacheSet from '@/views/setting/cacheSet.vue';
 import Pomodoro from '@/views/setting/pomodoro.vue';
-import Reminder from '@/views/setting/reminder.vue';
 
 const { clearStore } = useClearStore();
 const { startWorkFn, startRestFn, changeEffectFn, forceWorkWithTimes } = useWorkOrRest();
