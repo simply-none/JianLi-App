@@ -107,15 +107,19 @@
           </div>
         </el-form-item>
 
-        <el-form-item label="完成状态">
-          <el-switch
-            v-model="form.completed"
-            :active-value="1"
-            :inactive-value="0"
-            active-text="已完成"
-            inactive-text="未完成"
-            @change="handleCompleteChange"
-          />
+        <el-form-item label="状态">
+          <el-select
+            v-model="form.status"
+            class="status-select"
+            @change="handleStatusChange"
+          >
+            <el-option
+              v-for="opt in TODO_STATUS_LIST"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            />
+          </el-select>
         </el-form-item>
 
         <el-form-item v-if="form.completedTime" label="完成时间">
@@ -137,6 +141,7 @@ import { ElMessage } from 'element-plus';
 import LucideIcon from '@/components/LucideIcon.vue';
 import moment from 'moment';
 import { v4 as uuidv4 } from 'uuid';
+import { TODO_STATUS_LIST, DEFAULT_TODO_STATUS, deriveStatusFromCompleted } from './statusConfig';
 
 interface Tag {
   key: string;
@@ -153,6 +158,8 @@ interface TodoItem {
   completedTime: string;
   priority: string;
   dueDate: string;
+  /** 待办状态：not_started/in_progress/blocked/completed/cancelled/restart，默认 not_started */
+  status?: string;
   /** 是否开启截止时间提醒（0/1），默认 0 */
   deadlineReminder?: number;
   /** 提醒次数，默认 1 */
@@ -187,6 +194,7 @@ const form = ref<TodoItem>({
   completedTime: '',
   priority: 'medium',
   dueDate: '',
+  status: DEFAULT_TODO_STATUS,
   deadlineReminder: 0,
   remindCount: 1,
   remindInterval: 30,
@@ -199,6 +207,7 @@ const form = ref<TodoItem>({
 function normalizeTodo(todo: TodoItem): TodoItem {
   return {
     ...todo,
+    status: todo.status || deriveStatusFromCompleted(todo.completed),
     deadlineReminder: Number(todo.deadlineReminder) || 0,
     remindCount: Number(todo.remindCount) || 1,
     remindInterval: Number(todo.remindInterval) || 30,
@@ -238,6 +247,7 @@ watch(() => props.visible, (val) => {
         completedTime: '',
         priority: 'medium',
         dueDate: '',
+        status: DEFAULT_TODO_STATUS,
         deadlineReminder: 0,
         remindCount: 1,
         remindInterval: 30,
@@ -316,10 +326,10 @@ function removeTag(tagKey: string) {
   }
 }
 
-function handleCompleteChange(val: number) {
-  if (val === 1 && !form.value.completedTime) {
+function handleStatusChange(val: string) {
+  if (val === 'completed' && !form.value.completedTime) {
     form.value.completedTime = moment().format('YYYY-MM-DD HH:mm:ss');
-  } else if (val === 0) {
+  } else if (val !== 'completed') {
     form.value.completedTime = '';
   }
 }
@@ -332,6 +342,8 @@ async function handleSave() {
 
   const todoData = {
     ...form.value,
+    status: form.value.status || DEFAULT_TODO_STATUS,
+    completed: form.value.status === 'completed' ? 1 : 0,
     key: form.value.key || uuidv4(),
     createTime: form.value.createTime || moment().format('YYYY-MM-DD HH:mm:ss'),
     updateTime: moment().format('YYYY-MM-DD HH:mm:ss'),
@@ -420,6 +432,10 @@ function handleClose() {
   font-size: 13px;
   color: var(--color-primary);
   font-weight: 500;
+}
+
+.status-select {
+  width: 100%;
 }
 
 .priority-radio-group {

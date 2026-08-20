@@ -72,8 +72,12 @@
               clearable
               @change="handleSearch"
             >
-              <el-option label="未完成" :value="0" />
-              <el-option label="已完成" :value="1" />
+              <el-option
+                v-for="opt in TODO_STATUS_LIST"
+                :key="opt.value"
+                :label="opt.label"
+                :value="opt.value"
+              />
             </el-select>
           </div>
         </div>
@@ -85,13 +89,18 @@
             </span>
             <span class="stat-divider"></span>
             <span class="stat-item">
-              <span class="stat-value pending">{{ pendingCount }}</span>
-              <span class="stat-label">待完成</span>
+              <span class="stat-value pending">{{ inProgressCount }}</span>
+              <span class="stat-label">进行中</span>
             </span>
             <span class="stat-divider"></span>
             <span class="stat-item">
               <span class="stat-value completed">{{ completedCount }}</span>
               <span class="stat-label">已完成</span>
+            </span>
+            <span class="stat-divider"></span>
+            <span class="stat-item">
+              <span class="stat-value cancelled">{{ cancelledCount }}</span>
+              <span class="stat-label">已取消</span>
             </span>
           </div>
         </div>
@@ -106,7 +115,7 @@
           @view="handleViewTodo"
           @edit="handleEditTodo"
           @delete="handleDeleteTodo"
-          @toggle-complete="handleToggleComplete"
+          @status-change="handleStatusChange"
         />
       </div>
     </div>
@@ -131,6 +140,7 @@ import moment from 'moment';
 import useTheme from '@/store/useTheme';
 import TodoList from './TodoList.vue';
 import TodoDetailDialog from './TodoDetailDialog.vue';
+import { TODO_STATUS_LIST, deriveStatusFromCompleted } from './statusConfig';
 
 const themeStore = useTheme();
 const { currentTheme } = storeToRefs(themeStore);
@@ -150,6 +160,8 @@ interface TodoItem {
   completedTime: string;
   priority: string;
   dueDate: string;
+  /** 待办状态：not_started/in_progress/blocked/completed/cancelled/restart，默认 not_started */
+  status?: string;
   deadlineReminder?: number;
   remindCount?: number;
   remindInterval?: number;
@@ -160,7 +172,7 @@ interface TodoItem {
 
 const searchKeyword = ref('');
 const selectedPriority = ref('');
-const selectedStatus = ref<number | null>(null);
+const selectedStatus = ref<string | null>(null);
 const selectedTag = ref('');
 const allTags = ref<Tag[]>([]);
 const allTodos = ref<TodoItem[]>([]);
@@ -171,9 +183,15 @@ const currentPage = ref(1);
 const loading = ref(false);
 const hasMore = ref(true);
 
-const totalCount = computed(() => filteredTodos.value.length);
-const pendingCount = computed(() => filteredTodos.value.filter(t => t.completed === 0).length);
-const completedCount = computed(() => filteredTodos.value.filter(t => t.completed === 1).length);
+/** 由待办派生出有效状态（兼容旧数据无 status 字段的情况） */
+function effectiveStatus(todo: TodoItem): string {
+  return todo.status || deriveStatusFromCompleted(todo.completed);
+}
+
+const totalCount = computed(() => rawTodos.value.length);
+const inProgressCount = computed(() => rawTodos.value.filter(t => effectiveStatus(t) === 'in_progress').length);
+const completedCount = computed(() => rawTodos.value.filter(t => effectiveStatus(t) === 'completed').length);
+const cancelledCount = computed(() => rawTodos.value.filter(t => effectiveStatus(t) === 'cancelled').length);
 
 async function fetchTags() {
   try {
@@ -202,12 +220,6 @@ async function fetchTodos() {
   let sql = 'SELECT * FROM todo_list';
   const params: any[] = [];
   const whereClauses: string[] = [];
-
-  if (selectedStatus.value === 1) {
-    whereClauses.push('completed = 1');
-  } else {
-    whereClauses.push('completed = 0');
-  }
 
   if (searchKeyword.value.trim()) {
     whereClauses.push('(title LIKE ? OR description LIKE ?)');
@@ -242,7 +254,11 @@ async function fetchTodos() {
       const cleanData = data.filter((item: any) =>
         item && typeof item === 'object' && !item.$el && !item.$options && !item._componentTag
       );
-      rawTodos.value = cleanData;
+      // 归一化：旧数据无 status 字段时按 completed 推导，保证列表/筛选/统计一致
+      rawTodos.value = cleanData.map((item: any) => ({
+        ...item,
+        status: item.status || deriveStatusFromCompleted(item.completed),
+      }));
     }
   } catch (err) {
     console.error('获取待办失败:', err);
@@ -252,7 +268,16 @@ async function fetchTodos() {
   }
 }
 
-const filteredTodos = computed(() => rawTodos.value);
+// 状态筛选（客户端）：默认仅展示未完结（排除已完成、已取消）
+const filteredTodos = computed(() => {
+  if (!selectedStatus.value) {
+    return rawTodos.value.filter(t => {
+      const s = effectiveStatus(t);
+      return s !== 'completed' && s !== 'cancelled';
+    });
+  }
+  return rawTodos.value.filter(t => effectiveStatus(t) === selectedStatus.value);
+});
 
 function handleSearch() {
   fetchTodos();
@@ -280,7 +305,7 @@ function handleDeleteTodo(todo: TodoItem) {
   }
 }
 
-function handleToggleComplete(todo: TodoItem) {
+function handleStatusChange(todo: TodoItem) {
   const index = rawTodos.value.findIndex(t => t.key === todo.key);
   if (index > -1) {
     rawTodos.value[index] = todo;
@@ -428,6 +453,10 @@ onMounted(async () => {
 
       &.completed {
         color: #22c55e;
+      }
+
+      &.cancelled {
+        color: #9ca3af;
       }
     }
 

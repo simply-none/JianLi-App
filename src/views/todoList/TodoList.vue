@@ -8,13 +8,37 @@
         v-for="todo in todos"
         :key="todo.key"
         class="todo-card"
-        :class="{ completed: todo.completed === 1 }"
+        :class="{ 'is-done': todo.status === 'completed', 'is-cancelled': todo.status === 'cancelled' }"
       >
-        <div class="todo-checkbox" @click.stop="handleToggleComplete(todo)">
-          <div class="checkbox-inner" :class="{ checked: todo.completed === 1 }">
-            <LucideIcon v-if="todo.completed === 1" name="Check" class="check-icon" />
-          </div>
-        </div>
+        <el-dropdown
+          trigger="click"
+          class="todo-status"
+          @command="(s: string) => handleChangeStatus(todo, s)"
+          @click.stop
+        >
+          <span
+            class="status-badge"
+            :style="{
+              color: getTodoStatusMeta(todo.status).color,
+              background: getTodoStatusMeta(todo.status).bg,
+            }"
+          >
+            {{ getTodoStatusMeta(todo.status).label }}
+            <LucideIcon name="ChevronDown" class="status-caret" />
+          </span>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item
+                v-for="opt in TODO_STATUS_LIST"
+                :key="opt.value"
+                :command="opt.value"
+                :class="{ 'is-active': todo.status === opt.value }"
+              >
+                {{ opt.label }}
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
         <div class="todo-content" @click="$emit('view', todo)">
           <div class="todo-header">
             <h3 class="todo-title">{{ todo.title || '无标题' }}</h3>
@@ -78,6 +102,7 @@ import { ref, onMounted, type ComponentPublicInstance } from 'vue';
 import { ElMessage, ElMessageBox, ElScrollbar } from 'element-plus';
 import LucideIcon from '@/components/LucideIcon.vue';
 import moment from 'moment';
+import { TODO_STATUS_LIST, getTodoStatusMeta } from './statusConfig';
 
 const scrollbarRef = ref<ComponentPublicInstance<typeof ElScrollbar> | null>(null);
 
@@ -96,6 +121,8 @@ interface TodoItem {
   completedTime: string;
   priority: string;
   dueDate: string;
+  /** 待办状态：not_started/in_progress/blocked/completed/cancelled/restart，默认 not_started */
+  status?: string;
   deadlineReminder?: number;
   remindCount?: number;
   remindInterval?: number;
@@ -111,7 +138,7 @@ const props = defineProps<{
   hasMore: boolean;
 }>();
 
-const emit = defineEmits(['view', 'edit', 'delete', 'load-more', 'toggle-complete']);
+const emit = defineEmits(['view', 'edit', 'delete', 'load-more', 'status-change']);
 
 onMounted(() => {
   console.log('TodoList mounted');
@@ -176,14 +203,18 @@ function formatTime(time: string) {
   }
 }
 
-async function handleToggleComplete(todo: TodoItem) {
-  const newCompleted = todo.completed === 1 ? 0 : 1;
-  
-  const todoData = {
+/** 在列表中直接切换待办状态：写库 + 更新提醒排程 + 通知父组件刷新本地 */
+async function handleChangeStatus(todo: TodoItem, newStatus: string) {
+  if (todo.status === newStatus) return;
+
+  const isCompleted = newStatus === 'completed';
+  const now = moment().format('YYYY-MM-DD HH:mm:ss');
+  const todoData: TodoItem = {
     ...todo,
-    completed: newCompleted,
-    completedTime: newCompleted === 1 ? moment().format('YYYY-MM-DD HH:mm:ss') : '',
-    updateTime: moment().format('YYYY-MM-DD HH:mm:ss'),
+    status: newStatus,
+    completed: isCompleted ? 1 : 0,
+    completedTime: isCompleted ? (todo.completedTime || now) : '',
+    updateTime: now,
   };
 
   const result = await window.ipcRenderer.handlePromise('new-sql:upsert', {
@@ -193,10 +224,10 @@ async function handleToggleComplete(todo: TodoItem) {
   });
 
   if (result.success) {
-    emit('toggle-complete', todoData);
-    // 完成/取消完成会改变提醒资格，通知主进程重新排程
+    emit('status-change', todoData);
+    // 状态变化会改变提醒资格（已完成/已取消不再提醒），通知主进程重新排程
     window.ipcRenderer.send('update-todo-reminders');
-    ElMessage.success(newCompleted === 1 ? '已完成' : '已取消完成');
+    ElMessage.success('状态已更新为「' + getTodoStatusMeta(newStatus).label + '」');
   } else {
     ElMessage.error('操作失败:' + result.error);
   }
@@ -295,48 +326,68 @@ async function handleDelete(todo: TodoItem) {
     transform: translateY(-2px);
   }
 
-  &.completed {
+  &.is-done,
+  &.is-cancelled {
+    .todo-title,
+    .todo-description {
+      text-decoration: line-through;
+    }
+  }
+
+  &.is-done {
     opacity: 0.7;
 
     .todo-title,
     .todo-description {
-      text-decoration: line-through;
+      color: var(--text-muted);
+    }
+  }
+
+  &.is-cancelled {
+    opacity: 0.6;
+
+    .todo-title,
+    .todo-description {
       color: var(--text-muted);
     }
   }
 }
 
-.todo-checkbox {
+.todo-status {
   flex-shrink: 0;
   display: flex;
   align-items: flex-start;
   padding-top: 2px;
 
-  .checkbox-inner {
-    width: 20px;
-    height: 20px;
-    border: 2px solid var(--border-subtle);
-    border-radius: 50%;
-    display: flex;
+  .status-badge {
+    display: inline-flex;
     align-items: center;
-    justify-content: center;
+    gap: 2px;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 3px 8px;
+    border-radius: 12px;
     cursor: pointer;
+    user-select: none;
     transition: all 0.2s ease;
+    white-space: nowrap;
 
     &:hover {
-      border-color: var(--color-primary);
+      filter: brightness(0.95);
+      box-shadow: 0 0 0 1px currentColor inset;
     }
 
-    &.checked {
-      background: var(--color-primary);
-      border-color: var(--color-primary);
-    }
-
-    .check-icon {
-      color: #fff;
+    .status-caret {
       font-size: 12px;
+      opacity: 0.7;
     }
   }
+}
+
+// 下拉菜单中标记当前状态
+:deep(.el-dropdown-menu__item.is-active) {
+  color: var(--color-primary);
+  font-weight: 600;
 }
 
 .todo-content {

@@ -227,7 +227,11 @@ function triggerTodoReminder(todo: any) {
 // 为单条待办排程：在截止时间前按「提醒次数 / 间隔」多次提醒
 function scheduleTodoReminder(todo: any) {
   if (!todo || !todo.dueDate) return;
-  if (Number(todo.completed) === 1) return;
+  // 提醒资格：已完成/已取消不排程；兼容旧数据（无 status 字段时按 completed 判断）
+  const isDone = todo.status
+    ? (todo.status === 'completed' || todo.status === 'cancelled')
+    : Number(todo.completed) === 1;
+  if (isDone) return;
   if (Number(todo.deadlineReminder) !== 1) return;
 
   const due = momemt(todo.dueDate, 'YYYY-MM-DD HH:mm:ss').toDate().getTime();
