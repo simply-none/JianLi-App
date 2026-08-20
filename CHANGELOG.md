@@ -2,7 +2,38 @@
 
 变更日志
 
-## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.8.16-rc.1...HEAD) (2026-08-18)
+## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.8.18-rc.1...HEAD) (2026-08-20)
+
+### ✨ Features | 新功能
+
+* 主题对话小窗口排版优化 ([cb1b4ed](https://github.com/simply-none/JianLi-App/commit/cb1b4ed3ac7354e86c4a99339a2e3fe2d74828fb))
+* 新增主题对话小窗口 ([8116888](https://github.com/simply-none/JianLi-App/commit/81168886f168c25d657f28a4c2b44aaef37d2a3f))
+* 待办增加记录进展 ([89eb4af](https://github.com/simply-none/JianLi-App/commit/89eb4af140f5ec4e4166e69a34487ef2c7f103f2))
+* 增加多种待办状态类型 ([28cd627](https://github.com/simply-none/JianLi-App/commit/28cd62724a203dc2bc93c4a12720c6811a3ef5e6))
+* 待办增加提醒 ([13c4b16](https://github.com/simply-none/JianLi-App/commit/13c4b1627925f7d51ae6b9914c6b90abde406b7e))
+* 提醒结束后记录 ([c53b1f4](https://github.com/simply-none/JianLi-App/commit/c53b1f43adf2cb5be49a326ba22e22af3bf0b91f))
+* 将定时提醒组件抽离成提醒页面 ([c4edc3c](https://github.com/simply-none/JianLi-App/commit/c4edc3cd91c54cdfc9c114920e3d5b05fd6f2384))
+* 电子书阅读器导出笔记划线到主题对话 ([331f129](https://github.com/simply-none/JianLi-App/commit/331f129dd968cbb4e16ae38027d05ea8ad9d90c3))
+* 主题对话列表置顶优化 ([9489ff8](https://github.com/simply-none/JianLi-App/commit/9489ff8519118b75daf256a2c56d0459c576c1a6))
+* 主题对话图标样式优化 ([9e571ad](https://github.com/simply-none/JianLi-App/commit/9e571ad8cf5a4ca5b7db18f5bbab8c80a7dbe7b8))
+* 主题对话新增跨主题引用和子主题功能 ([d8fea57](https://github.com/simply-none/JianLi-App/commit/d8fea578e81b4e982ecb354e91d9073fd182ab1a))
+* 新增清空全部主题对话数据的按钮 ([ebf53ef](https://github.com/simply-none/JianLi-App/commit/ebf53efe3189f42fd31f6e047fe90e5cd3fab082))
+* dialog弹窗高度优化 ([079d065](https://github.com/simply-none/JianLi-App/commit/079d065ed75097c2ac62997f74f678ef9e4bef60))
+* 主题对话功能新增富文本输入支持 ([6f95a67](https://github.com/simply-none/JianLi-App/commit/6f95a67fca10e58520f06b23840026d6dd1b462c))
+* 新增主题对话功能 ([a01bbb3](https://github.com/simply-none/JianLi-App/commit/a01bbb35d2bc6c1215c46d0b4f6821c5d722963c))
+
+### 🐛 Bug Fixes | Bug 修复
+
+* 修复[Vue warn]: Runtime directive used on component with non-element root node. The directives will not function as intended. ([eeefbd6](https://github.com/simply-none/JianLi-App/commit/eeefbd638925c557ab687ba2938f23a17e18023c))
+* 文件上传报错修复 ([8e1ffee](https://github.com/simply-none/JianLi-App/commit/8e1ffee5a14618dda3e5a166293d669e68ad1e91))
+* 提示还是改为3秒 ([0e14c0f](https://github.com/simply-none/JianLi-App/commit/0e14c0f88f2f78a397fa0d92c0fc5f84beac1f6e))
+* 截图功能区居中展示 ([d71d0e1](https://github.com/simply-none/JianLi-App/commit/d71d0e1e92650d41f8ffc29ae8e98603f7e1263d))
+
+### 🔧 Chores | 其他杂项
+
+* 新增对话富文本插件 ([e06f27d](https://github.com/simply-none/JianLi-App/commit/e06f27d67c579c420031aa8e74f0201a631dfbdf))
+
+## [v26.8.18-rc.1](https://github.com/simply-none/JianLi-App/compare/v26.8.16-rc.1...v26.8.18-rc.1) (2026-08-18)
 
 ### ✨ Features | 新功能
 
