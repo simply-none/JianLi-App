@@ -12,6 +12,15 @@
 
     <!-- 引用历史对话的右侧弹窗（全局，跟随状态） -->
     <ReferenceDrawer />
+
+    <!-- 跨主题引用：选择弹窗（全局，由输入框工具条 / 右键菜单唤起） -->
+    <CrossThemeRefDialog
+      v-model="crossRefPickerOpen"
+      @confirm="onCrossRefConfirm"
+    />
+
+    <!-- 子主题创建弹窗（全局，由对话右键 / 多选 / 主题右键唤起；创建成功后聚焦输入框） -->
+    <SubThemeDialog @confirmed="onNewConversation" />
   </div>
 </template>
 
@@ -22,15 +31,26 @@ import ConversationToolbar from './ConversationToolbar.vue';
 import ConversationList from './ConversationList.vue';
 import ChatInput from './ChatInput.vue';
 import ReferenceDrawer from './ReferenceDrawer.vue';
+import CrossThemeRefDialog from './CrossThemeRefDialog.vue';
+import SubThemeDialog from './SubThemeDialog.vue';
 import { useThemeConversation } from '../composables/useThemeConversation';
 
 withDefaults(defineProps<{ compact?: boolean }>(), { compact: false });
 
-const { init } = useThemeConversation();
+const {
+  init,
+  crossRefPickerOpen,
+  addPendingCrossRefs,
+} = useThemeConversation();
 const chatInputRef = ref<InstanceType<typeof ChatInput> | null>(null);
 
 function onNewConversation() {
   chatInputRef.value?.focus();
+}
+
+/** 跨主题引用选择弹窗确认：把选中的目标对话加入草稿 */
+function onCrossRefConfirm(refs: Array<{ themeId: number; convId: number }>) {
+  addPendingCrossRefs(refs);
 }
 
 onMounted(() => {

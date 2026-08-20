@@ -1,7 +1,7 @@
 <template>
   <div class="chat-input">
     <!-- 已选引用 / 标签预览 -->
-    <div class="attach-row" v-if="pendingRefIds.length || tagIds.length || annotateTime">
+    <div class="attach-row" v-if="pendingRefIds.length || pendingCrossRefs.length || tagIds.length || annotateTime">
       <div class="attach-group" v-if="pendingRefIds.length">
         <span class="attach-label"><LucideIcon name="Link" :size="12" />引用</span>
         <span
@@ -12,6 +12,18 @@
         >
           {{ refSnippet(rid) }}
           <LucideIcon name="X" :size="11" @click.stop="removeRef(rid)" />
+        </span>
+      </div>
+      <div class="attach-group" v-if="pendingCrossRefs.length">
+        <span class="attach-label"><LucideIcon name="Layers" :size="12" />跨主题</span>
+        <span
+          v-for="r in pendingCrossRefs"
+          :key="`${r.themeId}:${r.convId}`"
+          class="attach-chip cross"
+          @click="previewCrossRef(r)"
+        >
+          {{ crossRefSnippet(r) }}
+          <LucideIcon name="X" :size="11" @click.stop="removeCrossRef(r)" />
         </span>
       </div>
       <div class="attach-group" v-if="tagIds.length">
@@ -90,6 +102,10 @@
           <LucideIcon name="Link" :size="15" />
           <span>引用</span>
         </button>
+        <button class="tool" @click="openCrossRefPicker" title="引用其它主题的对话">
+          <LucideIcon name="Layers" :size="15" />
+          <span>跨主题引用</span>
+        </button>
         <TagSelector v-model="tagIds" :scope="'conversation'" />
         <el-date-picker
           v-model="annotateTime"
@@ -141,7 +157,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted } from 'vue';
+import { ref, computed, watch, nextTick, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { QuillEditor } from '@vueup/vue-quill';
 import '@vueup/vue-quill/dist/vue-quill.snow.css';
@@ -161,6 +177,13 @@ const {
   pendingRefIds,
   removePendingRef,
   clearPendingRefs,
+  // 跨主题引用草稿
+  pendingCrossRefs,
+  removePendingCrossRef,
+  openCrossRefPicker,
+  showCrossRefTargets,
+  getConversationsByTheme,
+  themes,
 } = useThemeConversation();
 
 /** 是否处于「富文本展开」态 */
@@ -239,6 +262,34 @@ function removeTag(id: string) {
 function previewRef(rid: string) {
   const target = conversations.value.find((c) => c.id === Number(rid));
   if (target) showConversationDetail(target);
+}
+
+/** 跨主题引用草稿 chip 的短预览（主题名 + 目标对话摘要，需异步查库） */
+const crossSnippets = ref<Record<string, string>>({});
+async function loadCrossSnippets() {
+  const map: Record<string, string> = {};
+  for (const r of pendingCrossRefs.value) {
+    const key = `${r.themeId}:${r.convId}`;
+    const theme = themes.value.find((t) => t.id === r.themeId);
+    const target = await getConversationsByTheme(r.themeId);
+    const conv = target.find((c: any) => c.id === r.convId);
+    map[key] = `${theme?.title || `主题#${r.themeId}`} › ${conv ? snippetOf(conv.content, 14) : `#${r.convId}`}`;
+  }
+  crossSnippets.value = map;
+}
+watch(pendingCrossRefs, loadCrossSnippets, { immediate: true, deep: true });
+
+function crossRefSnippet(r: { themeId: number; convId: number }): string {
+  return crossSnippets.value[`${r.themeId}:${r.convId}`] || `主题#${r.themeId} › #${r.convId}`;
+}
+
+/** 点击输入框中的跨主题引用 chip：在右侧抽屉展示被引用的目标对话 */
+function previewCrossRef(r: { themeId: number; convId: number }) {
+  showCrossRefTargets(null, r);
+}
+
+function removeCrossRef(r: { themeId: number; convId: number }) {
+  removePendingCrossRef(r);
 }
 
 /** 折叠态输入：实时把 div 的纯文本同步给 content，并自适应高度 */
@@ -339,6 +390,7 @@ async function send() {
     await createConversation({
       content: content.value, // 有格式时存 HTML，纯文本时存纯文本
       references: pendingRefIds.value,
+      crossRefs: pendingCrossRefs.value,
       tags: tagIds.value,
       annotateTime: annotateTime.value,
       pinned: pinned.value,
@@ -412,6 +464,12 @@ defineExpose({ focus });
     cursor: pointer;
 
     &.plain { background: var(--bg-active-btn); color: var(--text-secondary); cursor: default; }
+
+    /* 跨主题引用 chip：青色系，与同主题引用（金色系）区分 */
+    &.cross {
+      background: rgba(6, 182, 212, 0.14);
+      color: #0e7490;
+    }
 
     :deep(.lucide-icon) { cursor: pointer; }
   }

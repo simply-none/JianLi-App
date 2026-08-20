@@ -4,6 +4,7 @@
     :class="{
       'has-refs': isReferencing,
       'is-referenced': isReferenced,
+      'is-cross-referenced': isCrossReferenced,
       'pinned': conv.pinned === '1',
       'selectable': multiselect,
       'selected': multiselect && isSelected,
@@ -12,8 +13,11 @@
     @contextmenu.prevent="$emit('contextmenu', { conv, x: $event.clientX, y: $event.clientY })"
   >
 
-    <!-- 顶部标识：被引用 / 有引用 / 置顶 -->
-    <div class="bubble-flags" v-if="isReferencing || isReferenced || conv.pinned === '1'">
+    <!-- 顶部标识：被引用 / 有引用 / 置顶 / 跨主题引用 / 被跨主题引用 -->
+    <div
+      class="bubble-flags"
+      v-if="isReferencing || isReferenced || conv.pinned === '1' || crossRefs.length || isCrossReferenced"
+    >
       <button
         v-if="isReferenced"
         class="flag flag-referenced"
@@ -32,6 +36,24 @@
         <LucideIcon name="Link" :size="12" />
         引用了 {{ refIds.length }} 条
       </button>
+      <button
+        v-if="crossRefs.length"
+        class="flag flag-cross"
+        title="本条对话包含跨主题引用，点击查看"
+        @click="$emit('open-cross-ref', { conv, ref: null })"
+      >
+        <LucideIcon name="Layers" :size="12" />
+        跨主题 {{ crossRefs.length }} 条
+      </button>
+      <button
+        v-if="isCrossReferenced"
+        class="flag flag-cross-referenced"
+        title="本条对话被其它主题的对话跨主题引用，点击查看来源"
+        @click="$emit('open-cross-referenced-by', conv)"
+      >
+        <LucideIcon name="CornerUpLeft" :size="12" />
+        被跨引用 {{ crossReferencedCount }}
+      </button>
       <span v-if="conv.pinned === '1'" class="flag flag-pin">
         <LucideIcon name="Bookmark" :size="12" />
         置顶
@@ -48,6 +70,21 @@
       >
         <LucideIcon name="CornerDownRight" :size="12" />
         <span class="ref-snippet">{{ refSnippet(rid) }}</span>
+      </button>
+    </div>
+
+    <!-- 跨主题引用预览：点击在右侧抽屉展示被引用的目标对话，抽屉内可再定位 -->
+    <div class="ref-preview cross" v-if="crossRefs.length">
+      <button
+        v-for="r in crossRefs"
+        :key="`${r.themeId}:${r.convId}`"
+        class="ref-chip cross-chip"
+        :title="`点击在右侧查看「${crossDetails[keyOf(r)]?.themeTitle || ''}」中的对话`"
+        @click.stop="$emit('open-cross-ref', { conv, ref: r })"
+      >
+        <LucideIcon name="ExternalLink" :size="12" />
+        <span class="ref-snippet">{{ crossDetails[keyOf(r)]?.snippet || `对话 #${r.convId}` }}</span>
+        <span class="chip-theme">{{ crossDetails[keyOf(r)]?.themeTitle }}</span>
       </button>
     </div>
 
@@ -97,7 +134,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import LucideIcon from '@/components/LucideIcon.vue';
 import TagChip from './TagChip.vue';
 import { useThemeConversation } from '../composables/useThemeConversation';
@@ -115,15 +152,61 @@ defineEmits<{
   (e: 'delete', conv: any): void;
   (e: 'open-references', conv: any): void;
   (e: 'open-referenced-by', conv: any): void;
+  (e: 'open-cross-referenced-by', conv: any): void;
   (e: 'quote', conv: any): void;
+  (e: 'open-cross-ref', payload: { conv: any; ref: { themeId: number; convId: number } | null }): void;
   (e: 'contextmenu', payload: { conv: any; x: number; y: number }): void;
 }>();
 
-const { parseArr, referencedIds, conversations, pendingRefIds, multiselect, selectedIds, toggleSelect } =
-  useThemeConversation();
+const {
+  parseArr,
+  referencedIds,
+  conversations,
+  pendingRefIds,
+  multiselect,
+  selectedIds,
+  toggleSelect,
+  themes,
+  getConversationById,
+  crossReferencedBy,
+} = useThemeConversation();
 
 const tagArr = computed(() => parseArr(props.conv.tags));
 const refIds = computed(() => parseArr(props.conv.ref_ids));
+
+/** 跨主题引用：解析为 [{ themeId, convId }] */
+function parseCrossRefs(value: any): Array<{ themeId: number; convId: number }> {
+  if (!value) return [];
+  if (Array.isArray(value)) return value as Array<{ themeId: number; convId: number }>;
+  try {
+    const arr = JSON.parse(value);
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+/** 跨主题引用的详情 key */
+function keyOf(r: { themeId: number; convId: number }): string {
+  return `${r.themeId}:${r.convId}`;
+}
+const crossRefs = computed(() => parseCrossRefs(props.conv.cross_refs));
+
+/** 跨主题引用详情（主题标题 + 目标对话摘要），异步加载 */
+const crossDetails = ref<Record<string, { themeTitle: string; snippet: string }>>({});
+async function loadCrossDetails() {
+  const map: Record<string, { themeTitle: string; snippet: string }> = {};
+  for (const r of crossRefs.value) {
+    const key = `${r.themeId}:${r.convId}`;
+    const theme = themes.value.find((t) => t.id === r.themeId);
+    const target = await getConversationById(r.convId);
+    map[key] = {
+      themeTitle: theme?.title || `主题 #${r.themeId}`,
+      snippet: target ? snippetOf(target.content, 24) : `对话 #${r.convId}`,
+    };
+  }
+  crossDetails.value = map;
+}
+watch(crossRefs, loadCrossDetails, { immediate: true });
 
 /** 渲染内容：is_rich='1' 走 v-html（HTML 渲染），否则先转义（等价于原 `{{ }}` 行为） */
 const renderedContent = computed(() => {
@@ -133,8 +216,16 @@ const renderedContent = computed(() => {
 
 /** 是否「引用了别人」 */
 const isReferencing = computed(() => refIds.value.length > 0);
-/** 是否「被别人引用」 */
+/** 是否「被别人引用」（同主题） */
 const isReferenced = computed(() => referencedIds.value.has(String(props.conv.id)));
+/** 是否「被其它主题的对话跨主题引用」 */
+const isCrossReferenced = computed(
+  () => (crossReferencedBy.value[Number(props.conv.id)] || []).length > 0,
+);
+/** 跨主题被引用数量 */
+const crossReferencedCount = computed(
+  () => crossReferencedBy.value[Number(props.conv.id)]?.length || 0,
+);
 /** 多选模式下是否被选 */
 const isSelected = computed(() => selectedIds.value.includes(String(props.conv.id)));
 /** 该对话是否已被加入草稿引用（高亮引用按钮） */
@@ -191,6 +282,11 @@ function refSnippet(rid: string): string {
     background: linear-gradient(180deg, rgba(139, 92, 246, 0.07), var(--bg-card) 50%);
   }
 
+  /* 被跨主题引用：淡蓝底，与同主题「被引用」的淡紫区分 */
+  &.is-cross-referenced {
+    background: linear-gradient(180deg, rgba(59, 130, 246, 0.07), var(--bg-card) 50%);
+  }
+
   &.pinned {
     border-color: var(--color-primary);
   }
@@ -239,6 +335,21 @@ function refSnippet(rid: string): string {
       color: var(--color-primary);
       background: var(--color-primary-light);
     }
+
+    &.flag-cross {
+      color: #0e7490;
+      background: rgba(6, 182, 212, 0.14);
+      border-color: rgba(6, 182, 212, 0.4);
+      cursor: pointer;
+    }
+
+    /* 被跨主题引用：蓝色系，与「跨主题(引用别人)」的青色区分 */
+    &.flag-cross-referenced {
+      color: #1d4ed8;
+      background: rgba(59, 130, 246, 0.14);
+      border-color: rgba(59, 130, 246, 0.4);
+      cursor: pointer;
+    }
   }
 }
 
@@ -268,6 +379,26 @@ function refSnippet(rid: string): string {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+  }
+}
+
+/* 跨主题引用 chip：青色系，区别于同主题引用（金色系） */
+.ref-preview.cross {
+  .cross-chip {
+    border-color: rgba(6, 182, 212, 0.5);
+    background: rgba(6, 182, 212, 0.1);
+    color: #0e7490;
+
+    &:hover { background: rgba(6, 182, 212, 0.18); }
+
+    .chip-theme {
+      font-size: 11px;
+      padding: 0 6px;
+      border-radius: 999px;
+      background: rgba(6, 182, 212, 0.18);
+      color: #0e7490;
+      flex-shrink: 0;
     }
   }
 }

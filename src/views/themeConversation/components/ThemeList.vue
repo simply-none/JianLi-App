@@ -16,46 +16,66 @@
       </div>
     </div>
 
-    <!-- 主题列表 -->
+    <!-- 主题列表（树形：父主题可折叠，子主题缩进） -->
     <div class="tl-body">
       <div
-        v-for="theme in themes"
-        :key="theme.id"
+        v-for="row in flatThemeTree"
+        :key="row.theme.id"
         class="tl-item"
-        :class="{ active: theme.id === currentThemeId, matched: isMatched(theme) }"
-        @click="selectTheme(theme.id)"
-        @contextmenu.prevent="onContextMenu($event, theme)"
+        :class="{
+          active: row.theme.id === currentThemeId,
+          matched: isMatched(row.theme),
+          child: row.depth > 0,
+        }"
+        :style="row.depth > 0 ? { marginLeft: row.depth * 16 + 'px' } : null"
+        @click="selectTheme(row.theme.id)"
+        @contextmenu.prevent="onContextMenu($event, row.theme)"
       >
-        <!-- 上层：左=主题名称，右=功能按钮 + 对话数量 -->
+        <!-- 上层：左=折叠箭头+主题名称，右=功能按钮 + 对话数量 -->
         <div class="tl-row-top">
           <div class="tl-name-wrap">
-            <LucideIcon name="Hash" :size="13" class="tl-hash" />
-            <span class="tl-name">{{ theme.title || '未命名主题' }}</span>
+            <button
+              v-if="row.hasChildren"
+              class="tl-caret"
+              :class="{ collapsed: row.collapsed }"
+              title="展开 / 收起子主题"
+              @click.stop="toggleCollapse(row.theme.id)"
+            >
+              <LucideIcon :name="row.collapsed ? 'ChevronRight' : 'ChevronDown'" :size="14" />
+            </button>
+            <span v-else class="tl-caret-ph"></span>
+            <LucideIcon
+              :name="row.depth > 0 ? 'CornerDownRight' : 'Hash'"
+              :size="13"
+              class="tl-hash"
+              :class="{ child: row.depth > 0 }"
+            />
+            <span class="tl-name">{{ row.theme.title || '未命名主题' }}</span>
           </div>
           <div class="tl-right">
             <div class="tl-actions">
               <button
                 class="tl-edit"
                 title="修改主题"
-                @click.stop="openEdit(theme)"
+                @click.stop="openEdit(row.theme)"
               >
                 <LucideIcon name="Pencil" :size="14" />
               </button>
               <button
                 class="tl-del"
                 title="删除主题"
-                @click.stop="removeTheme(theme)"
+                @click.stop="removeTheme(row.theme)"
               >
                 <LucideIcon name="Trash2" :size="14" />
               </button>
             </div>
-            <span class="tl-count">{{ themeCounts[theme.id] || 0 }}</span>
+            <span class="tl-count">{{ themeCounts[row.theme.id] || 0 }}</span>
           </div>
         </div>
         <!-- 下层：标签 -->
-        <div class="tl-tags" v-if="parsedTags(theme).length">
+        <div class="tl-tags" v-if="parsedTags(row.theme).length">
           <TagChip
-            v-for="tid in parsedTags(theme)"
+            v-for="tid in parsedTags(row.theme)"
             :key="tid"
             :id="tid"
           />
@@ -98,6 +118,10 @@
         class="tl-context-menu"
         :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }"
       >
+        <button class="ctx-item" @click="ctxNewSub">
+          <LucideIcon name="Layers" :size="14" />
+          新增子主题
+        </button>
         <button class="ctx-item" @click="ctxEdit">
           <LucideIcon name="Pencil" :size="14" />
           修改主题
@@ -130,6 +154,10 @@ const {
   deleteTheme,
   clearAllData,
   parseArr,
+  // 子主题：树形展示 + 折叠 + 创建
+  flatThemeTree,
+  toggleCollapse,
+  openSubThemeDialog,
 } = useThemeConversation();
 
 const dialogVisible = ref(false);
@@ -203,6 +231,15 @@ function ctxEdit() {
   if (t) openEdit(t);
 }
 
+/** 右键「新增子主题」：切到该主题后打开子主题创建弹窗 */
+async function ctxNewSub() {
+  const t = ctxMenu.value.theme;
+  closeCtxMenu();
+  if (!t) return;
+  if (currentThemeId.value !== t.id) await selectTheme(t.id);
+  openSubThemeDialog([]);
+}
+
 function ctxDelete() {
   const t = ctxMenu.value.theme;
   closeCtxMenu();
@@ -219,8 +256,13 @@ async function removeTheme(theme: any) {
   } catch {
     return;
   }
-  await deleteTheme(theme.id);
-  ElMessage.success('已删除');
+  try {
+    await deleteTheme(theme.id);
+    ElMessage.success('已删除');
+  } catch (e: any) {
+    // 删除保护：存在子主题时禁止删除父主题
+    ElMessage.warning(e?.message || '删除失败');
+  }
 }
 
 async function submit() {
@@ -348,6 +390,12 @@ async function submit() {
     box-shadow: 0 0 0 1px var(--color-primary);
   }
 
+  /* 子主题：左侧引导线 + 更紧凑 */
+  &.child {
+    border-left: 2px solid var(--color-primary-light);
+    padding-left: 10px;
+  }
+
   /* 上层：左=名称，右=数量 + 功能按钮 */
   .tl-row-top {
     display: flex;
@@ -363,7 +411,41 @@ async function submit() {
     flex: 1;
     min-width: 0;
 
+    /* 展开/收起箭头（仅含子主题的主题显示） */
+    .tl-caret {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      padding: 0;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-radius: 4px;
+      flex-shrink: 0;
+      transition: color 0.2s, background 0.2s;
+
+      &:hover {
+        background: var(--bg-hover);
+        color: var(--text-primary);
+      }
+
+      &.collapsed { color: var(--color-primary); }
+    }
+
+    /* 无子主题时占位，保持名称对齐 */
+    .tl-caret-ph {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+    }
+
     .tl-hash { color: var(--text-muted); flex-shrink: 0; }
+
+    /* 子主题图标：主题色弱化，区分于顶级主题 */
+    .tl-hash.child { color: var(--color-primary); opacity: 0.75; }
 
     .tl-name {
       flex: 1;

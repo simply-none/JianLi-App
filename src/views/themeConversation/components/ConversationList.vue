@@ -37,7 +37,9 @@
           @delete="removeConv"
           @open-references="showReferenceTargets"
           @open-referenced-by="showReferencedBy"
+          @open-cross-referenced-by="showCrossReferencedBy"
           @quote="onQuote"
+          @open-cross-ref="onOpenCrossRef"
           @contextmenu="onContextMenu"
         />
       </div>
@@ -69,6 +71,18 @@
           <LucideIcon name="Link" :size="15" />
           <span>引用选中 ({{ selectedIds.length }})</span>
         </button>
+        <button class="ms-btn" @click="openCrossRefPicker">
+          <LucideIcon name="Layers" :size="15" />
+          <span>跨主题引用</span>
+        </button>
+        <button
+          class="ms-btn"
+          :disabled="!selectedIds.length"
+          @click="batchSubTheme"
+        >
+          <LucideIcon name="FolderPlus" :size="15" />
+          <span>新增子主题 ({{ selectedIds.length }})</span>
+        </button>
         <button class="ms-btn" @click="toggleMultiselect">退出多选</button>
       </template>
     </div>
@@ -87,6 +101,12 @@
     >
       <button class="ctx-item" @click="ctxQuote">
         <LucideIcon name="Link" :size="14" /> 引用此对话
+      </button>
+      <button class="ctx-item" @click="ctxCrossRef">
+        <LucideIcon name="Layers" :size="14" /> 跨主题引用…
+      </button>
+      <button class="ctx-item" @click="ctxSubTheme">
+        <LucideIcon name="FolderPlus" :size="14" /> 发起子主题…
       </button>
       <button class="ctx-item" @click="ctxEdit">
         <LucideIcon name="Pencil" :size="14" /> 编辑
@@ -113,6 +133,7 @@ const {
   deleteConversation,
   showReferenceTargets,
   showReferencedBy,
+  showCrossReferencedBy,
   loadConversations,
   runSearch,
   currentThemeId,
@@ -123,6 +144,11 @@ const {
   selectedIds,
   toggleMultiselect,
   toggleSelect,
+  // 跨主题引用
+  openCrossRefPicker,
+  showCrossRefTargets,
+  // 子主题：发起子主题弹窗（右键 / 多选共用）
+  openSubThemeDialog,
   // 高亮定位（从引用弹窗跳转到对话项）
   highlightConvId,
   highlightTick,
@@ -223,6 +249,39 @@ function ctxQuote() {
     ElMessage.success('已引用该对话，发送新对话时会带上此引用');
   }
   closeCtx();
+}
+
+/** 右键「跨主题引用…」：打开跨主题引用选择弹窗 */
+function ctxCrossRef() {
+  openCrossRefPicker();
+  closeCtx();
+}
+
+/** 右键「发起子主题…」：以当前主题为父，把该对话预置为跨主题引用草稿 */
+function ctxSubTheme() {
+  const conv = ctxMenu.value.conv;
+  if (conv && currentThemeId.value != null) {
+    openSubThemeDialog([{ themeId: currentThemeId.value, convId: conv.id }]);
+  }
+  closeCtx();
+}
+
+/** 多选态：把选中的对话作为源，发起子主题（源对话预置为跨主题引用） */
+function batchSubTheme() {
+  if (!selectedIds.value.length || currentThemeId.value == null) return;
+  openSubThemeDialog(
+    selectedIds.value.map((id) => ({
+      themeId: currentThemeId.value as number,
+      convId: Number(id),
+    })),
+  );
+  // 进入创建流程后退出多选模式（toggleMultiselect 关闭时会清空已选）
+  toggleMultiselect();
+}
+
+/** 气泡中的跨主题引用 chip/flag：在右侧抽屉展示被引用的目标对话（ref 为空展示全部） */
+function onOpenCrossRef(payload: { conv: any; ref: { themeId: number; convId: number } | null }) {
+  showCrossRefTargets(payload.conv, payload.ref);
 }
 
 /** 右键「编辑」 */

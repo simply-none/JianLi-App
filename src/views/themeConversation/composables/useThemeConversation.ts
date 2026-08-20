@@ -63,6 +63,12 @@ const referenceDrawer = ref<{ open: boolean; title: string; items: any[] }>({
  */
 const pendingRefIds = ref<string[]>([]);
 
+/**
+ * 跨主题引用草稿：待发送新对话所引用的「其它主题」对话列表。
+ * 元素为 { themeId, convId }，与同主题引用 pendingRefIds 相互独立、并列存在。
+ */
+const pendingCrossRefs = ref<Array<{ themeId: number; convId: number }>>([]);
+
 /** 多选模式开关（底部「多选」按钮控制） */
 const multiselect = ref(false);
 
@@ -73,6 +79,16 @@ const selectedIds = ref<string[]>([]);
 const highlightConvId = ref<number | null>(null);
 /** 自增信号：即使重复点击同一条对话，也能重新触发定位与高亮 */
 const highlightTick = ref(0);
+
+/** 跨主题引用选择弹窗开关（全局单例，由输入框工具条 / 右键菜单唤起） */
+const crossRefPickerOpen = ref(false);
+
+/**
+ * 跨主题「被引用」统计：目标对话 id -> 引用它的来源对话列表（含主题名）。
+ * 与同主题 referencedIds 不同——来源对话在其它主题，无法从当前列表推断，
+ * 需要全局扫描 cross_refs 字段构建（见 loadCrossReferenced）。
+ */
+const crossReferencedBy = ref<Record<number, any[]>>({});
 
 /* ============================ 计算属性 ============================ */
 
@@ -160,11 +176,13 @@ async function loadConversations(themeId: number = currentThemeId.value as numbe
     orderByDesc: false,
   });
   conversations.value = rows;
+  // 同步跨主题「被引用」统计（标记依赖全局 cross_refs 扫描）
+  await loadCrossReferenced();
   return rows;
 }
 
-/** 新建主题 */
-async function createTheme(title: string, tagIds: string[] = []) {
+/** 新建主题（parentId 不为空时为子主题） */
+async function createTheme(title: string, tagIds: string[] = [], parentId?: number | null) {
   const t = nowStr();
   const res = await dbInsert(TABLE.THEME, {
     title,
@@ -172,8 +190,18 @@ async function createTheme(title: string, tagIds: string[] = []) {
     create_time: t,
     update_time: t,
     remark: '',
+    // 子主题记录父主题 id（parent_id 列，TEXT；顶级主题存空串）
+    parent_id: parentId ? String(parentId) : '',
   });
-  const item = { id: res.lastID, title, tags: JSON.stringify(tagIds), create_time: t, update_time: t, remark: '' };
+  const item = {
+    id: res.lastID,
+    title,
+    tags: JSON.stringify(tagIds),
+    create_time: t,
+    update_time: t,
+    remark: '',
+    parent_id: parentId ? String(parentId) : '',
+  };
   themes.value.unshift(item);
   currentThemeId.value = item.id;
   await loadConversations(item.id);
@@ -191,8 +219,11 @@ async function updateTheme(id: number, patch: { title?: string; tags?: string[];
   if (currentThemeId.value === id) await loadConversations(id);
 }
 
-/** 删除主题（同时删除其下全部对话） */
+/** 删除主题（同时删除其下全部对话；存在子主题时禁止删除） */
 async function deleteTheme(id: number) {
+  if (hasChildThemes(id)) {
+    throw new Error('该主题下存在子主题，请先删除其下全部子主题后再删除');
+  }
   await dbDelete(TABLE.CONVERSATION, { theme_id: id });
   await dbDelete(TABLE.THEME, { id });
   await loadThemes();
@@ -218,12 +249,93 @@ async function clearAllData() {
   await loadThemeCounts();
 }
 
+/* ============================ 子主题（层级） ============================ */
+
+/** 主题树节点：{ theme, children } 递归结构，供树形渲染 */
+interface ThemeNode {
+  theme: any;
+  children: ThemeNode[];
+}
+
+/** 折叠状态：存被收起的主题 id（仅含子主题的父主题可折叠） */
+const collapsedIds = ref<Set<number>>(new Set());
+
+/** 递归构建主题树（loadThemes 已按 update_time 倒序，子主题挂到对应父主题下） */
+const themeTree = computed<ThemeNode[]>(() => {
+  const map = new Map<number, ThemeNode>();
+  themes.value.forEach((t) => {
+    map.set(t.id, { theme: t, children: [] });
+  });
+  const roots: ThemeNode[] = [];
+  map.forEach((node) => {
+    const pid = node.theme.parent_id;
+    const parent = pid ? map.get(Number(pid)) : undefined;
+    if (parent) parent.children.push(node);
+    else roots.push(node);
+  });
+  return roots;
+});
+
+/** 平铺可见主题：按树顺序输出，含缩进深度；被折叠主题的子树跳过 */
+const flatThemeTree = computed(() => {
+  const out: Array<{ theme: any; depth: number; hasChildren: boolean; collapsed: boolean }> = [];
+  const walk = (nodes: ThemeNode[], depth: number) => {
+    nodes.forEach((node) => {
+      const hasChildren = node.children.length > 0;
+      const collapsed = collapsedIds.value.has(node.theme.id);
+      out.push({ theme: node.theme, depth, hasChildren, collapsed });
+      if (hasChildren && !collapsed) walk(node.children, depth + 1);
+    });
+  };
+  walk(themeTree.value, 0);
+  return out;
+});
+
+/** 展开 / 收起某主题（仅含子主题时有效） */
+function toggleCollapse(id: number) {
+  const s = new Set(collapsedIds.value);
+  if (s.has(id)) s.delete(id);
+  else s.add(id);
+  collapsedIds.value = s;
+}
+
+/** 判断主题是否存在直接子主题（删除保护用：有子主题则禁止删除父主题） */
+function hasChildThemes(id: number): boolean {
+  return themes.value.some((t) => t.parent_id === String(id));
+}
+
+/** 子主题创建弹窗状态：sourceConvs 为预置到新主题输入框草稿的跨主题引用（发起子主题的源对话） */
+const subThemeDialog = ref<{
+  visible: boolean;
+  sourceConvs: Array<{ themeId: number; convId: number }>;
+}>({ visible: false, sourceConvs: [] });
+
+/** 打开子主题创建弹窗（右键 / 多选传入源对话作为跨主题引用） */
+function openSubThemeDialog(sourceConvs: Array<{ themeId: number; convId: number }> = []) {
+  subThemeDialog.value = { visible: true, sourceConvs };
+}
+
+function closeSubThemeDialog() {
+  subThemeDialog.value = { ...subThemeDialog.value, visible: false };
+}
+
+/** 确认创建子主题：建主题 -> 自动切换 -> 源对话预置为跨主题引用草稿 */
+async function confirmSubTheme(title: string, tagIds: string[]) {
+  const parentId = currentThemeId.value;
+  if (!parentId) throw new Error('请先选择父主题');
+  const refs = subThemeDialog.value.sourceConvs || [];
+  await createTheme(title, tagIds, parentId);
+  if (refs.length) addPendingCrossRefs(refs);
+  closeSubThemeDialog();
+}
+
 /* ============================ 对话相关 ============================ */
 
 /** 新建对话 */
 async function createConversation(payload: {
   content: string;
   references?: string[];
+  crossRefs?: Array<{ themeId: number; convId: number }>;
   tags?: string[];
   annotateTime?: string;
   pinned?: string;
@@ -239,6 +351,8 @@ async function createConversation(payload: {
     is_rich: rich ? '1' : '0',
     // 注意：列名 ref_ids（避免用保留字 references 触发 SQLITE_ERROR）
     ref_ids: JSON.stringify(payload.references || []),
+    // 跨主题引用：JSON 数组，元素为 { themeId, convId }
+    cross_refs: JSON.stringify(payload.crossRefs || []),
     tags: JSON.stringify(payload.tags || []),
     create_time: t,
     annotate_time: payload.annotateTime || '',
@@ -259,9 +373,18 @@ async function updateConversation(id: number, patch: any) {
   const data: any = { ...patch };
   if (patch.tags !== undefined) data.tags = JSON.stringify(patch.tags);
   // 引用列 ref_ids 必须存字符串：兼容「references」与「ref_ids」两种传入形式
-  if (patch.references !== undefined) data.ref_ids = JSON.stringify(patch.references);
-  else if (patch.ref_ids !== undefined && Array.isArray(patch.ref_ids)) {
+  if (patch.references !== undefined) {
+    data.ref_ids = JSON.stringify(patch.references);
+    delete data.references; // 防止 camelCase 键残留在更新数据里
+  } else if (patch.ref_ids !== undefined && Array.isArray(patch.ref_ids)) {
     data.ref_ids = JSON.stringify(patch.ref_ids);
+  }
+  // 跨主题引用：存 JSON 数组（兼容传入 crossRefs 或 cross_refs）
+  if (patch.crossRefs !== undefined) {
+    data.cross_refs = JSON.stringify(patch.crossRefs);
+    delete data.crossRefs;
+  } else if (patch.cross_refs !== undefined && Array.isArray(patch.cross_refs)) {
+    data.cross_refs = JSON.stringify(patch.cross_refs);
   }
   // 内容变更时按是否含格式归一化，并同步 is_rich
   if (patch.content !== undefined) {
@@ -374,6 +497,8 @@ async function runSearch() {
 
   sql += ` ORDER BY c.create_time DESC`;
   searchResults.value = await dbExecute(sql, params);
+  // 搜索态同样更新「被跨引用」标记（搜索结果可能跨主题）
+  await loadCrossReferenced();
 }
 
 function clearSearch() {
@@ -417,6 +542,106 @@ async function showReferencedBy(conv: any) {
     open: true,
     title: `被 ${rows.length} 条对话引用`,
     items: rows,
+  };
+}
+
+/** 内部：解析 cross_refs 字段为 [{ themeId, convId }]（与展示侧 ConversationBubble 逻辑一致） */
+function parseCrossRefsValue(value: any): Array<{ themeId: number; convId: number }> {
+  if (!value) return [];
+  if (Array.isArray(value)) return value as Array<{ themeId: number; convId: number }>;
+  try {
+    const arr = JSON.parse(value);
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 加载「跨主题被引用」统计：
+ * 扫描全部含跨主题引用的对话，解析出每个被引用目标对话（跨主题），
+ * 构建 目标 convId -> 来源对话列表，供气泡显示「被跨引用」标记。
+ * 在加载主题对话 / 搜索后调用，保证标记与当前列表同步。
+ */
+async function loadCrossReferenced() {
+  try {
+    const rows = await dbExecute(
+      `SELECT c.*, t.title as theme_title FROM ${TABLE.CONVERSATION} c
+       LEFT JOIN ${TABLE.THEME} t ON c.theme_id = t.id
+       WHERE c.cross_refs IS NOT NULL AND c.cross_refs <> '' AND c.cross_refs <> '[]'`
+    );
+    const map: Record<number, any[]> = {};
+    rows.forEach((src: any) => {
+      parseCrossRefsValue(src.cross_refs).forEach((r) => {
+        const tid = Number(r.convId);
+        if (!map[tid]) map[tid] = [];
+        map[tid].push(src);
+      });
+    });
+    crossReferencedBy.value = map;
+  } catch {
+    crossReferencedBy.value = {};
+  }
+}
+
+/** 打开引用抽屉，展示「以跨主题引用指向本条对话」的全部来源对话 */
+function showCrossReferencedBy(conv: any) {
+  const sources = crossReferencedBy.value[Number(conv.id)] || [];
+  referenceDrawer.value = {
+    open: true,
+    title: `被 ${sources.length} 条对话跨主题引用`,
+    items: sources,
+  };
+}
+
+/**
+ * 全局「同主题被引用」统计：目标对话 id -> 被 ref_ids 指向的次数。
+ * 供跨主题引用选择抽屉等场景展示「被引用」徽标（与当前列表无关，全局准确）。
+ */
+const referencedByCounts = ref<Record<number, number>>({});
+async function loadReferencedByCounts() {
+  try {
+    const rows = await dbExecute(
+      `SELECT ref_ids FROM ${TABLE.CONVERSATION}
+       WHERE ref_ids IS NOT NULL AND ref_ids <> '' AND ref_ids <> '[]'`
+    );
+    const map: Record<number, number> = {};
+    rows.forEach((r: any) => {
+      parseArr(r.ref_ids).forEach((id) => {
+        const n = Number(id);
+        map[n] = (map[n] || 0) + 1;
+      });
+    });
+    referencedByCounts.value = map;
+  } catch {
+    referencedByCounts.value = {};
+  }
+}
+
+/**
+ * 打开引用抽屉，展示「本条对话的跨主题引用目标」对话记录（与同主题 showReferenceTargets 对应）。
+ * ref 为空时展示全部目标（flag 点击），非空时仅展示该条（单个 chip 点击）。
+ * 抽屉内点击记录由 ReferenceDrawer 的 locateConversation 负责：切换主题 + 滚动高亮定位。
+ */
+async function showCrossRefTargets(
+  conv: any,
+  ref?: { themeId: number; convId: number } | null,
+) {
+  const refs = ref ? [ref] : parseCrossRefsValue(conv?.cross_refs);
+  const items: any[] = [];
+  for (const r of refs) {
+    const rows = await dbExecute(
+      `SELECT c.*, t.title as theme_title FROM ${TABLE.CONVERSATION} c
+       LEFT JOIN ${TABLE.THEME} t ON c.theme_id = t.id
+       WHERE c.id = ?`,
+      [r.convId]
+    );
+    if (rows[0]) items.push(rows[0]);
+  }
+  referenceDrawer.value = {
+    open: true,
+    title: `跨主题引用的对话（${items.length}）`,
+    items,
   };
 }
 
@@ -486,6 +711,45 @@ function removePendingRef(id: number | string) {
 /** 清空草稿引用（发送新对话后调用） */
 function clearPendingRefs() {
   pendingRefIds.value = [];
+  pendingCrossRefs.value = [];
+}
+
+/* ============================ 跨主题引用 ============================ */
+
+/** 按主题 id 查询该主题下的全部对话（升序），用于跨主题引用的选择 / 定位弹窗 */
+async function getConversationsByTheme(themeId: number) {
+  if (!themeId) return [];
+  return dbQuery({
+    tableName: TABLE.CONVERSATION,
+    conditions: { theme_id: themeId },
+    orderBy: 'create_time',
+    orderByDesc: false,
+  });
+}
+
+/** 打开跨主题引用选择弹窗 */
+function openCrossRefPicker() {
+  crossRefPickerOpen.value = true;
+}
+function closeCrossRefPicker() {
+  crossRefPickerOpen.value = false;
+}
+
+/** 把选中的跨主题引用加入输入框草稿（按 themeId+convId 去重） */
+function addPendingCrossRefs(refs: Array<{ themeId: number; convId: number }>) {
+  refs.forEach((r) => {
+    const exists = pendingCrossRefs.value.some(
+      (x) => x.themeId === r.themeId && x.convId === r.convId,
+    );
+    if (!exists) pendingCrossRefs.value.push({ themeId: r.themeId, convId: r.convId });
+  });
+}
+
+/** 从草稿移除某条跨主题引用 */
+function removePendingCrossRef(ref: { themeId: number; convId: number }) {
+  pendingCrossRefs.value = pendingCrossRefs.value.filter(
+    (x) => !(x.themeId === ref.themeId && x.convId === ref.convId),
+  );
 }
 
 /** 进入 / 退出多选模式（退出时自动清空已选，避免脏状态） */
@@ -527,6 +791,7 @@ async function ensureSchema() {
     `ALTER TABLE ${TABLE.THEME} ADD COLUMN create_time TEXT`,
     `ALTER TABLE ${TABLE.THEME} ADD COLUMN update_time TEXT`,
     `ALTER TABLE ${TABLE.THEME} ADD COLUMN remark TEXT`,
+    `ALTER TABLE ${TABLE.THEME} ADD COLUMN parent_id TEXT`,
     `ALTER TABLE ${TABLE.CONVERSATION} ADD COLUMN theme_id TEXT`,
     `ALTER TABLE ${TABLE.CONVERSATION} ADD COLUMN content TEXT`,
     `ALTER TABLE ${TABLE.CONVERSATION} ADD COLUMN ref_ids TEXT`,
@@ -536,6 +801,7 @@ async function ensureSchema() {
     `ALTER TABLE ${TABLE.CONVERSATION} ADD COLUMN pinned TEXT`,
     `ALTER TABLE ${TABLE.CONVERSATION} ADD COLUMN is_deleted TEXT`,
     `ALTER TABLE ${TABLE.CONVERSATION} ADD COLUMN is_rich TEXT`,
+    `ALTER TABLE ${TABLE.CONVERSATION} ADD COLUMN cross_refs TEXT`,
     `ALTER TABLE ${TABLE.TAG} ADD COLUMN name TEXT`,
     `ALTER TABLE ${TABLE.TAG} ADD COLUMN color TEXT`,
     `ALTER TABLE ${TABLE.TAG} ADD COLUMN scope TEXT`,
@@ -620,6 +886,22 @@ export function useThemeConversation() {
     addPendingRefs,
     removePendingRef,
     clearPendingRefs,
+    // 跨主题引用
+    pendingCrossRefs,
+    crossRefPickerOpen,
+    openCrossRefPicker,
+    closeCrossRefPicker,
+    addPendingCrossRefs,
+    removePendingCrossRef,
+    getConversationsByTheme,
+    // 跨主题「被引用」标记
+    crossReferencedBy,
+    loadCrossReferenced,
+    showCrossReferencedBy,
+    showCrossRefTargets,
+    // 全局「同主题被引用」统计（选择抽屉等场景）
+    referencedByCounts,
+    loadReferencedByCounts,
     toggleMultiselect,
     toggleSelect,
     clearSelection,
@@ -634,6 +916,16 @@ export function useThemeConversation() {
     updateTheme,
     deleteTheme,
     clearAllData,
+    // 子主题（层级）
+    themeTree,
+    flatThemeTree,
+    collapsedIds,
+    toggleCollapse,
+    hasChildThemes,
+    subThemeDialog,
+    openSubThemeDialog,
+    closeSubThemeDialog,
+    confirmSubTheme,
     // 对话
     createConversation,
     updateConversation,

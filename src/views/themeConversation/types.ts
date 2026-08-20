@@ -10,6 +10,7 @@
  *    - create_time 创建时间
  *    - update_time 更新时间
  *    - remark      备注
+ *    - parent_id   父主题id（TEXT，空串/NULL 表示顶级主题；非空表示子主题，支持多级嵌套）
  *
  * 2) conversation 对话表
  *    - id            对话id（主键，自增）【必须】
@@ -27,6 +28,10 @@
  *                     '1' -> content 为 HTML，展示用富文本组件、编辑弹窗用 QuillEditor；
  *                     '0' -> content 为纯文本，展示按纯文本转义、编辑弹窗用普通 textarea。
  *                     同时驱动「展示组件」与「编辑弹窗编辑器类型」。
+ *    - cross_refs   跨主题引用，JSON 字符串数组，元素为 { themeId: number, convId: number }：
+ *                     指向「其它主题」下的某条对话，实现跨主题的对话关联。
+ *                     展示时以独立样式 chip 呈现，点击后弹窗展示目标主题的全部对话并定位到被引用对话。
+ *                     与同主题的 `ref_ids` 相互独立、并列存在。
  *
  * 3) conversation_tag 对话标签表（对话与主题共用）
  *    - id        标签id（主键，自增）
@@ -69,6 +74,8 @@ export interface ThemeItem {
   create_time: string;
   update_time: string;
   remark?: string;
+  /** 父主题 id（'0'/空串 = 顶级；数字字符串 = 子主题，支持多级嵌套） */
+  parent_id?: string;
 }
 
 export interface ConversationItem {
@@ -82,6 +89,7 @@ export interface ConversationItem {
   pinned?: string;
   is_deleted?: string;
   is_rich?: string;
+  cross_refs?: string;
 }
 
 export interface TagItem {
