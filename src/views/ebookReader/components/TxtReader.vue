@@ -387,6 +387,13 @@ defineExpose({
     }
   }
 
+  /* 尊重系统「减少运动」设置：关闭翻页位移过渡，避免眩晕/晃眼 */
+  @media (prefers-reduced-motion: reduce) {
+    .txt-flow {
+      transition: none !important;
+    }
+  }
+
   /* 阅读区左右边缘点击翻页区：透明覆盖层；hover 时整区高亮，颜色跟随主题 */
   .edge-turn-zone {
     position: absolute;

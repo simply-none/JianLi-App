@@ -356,7 +356,9 @@ export function usePdfRender(ctx: PdfCtx) {
     const sc = ctx.scrollRef.value;
     const el = ctx.pageRefs.get(num);
     if (!sc || !el) return;
-    sc.scrollTo({ top: el.offsetTop, behavior: smooth ? 'smooth' : 'auto' });
+    // 系统开启「减少运动」时降级为瞬时跳转，避免平滑滚动造成眩晕/晃眼
+    const allowSmooth = smooth && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    sc.scrollTo({ top: el.offsetTop, behavior: allowSmooth ? 'smooth' : 'auto' });
   }
 
   /** 翻到上一页 */

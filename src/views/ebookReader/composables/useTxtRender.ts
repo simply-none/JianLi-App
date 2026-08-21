@@ -168,6 +168,9 @@ export function useTxtRender(ctx: TxtCtx) {
       base.height = ctx.viewportHeight.value > 0 ? `${ctx.viewportHeight.value}px` : '100%';
       base.transform =
         step > 0 ? `translateX(${-ctx.currentPage.value * cols * step}px)` : 'translateX(0)';
+      // 翻页平滑过渡：paginated 模式下随 currentPage 变化的位移加缓动，避免硬跳晃眼；
+      // scroll 模式不放 transition（由原生滚动/滚轮接管）
+      base.transition = 'transform 0.3s cubic-bezier(0.22, 0.61, 0.36, 1)';
     }
     return base;
   });

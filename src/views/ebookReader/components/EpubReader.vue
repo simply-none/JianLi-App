@@ -306,6 +306,8 @@ defineExpose({
     overflow: hidden;
     /* 翻页动画基类：开启 GPU 合成，避免动画时重排抖动 */
     will-change: transform, opacity;
+    /* 翻页瞬间 iframe 重排会短暂留白，用阅读区底色兜底，避免刺眼白闪 */
+    background: var(--reader-bg, #f5f0e8);
   }
 
   /* 阅读区左右边缘点击翻页区：透明覆盖层；hover 时整区高亮，颜色跟随主题 */
@@ -368,39 +370,41 @@ defineExpose({
   [class*='page-turn-'] {
     will-change: transform, opacity;
     backface-visibility: hidden;
+    /* 动画结束保持终态，避免收尾回弹造成的二次闪烁 */
+    animation-fill-mode: forwards;
   }
-  /* 滑动：新页面从一侧轻滑入（柔和、不刺眼），时长放慢、缓动改为 ease */
+  /* 滑动（默认效果）：新页面从一侧轻滑入，幅度小、时长短、缓动平缓，柔和且不刺眼 */
   .page-turn-slide-forward {
-    animation: page-slide-forward 0.46s cubic-bezier(0.25, 0.1, 0.25, 1);
+    animation: page-slide-forward 0.32s cubic-bezier(0.22, 0.61, 0.36, 1);
   }
   .page-turn-slide-back {
-    animation: page-slide-back 0.46s cubic-bezier(0.25, 0.1, 0.25, 1);
+    animation: page-slide-back 0.32s cubic-bezier(0.22, 0.61, 0.36, 1);
   }
   /* 覆盖：新页面从一侧覆盖进来（带页缘阴影模拟厚度） */
   .page-turn-cover-forward {
-    animation: page-cover-forward 0.52s cubic-bezier(0.25, 0.1, 0.25, 1);
-    box-shadow: -24px 0 40px -12px rgba(0, 0, 0, 0.32);
+    animation: page-cover-forward 0.4s cubic-bezier(0.22, 0.61, 0.36, 1);
+    box-shadow: -16px 0 28px -12px rgba(0, 0, 0, 0.28);
   }
   .page-turn-cover-back {
-    animation: page-cover-back 0.52s cubic-bezier(0.25, 0.1, 0.25, 1);
-    box-shadow: 24px 0 40px -12px rgba(0, 0, 0, 0.32);
+    animation: page-cover-back 0.4s cubic-bezier(0.22, 0.61, 0.36, 1);
+    box-shadow: 16px 0 28px -12px rgba(0, 0, 0, 0.28);
   }
   /* 3D 仿真：绕书脊（Y 轴）翻入，仿纸质书翻页 */
   .page-turn-flip3d-forward {
-    animation: page-flip3d-forward 0.58s cubic-bezier(0.25, 0.1, 0.25, 1);
+    animation: page-flip3d-forward 0.46s cubic-bezier(0.22, 0.61, 0.36, 1);
     transform-origin: left center;
   }
   .page-turn-flip3d-back {
-    animation: page-flip3d-back 0.58s cubic-bezier(0.25, 0.1, 0.25, 1);
+    animation: page-flip3d-back 0.46s cubic-bezier(0.22, 0.61, 0.36, 1);
     transform-origin: right center;
   }
 
   @keyframes page-slide-forward {
-    from { transform: translateX(7%); opacity: 0; }
+    from { transform: translateX(2.5%); opacity: 0; }
     to   { transform: translateX(0); opacity: 1; }
   }
   @keyframes page-slide-back {
-    from { transform: translateX(-7%); opacity: 0; }
+    from { transform: translateX(-2.5%); opacity: 0; }
     to   { transform: translateX(0); opacity: 1; }
   }
   @keyframes page-cover-forward {
@@ -412,12 +416,19 @@ defineExpose({
     to   { transform: translateX(0); }
   }
   @keyframes page-flip3d-forward {
-    from { transform: perspective(1600px) rotateY(-100deg) translateX(40px); opacity: 0.22; }
+    from { transform: perspective(1600px) rotateY(-90deg) translateX(24px); opacity: 0.4; }
     to   { transform: perspective(1600px) rotateY(0) translateX(0); opacity: 1; }
   }
   @keyframes page-flip3d-back {
-    from { transform: perspective(1600px) rotateY(100deg) translateX(-40px); opacity: 0.22; }
+    from { transform: perspective(1600px) rotateY(90deg) translateX(-24px); opacity: 0.4; }
     to   { transform: perspective(1600px) rotateY(0) translateX(0); opacity: 1; }
+  }
+
+  /* 尊重系统「减少运动」设置：关闭一切翻页动画，避免眩晕/晃眼 */
+  @media (prefers-reduced-motion: reduce) {
+    [class*='page-turn-'] {
+      animation: none !important;
+    }
   }
 
   .epub-footer {
@@ -461,6 +472,7 @@ defineExpose({
   /* 白天主题 */
   &.theme-day {
     background-color: #ffffff;
+    --reader-bg: #ffffff;
     --edge-hover-bg: rgba(0, 0, 0, 0.06);
     --edge-arrow-color: rgba(0, 0, 0, 0.28);
   }
@@ -468,6 +480,7 @@ defineExpose({
   /* 夜间主题 */
   &.theme-night {
     background-color: #1a1a1a;
+    --reader-bg: #1a1a1a;
     --edge-hover-bg: rgba(255, 255, 255, 0.10);
     --edge-arrow-color: rgba(255, 255, 255, 0.38);
 
@@ -480,6 +493,7 @@ defineExpose({
   /* 护眼主题 */
   &.theme-eye {
     background-color: #c7edcc;
+    --reader-bg: #c7edcc;
     --edge-hover-bg: rgba(0, 0, 0, 0.05);
     --edge-arrow-color: rgba(0, 0, 0, 0.24);
   }

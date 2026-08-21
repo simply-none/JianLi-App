@@ -431,7 +431,7 @@
             {{ p.label }}
           </el-radio-button>
         </el-radio-group>
-        <div class="setting-tip">滑动 / 覆盖 / 3D 仿真翻页，仅 EPUB 阅读器生效</div>
+        <div class="setting-tip">柔和滑动为默认效果（最自然、不刺眼）；覆盖 / 3D 仿真更花哨；无则瞬时切换。仅 EPUB 阅读器生效，TXT/PDF 翻页已默认平滑</div>
       </div>
 
       <!-- 边缘点击翻页：开关 + 感应区宽度百分比，便于沉浸式翻页 -->
@@ -552,12 +552,12 @@ const {
   setFontFamilyEN,
 } = store;
 
-/** 翻页效果选项（仅 epub 生效） */
+/** 翻页效果选项（仅 epub 生效；默认 slide 柔和滑动） */
 const PAGE_EFFECT_OPTIONS = [
-  { name: 'none', label: '无' },
-  { name: 'slide', label: '滑动' },
+  { name: 'slide', label: '柔和滑动' },
   { name: 'cover', label: '覆盖' },
   { name: 'flip3d', label: '3D 仿真' },
+  { name: 'none', label: '无' },
 ] as const;
 
 /** 纯色背景预设色板：8 种常用阅读背景色 */

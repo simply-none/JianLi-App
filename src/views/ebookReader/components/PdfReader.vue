@@ -368,11 +368,19 @@ defineExpose({
     align-items: center;
     padding: 16px 0;
     gap: 16px;
+    /* 翻页平滑滚动兜底：与 goToPage 的 scrollTo({behavior:'smooth'}) 双保险，
+       大图 PDF 翻页时不突兀跳页 */
+    scroll-behavior: smooth;
 
     /* 滚动模式：原生纵向滚动，允许内容溢出滚动 */
     &.is-scroll {
       overflow: auto;
       scrollbar-width: thin;
+    }
+
+    /* 尊重系统「减少运动」设置：关闭平滑滚动，避免眩晕/晃眼 */
+    @media (prefers-reduced-motion: reduce) {
+      scroll-behavior: auto;
     }
 
     /* 单页容器：相对定位，承载 canvas / 文本层 / 划线层三层叠加 */

@@ -210,7 +210,7 @@ const DEFAULT_SETTINGS: EbookSettings = {
   margin: 24,
   highlightType: 'highlight',
   annotationStyles: DEFAULT_ANNOTATION_STYLES,
-  pageEffect: 'none',
+  pageEffect: 'slide',
   readerTopbarVisible: true,
   readerBottomBarVisible: true,
   edgeClickEnabled: true,
