@@ -1,6 +1,7 @@
 <!--
  * 记账 - 记录编辑弹窗（满足「可修改」需求）
  * 修改金额 / 分类 / 备注 / 日期 / 账户，确认后调用 store.updateRecord 落库。
+ * 大类（收入/支出）编辑时锁定不可修改：仅当前类型可选，另一类型禁用，避免收入改支出。
  * 分类改为平铺展示（图标 + 名称的 chip，点选即选中，当前项高亮），避免下拉无数据问题。
 -->
 <template>
@@ -13,10 +14,13 @@
     @open="syncFromRecord"
   >
     <div v-if="form" class="edit-body">
-      <el-radio-group v-model="form.type" class="edit-type">
-        <el-radio-button value="expense">支出</el-radio-button>
-        <el-radio-button value="income">收入</el-radio-button>
-      </el-radio-group>
+      <div class="field">
+        <!-- 编辑时锁定大类：仅当前类型可选，另一类型禁用，避免收入/支出互改 -->
+        <el-radio-group v-model="form.type" class="edit-type">
+          <el-radio-button value="expense" :disabled="form.type !== 'expense'">支出</el-radio-button>
+          <el-radio-button value="income" :disabled="form.type !== 'income'">收入</el-radio-button>
+        </el-radio-group>
+      </div>
 
       <div class="field">
         <label>金额</label>
@@ -129,18 +133,6 @@ async function syncFromRecord() {
     await store.loadCategories()
   }
 }
-
-// 切换收支类型时，若当前分类不在新类型分类列表中则清空，避免选到无效分类
-watch(
-  () => form.value?.type,
-  (type) => {
-    if (!form.value || !type) return
-    const list = type === 'expense' ? expenseCategories.value : incomeCategories.value
-    if (form.value.category && !list.some((c) => c.name === form.value!.category)) {
-      form.value.category = ''
-    }
-  },
-)
 
 watch(
   () => props.record,

@@ -2,7 +2,7 @@
  * 记账 - 共用页面（完整页与小窗口共用同一套排版）
  * 排版结构：el-tabs 两页
  *   ├─ Tab「记录列表」：上下结构
- *   │    上：记录列表（flex:1，内部滚动，header 带月份筛选）
+ *   │    上：记录列表（flex:1，内部滚动，header 带日/月/年范围筛选，与统计面板一致）
  *   │    中：今日汇总（紧贴记账条上方，记完一笔即时反馈）
  *   │    下：记账功能（可折叠横条，收起时为一条「+ 记一笔」按钮）
  *   └─ Tab「统计」：StatisticsPanel（首次切入时才渲染，避免 ECharts 在隐藏容器内初始化）
@@ -22,18 +22,72 @@
                 <LucideIcon name="ScrollText" :size="compact ? 14 : 16" />
                 记录
               </span>
-              <el-select v-model="listMonth" size="small" class="lh-month" placeholder="月份">
-                <el-option label="全部" value="" />
-                <el-option v-for="m in monthOptions" :key="m" :label="m" :value="m" />
-              </el-select>
+              <!-- 列表范围筛选：日 / 月 / 年（与统计面板一致的 popover + 裸面板） -->
+              <div class="range-controls">
+                <div class="range-nav" v-show="!showAll">
+                  <el-button class="nav-btn" size="small" @click="shiftRange(-1)">
+                    <LucideIcon name="ArrowLeft" :size="14" />
+                  </el-button>
+                  <!-- 面包屑：年 › 月 › 日，上层可点回退 -->
+                  <span class="crumbs">
+                    <template v-for="(c, i) in crumbs" :key="c.mode">
+                      <span v-if="i > 0" class="crumb-sep">›</span>
+                      <span
+                        class="crumb"
+                        :class="c.clickable ? 'link' : 'active'"
+                        @click="c.clickable && goCrumb(c.mode, c.value)"
+                      >{{ c.label }}</span>
+                    </template>
+                  </span>
+                  <el-button class="nav-btn" size="small" @click="shiftRange(1)">
+                    <LucideIcon name="ArrowRight" :size="14" />
+                  </el-button>
+                </div>
+                <div class="range-btns">
+                  <el-popover v-model:visible="dayPop" placement="left" :offset="108"  trigger="click" popper-class="range-popover">
+                    <template #reference>
+                      <el-button :type="rangeMode === 'day' ? 'primary' : 'default'" size="small" @click="rangeMode = 'day'">日</el-button>
+                    </template>
+                    <el-date-picker-panel v-model="rangeDay" type="date" value-format="YYYY-MM-DD" @update:model-value="onDayPick" />
+                  </el-popover>
+
+                  <el-popover v-model:visible="monthPop" placement="left" :offset="108"  trigger="click" popper-class="range-popover">
+                    <template #reference>
+                      <el-button :type="rangeMode === 'month' ? 'primary' : 'default'" size="small" @click="rangeMode = 'month'">月</el-button>
+                    </template>
+                    <el-date-picker-panel v-model="rangeMonth" type="month" value-format="YYYY-MM" @update:model-value="onMonthPick" />
+                  </el-popover>
+
+                  <el-popover v-model:visible="yearPop" placement="left" :offset="108"  trigger="click" popper-class="range-popover">
+                    <template #reference>
+                      <el-button :type="rangeMode === 'year' ? 'primary' : 'default'" size="small" @click="rangeMode = 'year'">年</el-button>
+                    </template>
+                    <el-date-picker-panel v-model="rangeYear" type="year" value-format="YYYY" @update:model-value="onYearPick" />
+                  </el-popover>
+
+                  <!-- 默认：展示所有日期记录（无范围筛选、无下钻）；点一次状态反转 -->
+                  <el-button :type="showAll ? 'primary' : 'default'" size="small" @click="showAll = !showAll">默认</el-button>
+                </div>
+              </div>
             </div>
             <div class="list-body">
+              <!-- 日模式 / 默认模式：展示全部明细（保留右键编辑/删除）；默认模式为所有日期 -->
               <RecordList
+                v-if="showAll || rangeMode === 'day'"
                 :records="listRecords"
                 :limit="0"
                 :compact="compact"
                 empty-text="暂无记录，点下方「记一笔」开始"
                 @edit="openEdit"
+              />
+              <!-- 年/月模式：聚合总览（按 月/日 分组，可点击下钻） -->
+              <RecordSummaryList
+                v-else
+                :mode="rangeMode"
+                :records="listRecords"
+                :compact="compact"
+                empty-text="该范围暂无记录"
+                @drill="onDrill"
               />
             </div>
           </div>
@@ -92,10 +146,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import RecordForm from '@/components/accounting/RecordForm.vue'
 import RecordList from '@/components/accounting/RecordList.vue'
+import RecordSummaryList from '@/components/accounting/RecordSummaryList.vue'
 import RecordEditDialog from '@/components/accounting/RecordEditDialog.vue'
 import StatisticsPanel from '@/components/accounting/StatisticsPanel.vue'
 import SettingsDrawer from '@/components/accounting/SettingsDrawer.vue'
@@ -141,16 +196,108 @@ const todaySummary = computed(() => {
   return { income, expense }
 })
 
-// —— 列表月份筛选 ——
-const listMonth = ref('')
-const monthOptions = computed(() => {
-  const set = new Set(records.value.map((r) => (r.record_date || '').slice(0, 7)).filter(Boolean))
-  return Array.from(set).sort().reverse()
+// —— 列表范围筛选：日 / 月 / 年（与统计面板一致） ——
+const rangeMode = ref<'day' | 'month' | 'year'>('month')
+const rangeDay = ref(todayStr())
+const rangeMonth = ref(currentMonth())
+const rangeYear = ref(String(new Date().getFullYear()))
+const dayPop = ref(false)
+const monthPop = ref(false)
+const yearPop = ref(false)
+/** 默认模式：true 展示所有日期记录（无范围筛选、无下钻）；false 走日/月/年范围筛选；状态持久化到 localStorage */
+const SHOW_ALL_KEY = 'accounting:showAll'
+const showAll = ref(localStorage.getItem(SHOW_ALL_KEY) === '1')
+watch(showAll, (v) => localStorage.setItem(SHOW_ALL_KEY, v ? '1' : '0'))
+
+function currentMonth() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+/** 当前选中范围的值（日=YYYY-MM-DD / 月=YYYY-MM / 年=YYYY） */
+const rangeValue = computed(() =>
+  rangeMode.value === 'day' ? rangeDay.value : rangeMode.value === 'month' ? rangeMonth.value : rangeYear.value,
+)
+/** 用于过滤记录的时间前缀（年需补 "-" 以正确前缀匹配 YYYY-MM-DD） */
+const rangePrefix = computed(() => (rangeMode.value === 'year' ? rangeYear.value + '-' : rangeValue.value))
+/** 面包屑：展示 年 › 月 › 日 路径，当前层高亮、上层可点回退 */
+const crumbs = computed(() => {
+  const y = rangeYear.value
+  const my = rangeMonth.value
+  const dy = rangeDay.value
+  const mm = my ? Number(my.slice(5, 7)) : 0
+  const dd = dy ? Number(dy.slice(8, 10)) : 0
+  const list: { label: string; mode: 'year' | 'month' | 'day'; value: string; clickable: boolean }[] = []
+  list.push({ label: `${y}年`, mode: 'year', value: y, clickable: rangeMode.value !== 'year' })
+  if (rangeMode.value === 'month' || rangeMode.value === 'day') {
+    list.push({ label: `${mm}月`, mode: 'month', value: my, clickable: rangeMode.value !== 'month' })
+  }
+  if (rangeMode.value === 'day') {
+    list.push({ label: `${dd}日`, mode: 'day', value: dy, clickable: false })
+  }
+  return list
 })
+/** 点击面包屑上层：回到对应模式并定位范围 */
+function goCrumb(mode: 'year' | 'month' | 'day', value: string) {
+  if (mode === 'year') {
+    rangeMode.value = 'year'
+  } else if (mode === 'month') {
+    rangeMonth.value = value
+    rangeMode.value = 'month'
+    monthPop.value = false
+  } else {
+    rangeDay.value = value
+    rangeMode.value = 'day'
+    dayPop.value = false
+  }
+}
+function onDayPick() {
+  rangeMode.value = 'day'
+  dayPop.value = false
+}
+function onMonthPick() {
+  rangeMode.value = 'month'
+  monthPop.value = false
+}
+function onYearPick() {
+  rangeMode.value = 'year'
+  yearPop.value = false
+}
+
+/** 聚合总览行点击下钻：年→月、月→日 */
+function onDrill(nextMode: 'month' | 'day', value: string) {
+  if (nextMode === 'month') {
+    rangeMonth.value = value
+    rangeMode.value = 'month'
+    monthPop.value = false
+  } else {
+    rangeDay.value = value
+    rangeMode.value = 'day'
+    dayPop.value = false
+  }
+}
+
+/** 上一年/月/日 或 下一 年/月/日（按当前 rangeMode 切换；箭头按钮用） */
+function shiftRange(dir: number) {
+  if (rangeMode.value === 'day') {
+    const [y, m, d] = rangeDay.value.split('-').map(Number)
+    const dt = new Date(y, m - 1, d)
+    dt.setDate(dt.getDate() + dir)
+    rangeDay.value = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+  } else if (rangeMode.value === 'month') {
+    const [y, m] = rangeMonth.value.split('-').map(Number)
+    const dt = new Date(y, m - 1 + dir, 1)
+    rangeMonth.value = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`
+  } else {
+    rangeYear.value = String(Number(rangeYear.value) + dir)
+  }
+}
+
+/** 按选中范围过滤后的记录；默认模式下展示全部记录 */
 const listRecords = computed(() =>
-  listMonth.value
-    ? records.value.filter((r) => (r.record_date || '').startsWith(listMonth.value))
-    : records.value,
+  showAll.value
+    ? records.value
+    : records.value.filter((r) => (r.record_date || '').startsWith(rangePrefix.value)),
 )
 
 // —— 编辑 ——
@@ -262,8 +409,56 @@ const settingsVisible = ref(false)
         font-weight: 600;
         color: var(--text-primary, #303133);
       }
-      .lh-month {
-        width: 110px;
+
+      // 日/月/年 范围选择（与统计面板一致）
+      .range-controls {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+
+        .crumbs {
+          display: inline-flex;
+          align-items: center;
+          gap: 2px;
+          font-size: 12px;
+          font-variant-numeric: tabular-nums;
+
+          .crumb {
+            padding: 2px 4px;
+            border-radius: 5px;
+            color: var(--text-secondary, #606266);
+
+            &.link {
+              cursor: pointer;
+              &:hover {
+                color: var(--color-primary, #409eff);
+                background: var(--bg-hover, #f0f2f5);
+              }
+            }
+            &.active {
+              color: var(--text-primary, #303133);
+              font-weight: 600;
+            }
+          }
+          .crumb-sep {
+            color: var(--text-muted, #c0c4cc);
+          }
+        }
+        // 上一/下一范围箭头（夹在 range-label 两侧）
+        .range-nav {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+        .nav-btn {
+          width: 26px;
+          padding: 0;
+        }
+        .range-btns {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
       }
     }
 
@@ -443,8 +638,14 @@ const settingsVisible = ref(false)
       .lh-title {
         font-size: 13px;
       }
-      .lh-month {
-        width: 92px;
+      .range-controls {
+        gap: 6px;
+        .crumbs {
+          font-size: 11px;
+        }
+        .nav-btn {
+          width: 24px;
+        }
       }
     }
 
@@ -456,5 +657,14 @@ const settingsVisible = ref(false)
       padding: 0 8px;
     }
   }
+}
+</style>
+
+<!-- el-popover 内容被 teleport 到 body，scoped 样式无法命中，故用非作用域样式 -->
+<style lang="scss">
+// 统计/列表范围日期面板弹窗：去掉默认内边距，让 el-date-picker-panel 裸面板贴合包裹、不留白边
+.range-popover.el-popover {
+  padding: 0;
+  border-radius: 6px;
 }
 </style>

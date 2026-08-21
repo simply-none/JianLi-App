@@ -497,12 +497,8 @@ async function removeCategory(cat: AccountingCategory) {
     }
 
     .kw-actions {
-      display: none;
-      gap: 2px;
-    }
-
-    &:hover .kw-actions {
       display: flex;
+      gap: 2px;
     }
 
     .kw-btn {
