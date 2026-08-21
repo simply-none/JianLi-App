@@ -44,12 +44,12 @@
               <div class="time-card-content">
                 <div class="time-card-title">工作时间</div>
                 <div class="time-display">
-                  <el-button size="large" type="text" @click="adjustWorkTime(-1)" class="time-btn-minus">-</el-button>
+                  <el-button size="large" link @click="adjustWorkTime(-1)" class="time-btn-minus">-</el-button>
                   <div class="time-value-wrapper">
                     <span class="time-value">{{ workTimeGapCc }}</span>
                     <span class="time-unit">{{ workTimeGapUnitCc === 60 * 60 * 1000 ? '小时' : workTimeGapUnitCc === 60 * 1000 ? '分钟' : '秒' }}</span>
                   </div>
-                  <el-button size="large" type="text" @click="adjustWorkTime(1)" class="time-btn-plus">+</el-button>
+                  <el-button size="large" link @click="adjustWorkTime(1)" class="time-btn-plus">+</el-button>
                 </div>
               </div>
               <div class="time-card-select">
@@ -71,12 +71,12 @@
               <div class="time-card-content">
                 <div class="time-card-title">休息时间</div>
                 <div class="time-display">
-                  <el-button size="large" type="text" @click="adjustRestTime(-1)" class="time-btn-minus">-</el-button>
+                  <el-button size="large" link @click="adjustRestTime(-1)" class="time-btn-minus">-</el-button>
                   <div class="time-value-wrapper">
                     <span class="time-value">{{ restTimeGapCc }}</span>
                     <span class="time-unit">{{ restTimeGapUnitCc === 60 * 60 * 1000 ? '小时' : restTimeGapUnitCc === 60 * 1000 ? '分钟' : '秒' }}</span>
                   </div>
-                  <el-button size="large" type="text" @click="adjustRestTime(1)" class="time-btn-plus">+</el-button>
+                  <el-button size="large" link @click="adjustRestTime(1)" class="time-btn-plus">+</el-button>
                 </div>
               </div>
               <div class="time-card-select">
@@ -166,7 +166,7 @@
                   v-model="globalFontCc"
                   @change="setGlobalFontC"
                   filterable
-                  :options="[...globalFontOpsC, ...sysFonts]"
+                  :options="fontOps"
                   popper-class="font-select-popper"
                   :item-height="72"
                   style="width: 280px"
@@ -185,7 +185,7 @@
                   v-model="globalFontENCc"
                   @change="setGlobalFontENC"
                   filterable
-                  :options="[...globalFontOpsC, ...sysFonts]"
+                  :options="fontOps"
                   popper-class="font-select-popper"
                   :item-height="72"
                   style="width: 280px"
@@ -248,7 +248,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, nextTick } from 'vue';
+import { ref, watch, onMounted, nextTick, computed } from 'vue';
 import LayoutVue from '@/components/layout.vue';
 import LucideIcon from '@/components/LucideIcon.vue';
 import useWorkOrResetStore from '@/store/useWorkOrReset';
@@ -277,6 +277,16 @@ const restTimeGapUnitCc = ref(restTimeGapUnit.value);
 const isStartupCc = ref(isStartupC.value);
 const globalFontCc = ref(globalFontC.value);
 const globalFontENCc = ref(globalFontENC.value);
+
+let fontOps = computed(() => {
+  let ops = [
+    ...globalFontOpsC.value,
+    ...sysFonts.value,
+  ]
+  // 去重
+  ops = ops.filter((item, index, self) => self.findIndex(i => i.value === item.value) === index);
+  return ops;
+})
 
 watch(workTimeGap, (n) => {
   workTimeGapCc.value = n;

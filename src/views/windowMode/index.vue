@@ -770,7 +770,7 @@
           <div class="modal-content" @click.stop>
             <div class="modal-header">
               {{ modalTitle }}
-              <el-button type="text" @click="closeModal" class="close-btn">
+              <el-button link @click="closeModal" class="close-btn">
                 <LucideIcon name="close" :size="16" />
               </el-button>
             </div>
@@ -993,9 +993,9 @@ const quickNoteSizeOptions = [
 ];
 
 const themeConversationSizeOptions = [
-  { label: '400×300', width: 400, height: 300 },
-  { label: '600×400', width: 600, height: 400 },
-  { label: '600×700', width: 600, height: 700 },
+  { label: '900×700', width: 900, height: 700 },
+  { label: '1000×900', width: 1000, height: 900 },
+  { label: '1200×1000', width: 1200, height: 1000 },
 ];
 
 const gapOptions = [10, 20, 30, 50];

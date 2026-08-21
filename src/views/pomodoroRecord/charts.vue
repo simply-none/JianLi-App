@@ -71,6 +71,12 @@ import { getSqlData, pomodoroStatusTable, getStore } from '@/utils/common'
 import { storeToRefs } from 'pinia'
 import useThemeStore, { type ThemeName } from '@/store/useTheme'
 import LucideIcon from '@/components/LucideIcon.vue'
+import { installPassiveScrollListeners } from '@/utils/passiveEvents'
+
+// ECharts 在 init 时为图表容器注册非 passive 的 wheel/mousewheel 监听器，
+// 触发 Chrome "[Violation] Added non-passive event listener..." 警告。
+// 在首个 echarts.init 前统一兜底为 passive（dataZoom 滚轮缩放仍可用）。
+installPassiveScrollListeners()
 
 const { currentTheme } = storeToRefs(useThemeStore())
 

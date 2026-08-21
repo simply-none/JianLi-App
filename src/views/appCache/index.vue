@@ -23,7 +23,7 @@
           <div class="preview-header">
             <span class="preview-title">待还原数据预览</span>
             <el-button type="primary" @click="restore" class="restore-btn">
-              <el-icon><RefreshLeft /></el-icon>
+              <LucideIcon name="RefreshCw" :size="18" />
               备份还原
             </el-button>
           </div>
@@ -36,7 +36,7 @@
 
     <div class="cache-card">
       <div class="cache-card-header">
-        <el-icon :size="18"><Box /></el-icon>
+        <LucideIcon name="Package2Icon" :size="18" />
           <span>当前缓存数据</span>
       </div>
       <div class="cache-card-body">

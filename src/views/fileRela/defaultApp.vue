@@ -5,14 +5,18 @@
       查看默认应用
     </el-button>
 
-    <el-dialog v-model="dialogVisible" title="默认应用" width="600px" v-loading="loading">
-      <div class="app-list">
-        <div v-for="(item, ext) in defaultAppPaths" :key="ext" class="app-item">
-          <span class="app-ext">{{ ext }}</span>
-          <span class="app-path">{{ item.path }}</span>
-        </div>
-        <div v-if="!loading && Object.keys(defaultAppPaths).length === 0" class="empty-tip">
-          暂无默认应用数据
+    <el-dialog v-model="dialogVisible" title="默认应用" width="600px">
+      <!-- v-loading 必须挂到真实 DOM 元素上，不能挂在 ElDialog 组件上，否则触发
+           "Runtime directive used on component with non-element root node" 警告且加载遮罩失效 -->
+      <div v-loading="loading" class="app-list-wrap">
+        <div class="app-list">
+          <div v-for="(item, ext) in defaultAppPaths" :key="ext" class="app-item">
+            <span class="app-ext">{{ ext }}</span>
+            <span class="app-path">{{ item.path }}</span>
+          </div>
+          <div v-if="!loading && Object.keys(defaultAppPaths).length === 0" class="empty-tip">
+            暂无默认应用数据
+          </div>
         </div>
       </div>
       <template #footer>
@@ -92,6 +96,11 @@ function refreshApps() {
 </script>
 
 <style scoped lang="scss">
+.app-list-wrap {
+  position: relative;
+  min-height: 120px;
+}
+
 .app-list {
   max-height: 400px;
   overflow-y: auto;

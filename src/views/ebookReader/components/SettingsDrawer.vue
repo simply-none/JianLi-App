@@ -787,7 +787,15 @@ const { globalFontOpsC } = storeToRefs(useGlobalSetting());
 /** 系统字体列表（由主进程 get-fonts 返回，结构 { label, value }） */
 const sysFonts = ref<{ label: string; value: string }[]>([]);
 /** 合并后的字体下拉选项 */
-const fontOptions = computed(() => [...(globalFontOpsC.value || []), ...sysFonts.value]);
+const fontOptions = computed(() => {
+  let ops = [
+    ...globalFontOpsC.value,
+    ...sysFonts.value,
+  ]
+  // 去重
+  ops = ops.filter((item, index, self) => self.findIndex(i => i.value === item.value) === index);
+  return ops;
+});
 
 /** 字号双向绑定（12~32px），与顶部工具栏原「字号」输入一致 */
 const fontSizeModel = computed({

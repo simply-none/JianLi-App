@@ -10,61 +10,55 @@
           <p class="page-subtitle">配置全局快捷键，快速访问各项功能</p>
         </div>
       </div>
+      <div>
+        <el-button title="获取快捷键" size="large" type="primary" @click="getShortcuts">
+          <LucideIcon name="Keyboard" :size="18" />
+          获取注册快捷键
+        </el-button>
+      </div>
     </header>
 
     <main class="page-content">
-      <section
-        v-for="group in shortcutGroups"
-        :key="group.title"
-        class="shortcut-section"
-      >
-        <h2 class="section-title">{{ group.title }}</h2>
-        <div class="shortcuts-grid">
-          <div
-            v-for="item in group.items"
-            :key="item.key"
-            class="shortcut-card"
-          >
-            <div class="card-icon" :class="getIconClass(item.key)">
-              <LucideIcon :name="getIcon(item.key)" :size="24" />
-            </div>
+      <div v-if="!shortcutGroups || shortcutGroups.length == 0" class="result-empty">
+        <LucideIcon name="Crop" :size="40" />
+        <p>点击右上角「获取注册快捷键」按钮 即可开始</p>
+        <p class="tip">提示：点击右上角「获取注册快捷键」按钮 即可开始</p>
+      </div>
+      <template v-else>
+        <section v-for="group in shortcutGroups" :key="group.title" class="shortcut-section">
+          <h2 class="section-title">{{ group.title }}</h2>
+          <div class="shortcuts-grid">
+            <div v-for="item in group.items" :key="item.key" class="shortcut-card">
+              <div class="card-icon" :class="getIconClass(item.key)">
+                <LucideIcon :name="getIcon(item.key)" :size="24" />
+              </div>
 
-            <div class="card-info">
-              <h3 class="card-title">{{ item.name }}</h3>
-              <p class="card-desc" v-if="getDescription(item.key)">{{ getDescription(item.key) }}</p>
-            </div>
+              <div class="card-info">
+                <h3 class="card-title">{{ item.name }}</h3>
+                <p class="card-desc" v-if="getDescription(item.key)">{{ getDescription(item.key) }}</p>
+              </div>
 
-            <div class="card-divider"></div>
+              <div class="card-divider"></div>
 
-            <div class="card-shortcut">
-              <shortcut
-                :shortcut="item.shortcut"
-                @update:shortcut="(val) => item.shortcut = val"
-              />
-            </div>
+              <div class="card-shortcut">
+                <shortcut :shortcut="item.shortcut" @update:shortcut="(val) => item.shortcut = val" />
+              </div>
 
-            <div class="card-actions">
-              <el-button
-                type="primary"
-                class="register-btn"
-                @click="registerFn(item)"
-                :disabled="!canRegister(item.shortcut)"
-              >
-                <LucideIcon name="Check" :size="14" />
-                注册
-              </el-button>
-              <el-button
-                type="default"
-                class="reset-btn"
-                @click="resetShortcut(item)"
-              >
-                <LucideIcon name="RefreshCcw" :size="14" />
-                重置
-              </el-button>
+              <div class="card-actions">
+                <el-button type="primary" class="register-btn" @click="registerFn(item)"
+                  :disabled="!canRegister(item.shortcut)">
+                  <LucideIcon name="Check" :size="14" />
+                  注册
+                </el-button>
+                <el-button type="default" class="reset-btn" @click="resetShortcut(item)">
+                  <LucideIcon name="RefreshCcw" :size="14" />
+                  重置
+                </el-button>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </template>
     </main>
 
     <footer class="tips-section">
@@ -282,10 +276,14 @@ const allCommonShortcuts = ref(JSON.parse(JSON.stringify(originShortcuts.value))
 const allRouteShortcuts = ref(JSON.parse(JSON.stringify(routeShortcuts.value)))
 
 // 分类分组：常用功能（既有列表） + 路由功能（layoutRouters 全量）
-const shortcutGroups = computed(() => [
-  { title: '常用功能', items: allCommonShortcuts.value },
-  { title: '路由功能', items: allRouteShortcuts.value },
-])
+const shortcutGroups = ref([])
+
+const getShortcuts = () => {
+  shortcutGroups.value = [
+    { title: '常用功能', items: originShortcuts.value },
+    { title: '路由功能', items: allRouteShortcuts.value },
+  ]
+}
 
 const resetShortcut = (item) => {
   item.shortcut = ['', '', '']
@@ -349,6 +347,9 @@ async function getShortcut() {
   border-radius: var(--radius-card);
   padding: 20px 24px;
   margin: 20px 24px;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
 
   .header-content {
     display: flex;
@@ -394,6 +395,8 @@ async function getShortcut() {
   box-sizing: border-box;
   overflow-y: auto;
   overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .shortcut-section {
@@ -628,6 +631,29 @@ async function getShortcut() {
 
   .tips-section {
     padding: 16px;
+  }
+}
+
+.result-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  text-align: center;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+
+  p {
+    margin: 0;
+    font-size: 13px;
+  }
+
+  .tip {
+    font-size: 12px;
+    color: var(--text-muted);
+    opacity: 0.8;
   }
 }
 </style>

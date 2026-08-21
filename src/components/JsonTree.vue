@@ -100,7 +100,6 @@ const filteredData = computed(() => {
 });
 
 function isObject(value: any): boolean {
-  console.log(value, 'value');
   if (Object.prototype.toString.call(value) === '[object Object]' && 'key' in value && 'value' in value) {
     // 同时包含key和value属性
     return false

@@ -66,13 +66,17 @@
     </div>
   </div>
 
-  <el-dialog v-model="scanResultVisible" title="扫描结果" width="800px" v-loading="scanLoading">
-    <div class="scan-handle">
-      <div>扫描耗时: {{ scanTimeGap }}，共计 {{ scanResultFiles.length }} 个结果</div>
-      <el-button type="primary" :disabled="scanResultFiles.length === 0" @click="saveToDB(scanResultFiles)">保存数据</el-button>
-    </div>
-    <div class="scan-table">
-      <el-table-v2 :columns="columns" :data="scanResultFiles" :width="scanColWidth" :height="400" />
+  <el-dialog v-model="scanResultVisible" title="扫描结果" width="800px">
+    <!-- v-loading 必须挂到真实 DOM 元素上，不能挂在 ElDialog 组件上，否则触发
+         "Runtime directive used on component with non-element root node" 警告且加载遮罩失效 -->
+    <div v-loading="scanLoading" class="scan-result-wrap">
+      <div class="scan-handle">
+        <div>扫描耗时: {{ scanTimeGap }}，共计 {{ scanResultFiles.length }} 个结果</div>
+        <el-button type="primary" :disabled="scanResultFiles.length === 0" @click="saveToDB(scanResultFiles)">保存数据</el-button>
+      </div>
+      <div class="scan-table" ref="scanTableRef">
+        <el-table-v2 :columns="columns" :data="scanResultFiles" :width="scanColWidth" :height="400" />
+      </div>
     </div>
   </el-dialog>
 
@@ -342,6 +346,11 @@ const openFile = (obj: ObjectType) => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
+}
+
+.scan-result-wrap {
+  position: relative;
+  min-height: 200px;
 }
 
 .scan-table {

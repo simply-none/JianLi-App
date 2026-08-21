@@ -66,7 +66,7 @@
           <div v-if="showValidatePwdQuestionBtn" class="validate-hint">
             <LucideIcon class="hint-icon" name="CircleAlert" :size="16" />
             密码校验失败，是否通过密保问题重置密码？
-            <el-button type="text" @click="showValidatePwdQuestion = true">校验密保问题</el-button>
+            <el-button link @click="showValidatePwdQuestion = true">校验密保问题</el-button>
           </div>
         </div>
 
@@ -215,7 +215,7 @@
       <div class="verify-modal">
         <div class="modal-header">
           <h3>验证密保问题</h3>
-          <el-button type="text" @click="showValidatePwdQuestion = false">
+          <el-button link @click="showValidatePwdQuestion = false">
             <LucideIcon name="CircleX" :size="16" />
           </el-button>
         </div>
