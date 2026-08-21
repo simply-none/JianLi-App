@@ -148,6 +148,7 @@ export const iconMap: Record<string, string> = {
   ttsTest: 'AudioLines',
   ebookReader: 'BookOpenText',
   screenshot: 'Camera',
+  accounting: 'Wallet',
 };
 
 export { getLightColor, getDarkColor } from './color';

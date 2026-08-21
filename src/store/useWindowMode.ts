@@ -134,6 +134,39 @@ export default defineStore("window-mode", () => {
     }
   });
 
+  // ============ 记账小窗口 ============
+  const showAccountingMiniWindow = ref();
+  const showAccountingMiniWindowC = computed(() => showAccountingMiniWindow.value);
+  function setShowAccountingMiniWindow(value: boolean) {
+    showAccountingMiniWindow.value = value;
+    setStore("showAccountingMiniWindow", value);
+  }
+
+  const accountingMiniWindowConfig = ref({
+    position: 'bottom-right',
+    width: 360,
+    height: 520,
+    gap: 30,
+    x: 0,
+    y: 0,
+    skin: 'white',
+  });
+
+  watch(showAccountingMiniWindow, (newValue) => {
+    if (newValue == true) {
+      console.log("打开记账小窗口", accountingMiniWindowConfig.value);
+      send("open-new-window", "accountingMini", accountingMiniWindowConfig.value);
+    } else {
+      send("close-new-window", "accountingMini");
+    }
+  });
+
+  watch(accountingMiniWindowConfig, (newVal) => {
+    send('sync-data-to-other-window', {
+      accountingMiniWindowConfig: toRaw(newVal),
+    });
+  }, { deep: true });
+
   watch(pomodoroMiniWindowConfig, (newVal) => {
     send('sync-data-to-other-window', {
       pomodoroMiniWindowConfig: toRaw(newVal),
@@ -178,6 +211,11 @@ export default defineStore("window-mode", () => {
         field: "showThemeConversationMiniWindow",
         default: false,
         map: showThemeConversationMiniWindow,
+      },
+      {
+        field: "showAccountingMiniWindow",
+        default: false,
+        map: showAccountingMiniWindow,
       },
     ];
 
@@ -271,6 +309,19 @@ export default defineStore("window-mode", () => {
         },
         map: themeConversationMiniWindowConfig,
       },
+      {
+        field: "window-mode:accountingMini",
+        default: {
+          position: 'bottom-right',
+          width: 360,
+          height: 520,
+          gap: 30,
+          x: 0,
+          y: 0,
+          skin: 'white',
+        },
+        map: accountingMiniWindowConfig,
+      },
     ];
 
     const allVars: defaultField[] = [
@@ -300,6 +351,13 @@ export default defineStore("window-mode", () => {
         const currentConfig = themeConversationMiniWindowConfig.value;
         if (JSON.stringify(newConfig) !== JSON.stringify(currentConfig)) {
           themeConversationMiniWindowConfig.value = { ...currentConfig, ...newConfig };
+        }
+      }
+      if (arg?.accountingMiniWindowConfig) {
+        const newConfig = arg.accountingMiniWindowConfig;
+        const currentConfig = accountingMiniWindowConfig.value;
+        if (JSON.stringify(newConfig) !== JSON.stringify(currentConfig)) {
+          accountingMiniWindowConfig.value = { ...currentConfig, ...newConfig };
         }
       }
     });
@@ -334,6 +392,10 @@ export default defineStore("window-mode", () => {
     showThemeConversationMiniWindowC,
     setShowThemeConversationMiniWindow,
     themeConversationMiniWindowConfig,
+    showAccountingMiniWindow,
+    showAccountingMiniWindowC,
+    setShowAccountingMiniWindow,
+    accountingMiniWindowConfig,
     $reset,
   };
 });

@@ -766,6 +766,155 @@
           </div>
         </div>
 
+        <div class="section">
+          <h2 class="section-title">
+            <LucideIcon name="Wallet" :size="16" />
+            记账小窗口
+          </h2>
+
+          <div class="toggle-card">
+            <span class="toggle-label">小窗口状态</span>
+            <div class="toggle-group">
+              <el-button 
+                :type="showAccountingMiniWindowCc ? 'primary' : 'default'"
+                :plain="!showAccountingMiniWindowCc"
+                @click="changeShowAccountingMiniWindowFn(true)"
+                class="toggle-btn"
+              >
+                <LucideIcon name="MonitorCheck" :size="14" />
+                开启
+              </el-button>
+              <el-button 
+                :type="!showAccountingMiniWindowCc ? 'primary' : 'default'"
+                :plain="showAccountingMiniWindowCc"
+                @click="changeShowAccountingMiniWindowFn(false)"
+                class="toggle-btn"
+              >
+                <LucideIcon name="MonitorX" :size="14" />
+                关闭
+              </el-button>
+              <el-button 
+                type="primary"
+                @click="applyAccountingWindow"
+                class="apply-btn"
+              >
+                <LucideIcon name="MonitorCloud" :size="14" />
+                应用
+              </el-button>
+            </div>
+          </div>
+
+          <div class="window-card">
+            <div class="config-section">
+              <div class="config-label">
+                <LucideIcon name="MousePointerClick" :size="16" />
+                位置选择
+              </div>
+              <div class="position-wrapper">
+                <div class="position-grid">
+                  <el-button 
+                    v-for="pos in positionOptions" 
+                    :key="pos.value"
+                    :type="accountingConfig.position === pos.value ? 'primary' : 'default'"
+                    :plain="accountingConfig.position !== pos.value"
+                    @click="selectPosition('accounting', pos.value)"
+                    class="position-card"
+                  >
+                    {{ pos.icon }}
+                  </el-button>
+                </div>
+                <el-button 
+                  type="default"
+                  plain
+                  @click="openCustomModal('accounting', 'position')"
+                  class="custom-btn"
+                >
+                  <LucideIcon name="Columns3Cog" :size="14" />
+                  自定义
+                  <span v-if="customDisplay.accounting.position" class="custom-value">{{ customDisplay.accounting.position }}</span>
+                </el-button>
+              </div>
+            </div>
+
+            <div class="config-section">
+              <div class="config-label">
+                <LucideIcon name="MonitorCog" :size="16" />
+                窗口尺寸
+              </div>
+              <div class="size-row">
+                <el-button 
+                  v-for="size in accountingSizeOptions" 
+                  :key="size.label"
+                  :type="accountingConfig.width === size.width && accountingConfig.height === size.height ? 'primary' : 'default'"
+                  :plain="accountingConfig.width !== size.width || accountingConfig.height !== size.height"
+                  @click="selectSize('accounting', size.width, size.height)"
+                  class="config-option"
+                >
+                  {{ size.label }}
+                </el-button>
+                <el-button 
+                  type="default"
+                  plain
+                  @click="openCustomModal('accounting', 'size')"
+                  class="config-option custom-option"
+                >
+                  <LucideIcon name="Columns3Cog" :size="14" />
+                  自定义
+                  <span v-if="customDisplay.accounting.size" class="custom-value">{{ customDisplay.accounting.size }}</span>
+                </el-button>
+              </div>
+            </div>
+
+            <div class="config-section">
+              <div class="config-label">
+                <LucideIcon name="UnfoldVertical" :size="16" />
+                边缘间隙
+              </div>
+              <div class="gap-row">
+                <el-button 
+                  v-for="gap in gapOptions" 
+                  :key="gap"
+                  :type="accountingConfig.gap === gap ? 'primary' : 'default'"
+                  :plain="accountingConfig.gap !== gap"
+                  @click="selectGap('accounting', gap)"
+                  class="config-option"
+                >
+                  {{ gap }}px
+                </el-button>
+                <el-button 
+                  type="default"
+                  plain
+                  @click="openCustomModal('accounting', 'gap')"
+                  class="config-option custom-option"
+                >
+                  <LucideIcon name="Columns3Cog" :size="14" />
+                  自定义
+                  <span v-if="customDisplay.accounting.gap" class="custom-value">{{ customDisplay.accounting.gap }}</span>
+                </el-button>
+              </div>
+            </div>
+
+            <div class="config-section">
+              <div class="config-label">
+                <LucideIcon name="PaintbrushVertical" :size="16" />
+                皮肤主题
+              </div>
+              <div class="theme-row">
+                <el-button 
+                  v-for="theme in skinOptions" 
+                  :key="theme.value"
+                  :type="accountingConfig.skin === theme.value ? 'primary' : 'default'"
+                  :plain="accountingConfig.skin !== theme.value"
+                  @click="selectAccountingSkin(theme.value)"
+                  class="config-option theme-option"
+                >
+                  {{ theme.label }}
+                </el-button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div v-if="showModal" class="modal-overlay" @click="closeModal">
           <div class="modal-content" @click.stop>
             <div class="modal-header">
@@ -827,13 +976,15 @@ const {
   showQuickNoteWindowC,
   showTodoWindowC,
   showThemeConversationMiniWindowC,
+  showAccountingMiniWindowC,
   pomodoroMiniWindowConfig,
   miniNotebookWindowConfig,
   quickNoteWindowConfig,
   todoWindowConfig,
-  themeConversationMiniWindowConfig
+  themeConversationMiniWindowConfig,
+  accountingMiniWindowConfig
 } = storeToRefs(useWindowMode());
-const { setShowPomodoroMiniWindow, setShowMiniNotebookWindow, setShowQuickNoteWindow, setShowTodoWindow, setShowThemeConversationMiniWindow } = useWindowMode();
+const { setShowPomodoroMiniWindow, setShowMiniNotebookWindow, setShowQuickNoteWindow, setShowTodoWindow, setShowThemeConversationMiniWindow, setShowAccountingMiniWindow } = useWindowMode();
 
 const showPomodoroMiniWindowCc = ref(showPomodoroMiniWindowC.value);
 const showMiniNotebookWindowCc = ref(showMiniNotebookWindowC.value);
@@ -885,6 +1036,16 @@ watch(showThemeConversationMiniWindowC, (val) => {
 
 watch(themeConversationMiniWindowConfig, (val) => {
   themeConversationConfig.value = { ...val };
+}, { deep: true });
+
+// 记账小窗口
+const showAccountingMiniWindowCc = ref(showAccountingMiniWindowC.value);
+const accountingConfig = ref({ ...accountingMiniWindowConfig.value });
+watch(showAccountingMiniWindowC, (val) => {
+  showAccountingMiniWindowCc.value = JSON.parse(JSON.stringify(val));
+});
+watch(accountingMiniWindowConfig, (val) => {
+  accountingConfig.value = { ...val };
 }, { deep: true });
 
 function changeShowPomodoroMiniWindowFn(val: boolean) {
@@ -962,6 +1123,21 @@ function applyThemeConversationWindow() {
   }
 }
 
+function changeShowAccountingMiniWindowFn(val: boolean) {
+  setShowAccountingMiniWindow(toRaw(val));
+}
+
+function applyAccountingWindow() {
+  if (showAccountingMiniWindowCc.value) {
+    changeShowAccountingMiniWindowFn(false);
+    setTimeout(() => {
+      changeShowAccountingMiniWindowFn(true);
+    }, 300);
+  } else {
+    changeShowAccountingMiniWindowFn(true);
+  }
+}
+
 const positionOptions = [
   { value: 'top-left', icon: '↖' },
   { value: 'center-top', icon: '↑' },
@@ -996,6 +1172,12 @@ const themeConversationSizeOptions = [
   { label: '900×700', width: 900, height: 700 },
   { label: '1000×900', width: 1000, height: 900 },
   { label: '1200×1000', width: 1200, height: 1000 },
+];
+
+const accountingSizeOptions = [
+  { label: '320×480', width: 320, height: 480 },
+  { label: '360×520', width: 360, height: 520 },
+  { label: '400×600', width: 400, height: 600 },
 ];
 
 const gapOptions = [10, 20, 30, 50];
@@ -1059,6 +1241,12 @@ function selectThemeConversationSkin(value: string) {
   setStore('window-mode:themeConversationMini', { ...themeConversationMiniWindowConfig.value });
 }
 
+function selectAccountingSkin(value: string) {
+  accountingConfig.value.skin = value;
+  accountingMiniWindowConfig.value.skin = value;
+  setStore('window-mode:accountingMini', { ...accountingMiniWindowConfig.value });
+}
+
 function selectQuickNoteLayout(value: string) {
   quickNoteConfig.value.layout = value;
   quickNoteWindowConfig.value.layout = value;
@@ -1082,6 +1270,10 @@ function selectPosition(type: string, value: string) {
     themeConversationConfig.value.position = value;
     themeConversationMiniWindowConfig.value.position = value;
     setStore('window-mode:themeConversationMini', { ...themeConversationMiniWindowConfig.value });
+  } else if (type === 'accounting') {
+    accountingConfig.value.position = value;
+    accountingMiniWindowConfig.value.position = value;
+    setStore('window-mode:accountingMini', { ...accountingMiniWindowConfig.value });
   } else {
     quickNoteConfig.value.position = value;
     quickNoteWindowConfig.value.position = value;
@@ -1114,6 +1306,12 @@ function selectSize(type: string, width: number, height: number) {
     themeConversationMiniWindowConfig.value.width = width;
     themeConversationMiniWindowConfig.value.height = height;
     setStore('window-mode:themeConversationMini', { ...themeConversationMiniWindowConfig.value });
+  } else if (type === 'accounting') {
+    accountingConfig.value.width = width;
+    accountingConfig.value.height = height;
+    accountingMiniWindowConfig.value.width = width;
+    accountingMiniWindowConfig.value.height = height;
+    setStore('window-mode:accountingMini', { ...accountingMiniWindowConfig.value });
   } else {
     quickNoteConfig.value.width = width;
     quickNoteConfig.value.height = height;
@@ -1140,6 +1338,10 @@ function selectGap(type: string, gap: number) {
     themeConversationConfig.value.gap = gap;
     themeConversationMiniWindowConfig.value.gap = gap;
     setStore('window-mode:themeConversationMini', { ...themeConversationMiniWindowConfig.value });
+  } else if (type === 'accounting') {
+    accountingConfig.value.gap = gap;
+    accountingMiniWindowConfig.value.gap = gap;
+    setStore('window-mode:accountingMini', { ...accountingMiniWindowConfig.value });
   } else {
     quickNoteConfig.value.gap = gap;
     quickNoteWindowConfig.value.gap = gap;
@@ -1149,7 +1351,7 @@ function selectGap(type: string, gap: number) {
 
 const showModal = ref(false);
 const modalType = ref<'position' | 'size' | 'gap'>('position');
-const modalTarget = ref<'pomodoro' | 'notebook' | 'quickNote' | 'todo' | 'themeConversation'>('pomodoro');
+const modalTarget = ref<'pomodoro' | 'notebook' | 'quickNote' | 'todo' | 'themeConversation' | 'accounting'>('pomodoro');
 
 // 判断各窗口类型的各字段是否为自定义模式，并返回展示值
 const customDisplay = computed(() => {
@@ -1201,6 +1403,11 @@ const customDisplay = computed(() => {
       size: getSizeCustom(themeConversationConfig.value, themeConversationSizeOptions),
       gap: getGapCustom(themeConversationConfig.value),
     },
+    accounting: {
+      position: getPositionCustom(accountingConfig.value),
+      size: getSizeCustom(accountingConfig.value, accountingSizeOptions),
+      gap: getGapCustom(accountingConfig.value),
+    },
   };
 });
 
@@ -1217,11 +1424,11 @@ const modalTitle = computed(() => {
   return titles[modalType.value];
 });
 
-function openCustomModal(target: 'pomodoro' | 'notebook' | 'quickNote' | 'todo' | 'themeConversation', type: 'position' | 'size' | 'gap') {
+function openCustomModal(target: 'pomodoro' | 'notebook' | 'quickNote' | 'todo' | 'themeConversation' | 'accounting', type: 'position' | 'size' | 'gap') {
   modalTarget.value = target;
   modalType.value = type;
   
-  const config = target === 'pomodoro' ? pomodoroConfig.value : target === 'notebook' ? notebookConfig.value : target === 'todo' ? todoConfig.value : target === 'themeConversation' ? themeConversationConfig.value : quickNoteConfig.value;
+  const config = target === 'pomodoro' ? pomodoroConfig.value : target === 'notebook' ? notebookConfig.value : target === 'todo' ? todoConfig.value : target === 'themeConversation' ? themeConversationConfig.value : target === 'accounting' ? accountingConfig.value : quickNoteConfig.value;
   
   if (type === 'position') {
     customPosition.value = { x: 0, y: 0 };
@@ -1265,6 +1472,12 @@ function confirmCustom() {
         themeConversationMiniWindowConfig.value.x = customPosition.value.x;
         themeConversationMiniWindowConfig.value.y = customPosition.value.y;
         setStore('window-mode:themeConversationMini', { ...themeConversationMiniWindowConfig.value });
+      } else if (modalTarget.value === 'accounting') {
+        accountingConfig.value.position = 'custom';
+        accountingMiniWindowConfig.value.position = 'custom';
+        accountingMiniWindowConfig.value.x = customPosition.value.x;
+        accountingMiniWindowConfig.value.y = customPosition.value.y;
+        setStore('window-mode:accountingMini', { ...accountingMiniWindowConfig.value });
       } else {
         quickNoteConfig.value.position = 'custom';
         quickNoteWindowConfig.value.position = 'custom';
@@ -1299,6 +1512,12 @@ function confirmCustom() {
         themeConversationMiniWindowConfig.value.width = customSize.value.width;
         themeConversationMiniWindowConfig.value.height = customSize.value.height;
         setStore('window-mode:themeConversationMini', { ...themeConversationMiniWindowConfig.value });
+      } else if (modalTarget.value === 'accounting') {
+        accountingConfig.value.width = customSize.value.width;
+        accountingConfig.value.height = customSize.value.height;
+        accountingMiniWindowConfig.value.width = customSize.value.width;
+        accountingMiniWindowConfig.value.height = customSize.value.height;
+        setStore('window-mode:accountingMini', { ...accountingMiniWindowConfig.value });
       } else {
         quickNoteConfig.value.width = customSize.value.width;
         quickNoteConfig.value.height = customSize.value.height;
@@ -1325,6 +1544,10 @@ function confirmCustom() {
         themeConversationConfig.value.gap = customGap.value;
         themeConversationMiniWindowConfig.value.gap = customGap.value;
         setStore('window-mode:themeConversationMini', { ...themeConversationMiniWindowConfig.value });
+      } else if (modalTarget.value === 'accounting') {
+        accountingConfig.value.gap = customGap.value;
+        accountingMiniWindowConfig.value.gap = customGap.value;
+        setStore('window-mode:accountingMini', { ...accountingMiniWindowConfig.value });
       } else {
         quickNoteConfig.value.gap = customGap.value;
         quickNoteWindowConfig.value.gap = customGap.value;

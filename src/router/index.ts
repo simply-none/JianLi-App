@@ -41,6 +41,8 @@ export const RouteNames = {
   QUICK_NOTE: "quickNote",
   TODO_LIST: "todoList",
   TODO_MINI_WINDOW: "todoMiniWindow",
+  ACCOUNTING: "accounting",
+  ACCOUNTING_MINI: "accountingMini",
   TTS_TEST: "ttsTest",
   EBOOK_READER: "ebookReader",
   SCREENSHOT: "screenshot",
@@ -254,6 +256,14 @@ export const layoutRouters: RouteRecordRaw[] = [
     },
   },
   {
+    path: "/accounting",
+    name: RouteNames.ACCOUNTING,
+    component: () => import("@/views/accounting/index.vue"),
+    meta: {
+      title: "记账",
+    },
+  },
+  {
     path: "/ttsTest",
     name: RouteNames.TTS_TEST,
     component: () => import("@/views/ttsTest/index.vue"),
@@ -324,6 +334,11 @@ const routers: RouteRecordRaw[] = [
     path: "/todoMiniWindow",
     name: RouteNames.TODO_MINI_WINDOW,
     component: () => import("@/views/todoMiniWindow/index.vue"),
+  },
+  {
+    path: "/accountingMini",
+    name: RouteNames.ACCOUNTING_MINI,
+    component: () => import("@/views/accountingMini/index.vue"),
   },
   {
     path: "/screenshotSelect",
