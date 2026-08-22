@@ -48,6 +48,8 @@ export const RouteNames = {
   SCREENSHOT: "screenshot",
   SCREENSHOT_SELECT: "screenshotSelect",
   STICKER: "sticker",
+  STOCK: "stock",
+  STOCK_MINI: "stockMini",
 } as const;
 
 export type RouteNameType = typeof RouteNames[keyof typeof RouteNames];
@@ -264,6 +266,14 @@ export const layoutRouters: RouteRecordRaw[] = [
     },
   },
   {
+    path: "/stock",
+    name: RouteNames.STOCK,
+    component: () => import("@/views/stock/index.vue"),
+    meta: {
+      title: "股票查询分析",
+    },
+  },
+  {
     path: "/ttsTest",
     name: RouteNames.TTS_TEST,
     component: () => import("@/views/ttsTest/index.vue"),
@@ -339,6 +349,11 @@ const routers: RouteRecordRaw[] = [
     path: "/accountingMini",
     name: RouteNames.ACCOUNTING_MINI,
     component: () => import("@/views/accountingMini/index.vue"),
+  },
+  {
+    path: "/stockMini",
+    name: RouteNames.STOCK_MINI,
+    component: () => import("@/views/stockMini/index.vue"),
   },
   {
     path: "/screenshotSelect",

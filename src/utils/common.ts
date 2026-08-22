@@ -20,7 +20,7 @@ export function getStore(key: string) {
  * @param seen 已访问对象集合，防止循环引用导致栈溢出
  * @returns 可被结构化克隆的纯对象
  */
-function toPlain(value: any, seen = new WeakSet()): any {
+export function toPlain(value: any, seen = new WeakSet()): any {
   if (value === null || value === undefined) return value;
   if (isRef(value)) return toPlain(unref(value), seen);
   if (isProxy(value)) return toPlain(toRaw(value), seen);

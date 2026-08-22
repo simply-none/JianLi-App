@@ -915,6 +915,155 @@
           </div>
         </div>
 
+        <div class="section">
+          <h2 class="section-title">
+            <LucideIcon name="TrendingUp" :size="16" />
+            股票小窗口
+          </h2>
+
+          <div class="toggle-card">
+            <span class="toggle-label">小窗口状态</span>
+            <div class="toggle-group">
+              <el-button 
+                :type="showStockMiniWindowCc ? 'primary' : 'default'"
+                :plain="!showStockMiniWindowCc"
+                @click="changeShowStockMiniWindowFn(true)"
+                class="toggle-btn"
+              >
+                <LucideIcon name="MonitorCheck" :size="14" />
+                开启
+              </el-button>
+              <el-button 
+                :type="!showStockMiniWindowCc ? 'primary' : 'default'"
+                :plain="showStockMiniWindowCc"
+                @click="changeShowStockMiniWindowFn(false)"
+                class="toggle-btn"
+              >
+                <LucideIcon name="MonitorX" :size="14" />
+                关闭
+              </el-button>
+              <el-button 
+                type="primary"
+                @click="applyStockWindow"
+                class="apply-btn"
+              >
+                <LucideIcon name="MonitorCloud" :size="14" />
+                应用
+              </el-button>
+            </div>
+          </div>
+
+          <div class="window-card">
+            <div class="config-section">
+              <div class="config-label">
+                <LucideIcon name="MousePointerClick" :size="16" />
+                位置选择
+              </div>
+              <div class="position-wrapper">
+                <div class="position-grid">
+                  <el-button 
+                    v-for="pos in positionOptions" 
+                    :key="pos.value"
+                    :type="stockConfig.position === pos.value ? 'primary' : 'default'"
+                    :plain="stockConfig.position !== pos.value"
+                    @click="selectPosition('stock', pos.value)"
+                    class="position-card"
+                  >
+                    {{ pos.icon }}
+                  </el-button>
+                </div>
+                <el-button 
+                  type="default"
+                  plain
+                  @click="openCustomModal('stock', 'position')"
+                  class="custom-btn"
+                >
+                  <LucideIcon name="Columns3Cog" :size="14" />
+                  自定义
+                  <span v-if="customDisplay.stock.position" class="custom-value">{{ customDisplay.stock.position }}</span>
+                </el-button>
+              </div>
+            </div>
+
+            <div class="config-section">
+              <div class="config-label">
+                <LucideIcon name="MonitorCog" :size="16" />
+                窗口尺寸
+              </div>
+              <div class="size-row">
+                <el-button 
+                  v-for="size in stockSizeOptions" 
+                  :key="size.label"
+                  :type="stockConfig.width === size.width && stockConfig.height === size.height ? 'primary' : 'default'"
+                  :plain="stockConfig.width !== size.width || stockConfig.height !== size.height"
+                  @click="selectSize('stock', size.width, size.height)"
+                  class="config-option"
+                >
+                  {{ size.label }}
+                </el-button>
+                <el-button 
+                  type="default"
+                  plain
+                  @click="openCustomModal('stock', 'size')"
+                  class="config-option custom-option"
+                >
+                  <LucideIcon name="Columns3Cog" :size="14" />
+                  自定义
+                  <span v-if="customDisplay.stock.size" class="custom-value">{{ customDisplay.stock.size }}</span>
+                </el-button>
+              </div>
+            </div>
+
+            <div class="config-section">
+              <div class="config-label">
+                <LucideIcon name="UnfoldVertical" :size="16" />
+                边缘间隙
+              </div>
+              <div class="gap-row">
+                <el-button 
+                  v-for="gap in gapOptions" 
+                  :key="gap"
+                  :type="stockConfig.gap === gap ? 'primary' : 'default'"
+                  :plain="stockConfig.gap !== gap"
+                  @click="selectGap('stock', gap)"
+                  class="config-option"
+                >
+                  {{ gap }}px
+                </el-button>
+                <el-button 
+                  type="default"
+                  plain
+                  @click="openCustomModal('stock', 'gap')"
+                  class="config-option custom-option"
+                >
+                  <LucideIcon name="Columns3Cog" :size="14" />
+                  自定义
+                  <span v-if="customDisplay.stock.gap" class="custom-value">{{ customDisplay.stock.gap }}</span>
+                </el-button>
+              </div>
+            </div>
+
+            <div class="config-section">
+              <div class="config-label">
+                <LucideIcon name="PaintbrushVertical" :size="16" />
+                皮肤主题
+              </div>
+              <div class="theme-row">
+                <el-button 
+                  v-for="theme in skinOptions" 
+                  :key="theme.value"
+                  :type="stockConfig.skin === theme.value ? 'primary' : 'default'"
+                  :plain="stockConfig.skin !== theme.value"
+                  @click="selectStockSkin(theme.value)"
+                  class="config-option theme-option"
+                >
+                  {{ theme.label }}
+                </el-button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div v-if="showModal" class="modal-overlay" @click="closeModal">
           <div class="modal-content" @click.stop>
             <div class="modal-header">
@@ -977,14 +1126,16 @@ const {
   showTodoWindowC,
   showThemeConversationMiniWindowC,
   showAccountingMiniWindowC,
+  showStockMiniWindowC,
   pomodoroMiniWindowConfig,
   miniNotebookWindowConfig,
   quickNoteWindowConfig,
   todoWindowConfig,
   themeConversationMiniWindowConfig,
-  accountingMiniWindowConfig
+  accountingMiniWindowConfig,
+  stockMiniWindowConfig
 } = storeToRefs(useWindowMode());
-const { setShowPomodoroMiniWindow, setShowMiniNotebookWindow, setShowQuickNoteWindow, setShowTodoWindow, setShowThemeConversationMiniWindow, setShowAccountingMiniWindow } = useWindowMode();
+const { setShowPomodoroMiniWindow, setShowMiniNotebookWindow, setShowQuickNoteWindow, setShowTodoWindow, setShowThemeConversationMiniWindow, setShowAccountingMiniWindow, setShowStockMiniWindow } = useWindowMode();
 
 const showPomodoroMiniWindowCc = ref(showPomodoroMiniWindowC.value);
 const showMiniNotebookWindowCc = ref(showMiniNotebookWindowC.value);
@@ -1046,6 +1197,16 @@ watch(showAccountingMiniWindowC, (val) => {
 });
 watch(accountingMiniWindowConfig, (val) => {
   accountingConfig.value = { ...val };
+}, { deep: true });
+
+// 股票小窗口
+const showStockMiniWindowCc = ref(showStockMiniWindowC.value);
+const stockConfig = ref({ ...stockMiniWindowConfig.value });
+watch(showStockMiniWindowC, (val) => {
+  showStockMiniWindowCc.value = JSON.parse(JSON.stringify(val));
+});
+watch(stockMiniWindowConfig, (val) => {
+  stockConfig.value = { ...val };
 }, { deep: true });
 
 function changeShowPomodoroMiniWindowFn(val: boolean) {
@@ -1138,6 +1299,21 @@ function applyAccountingWindow() {
   }
 }
 
+function changeShowStockMiniWindowFn(val: boolean) {
+  setShowStockMiniWindow(toRaw(val));
+}
+
+function applyStockWindow() {
+  if (showStockMiniWindowCc.value) {
+    changeShowStockMiniWindowFn(false);
+    setTimeout(() => {
+      changeShowStockMiniWindowFn(true);
+    }, 300);
+  } else {
+    changeShowStockMiniWindowFn(true);
+  }
+}
+
 const positionOptions = [
   { value: 'top-left', icon: '↖' },
   { value: 'center-top', icon: '↑' },
@@ -1178,6 +1354,12 @@ const accountingSizeOptions = [
   { label: '320×480', width: 320, height: 480 },
   { label: '360×520', width: 360, height: 520 },
   { label: '400×600', width: 400, height: 600 },
+];
+
+const stockSizeOptions = [
+  { label: '320×480', width: 320, height: 480 },
+  { label: '360×560', width: 360, height: 560 },
+  { label: '400×640', width: 400, height: 640 },
 ];
 
 const gapOptions = [10, 20, 30, 50];
@@ -1247,6 +1429,12 @@ function selectAccountingSkin(value: string) {
   setStore('window-mode:accountingMini', { ...accountingMiniWindowConfig.value });
 }
 
+function selectStockSkin(value: string) {
+  stockConfig.value.skin = value;
+  stockMiniWindowConfig.value.skin = value;
+  setStore('window-mode:stockMini', { ...stockMiniWindowConfig.value });
+}
+
 function selectQuickNoteLayout(value: string) {
   quickNoteConfig.value.layout = value;
   quickNoteWindowConfig.value.layout = value;
@@ -1274,6 +1462,10 @@ function selectPosition(type: string, value: string) {
     accountingConfig.value.position = value;
     accountingMiniWindowConfig.value.position = value;
     setStore('window-mode:accountingMini', { ...accountingMiniWindowConfig.value });
+  } else if (type === 'stock') {
+    stockConfig.value.position = value;
+    stockMiniWindowConfig.value.position = value;
+    setStore('window-mode:stockMini', { ...stockMiniWindowConfig.value });
   } else {
     quickNoteConfig.value.position = value;
     quickNoteWindowConfig.value.position = value;
@@ -1312,6 +1504,12 @@ function selectSize(type: string, width: number, height: number) {
     accountingMiniWindowConfig.value.width = width;
     accountingMiniWindowConfig.value.height = height;
     setStore('window-mode:accountingMini', { ...accountingMiniWindowConfig.value });
+  } else if (type === 'stock') {
+    stockConfig.value.width = width;
+    stockConfig.value.height = height;
+    stockMiniWindowConfig.value.width = width;
+    stockMiniWindowConfig.value.height = height;
+    setStore('window-mode:stockMini', { ...stockMiniWindowConfig.value });
   } else {
     quickNoteConfig.value.width = width;
     quickNoteConfig.value.height = height;
@@ -1342,6 +1540,10 @@ function selectGap(type: string, gap: number) {
     accountingConfig.value.gap = gap;
     accountingMiniWindowConfig.value.gap = gap;
     setStore('window-mode:accountingMini', { ...accountingMiniWindowConfig.value });
+  } else if (type === 'stock') {
+    stockConfig.value.gap = gap;
+    stockMiniWindowConfig.value.gap = gap;
+    setStore('window-mode:stockMini', { ...stockMiniWindowConfig.value });
   } else {
     quickNoteConfig.value.gap = gap;
     quickNoteWindowConfig.value.gap = gap;
@@ -1351,7 +1553,7 @@ function selectGap(type: string, gap: number) {
 
 const showModal = ref(false);
 const modalType = ref<'position' | 'size' | 'gap'>('position');
-const modalTarget = ref<'pomodoro' | 'notebook' | 'quickNote' | 'todo' | 'themeConversation' | 'accounting'>('pomodoro');
+const modalTarget = ref<'pomodoro' | 'notebook' | 'quickNote' | 'todo' | 'themeConversation' | 'accounting' | 'stock'>('pomodoro');
 
 // 判断各窗口类型的各字段是否为自定义模式，并返回展示值
 const customDisplay = computed(() => {
@@ -1408,6 +1610,11 @@ const customDisplay = computed(() => {
       size: getSizeCustom(accountingConfig.value, accountingSizeOptions),
       gap: getGapCustom(accountingConfig.value),
     },
+    stock: {
+      position: getPositionCustom(stockConfig.value),
+      size: getSizeCustom(stockConfig.value, stockSizeOptions),
+      gap: getGapCustom(stockConfig.value),
+    },
   };
 });
 
@@ -1424,11 +1631,11 @@ const modalTitle = computed(() => {
   return titles[modalType.value];
 });
 
-function openCustomModal(target: 'pomodoro' | 'notebook' | 'quickNote' | 'todo' | 'themeConversation' | 'accounting', type: 'position' | 'size' | 'gap') {
+function openCustomModal(target: 'pomodoro' | 'notebook' | 'quickNote' | 'todo' | 'themeConversation' | 'accounting' | 'stock', type: 'position' | 'size' | 'gap') {
   modalTarget.value = target;
   modalType.value = type;
   
-  const config = target === 'pomodoro' ? pomodoroConfig.value : target === 'notebook' ? notebookConfig.value : target === 'todo' ? todoConfig.value : target === 'themeConversation' ? themeConversationConfig.value : target === 'accounting' ? accountingConfig.value : quickNoteConfig.value;
+  const config = target === 'pomodoro' ? pomodoroConfig.value : target === 'notebook' ? notebookConfig.value : target === 'todo' ? todoConfig.value : target === 'themeConversation' ? themeConversationConfig.value : target === 'accounting' ? accountingConfig.value : target === 'stock' ? stockConfig.value : quickNoteConfig.value;
   
   if (type === 'position') {
     customPosition.value = { x: 0, y: 0 };
@@ -1478,6 +1685,12 @@ function confirmCustom() {
         accountingMiniWindowConfig.value.x = customPosition.value.x;
         accountingMiniWindowConfig.value.y = customPosition.value.y;
         setStore('window-mode:accountingMini', { ...accountingMiniWindowConfig.value });
+      } else if (modalTarget.value === 'stock') {
+        stockConfig.value.position = 'custom';
+        stockMiniWindowConfig.value.position = 'custom';
+        stockMiniWindowConfig.value.x = customPosition.value.x;
+        stockMiniWindowConfig.value.y = customPosition.value.y;
+        setStore('window-mode:stockMini', { ...stockMiniWindowConfig.value });
       } else {
         quickNoteConfig.value.position = 'custom';
         quickNoteWindowConfig.value.position = 'custom';
@@ -1518,6 +1731,12 @@ function confirmCustom() {
         accountingMiniWindowConfig.value.width = customSize.value.width;
         accountingMiniWindowConfig.value.height = customSize.value.height;
         setStore('window-mode:accountingMini', { ...accountingMiniWindowConfig.value });
+      } else if (modalTarget.value === 'stock') {
+        stockConfig.value.width = customSize.value.width;
+        stockConfig.value.height = customSize.value.height;
+        stockMiniWindowConfig.value.width = customSize.value.width;
+        stockMiniWindowConfig.value.height = customSize.value.height;
+        setStore('window-mode:stockMini', { ...stockMiniWindowConfig.value });
       } else {
         quickNoteConfig.value.width = customSize.value.width;
         quickNoteConfig.value.height = customSize.value.height;
@@ -1548,6 +1767,10 @@ function confirmCustom() {
         accountingConfig.value.gap = customGap.value;
         accountingMiniWindowConfig.value.gap = customGap.value;
         setStore('window-mode:accountingMini', { ...accountingMiniWindowConfig.value });
+      } else if (modalTarget.value === 'stock') {
+        stockConfig.value.gap = customGap.value;
+        stockMiniWindowConfig.value.gap = customGap.value;
+        setStore('window-mode:stockMini', { ...stockMiniWindowConfig.value });
       } else {
         quickNoteConfig.value.gap = customGap.value;
         quickNoteWindowConfig.value.gap = customGap.value;

@@ -149,6 +149,7 @@ export const iconMap: Record<string, string> = {
   ebookReader: 'BookOpenText',
   screenshot: 'Camera',
   accounting: 'Wallet',
+  stock: 'TrendingUp',
 };
 
 export { getLightColor, getDarkColor } from './color';

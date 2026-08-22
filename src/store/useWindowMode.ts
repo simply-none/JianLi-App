@@ -167,6 +167,40 @@ export default defineStore("window-mode", () => {
     });
   }, { deep: true });
 
+  // ============ 股票小窗口 ============
+  const showStockMiniWindow = ref();
+  const showStockMiniWindowC = computed(() => showStockMiniWindow.value);
+  function setShowStockMiniWindow(value: boolean) {
+    showStockMiniWindow.value = value;
+    setStore("showStockMiniWindow", value);
+  }
+
+  const stockMiniWindowConfig = ref({
+    position: 'bottom-right',
+    width: 360,
+    height: 560,
+    gap: 30,
+    x: 0,
+    y: 0,
+    skin: 'white',
+    symbol: '',
+  });
+
+  watch(showStockMiniWindow, (newValue) => {
+    if (newValue == true) {
+      console.log("打开股票小窗口", stockMiniWindowConfig.value);
+      send("open-new-window", "stockMini", stockMiniWindowConfig.value);
+    } else {
+      send("close-new-window", "stockMini");
+    }
+  });
+
+  watch(stockMiniWindowConfig, (newVal) => {
+    send('sync-data-to-other-window', {
+      stockMiniWindowConfig: toRaw(newVal),
+    });
+  }, { deep: true });
+
   watch(pomodoroMiniWindowConfig, (newVal) => {
     send('sync-data-to-other-window', {
       pomodoroMiniWindowConfig: toRaw(newVal),
@@ -216,6 +250,11 @@ export default defineStore("window-mode", () => {
         field: "showAccountingMiniWindow",
         default: false,
         map: showAccountingMiniWindow,
+      },
+      {
+        field: "showStockMiniWindow",
+        default: false,
+        map: showStockMiniWindow,
       },
     ];
 
@@ -322,6 +361,20 @@ export default defineStore("window-mode", () => {
         },
         map: accountingMiniWindowConfig,
       },
+      {
+        field: "window-mode:stockMini",
+        default: {
+          position: 'bottom-right',
+          width: 360,
+          height: 560,
+          gap: 30,
+          x: 0,
+          y: 0,
+          skin: 'white',
+          symbol: '',
+        },
+        map: stockMiniWindowConfig,
+      },
     ];
 
     const allVars: defaultField[] = [
@@ -360,6 +413,13 @@ export default defineStore("window-mode", () => {
           accountingMiniWindowConfig.value = { ...currentConfig, ...newConfig };
         }
       }
+      if (arg?.stockMiniWindowConfig) {
+        const newConfig = arg.stockMiniWindowConfig;
+        const currentConfig = stockMiniWindowConfig.value;
+        if (JSON.stringify(newConfig) !== JSON.stringify(currentConfig)) {
+          stockMiniWindowConfig.value = { ...currentConfig, ...newConfig };
+        }
+      }
     });
   }
 
@@ -396,6 +456,10 @@ export default defineStore("window-mode", () => {
     showAccountingMiniWindowC,
     setShowAccountingMiniWindow,
     accountingMiniWindowConfig,
+    showStockMiniWindow,
+    showStockMiniWindowC,
+    setShowStockMiniWindow,
+    stockMiniWindowConfig,
     $reset,
   };
 });

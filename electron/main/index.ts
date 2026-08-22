@@ -24,6 +24,7 @@ import { initBing } from "./module/bing.ts";
 import { initTTS } from "./module/tts.ts";
 import { initEbook } from "./module/ebook.ts";
 import { initScreenshot } from "./module/screenshot.ts";
+import { initStock } from "./module/stock.ts";
 
 registerJlocalProtocolBefore()
 
@@ -92,6 +93,8 @@ async function createWindow() {
   await initEbook();
   // 截图模块
   initScreenshot();
+  // 股票查询模块（TickFlow，主进程查询，依赖数据库基础表）
+  initStock();
 }
 
 app.whenReady().then(async () => {
