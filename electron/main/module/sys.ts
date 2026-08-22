@@ -49,9 +49,12 @@ export async function initSys() {
   
       defaultAppWorker.on('error', (error) => {
         console.error('Worker error:', error);
+        defaultAppWorker = null;
       });
   
       defaultAppWorker.on('exit', (code) => {
+        // worker 结束后必须重置引用，否则再次打开弹窗时仍向已终止的 worker postMessage 会静默失效
+        defaultAppWorker = null;
         if (code !== 0) {
           console.log('Worker stopped with exit code:', code);
         }

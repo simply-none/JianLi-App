@@ -103,7 +103,7 @@
 </template>
 
 <script setup lang="tsx">
-import { ref, computed, toRaw } from 'vue';
+import { ref, computed, toRaw, onUnmounted } from 'vue';
 import LucideIcon from '@/components/LucideIcon.vue';
 import { ElMessage } from 'element-plus';
 import type { Column } from 'element-plus';
@@ -199,7 +199,7 @@ const startScan = async () => {
   }
 };
 
-window.ipcRenderer.on('start-scan', (_event: any, files: any[]) => {
+const onStartScan = (_event: any, files: any[]) => {
   scanResultFiles.value = files;
   scanLoading.value = false;
   const timeGap = Date.now() - scanStartTime.value;
@@ -207,6 +207,12 @@ window.ipcRenderer.on('start-scan', (_event: any, files: any[]) => {
   const m = Math.floor(timeGap / 1000 / 60 % 60);
   const s = Math.floor(timeGap / 1000 % 60);
   scanTimeGap.value = `${h ? h + '时' : ''}${m ? m + '分' : ''}${s ? s + '秒' : ''}` || '1秒内';
+};
+
+window.ipcRenderer.on('start-scan', onStartScan);
+
+onUnmounted(() => {
+  window.ipcRenderer.removeAllListeners('start-scan');
 });
 
 function saveToDB(data: any[]) {

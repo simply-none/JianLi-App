@@ -28,7 +28,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue';
+import { ref, reactive, onUnmounted } from 'vue';
 import LucideIcon from '@/components/LucideIcon.vue';
 
 const emit = defineEmits(['updateDefaultAppPaths']);
@@ -51,7 +51,7 @@ function getDefaultFilePath(ext: string) {
   window.ipcRenderer.send('get-default-file-path', { ext });
 }
 
-window.ipcRenderer.on('get-default-file-path', (event, { ext, path }) => {
+const onDefaultFilePath = (event: any, { ext, path }: any) => {
   if (typeof path === 'string' && path !== '') {
     defaultAppPaths[ext] = {
       ext,
@@ -59,6 +59,12 @@ window.ipcRenderer.on('get-default-file-path', (event, { ext, path }) => {
     };
     emit('updateDefaultAppPaths', { ...defaultAppPaths });
   }
+};
+
+window.ipcRenderer.on('get-default-file-path', onDefaultFilePath);
+
+onUnmounted(() => {
+  window.ipcRenderer.removeAllListeners('get-default-file-path');
 });
 
 function openAppDialog() {
