@@ -2,7 +2,27 @@
 
 变更日志
 
-## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.8.18-rc.1...HEAD) (2026-08-20)
+## [Latest](https://github.com/simply-none/JianLi-App/compare/v26.8.20-rc.1...HEAD) (2026-08-23)
+
+### ✨ Features | 新功能
+
+* 股票功能细化 ([1fbf8ac](https://github.com/simply-none/JianLi-App/commit/1fbf8ac78335abbbcaa186edf657ea5864feea34))
+* 新增股票功能 ([c2f5844](https://github.com/simply-none/JianLi-App/commit/c2f5844b366a31b90d9cf27f6319488b629cc457))
+* 文件关联页面功能优化 ([d37fc46](https://github.com/simply-none/JianLi-App/commit/d37fc46da417ed80ae03fc8c1fb7f35822e51432))
+* 电子书阅读器翻页效果优化 ([b27d153](https://github.com/simply-none/JianLi-App/commit/b27d15347eb1d03e0bc89aefb65551fccfbf5dba))
+* 记账功能增强，增加下钻功能；图表样式优化；设置优化； ([ac6377d](https://github.com/simply-none/JianLi-App/commit/ac6377d80e9a66abaa7fae63acdc086cbb64c790))
+* 记账分类补全 ([dcb1bf5](https://github.com/simply-none/JianLi-App/commit/dcb1bf5cf3c57b785ade78131662e9338853d4a4))
+* 新增记账功能 ([e90ddff](https://github.com/simply-none/JianLi-App/commit/e90ddffa256e012fc744f2f80d7931dcb999589c))
+
+### 🐛 Bug Fixes | Bug 修复
+
+* 修复控制台报错和警告 ([7c6ffff](https://github.com/simply-none/JianLi-App/commit/7c6ffff91cfbc7fd8a23cfeb4f5263e029bec162))
+
+### ✅ Tests | 测试
+
+* 删除ai产生的垃圾数据 ([8624920](https://github.com/simply-none/JianLi-App/commit/8624920559daf1a6dbec5bb3a3024f7524466fcb))
+
+## [v26.8.20-rc.1](https://github.com/simply-none/JianLi-App/compare/v26.8.18-rc.1...v26.8.20-rc.1) (2026-08-20)
 
 ### ✨ Features | 新功能
 
