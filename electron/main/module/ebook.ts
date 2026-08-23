@@ -352,6 +352,43 @@ function stripBom(text: string): string {
   return text;
 }
 
+/** 受支持的电子书文件后缀（文件夹导入与批量导入共用） */
+const SUPPORTED_EBOOK_EXT = ['txt', 'epub', 'pdf'];
+
+/**
+ * 递归收集文件夹内所有受支持的电子书文件（txt / epub / pdf）绝对路径。
+ * 为避免无意义扫描与符号链接环：
+ * - 跳过以 '.' 开头的隐藏目录（如 .git、.vscode）
+ * - 符号链接目录 isDirectory() 为 false，自然不会被递归进入，避免死循环
+ * - 限制递归深度（depth），防止过深的目录结构造成栈溢出
+ *
+ * @param dir - 要扫描的目录绝对路径
+ * @param out - 收集结果的数组（递归共享同一引用）
+ * @param depth - 当前递归深度（从 0 开始）
+ */
+function collectEbookFiles(dir: string, out: string[], depth: number): void {
+  if (depth > 20) return;
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      // 跳过隐藏目录（.git / .vscode 等），避免无意义扫描
+      if (entry.name.startsWith('.')) continue;
+      collectEbookFiles(full, out, depth + 1);
+    } else if (entry.isFile()) {
+      const ext = entry.name.split('.').pop()?.toLowerCase() || '';
+      if (SUPPORTED_EBOOK_EXT.includes(ext)) {
+        out.push(full);
+      }
+    }
+  }
+}
+
 /**
  * 包装 sqlite3 的 db.run 为 Promise
  *
@@ -1071,6 +1108,48 @@ export async function initEbook(): Promise<void> {
         return {
           success: false,
           error: `获取书架列表失败：${err?.message || String(err)}`
+        };
+      }
+    }
+  );
+
+  // ============ ebook:scan-folder 递归扫描文件夹内的电子书文件 ============
+  /**
+   * 递归扫描指定文件夹，返回其中所有受支持电子书文件（txt / epub / pdf）的绝对路径列表。
+   * 用于「文件夹导入」：渲染进程选中文件夹后，由主进程枚举其下全部电子书再批量加入书架。
+   *
+   * @param _event - IPC 事件对象（未使用）
+   * @param folderPath - 必填参数，文件夹绝对路径
+   * @returns 成功返回 { success: true, data: string[] }（无匹配时 data 为空数组）；
+   *          失败返回 { success: false, error: string }
+   */
+  ipcMain.handle(
+    'ebook:scan-folder',
+    async (
+      _event,
+      folderPath: string
+    ): Promise<{ success: boolean; data?: string[]; error?: string }> => {
+      try {
+        if (!folderPath || typeof folderPath !== 'string') {
+          return { success: false, error: '文件夹路径不能为空' };
+        }
+        let stat;
+        try {
+          stat = fs.statSync(folderPath);
+        } catch {
+          return { success: false, error: '文件夹不存在或无法访问' };
+        }
+        if (!stat.isDirectory()) {
+          return { success: false, error: '所选路径不是文件夹' };
+        }
+        const files: string[] = [];
+        collectEbookFiles(folderPath, files, 0);
+        return { success: true, data: files };
+      } catch (err: any) {
+        log.error('Failed to scan ebook folder:', err);
+        return {
+          success: false,
+          error: `扫描文件夹失败：${err?.message || String(err)}`
         };
       }
     }

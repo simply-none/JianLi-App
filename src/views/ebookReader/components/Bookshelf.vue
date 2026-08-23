@@ -15,6 +15,14 @@
           <LucideIcon name="FolderPlus" :size="14" />
           添加书籍
         </el-button>
+        <el-button
+          size="small"
+          @click="emit('add-folder')"
+          title="导入整个文件夹（含子目录）的电子书到书架"
+        >
+          <LucideIcon name="Folders" :size="14" />
+          导入文件夹
+        </el-button>
         <span class="book-count">共 {{ items.length }} 本书</span>
         <el-button
           v-if="items.length > 0"
@@ -166,6 +174,10 @@
         <el-button @click="emit('add-external')">
           <LucideIcon name="FolderPlus" :size="16" />
           仅加入书架
+        </el-button>
+        <el-button @click="emit('add-folder')">
+          <LucideIcon name="Folders" :size="16" />
+          导入文件夹
         </el-button>
       </el-empty>
     </div>
@@ -326,6 +338,7 @@ const emit = defineEmits<{
   (e: 'open', item: BookshelfItem): void;
   (e: 'remove', item: BookshelfItem): void;
   (e: 'add-external'): void;
+  (e: 'add-folder'): void;
   (e: 'open-file'): void;
   (e: 'open-annotations', item: BookshelfItem): void;
   (e: 'export', item: BookshelfItem): void;

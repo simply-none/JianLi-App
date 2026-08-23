@@ -221,6 +221,7 @@
             @open="openBook"
             @remove="removeBook"
             @add-external="addExternal"
+            @add-folder="addFolder"
             @open-file="openFile"
             @open-annotations="openShelfAnnotations"
             @export="exportBook"
@@ -386,6 +387,7 @@ const {
   removeBook,
   clearAll,
   addExternal,
+  addFolder,
   exportBook,
   exportAll,
   // 分类相关状态与操作

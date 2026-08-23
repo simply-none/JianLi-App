@@ -55,6 +55,8 @@ interface Window {
       removeFromBookshelf: (filePath: string) => Promise<{ success: boolean; error?: string }>;
       // 一键清空书架（仅删除书架记录，不动标注/进度/书签/分类等其它内容）
       clearBookshelf: () => Promise<{ success: boolean; error?: string }>;
+      // 递归扫描文件夹，返回其中所有受支持的电子书文件（txt / epub / pdf）绝对路径列表
+      scanFolder: (folderPath: string) => Promise<{ success: boolean; data?: string[]; error?: string }>;
       // 获取全部分类（按创建时间升序），每条含可选颜色 color
       getCategories: () => Promise<{ success: boolean; data?: { id: number; name: string; color?: string }[]; error?: string }>;
       // 新增分类（按名称去重，幂等；color 可选，十六进制色值）

@@ -211,27 +211,35 @@ export function useBookshelf(opts: UseBookshelfOptions) {
   }
 
   /**
-   * 书架视图下：打开外部电子书文件并加入书架
-   * 停留在书架视图（不切换到阅读视图），支持多选，仅接受 txt / epub，其余格式忽略并提示
+   * 把一批文件加入书架（仅加入，不打开阅读）。
+   * 统一规则（批量导入与文件夹导入共用）：
+   * - 仅接受 txt / epub / pdf，其它格式忽略并计数（skippedUnsupported）
+   * - 与书架已有 path 相同的文件忽略导入（不更新原记录）并计数（skippedDuplicate）
+   * - 计算内容哈希，使副本可与同内容原书共用标注/进度
+   *
+   * @param filePaths - 待导入文件绝对路径数组
+   * @returns 导入统计 { added, skippedUnsupported, skippedDuplicate }
    */
-  async function addExternal(): Promise<void> {
-    // 多选打开文件对话框（multiSelections 由主进程 get-file-list 转发给 getFilePath）
-    const result = window.ipcRenderer.sendSync('get-file-list', {
-      openFile: true,
-      type: ['file'],
-      multiSelections: true,
-    });
-    // 用户取消或返回非数组
-    if (!result || !Array.isArray(result) || result.length === 0) return;
-
+  async function importFilesToShelf(
+    filePaths: string[]
+  ): Promise<{ added: number; skippedUnsupported: number; skippedDuplicate: number }> {
     let added = 0;
-    let skipped = 0;
-    for (const filePath of result) {
+    let skippedUnsupported = 0;
+    let skippedDuplicate = 0;
+    // 本次导入内去重，避免同一文件被重复计数
+    const seenInThisImport = new Set<string>();
+
+    for (const filePath of filePaths) {
       const fileName = getFileName(filePath);
       const format = getFormat(fileName);
-      // 仅接受 txt / epub，其它格式跳过并计数
+      // 仅接受 txt / epub / pdf，其它格式跳过并计数
       if (!format) {
-        skipped++;
+        skippedUnsupported++;
+        continue;
+      }
+      // 同一路径（或本次已导入）的书忽略导入，不覆盖原记录
+      if (bookshelf.value.some((b) => b.path === filePath) || seenInThisImport.has(filePath)) {
+        skippedDuplicate++;
         continue;
       }
       // 已存在的书沿用其原有进度（percent），避免被 0 覆盖
@@ -253,18 +261,94 @@ export function useBookshelf(opts: UseBookshelfOptions) {
         addedAt: new Date().toISOString(),
         contentHash,
       });
+      seenInThisImport.add(filePath);
       added++;
     }
 
     // 刷新每本书的笔记/划线数量徽标（addToBookshelf 内部已重新 loadBookshelf）
     refreshCounts();
 
-    if (added > 0) {
-      ElMessage.success(`已添加 ${added} 本书到书架`);
+    return { added, skippedUnsupported, skippedDuplicate };
+  }
+
+  /**
+   * 统一的导入结果提示：成功提示导入数量；忽略项按需提示
+   *
+   * @param r - importFilesToShelf 返回的统计结果
+   */
+  function reportImportResult(r: {
+    added: number;
+    skippedUnsupported: number;
+    skippedDuplicate: number;
+  }): void {
+    if (r.added > 0) {
+      ElMessage.success(`已添加 ${r.added} 本书到书架`);
+    } else if (r.skippedUnsupported === 0 && r.skippedDuplicate === 0) {
+      // 没有任何可导入文件（调用方通常已做空判断，这里兜底）
+      ElMessage.info('没有可导入的电子书');
     }
-    if (skipped > 0) {
-      ElMessage.warning(`已忽略 ${skipped} 个不支持的文件（当前仅支持 txt、epub）`);
+    if (r.skippedUnsupported > 0) {
+      ElMessage.warning(`已忽略 ${r.skippedUnsupported} 个不支持的文件（当前仅支持 txt、epub、pdf）`);
     }
+    if (r.skippedDuplicate > 0) {
+      ElMessage.warning(`已忽略 ${r.skippedDuplicate} 本已在书架中的书（相同路径不再导入）`);
+    }
+  }
+
+  /**
+   * 书架视图下：批量打开外部电子书文件并加入书架（多选）
+   * 停留在书架视图（不切换到阅读视图），同一路径的书忽略导入，不支持格式跳过并提示
+   */
+  async function addExternal(): Promise<void> {
+    // 多选打开文件对话框（multiSelections 由主进程 get-file-list 转发给 getFilePath）
+    const result = window.ipcRenderer.sendSync('get-file-list', {
+      openFile: true,
+      type: ['file'],
+      multiSelections: true,
+    });
+    // 用户取消或返回非数组
+    if (!result || !Array.isArray(result) || result.length === 0) return;
+
+    const r = await importFilesToShelf(result);
+    reportImportResult(r);
+  }
+
+  /**
+   * 书架视图下：选择文件夹并批量导入其内全部电子书到书架（含子目录，递归）
+   * 停留在书架视图（不切换到阅读视图），同一路径的书忽略导入，不支持格式跳过
+   */
+  async function addFolder(): Promise<void> {
+    // 仅选文件夹（openDirectory 由主进程 get-file-list 转发给 getFilePath）
+    const result = window.ipcRenderer.sendSync('get-file-list', {
+      openDirectory: true,
+    });
+    // 用户取消或返回非数组
+    if (!result || !Array.isArray(result) || result.length === 0) return;
+    const folderPath = result[0];
+
+    // 主进程递归扫描该文件夹内所有电子书文件
+    let filePaths: string[] = [];
+    try {
+      const res = await window.ipcRenderer.ebook.scanFolder(folderPath);
+      if (res && res.success && Array.isArray(res.data)) {
+        filePaths = res.data;
+      } else if (res && !res.success) {
+        ElMessage.error(res.error || '扫描文件夹失败');
+        return;
+      }
+    } catch (err) {
+      console.error('扫描文件夹失败', err);
+      ElMessage.error('扫描文件夹失败');
+      return;
+    }
+
+    if (filePaths.length === 0) {
+      ElMessage.info('该文件夹内没有可导入的电子书（仅支持 txt、epub、pdf）');
+      return;
+    }
+
+    const r = await importFilesToShelf(filePaths);
+    reportImportResult(r);
   }
 
   /**
@@ -301,6 +385,7 @@ export function useBookshelf(opts: UseBookshelfOptions) {
     removeBook,
     clearAll,
     addExternal,
+    addFolder,
     exportBook,
     exportAll,
     // 分类相关状态与操作

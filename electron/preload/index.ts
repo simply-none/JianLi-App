@@ -165,6 +165,16 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
       return ipcRenderer.invoke('ebook:clear-bookshelf')
     },
     /**
+     * 递归扫描文件夹，返回其中所有受支持的电子书文件（txt / epub / pdf）绝对路径列表
+     *
+     * @param folderPath - 必填参数，文件夹绝对路径
+     * @returns 成功返回 Promise<{ success: boolean; data?: string[]; error?: string }>；
+     *          失败返回 Promise 中 success 为 false，并附带 error 错误信息
+     */
+    scanFolder(folderPath: string) {
+      return ipcRenderer.invoke('ebook:scan-folder', folderPath)
+    },
+    /**
      * 获取全部分类（按创建时间升序）
      *
      * @returns 成功返回 Promise<{ success: true; data: { id, name }[] }>；
