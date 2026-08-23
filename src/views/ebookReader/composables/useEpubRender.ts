@@ -192,8 +192,10 @@ export function useEpubRender(ctx: EpubCtx) {
           // 父文档的 document click 监听收不到，故需在此补一条（点中划线本身不关，由 cb 重新定位）
           doc.addEventListener('click', onContentClick);
         }
-        // 内容挂载后注入「字间距 / 段间距 / 首行缩进」扩展样式
-        applyTypographyExtrasToContent(contents);
+          // 内容挂载后注入「字间距 / 段间距 / 首行缩进」扩展样式
+          applyTypographyExtrasToContent(contents);
+          // 内容挂载后注入强制样式：覆盖 epub 内部写死的排版/颜色，跟随阅读设置
+          injectForcedStyle(contents);
       });
 
       const savedCfi = await restoreProgress(filePath);
@@ -475,6 +477,110 @@ export function useEpubRender(ctx: EpubCtx) {
     contents.forEach((c: any) => applyTypographyExtrasToContent(c));
   }
 
+  /**
+   * 强制覆盖 epub 内部写死的样式，使正文排版（字号/字体/行距/字间距/颜色）与背景强制跟随阅读设置。
+   *
+   * 背景：epubjs 的 themes.fontSize/font/override 只往 iframe 的 `body` 写规则（且 font-size/font-family
+   * 不带 !important），一旦 epub 正文元素自带内联样式（如 `<p style="font-size:20px">`）或自身 CSS 优先级更高，
+   * 就会盖过 body 规则，导致用户设置对该部分内容完全失效。
+   *
+   * 做法：往每个已渲染 iframe 的 <head> 注入一段带 `!important` 的专属样式表：
+   *   1) body 写实际设置值；
+   *   2) 正文文本元素（p/div/span/li/a/h1~h6 之外的常规文本容器）强制 `inherit !important`，
+   *      从而用「继承」抹掉其内部写死的字号/字体/行距/字间距/颜色；
+   *   3) 标题（h1~h6）保留 epub 原有的相对比例：首次挂载内容时测量一次 原hX字号/原body字号 的比值，
+   *      之后按「设置字号 × 比值」缩放，既跟着设置走又保留层级。
+   * 该表带固定 id，重复设置时先移除旧节点，避免规则无限累积。
+   */
+  const EPUB_FORCED_STYLE_ID = 'ebook-forced-style';
+  /** 每个 iframe 文档只测量一次原始基准字号与各标题层级比例，缓存避免被已注入的强制字号污染 */
+  const forcedRatioCache = new WeakMap<Document, { ratios: Record<string, number> }>();
+  /** 强制继承排版属性的正文文本元素（标题另算，不参与继承覆盖） */
+  const FORCED_TEXT_TAGS = [
+    'p', 'div', 'span', 'li', 'a', 'td', 'th', 'blockquote', 'pre', 'code',
+    'em', 'strong', 'b', 'i', 'u', 'small', 'sub', 'sup', 'label',
+    'figcaption', 'caption', 'dl', 'dt', 'dd', 'table', 'tr', 'section', 'article',
+  ];
+
+  /** 测量并缓存当前文档各标题层级相对 body 的字号比例（仅首次挂载时真正测量） */
+  function measureRatios(doc: Document): Record<string, number> {
+    const cached = forcedRatioCache.get(doc);
+    if (cached) return cached.ratios;
+    const base0 = parseFloat(getComputedStyle(doc.body).fontSize) || 16;
+    const ratios: Record<string, number> = {};
+    for (let lvl = 1; lvl <= 6; lvl++) {
+      const el = doc.querySelector(`h${lvl}`);
+      if (!el) continue;
+      const hs = parseFloat(getComputedStyle(el as Element).fontSize);
+      if (hs && base0) ratios[`h${lvl}`] = hs / base0;
+    }
+    forcedRatioCache.set(doc, { ratios });
+    return ratios;
+  }
+
+  /** 构建强制样式表的 CSS 文本 */
+  function buildForcedCss(ratios: Record<string, number>): string {
+    const size = ctx.props.fontSize || 16;
+    const cn = ctx.props.fontFamily || '';
+    const en = ctx.props.fontFamilyEn || '';
+    const fontList = [cn, en].filter(Boolean).concat('sans-serif').join(', ');
+    const lh = ctx.props.lineHeight ?? 1.8;
+    const ls = ctx.props.letterSpacing ?? 0;
+    const bg = resolveReadingBg(
+      ctx.props.bgType ?? 'preset',
+      ctx.props.bgColor ?? '',
+      ctx.props.bgImage ?? '',
+      ctx.props.theme
+    );
+    const text = resolveReadingText(ctx.props.textColor ?? '', ctx.props.theme);
+
+    const parts: string[] = [];
+    // 1) body 写实际设置值（背景/文字色也在此强制，确保跟随主题）
+    parts.push(
+      `body { font-size: ${size}px !important; font-family: ${fontList} !important; ` +
+        `line-height: ${lh} !important; letter-spacing: ${ls}px !important; ` +
+        `color: ${text} !important; background: ${bg} !important; }`
+    );
+    // 2) 正文文本元素强制继承，抹掉内部写死的字体/字号/行距/字间距/颜色
+    parts.push(
+      `${FORCED_TEXT_TAGS.join(',')} { font-size: inherit !important; ` +
+        `font-family: inherit !important; line-height: inherit !important; ` +
+        `letter-spacing: inherit !important; color: inherit !important; }`
+    );
+    // 3) 标题：保留 epub 原相对比例（按 原hX/原body 比值缩放），字体/行距/字间距/颜色跟随设置
+    Object.entries(ratios).forEach(([tag, r]) => {
+      if (!isFinite(r) || r <= 0) return;
+      const hsize = (size * r).toFixed(2);
+      parts.push(
+        `${tag} { font-size: ${hsize}px !important; font-family: inherit !important; ` +
+          `line-height: ${lh} !important; letter-spacing: ${ls}px !important; ` +
+          `color: inherit !important; }`
+      );
+    });
+    return parts.join('\n');
+  }
+
+  /** 向单个 iframe 内容注入（或刷新）强制样式表 */
+  function injectForcedStyle(contents: any) {
+    const doc = contents?.document as Document | undefined;
+    if (!doc || !doc.head) return;
+    const ratios = measureRatios(doc);
+    const css = buildForcedCss(ratios);
+    const old = doc.getElementById(EPUB_FORCED_STYLE_ID);
+    if (old) old.remove();
+    const styleEl = doc.createElement('style');
+    styleEl.id = EPUB_FORCED_STYLE_ID;
+    styleEl.textContent = css;
+    doc.head.appendChild(styleEl);
+  }
+
+  /** 将强制样式表应用到当前全部已渲染内容（设置变更时调用） */
+  function applyForcedStyle() {
+    if (!ctx.rendition) return;
+    const contents = (ctx.rendition as any).getContents?.() || [];
+    contents.forEach((c: any) => injectForcedStyle(c));
+  }
+
   /*
    * 页边距不在此处应用：epubjs 在分页布局中对 iframe body 写死 `margin: 0 !important`
    * （epubjs/lib/contents.js columns() 中的 `this.css("margin", "0", true)`），
@@ -753,6 +859,7 @@ export function useEpubRender(ctx: EpubCtx) {
     () => ctx.props.theme,
     (newTheme) => {
       applyTheme(newTheme);
+      applyForcedStyle();
     }
   );
 
@@ -760,6 +867,7 @@ export function useEpubRender(ctx: EpubCtx) {
     () => [ctx.props.bgType, ctx.props.bgColor, ctx.props.bgImage, ctx.props.textColor],
     () => {
       applyReadingStyle();
+      applyForcedStyle();
     }
   );
 
@@ -767,6 +875,7 @@ export function useEpubRender(ctx: EpubCtx) {
     () => ctx.props.fontSize,
     (newSize) => {
       applyFontSize(newSize);
+      applyForcedStyle();
       if (ctx.refreshAnnotations) void ctx.refreshAnnotations();
       requestAnimationFrame(() => updatePageInfo());
     }
@@ -776,6 +885,7 @@ export function useEpubRender(ctx: EpubCtx) {
     () => [ctx.props.fontFamily, ctx.props.fontFamilyEn],
     () => {
       applyFont();
+      applyForcedStyle();
       if (ctx.refreshAnnotations) void ctx.refreshAnnotations();
       requestAnimationFrame(() => updatePageInfo());
     }
@@ -785,6 +895,7 @@ export function useEpubRender(ctx: EpubCtx) {
     () => ctx.props.lineHeight,
     () => {
       applyLineHeight();
+      applyForcedStyle();
       if (ctx.refreshAnnotations) void ctx.refreshAnnotations();
       requestAnimationFrame(() => updatePageInfo());
     }
@@ -795,6 +906,7 @@ export function useEpubRender(ctx: EpubCtx) {
     () => [ctx.props.letterSpacing, ctx.props.paragraphSpacing, ctx.props.firstLineIndent],
     () => {
       applyTypographyExtras();
+      applyForcedStyle();
     }
   );
 
