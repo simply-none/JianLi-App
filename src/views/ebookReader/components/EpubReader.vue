@@ -99,7 +99,7 @@
         <el-button size="small" :disabled="loading || (ctx.settings.value.fontSize <= 12)" @click="onAdjustFont(-1)" title="减小字号">
           <LucideIcon name="MinusIcon" :size="14" />
         </el-button>
-        <el-button size="small" :disabled="loading || (ctx.settings.value.fontSize >= 32)" @click="onAdjustFont(1)" title="增大字号">
+        <el-button size="small" :disabled="loading || (ctx.settings.value.fontSize >= 128)" @click="onAdjustFont(1)" title="增大字号">
           <LucideIcon name="Plus" :size="14" />
         </el-button>
       </div>
@@ -258,7 +258,7 @@ const { printPage, hasPageList } = pageNumbers;
 /** 字号快捷调整（A-/A+）：计算新的受限字号并通知父组件持久化 */
 function onAdjustFont(delta: number): void {
   const cur = ctx.settings.value.fontSize ?? 16;
-  const next = Math.max(12, Math.min(32, cur + delta));
+  const next = Math.max(12, Math.min(128, cur + delta));
   if (next !== cur) {
     ctx.emit('font-size-change', next);
   }

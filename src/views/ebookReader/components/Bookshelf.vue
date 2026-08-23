@@ -1,5 +1,5 @@
 <template>
-  <div class="bookshelf-view" @scroll="onScroll">
+  <div class="bookshelf-view" :class="{ 'list-mode': viewMode === 'list' }" @scroll="onScroll">
     <!-- 书架顶部标题与数量 -->
     <div class="bookshelf-header">
       <h2 class="bookshelf-title">
@@ -23,6 +23,25 @@
           <LucideIcon name="Folders" :size="14" />
           导入文件夹
         </el-button>
+        <!-- 展示模式切换：卡片网格 / 虚拟表格列表（选择记忆到 localStorage） -->
+        <el-button-group class="view-mode-switch">
+          <el-button
+            size="small"
+            :type="viewMode === 'card' ? 'primary' : undefined"
+            title="卡片模式"
+            @click="setViewMode('card')"
+          >
+            <LucideIcon name="LayoutDashboard" :size="14" />
+          </el-button>
+          <el-button
+            size="small"
+            :type="viewMode === 'list' ? 'primary' : undefined"
+            title="列表模式"
+            @click="setViewMode('list')"
+          >
+            <LucideIcon name="List" :size="14" />
+          </el-button>
+        </el-button-group>
         <span class="book-count">共 {{ items.length }} 本书</span>
         <el-button
           v-if="items.length > 0"
@@ -182,6 +201,20 @@
       </el-empty>
     </div>
 
+    <!-- 列表模式：虚拟表格（字段与卡片一致；左键打开、右键菜单做笔记/导出/分类/移除） -->
+    <BookshelfTable
+      v-else-if="viewMode === 'list'"
+      class="bookshelf-table-fill"
+      :items="items"
+      :annotation-count-map="annotationCountMap"
+      :categories="categories"
+      @open="emit('open', $event)"
+      @remove="emit('remove', $event)"
+      @open-annotations="emit('open-annotations', $event)"
+      @export="emit('export', $event)"
+      @request-set-categories="openCatDialog"
+    />
+
     <!-- 卡片网格：flex wrap 响应式布局，每行 3-4 张卡片 -->
     <div v-else class="bookshelf-grid">
       <div
@@ -307,9 +340,10 @@
         </div>
       </div>
     </div>
-    <!-- 触底加载指示：展示当前已渲染 / 总数，提示继续上滑加载更多 -->
+    <!-- 底部统计：卡片模式展示分批加载进度；列表模式由虚拟表格全量承载，仅展示总数 -->
     <div v-if="items.length > 0" class="bookshelf-footer">
-      <span v-if="visibleCount < items.length">已加载 {{ visibleCount }} / {{ items.length }} 本，上滑加载更多</span>
+      <span v-if="viewMode === 'list'">共 {{ items.length }} 本书（虚拟滚动，仅渲染可视行）</span>
+      <span v-else-if="visibleCount < items.length">已加载 {{ visibleCount }} / {{ items.length }} 本，上滑加载更多</span>
       <span v-else>已展示全部 {{ items.length }} 本书</span>
     </div>
   </div>
@@ -319,6 +353,7 @@
 import { ref, computed, watch } from 'vue';
 import moment from 'moment';
 import LucideIcon from '@/components/LucideIcon.vue';
+import BookshelfTable from './BookshelfTable.vue';
 import type { BookshelfItem } from '@/store/useEbookReader';
 
 const props = defineProps<{
@@ -358,6 +393,38 @@ const emit = defineEmits<{
   /** 设置某本书关联的分类集合 */
   (e: 'set-book-categories', payload: { bookPath: string; categoryIds: number[] }): void;
 }>();
+
+// ============ 展示模式：卡片网格 / 列表（虚拟表格） ============
+
+/** 书架展示模式类型 */
+type ViewMode = 'card' | 'list';
+/** 展示模式的持久化键名（localStorage，跨会话记忆用户选择） */
+const VIEW_MODE_KEY = 'ebook-reader:bookshelf-view-mode';
+
+/** 从 localStorage 读取上次选择的展示模式，非法值回退卡片模式 */
+function readViewMode(): ViewMode {
+  try {
+    const v = localStorage.getItem(VIEW_MODE_KEY);
+    return v === 'list' ? 'list' : 'card';
+  } catch {
+    // 隐私模式等场景下 localStorage 可能不可用，回退默认值
+    return 'card';
+  }
+}
+
+/** 当前展示模式 */
+const viewMode = ref<ViewMode>(readViewMode());
+
+/** 切换展示模式并持久化 */
+function setViewMode(mode: ViewMode): void {
+  if (viewMode.value === mode) return;
+  viewMode.value = mode;
+  try {
+    localStorage.setItem(VIEW_MODE_KEY, mode);
+  } catch {
+    // 写入失败不影响本次切换
+  }
+}
 
 /** 分类管理弹窗显隐 */
 const manageVisible = ref(false);
@@ -511,6 +578,30 @@ function formatTime(time: string): string {
   background: var(--bg-base);
 }
 
+/* 列表模式：整页不滚动，改由虚拟表格内部滚动，表格填充剩余高度 */
+.bookshelf-view.list-mode {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  /* 头部 / 筛选栏 / 底部统计不参与压缩，剩余空间全部留给表格 */
+  .bookshelf-header,
+  .bookshelf-filter,
+  .bookshelf-footer {
+    flex-shrink: 0;
+  }
+
+  .bookshelf-footer {
+    padding: 10px 0 0;
+  }
+}
+
+/* 虚拟表格占据 header / 筛选栏 / footer 之外的全部剩余高度（min-height:0 才能正确收缩） */
+.bookshelf-table-fill {
+  flex: 1;
+  min-height: 0;
+}
+
 /* 书架顶部标题与数量 */
 .bookshelf-header {
   display: flex;
@@ -545,6 +636,13 @@ function formatTime(time: string): string {
     display: flex;
     align-items: center;
     gap: 12px;
+  }
+
+  /* 展示模式切换：纯图标按钮，收窄内边距 */
+  .view-mode-switch {
+    :deep(.el-button) {
+      padding: 5px 9px;
+    }
   }
 }
 

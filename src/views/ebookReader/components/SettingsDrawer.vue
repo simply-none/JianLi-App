@@ -18,7 +18,7 @@
         <el-input-number
           v-model="fontSizeModel"
           :min="12"
-          :max="32"
+          :max="128"
           :step="1"
           size="small"
           controls-position="right"
