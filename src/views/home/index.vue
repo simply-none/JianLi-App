@@ -8,10 +8,10 @@
             <LucideIcon class="setting-icon" name="Settings" @click="toSetting" :padding="12" :size="24" />
           </template>
           <div class="home-btns">
-            <el-button type="primary" v-if="curStatusC.value != 'screen'" @click="startLockedFn">
+            <el-button type="primary" v-if="curStatusC.value != 'lock'" @click="startLockedFn">
               开启锁屏状态
             </el-button>
-            <el-button v-if="curStatusC.value == 'screen'" @click="closeLockedFn">
+            <el-button v-if="curStatusC.value == 'lock'" @click="closeLockedFn">
               开始工作
             </el-button>
             <el-button @click="closeHomeBtnsFn">隐藏操作按钮</el-button>
@@ -50,7 +50,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 const router = useRouter();
 const isHiddenHomeBtns = ref(false)
 const { homeModeC, curStatusC } = storeToRefs(useGlobalSetting());
-const { startScreenSaverFn, closeScreenSaverFn } = useWorkOrRest();
+const { startScreenSaverFn, closeScreenSaverFn, injectState, endInjectedState } = useWorkOrRest();
 const { isPwdSame } = useSafetyProtection();
 const curComponent = shallowRef(custom)
 
@@ -125,9 +125,10 @@ watch(() => curStatusC.value.value, () => {
   toggleComponent(curStatusC.value.value)
 }, { immediate: true, deep: true })
 
-// 开启锁屏状态
+// 开启锁屏状态：注入「强制锁屏」非序列状态（sequential:false），
+// 结束后由主进程自动归位到 work/rest 序列循环
 function startLockedFn() {
-  startScreenSaverFn()
+  injectState('lock')
   closeHomeBtnsFn()
 }
 
@@ -142,6 +143,9 @@ function closeLockedFn() {
     console.log(value, 'value', isPwdSame(value));
     if (isPwdSame(value)) {
       closeScreenSaverFn()
+      // 让主进程状态机解除「强制锁屏」非序列状态：
+      // 按 lock 的 continueLoop（默认 true）归位到 work/rest 序列继续循环
+      endInjectedState()
       closeHomeBtnsFn()
     }
     else {

@@ -95,7 +95,7 @@ onMounted(() => {
         isAdd = Math.random() > percentage.value * 0.01 ? percentage.value + 1 : percentage.value;
       }
       percentage.value = isAdd > 97 ? 97 : isAdd;
-    } else if (curStatusC.value.value == 'screen') {
+    } else if (curStatusC.value.value == 'screen' || curStatusC.value.value == 'lock') {
       // 展示时钟
       toNextTime.value = moment().format('HH:mm:ss');
     }

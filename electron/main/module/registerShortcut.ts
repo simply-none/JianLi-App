@@ -4,7 +4,6 @@ import moment from "moment";
 import { myDb } from "./sql.ts";
 import { clipboard, ipcMain, globalShortcut, BrowserWindow } from "electron";
 import colors from "colors";
-import { getPomodoroStatus, setPomodoroToWork } from "./store.ts";
 import { createOtherWindow, hideOtherWindow } from "./newWindow.ts";
 
 export const tableName = "register_shortcut";
@@ -16,24 +15,14 @@ function openMatchPage(url: string) {
 
 async function showApp() {
   if (win.isVisible()) {
-    const status = await getPomodoroStatus();
-    if (status.isResting) {
-      await setPomodoroToWork(true);
-      win.webContents.send("pomodoro-force-switch", {
-        from: "rest",
-        to: "work",
-        time: Date.now(),
-      });
-    }
-    // 发送给渲染进程确认，是否隐藏窗口
-    // win.webContents.send("confirm-hide-app", true);
+    // 纯隐藏：不再驱动番茄钟状态机，确保锁屏态下也能正常隐藏/切走
     hideApp();
-    // 隐藏应用时强制开始工作（不限次数）
-    win?.webContents.send("force-start-work");
   } else {
+    // 纯显示：恢复窗口（锁屏态下重新打开为普通显示、不顶级置顶，
+    // 用户可自由切走；只有状态机重新进入 lock 态才会再次顶级置顶）
     win.show();
   }
-} 
+}
 
 function toggleQuickNoteWindow() {
   const quickNoteWin = getQuickNoteWindow();

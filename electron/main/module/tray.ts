@@ -24,9 +24,8 @@ export function initTray() {
       label: "隐藏应用",
       click: () => {
         if (win) {
+          // 纯隐藏：不再驱动番茄钟状态机，确保锁屏态下也能正常隐藏/切走
           hideApp();
-          // 隐藏应用时强制开始工作（不限次数）
-          win?.webContents.send("force-start-work");
         }
       },
     },
@@ -34,6 +33,8 @@ export function initTray() {
       label: "打开应用",
       click: () => {
         if (win) {
+          // 纯显示：恢复窗口（锁屏态下重新打开为普通显示、不顶级置顶，
+          // 用户可自由切走；只有番茄钟状态机重新进入 lock 态才会再次顶级置顶）
           win.show();
         }
       },

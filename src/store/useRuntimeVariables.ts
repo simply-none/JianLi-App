@@ -4,7 +4,7 @@ import { defineStore, storeToRefs } from "pinia";
 
 export const prefix = 'curStatusInfo'
 
-export type StatusMode = "work" | "rest" | "screen";
+export type StatusMode = "work" | "rest" | "screen" | "lock";
 
 export default defineStore("runtime-variables", () => {
   

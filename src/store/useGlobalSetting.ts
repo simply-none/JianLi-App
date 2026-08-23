@@ -4,11 +4,12 @@ import { defineStore, storeToRefs } from "pinia";
 import { basicInfoTable, getStore, pomodoroStatusTable, send, sendSync, setSqlData, setStore } from "../utils/common";
 import moment from "moment";
 import useWorkOrRestStore from "@/store/useWorkOrReset";
+import usePomodoroRuntime from "@/store/usePomodoroRuntime";
 import { initPiniaStatus, type defaultField } from "@/utils/store";
 
 export const prefix = 'curStatusInfo'
 
-export type StatusMode = "work" | "rest" | "screen";
+export type StatusMode = "work" | "rest" | "screen" | "lock";
 
 interface Status {
   label?: string;
@@ -35,21 +36,24 @@ interface HomeModeOps {
 
 export default defineStore("global-setting", () => {
   const { startWorkTimeC, closeWorkTimeC, workTimeGapC, workTimeGapUnitC, restTimeGapC, restTimeGapUnitC } = storeToRefs(useWorkOrRestStore());
+  // 番茄钟运行时：当前状态由主进程 authority 下发，避免旧锚点失效导致判定错误
+  const pomodoroRuntime = usePomodoroRuntime();
   // 当前的状态
   const curStatus = ref<Status>({});
   const curStatusC = computed(() => curStatus.value);
   function setCurStatus(status?: Status) {
     console.log(status, '测试')
     if (!status) {
+      const key = pomodoroRuntime.currentStateKey;
       curStatus.value =
-        startWorkTimeC.value >= closeWorkTimeC.value
+        key === 'rest'
           ? {
-              label: "正在工作",
-              value: "work",
-            }
-          : {
               label: "正在休息",
               value: "rest",
+            }
+          : {
+              label: "正在工作",
+              value: "work",
             };
       cacheCurStatusInfo(curStatus.value)
       return true;
@@ -187,6 +191,7 @@ export default defineStore("global-setting", () => {
     work: {},
     rest: {},
     screen: {},
+    lock: {},
   });
   const homeModeOps = ref<ObjectType[]>([]);
   const homeModeC = computed(() => homeMode.value);

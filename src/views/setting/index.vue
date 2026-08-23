@@ -24,14 +24,9 @@
             </div>
             <div class="status-right">
               <div class="status-time">
-                <LucideIcon name="Building2" :size="16" />
-                <span>{{ nextWorkTime }}</span>
-                <span class="time-label">下次工作</span>
-              </div>
-              <div class="status-time">
-                <LucideIcon name="Coffee" :size="16" />
-                <span>{{ nextRestTime }}</span>
-                <span class="time-label">下次休息</span>
+                <LucideIcon name="Timer" :size="16" />
+                <span>{{ nextSwitchText }}</span>
+                <span class="time-label">{{ curStatusC.label || '未开始' }} · 下次切换</span>
               </div>
             </div>
           </div>
@@ -46,17 +41,16 @@
                 <div class="time-display">
                   <el-button size="large" link @click="adjustWorkTime(-1)" class="time-btn-minus">-</el-button>
                   <div class="time-value-wrapper">
-                    <span class="time-value">{{ workTimeGapCc }}</span>
-                    <span class="time-unit">{{ workTimeGapUnitCc === 60 * 60 * 1000 ? '小时' : workTimeGapUnitCc === 60 * 1000 ? '分钟' : '秒' }}</span>
+                    <span class="time-value">{{ workDurationCc }}</span>
+                    <span class="time-unit">{{ workUnitCc === 60 * 60 * 1000 ? '小时' : workUnitCc === 60 * 1000 ? '分钟' : '秒' }}</span>
                   </div>
                   <el-button size="large" link @click="adjustWorkTime(1)" class="time-btn-plus">+</el-button>
                 </div>
               </div>
               <div class="time-card-select">
                 <el-select
-                  v-model="workTimeGapUnitCc"
+                  v-model="workUnitCc"
                   size="small"
-                  @change="changeWorkTimeGapUnitCc"
                   class="time-unit-select"
                 >
                   <el-option v-for="value in timeUnit" :key="value.times" :label="value.label" :value="value.times" />
@@ -73,17 +67,16 @@
                 <div class="time-display">
                   <el-button size="large" link @click="adjustRestTime(-1)" class="time-btn-minus">-</el-button>
                   <div class="time-value-wrapper">
-                    <span class="time-value">{{ restTimeGapCc }}</span>
-                    <span class="time-unit">{{ restTimeGapUnitCc === 60 * 60 * 1000 ? '小时' : restTimeGapUnitCc === 60 * 1000 ? '分钟' : '秒' }}</span>
+                    <span class="time-value">{{ restDurationCc }}</span>
+                    <span class="time-unit">{{ restUnitCc === 60 * 60 * 1000 ? '小时' : restUnitCc === 60 * 1000 ? '分钟' : '秒' }}</span>
                   </div>
                   <el-button size="large" link @click="adjustRestTime(1)" class="time-btn-plus">+</el-button>
                 </div>
               </div>
               <div class="time-card-select">
                 <el-select
-                  v-model="restTimeGapUnitCc"
+                  v-model="restUnitCc"
                   size="small"
-                  @change="changeRestTimeGapUnitCc"
                   class="time-unit-select"
                 >
                   <el-option v-for="value in timeUnit" :key="value.times" :label="value.label" :value="value.times" />
@@ -93,7 +86,7 @@
           </div>
 
           <div class="action-bar">
-            <el-button type="primary" @click="() => changeEffectFn()" class="action-btn">
+            <el-button type="primary" @click="savePomodoro" class="action-btn">
               <LucideIcon name="StarCheck" />
               立即生效
             </el-button>
@@ -217,14 +210,14 @@
               <LucideIcon name="Crosshair"  :padding="12" color="#6366f1" type="rounded"/>
               <div class="action-title">开始工作</div>
               <div class="action-desc">立即开始工作模式</div>
-              <el-button type="primary" @click="() => startWorkFn()" class="action-button">开始</el-button>
+              <el-button type="primary" @click="() => forceToState('work')" class="action-button">开始</el-button>
             </div>
 
             <div class="action-card rest-action">
               <LucideIcon name="Coffee" :padding="12" color="#67c23a" type="rounded" />
               <div class="action-title">开始休息</div>
               <div class="action-desc">立即开始休息模式</div>
-              <el-button type="success" @click="() => startRestFn({ isUpdateCloseTime: true })" class="action-button">休息</el-button>
+              <el-button type="success" @click="() => forceToState('rest')" class="action-button">休息</el-button>
             </div>
 
             <div class="action-card clear-action">
@@ -251,29 +244,34 @@
 import { ref, watch, onMounted, nextTick, computed } from 'vue';
 import LayoutVue from '@/components/layout.vue';
 import LucideIcon from '@/components/LucideIcon.vue';
-import useWorkOrResetStore from '@/store/useWorkOrReset';
 import { useWorkOrRest } from '@/hooks/useWorkOrReset';
 import useClearStore from '@/hooks/useClearStore';
 import useGlobalSetting from '@/store/useGlobalSetting';
+import useReminder from '@/store/useReminder';
+import usePomodoroRuntime from '@/store/usePomodoroRuntime';
+import { requestPomodoroState } from '@/hooks/usePomodoroBridge';
 import { storeToRefs } from 'pinia';
 import { timeUnit } from '@/utils/time';
+import { send } from '@/utils/common';
 import confirmDialog from '@/utils/confirmDialog';
 import CacheSet from '@/views/setting/cacheSet.vue';
-import Pomodoro from '@/views/setting/pomodoro.vue';
 
 const { clearStore } = useClearStore();
-const { startWorkFn, startRestFn, changeEffectFn, forceWorkWithTimes } = useWorkOrRest();
-
-const { setWorkTimeGap, setRestTimeGap, setWorkTimeGapUnit, setRestTimeGapUnit } = useWorkOrResetStore();
-const { workTimeGap, restTimeGap, workTimeGapUnit, restTimeGapUnit, nextRestTime, nextWorkTime } = storeToRefs(useWorkOrResetStore());
+const { forceWorkWithTimes } = useWorkOrRest();
+const reminderStore = useReminder();
+const { remindersC } = storeToRefs(reminderStore);
+const { updateReminder } = reminderStore;
+const { nextStateTime } = storeToRefs(usePomodoroRuntime());
 const { setForceWorkTimes, setIsStartup, setGlobalFont, setGlobalFontEN } = useGlobalSetting();
 const { isStartupC, forceWorkTimesC, todayForceWorkTimesC, globalFontC, globalFontENC, globalFontOpsC, curStatusC } = storeToRefs(useGlobalSetting());
 
 const sysFonts = ref([]);
-const workTimeGapCc = ref(workTimeGap.value);
-const restTimeGapCc = ref(restTimeGap.value);
-const workTimeGapUnitCc = ref(workTimeGapUnit.value);
-const restTimeGapUnitCc = ref(restTimeGapUnit.value);
+// 番茄钟（stateful 提醒）绑定：工作状态=states[0]，休息状态=states[1]
+const pomodoro = computed(() => remindersC.value.find((r: any) => r.id === 'pomodoro' && r.mode === 'stateful'));
+const workDurationCc = ref(35);
+const restDurationCc = ref(5);
+const workUnitCc = ref(60 * 1000);
+const restUnitCc = ref(60 * 1000);
 const isStartupCc = ref(isStartupC.value);
 const globalFontCc = ref(globalFontC.value);
 const globalFontENCc = ref(globalFontENC.value);
@@ -288,18 +286,61 @@ let fontOps = computed(() => {
   return ops;
 })
 
-watch(workTimeGap, (n) => {
-  workTimeGapCc.value = n;
+// 下次切换的权威时间由主进程算好下发，绝不会是「过去的时间」
+const nextSwitchText = computed(() => {
+  if (!nextStateTime.value) return '未开始';
+  const diff = nextStateTime.value - Date.now();
+  if (diff <= 0) return '即将切换';
+  const totalSec = Math.floor(diff / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return m > 0 ? `约 ${m} 分 ${s} 秒后` : `约 ${s} 秒后`;
 });
-watch(restTimeGap, (n) => {
-  restTimeGapCc.value = n;
-});
-watch(workTimeGapUnit, (n) => {
-  workTimeGapUnitCc.value = n;
-});
-watch(restTimeGapUnit, (n) => {
-  restTimeGapUnitCc.value = n;
-});
+
+// 番茄钟状态 = 主进程下发的多状态运行时；curStatus 由 reminder-state-change 驱动写入
+
+// 回填期间抑制本地 ref watch，避免「写回→回填→再写回」循环（声明须在使用前，避免 TDZ）
+let suppressSync = false;
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+// 即时生效：把工作/休息时长写回 stateful 提醒的 states，并同步主进程重建调度
+function savePomodoro() {
+  const p = pomodoro.value;
+  if (!p) return;
+  const states = (p.states || []).map((s: any) => ({ ...s }));
+  if (states[0]) {
+    states[0].duration = Number(workDurationCc.value);
+    states[0].unit = Number(workUnitCc.value);
+  }
+  if (states[1]) {
+    states[1].duration = Number(restDurationCc.value);
+    states[1].unit = Number(restUnitCc.value);
+  }
+  updateReminder({ ...p, states });
+}
+
+// 本地编辑项变化时自动写回，实现与 reminder 编辑页一致的实时同步
+function scheduleSavePomodoro() {
+  if (suppressSync) return;
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    savePomodoro();
+  }, 200);
+}
+
+// 从提醒配置回填工作/休息时长到本地编辑项
+watch(pomodoro, (p) => {
+  if (!p || !p.states || p.states.length < 2) return;
+  suppressSync = true;
+  workDurationCc.value = Number(p.states[0].duration) || 35;
+  workUnitCc.value = Number(p.states[0].unit) || 60 * 1000;
+  restDurationCc.value = Number(p.states[1].duration) || 5;
+  restUnitCc.value = Number(p.states[1].unit) || 60 * 1000;
+  // 下一 tick 解除抑制，确保回填赋值已落定
+  nextTick(() => { suppressSync = false; });
+}, { immediate: true });
+
 watch(globalFontC, (n) => {
   globalFontCc.value = n;
 });
@@ -311,35 +352,30 @@ watch(isStartupC, (n) => {
 });
 
 function adjustWorkTime(delta: number) {
-  const newValue = workTimeGapCc.value + delta;
+  const newValue = workDurationCc.value + delta;
   if (newValue >= 1 && newValue <= 180) {
-    workTimeGapCc.value = newValue;
-    changeWorkTimeGapCc();
+    workDurationCc.value = newValue;
   }
 }
 
 function adjustRestTime(delta: number) {
-  const newValue = restTimeGapCc.value + delta;
+  const newValue = restDurationCc.value + delta;
   if (newValue >= 1 && newValue <= 60) {
-    restTimeGapCc.value = newValue;
-    changeRestTimeGapCc();
+    restDurationCc.value = newValue;
   }
 }
 
-function changeWorkTimeGapCc() {
-  setWorkTimeGap(workTimeGapCc.value);
-}
+// 单位切换由 v-model 直接生效，无需额外动作
 
-function changeRestTimeGapCc() {
-  setRestTimeGap(restTimeGapCc.value);
-}
+// 本地编辑项变化时自动写回，实现与 reminder 编辑页一致的实时同步
+watch(
+  [workDurationCc, restDurationCc, workUnitCc, restUnitCc],
+  () => scheduleSavePomodoro()
+);
 
-function changeWorkTimeGapUnitCc() {
-  setWorkTimeGapUnit(workTimeGapUnitCc.value);
-}
-
-function changeRestTimeGapUnitCc() {
-  setRestTimeGapUnit(restTimeGapUnitCc.value);
+// 强制切换到指定状态（主进程立即进入并下发新的权威下一次切换时间）
+function forceToState(stateKey: string) {
+  send('reminder-force-state', { reminderId: 'pomodoro', stateKey });
 }
 
 function quitApp() {
@@ -367,6 +403,8 @@ function setGlobalFontENC() {
 
 onMounted(async () => {
   await nextTick();
+  // 补偿启动竞态：确保番茄钟设置卡片挂载即拿到当前状态（全局桥接已注册，幂等安全）
+  requestPomodoroState();
   window.ipcRenderer.handlePromise('get-fonts', {}).then(result => {
     sysFonts.value = result || [];
   }).catch(err => {

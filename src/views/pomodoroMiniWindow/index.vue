@@ -20,7 +20,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, markRaw } from 'vue';
+import { ref, computed, onMounted, markRaw } from 'vue';
 import moment from 'moment';
 import LayoutDefault from './layouts/LayoutDefault.vue';
 import LayoutSimple from './layouts/LayoutSimple.vue';
@@ -28,9 +28,11 @@ import LayoutCircle from './layouts/LayoutCircle.vue';
 import LayoutCompact from './layouts/LayoutCompact.vue';
 import LayoutClassic from './layouts/LayoutClassic.vue';
 import LayoutFlip from './layouts/LayoutFlip.vue';
+import usePomodoroRuntime from '@/store/usePomodoroRuntime';
+import { setupPomodoroBridge } from '@/hooks/usePomodoroBridge';
 
-const curStatusC = ref<any>({})
-const nextTime = ref()
+// 复用与主窗口一致的番茄钟运行时 store（时间线完全由主进程 stateful 引擎下发，杜绝旧锚点漂移）
+const runtime = usePomodoroRuntime()
 const nextDiffTime = ref('00:00:00')
 const sysData = ref<any>({})
 const progressPercentValue = ref(0)
@@ -57,21 +59,21 @@ const currentLayoutComponent = computed(() => {
 })
 
 const currentStatus = computed(() => {
-  return curStatusC.value?.value || 'work'
+  return runtime.currentStateKey || 'work'
 })
 
 const statusClass = computed(() => {
-  const status = curStatusC.value?.value;
+  const status = runtime.currentStateKey;
   return status === 'work' ? 'status-work' : 'status-rest';
 });
 
 const statusLabel = computed(() => {
-  const status = curStatusC.value?.value;
+  const status = runtime.currentStateKey;
   return status === 'work' ? '工作中' : '休息中';
 });
 
 const statusSubtitle = computed(() => {
-  const status = curStatusC.value?.value;
+  const status = runtime.currentStateKey;
   return status === 'work' ? '距离休息' : '距离工作';
 });
 
@@ -128,6 +130,9 @@ const loadConfig = () => {
   }
 }
 
+// 番茄钟运行时状态由 usePomodoroBridge 统一监听主进程下发的 reminder-state-change 写入
+// usePomodoroRuntime store（与主窗口 home 完全一致的逻辑），本窗口只消费 store，不再自行监听。
+
 window.ipcRenderer.on('sync-data-to-other-window', (event: any, arg: any) => {
   if (Object.prototype.toString.call(arg) === '[object Object]') {
     Object.assign(sysData.value, arg || {})
@@ -142,37 +147,6 @@ window.ipcRenderer.on('sync-data-to-other-window', (event: any, arg: any) => {
         currentLayout.value = arg.pomodoroMiniWindowConfig.layout
       }
     }
-
-    if (arg.curStatus) {
-      curStatusC.value = arg.curStatus;
-
-      if (arg.curStatus.value === 'work') {
-        nextTime.value = moment(arg.startWorkTime + arg.workTimeGapUnit * arg.workTimeGap).format('YYYY-MM-DD HH:mm:ss');
-      } else {
-        nextTime.value = moment(arg.closeWorkTime + arg.restTimeGapUnit * arg.restTimeGap).format('YYYY-MM-DD HH:mm:ss');
-      }
-
-      const status = arg.curStatus?.value;
-      if (status && arg) {
-        let startTime, duration;
-
-        if (status === 'work') {
-          startTime = arg.startWorkTime;
-          duration = arg.workTimeGapUnit * arg.workTimeGap;
-        } else {
-          startTime = arg.closeWorkTime;
-          duration = arg.restTimeGapUnit * arg.restTimeGap;
-        }
-
-        if (startTime && duration && duration > 0) {
-          const elapsed = moment().valueOf() - startTime;
-          const progress = 100 - (elapsed / duration) * 100;
-          progressPercentValue.value = Math.max(0, Math.min(100, progress));
-        }
-      }
-
-      countDown();
-    }
   }
 });
 
@@ -184,21 +158,21 @@ function countDown() {
   }
 
   timer = setInterval(() => {
-    if (!nextTime.value) {
+    const nextTimeTs = runtime.nextStateTime;
+    // 序列已结束（nextTime 为 null，如停止态/非序列永久态）：显示等待，等主进程下发新状态
+    if (!nextTimeTs) {
       nextDiffTime.value = '等待中...';
       progressPercentValue.value = 0;
-      fetchPomodoroData();
       return;
     }
 
     const now = moment();
-    const next = moment(nextTime.value);
+    const next = moment(nextTimeTs);
     const diff = next.diff(now);
 
     if (diff < 0) {
-      nextDiffTime.value = '等待中...';
-      progressPercentValue.value = 0;
-      fetchPomodoroData();
+      nextDiffTime.value = '即将切换';
+      progressPercentValue.value = 100;
       return;
     }
 
@@ -208,27 +182,7 @@ function countDown() {
     const diffSeconds = diffTime.seconds().toString().padStart(2, '0');
 
     nextDiffTime.value = `${diffHours}:${diffMinutes}:${diffSeconds}`;
-
-    const status = curStatusC.value?.value;
-    const data = sysData.value;
-
-    if (data && status) {
-      let startTime, duration;
-
-      if (status === 'work') {
-        startTime = (data as any).startWorkTime;
-        duration = (data as any).workTimeGapUnit * (data as any).workTimeGap;
-      } else {
-        startTime = (data as any).closeWorkTime;
-        duration = (data as any).restTimeGapUnit * (data as any).restTimeGap;
-      }
-
-      if (startTime && duration && duration > 0) {
-        const elapsed = now.valueOf() - startTime;
-        const progress = 100 - (elapsed / duration) * 100;
-        progressPercentValue.value = Math.max(0, Math.min(100, progress));
-      }
-    }
+    updateProgressByRange(runtime.stateStartTime, nextTimeTs);
   }, 1000);
 }
 
@@ -242,65 +196,26 @@ const disableMouseClickThroughFn = () => {
 
 onMounted(() => {
   loadConfig()
-  // 主动获取番茄钟数据
-  fetchPomodoroData()
+  // 接入番茄钟桥接：注册全局监听主进程下发的权威状态事件，并主动 request-reminder-state
+  // 补偿启动竞态首帧（与主窗口 home 完全一致的运行展示逻辑）。小窗口是独立渲染进程，
+  // 必须自己注册，否则收不到状态 → 倒计时卡在「同步中」。
+  setupPomodoroBridge()
+  countDown()
 })
 
-async function fetchPomodoroData() {
-  try {
-    const result = await window.ipcRenderer.handlePromise('new-sql:execute', {
-      sql: 'SELECT * FROM basic_info',
-      params: [],
-    });
-    if (result.success && result.data && result.data.rows) {
-      let rows = result.data.rows || [];
-      rows = rows.reduce((acc: any, row: any) => {
-        acc[row.key] = typeof row.value == 'string' ? JSON.parse(row.value) : row.value;
-        return acc
-      }, {})
-
-      handlePomodoroData(rows);
-    }
-  } catch (e) {
-    console.log('获取番茄钟数据失败:', e)
+// 由主进程权威区间 [stateStartTime, nextStateTime] 计算进度，杜绝旧锚点漂移
+function updateProgressByRange(startTime: number | null, nextTimeTs: number | null) {
+  if (!startTime || !nextTimeTs) {
+    progressPercentValue.value = 0;
+    return;
   }
-}
-
-function handlePomodoroData(data: any) {
-  // 设置当前状态
-  curStatusC.value = { value: data.curStatus?.value || data.curStatus || 'work' }
-  
-  // 计算下一个状态切换时间
-  if (data.curStatus?.value === 'work' || data.curStatus === 'work') {
-    nextTime.value = moment(data.startWorkTime + data.workTimeGapUnit * data.workTimeGap).format('YYYY-MM-DD HH:mm:ss')
-  } else {
-    nextTime.value = moment(data.closeWorkTime + data.restTimeGapUnit * data.restTimeGap).format('YYYY-MM-DD HH:mm:ss')
+  const total = nextTimeTs - startTime;
+  const elapsed = Date.now() - startTime;
+  if (total <= 0) {
+    progressPercentValue.value = 0;
+    return;
   }
-  
-  // 计算进度
-  if (data.curStatus?.value === 'work' || data.curStatus === 'work') {
-    const startTime = data.startWorkTime
-    const duration = data.workTimeGapUnit * data.workTimeGap
-    if (startTime && duration && duration > 0) {
-      const elapsed = moment().valueOf() - startTime
-      const progress = 100 - (elapsed / duration) * 100
-      progressPercentValue.value = Math.max(0, Math.min(100, progress))
-    }
-  } else {
-    const startTime = data.closeWorkTime
-    const duration = data.restTimeGapUnit * data.restTimeGap
-    if (startTime && duration && duration > 0) {
-      const elapsed = moment().valueOf() - startTime
-      const progress = 100 - (elapsed / duration) * 100
-      progressPercentValue.value = Math.max(0, Math.min(100, progress))
-    }
-  }
-  
-  // 同步到 sysData
-  sysData.value = data
-  
-  // 启动倒计时
-  countDown()
+  progressPercentValue.value = Math.max(0, Math.min(100, (elapsed / total) * 100));
 }
 </script>
 

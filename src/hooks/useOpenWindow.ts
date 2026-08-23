@@ -2,6 +2,7 @@ import { onBeforeUnmount, onMounted } from "vue";
 import { storeToRefs } from "pinia";
 import useGlobalSetting from "@/store/useGlobalSetting";
 import { useWorkOrRest } from "@/hooks/useWorkOrReset";
+import { setupPomodoroBridge } from "@/hooks/usePomodoroBridge";
 import electronConfig from '../../electron-builder.json5'
 import { send, getWindowConfig } from "@/utils/common";
 
@@ -23,7 +24,7 @@ export default function useOpenWindow() {
     hash.includes('screenshotSelect') || hash.includes('sticker');
 
   const { globalFontC, globalFontENC } = storeToRefs(useGlobalSetting());
-  const { startApp, registerGlobalListener, unregisterGlobalListener } = useWorkOrRest();
+  const { startApp } = useWorkOrRest();
 
   // 主窗口的打开
   function openMainWindow () {
@@ -32,12 +33,13 @@ export default function useOpenWindow() {
     document.documentElement.style.setProperty('--jianli-global-font', globalFontC.value)
     document.documentElement.style.setProperty('--jianli-global-font-EN', globalFontENC.value)
     startApp();
-    registerGlobalListener();
+    // 注册唯一一次的番茄钟全局桥接（app 级单例，幂等）
+    setupPomodoroBridge();
   }
 
   // 关闭主窗口
   function closeMainWindow () {
-    unregisterGlobalListener();
+    // 桥接为 app 级单例，主窗口关闭不移除（番茄钟子窗口等仍依赖全局监听）
   }
 
   // 番茄钟窗口的打开

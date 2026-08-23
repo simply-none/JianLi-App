@@ -210,55 +210,77 @@ watch(() => tipTypeOpsC.value, (newVal) => {
   tipTypeOpsCc.value = newVal;
 }, { deep: true });
 
+/* ============================================================
+ * 当前提醒（tipType）：新增 / 修改 / 删除
+ * 范式对齐 reminder/index.vue：defaultForm → open / reset / submit / del
+ * ========================================================== */
+
+// 判断两条提醒是否为同一项：类型 + 间隔 + 单位 一致
+function isSameTip(a: ObjectType, b: ObjectType): boolean {
+  return a.type == b.type && a.gap == b.gap && a.unit == b.unit;
+}
+
+// 新增时的默认表单
+function defaultTipForm(): ObjectType {
+  return { type: '', gap: '', unit: 60 * 1000 };
+}
+
 const tipDialogVisible = ref(false);
 const isEditTip = ref(false);
-const tipForm = ref<ObjectType>({});
+const tipForm = ref<ObjectType>(defaultTipForm());
 const editingTipIndex = ref(-1);
 
-const openTipDialog = (item?: ObjectType) => {
+// 打开弹窗：传入 item 为编辑，否则为新增
+function openTipDialog(item?: ObjectType) {
   if (item) {
     isEditTip.value = true;
+    editingTipIndex.value = tipTypeCc.value.findIndex(i => isSameTip(i, item));
     tipForm.value = JSON.parse(JSON.stringify(item));
-    editingTipIndex.value = tipTypeCc.value.findIndex(
-      i => item.type == i.type && item.gap == i.gap && item.unit == i.unit
-    );
   } else {
     isEditTip.value = false;
-    tipForm.value = {};
     editingTipIndex.value = -1;
+    tipForm.value = defaultTipForm();
   }
   tipDialogVisible.value = true;
-};
+}
 
-const resetTipForm = () => {
-  tipForm.value = {};
+// 关闭弹窗时重置为初始态
+function resetTipForm() {
   isEditTip.value = false;
   editingTipIndex.value = -1;
-};
+  tipForm.value = defaultTipForm();
+}
 
-const submitTip = () => {
+function submitTip() {
   if (!tipForm.value.type || !tipForm.value.gap || !tipForm.value.unit) {
     ElMessage({ message: '请填写完整信息', type: 'warning' });
     return;
   }
-  if (isEditTip.value && editingTipIndex.value != -1) {
+  if (isEditTip.value && editingTipIndex.value !== -1) {
+    // 编辑：按索引替换原条目
     tipTypeCc.value.splice(editingTipIndex.value, 1, tipForm.value);
     setTipType(tipTypeCc.value);
     ElMessage({ message: '修改成功', type: 'success' });
   } else {
-    setTipType(tipForm);
+    // 新增：追加到提醒列表
+    setTipType(tipForm.value);
     ElMessage({ message: '新增成功', type: 'success' });
   }
   tipDialogVisible.value = false;
-};
+}
 
-const delTip = (item: ObjectType) => {
-  const index = tipTypeCc.value.findIndex(i => item.type == i.type && item.gap == i.gap && item.unit == i.unit);
-  if (index != -1) {
+function delTip(item: ObjectType) {
+  const index = tipTypeCc.value.findIndex(i => isSameTip(i, item));
+  if (index !== -1) {
     tipTypeCc.value.splice(index, 1);
     setTipType(tipTypeCc.value);
+    ElMessage({ message: '已删除', type: 'success' });
   }
-};
+}
+
+/* ============================================================
+ * 工作-休息调度（start-job / stop-job）：核心逻辑保持不变
+ * ========================================================== */
 
 const tipAll = () => {
   tipTypeCc.value.forEach(item => {
@@ -282,55 +304,71 @@ const stopTip = (item: ObjectType) => {
   send('stop-job', { type: item.type });
 };
 
+/* ============================================================
+ * 提醒类型（tipTypeOps）：新增 / 修改 / 删除
+ * ========================================================== */
+
+// 判断两个类型是否为同一项：名称 + 值 一致
+function isSameTipOps(a: ObjectType, b: ObjectType): boolean {
+  return a.label == b.label && a.value == b.value;
+}
+
+function defaultTipOpsForm(): ObjectType {
+  return { label: '', value: '', icon: '', iconType: '' };
+}
+
 const tipOpsDialogVisible = ref(false);
 const isEditTipOps = ref(false);
-const tipOpsForm = ref<ObjectType>({});
+const tipOpsForm = ref<ObjectType>(defaultTipOpsForm());
 const editingTipOpsIndex = ref(-1);
 
-const openTipOpsDialog = (item?: ObjectType) => {
+function openTipOpsDialog(item?: ObjectType) {
   if (item) {
     isEditTipOps.value = true;
+    editingTipOpsIndex.value = tipTypeOpsCc.value.findIndex(i => isSameTipOps(i, item));
     tipOpsForm.value = JSON.parse(JSON.stringify(item));
-    editingTipOpsIndex.value = tipTypeOpsCc.value.findIndex(
-      i => item.label == i.label && item.value == i.value
-    );
   } else {
     isEditTipOps.value = false;
-    tipOpsForm.value = {};
     editingTipOpsIndex.value = -1;
+    tipOpsForm.value = defaultTipOpsForm();
   }
   tipOpsDialogVisible.value = true;
-};
+}
 
-const resetTipOpsForm = () => {
-  tipOpsForm.value = {};
+function resetTipOpsForm() {
   isEditTipOps.value = false;
   editingTipOpsIndex.value = -1;
-};
+  tipOpsForm.value = defaultTipOpsForm();
+}
 
-const submitTipOps = () => {
+function submitTipOps() {
   if (!tipOpsForm.value.label || !tipOpsForm.value.value) {
     ElMessage({ message: '请填写完整信息', type: 'warning' });
     return;
   }
-  if (isEditTipOps.value && editingTipOpsIndex.value != -1) {
+  if (isEditTipOps.value && editingTipOpsIndex.value !== -1) {
     tipTypeOpsCc.value.splice(editingTipOpsIndex.value, 1, tipOpsForm.value);
     setTipTypeOps(tipTypeOpsCc.value);
     ElMessage({ message: '修改成功', type: 'success' });
   } else {
-    setTipTypeOps(tipOpsForm);
+    setTipTypeOps(tipOpsForm.value);
     ElMessage({ message: '新增成功', type: 'success' });
   }
   tipOpsDialogVisible.value = false;
-};
+}
 
-const delTipOps = (item: ObjectType) => {
-  const index = tipTypeOpsCc.value.findIndex(i => item.label == i.label && item.value == i.value);
-  if (index != -1) {
+function delTipOps(item: ObjectType) {
+  const index = tipTypeOpsCc.value.findIndex(i => isSameTipOps(i, item));
+  if (index !== -1) {
     tipTypeOpsCc.value.splice(index, 1);
     setTipTypeOps(tipTypeOpsCc.value);
+    ElMessage({ message: '已删除', type: 'success' });
   }
-};
+}
+
+/* ============================================================
+ * 图标上传与展示辅助
+ * ========================================================== */
 
 const uploadIcon = () => {
   const res = sendSync('get-file-list', { openDirectory: false, openFile: true, type: 'image' });

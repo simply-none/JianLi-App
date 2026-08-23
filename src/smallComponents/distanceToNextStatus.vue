@@ -1,22 +1,22 @@
 <template>
   <draggableContainer v-bind="computedPosition" @update="updateFn">
-    <div class="item" v-if="curStatusC.value === 'rest'" @contextmenu.stop="contextmenuFn" data-el="1">
+    <div class="item" v-if="currentStateKey === 'rest'" @contextmenu.stop="contextmenuFn" data-el="1">
       <div class="label">
         下次工作时间
       </div>
       <div class="value">
-        {{ nextWorkTime }}
+        {{ nextWorkTimeText }}
       </div>
       <div class="value">
         倒计时：{{ toNextWorkTime }}
       </div>
     </div>
-    <div class="item" v-else-if="curStatusC.value === 'work'" @contextmenu.stop="contextmenuFn" data-el="1">
+    <div class="item" v-else-if="currentStateKey === 'work'" @contextmenu.stop="contextmenuFn" data-el="1">
       <div class="label">
         下次休息时间
       </div>
       <div class="value">
-        {{ nextRestTime }}
+        {{ nextRestTimeText }}
       </div>
       <div class="value">
         倒计时：{{ toNextRestTime }}
@@ -30,8 +30,7 @@
 import { ref, reactive, watch, computed, onMounted, onUnmounted, toRaw } from 'vue';
 import { storeToRefs } from 'pinia';
 
-import useGlobalSetting from '@/store/useGlobalSetting';
-import useWorkOrRestStore from '@/store/useWorkOrReset';
+import usePomodoroRuntime from '@/store/usePomodoroRuntime';
 
 import draggableContainer from '@/components/draggableContainer.vue';
 
@@ -72,21 +71,15 @@ const timer = ref(null);
 const toNextWorkTime = ref('00:00:00');
 const toNextRestTime = ref('00:00:00');
 
-const {
-  nextRestTime,
-  nextWorkTime,
-} = storeToRefs(useWorkOrRestStore());
-const { homeModeOpsC, curStatusC } = storeToRefs(useGlobalSetting());
+const { currentStateKey, nextStateTime } = storeToRefs(usePomodoroRuntime());
+
+const nextWorkTimeText = computed(() => formatTime(nextStateTime.value));
+const nextRestTimeText = computed(() => formatTime(nextStateTime.value));
 
 onMounted(() => {
   timer.value = setInterval(() => {
-    if (curStatusC.value.value === 'work') {
-      // console.log(countDown(nextRestTime.value), 'countDown', nextRestTime.value)
-      toNextRestTime.value = countDown(nextRestTime.value);
-    } else if (curStatusC.value.value === 'rest') {
-      // console.log(countDown(nextWorkTime.value), 'countDown', nextWorkTime.value)
-      toNextWorkTime.value = countDown(nextWorkTime.value);
-    }
+    toNextRestTime.value = countDown(nextStateTime.value);
+    toNextWorkTime.value = countDown(nextStateTime.value);
   }, 1000);
 });
 
@@ -109,6 +102,7 @@ function updateFn(position) {
 
 // 写一个倒计时函数，用来计算当前时间距离下次工作时间的时间差，格式是00:00:00
 function countDown(time) {
+  if (!time) return '00:00:00';
   const now = (new Date()).getTime();
   const diff = (new Date(time)).getTime() - now;
   if (diff < 0) return '00:00:00';
@@ -116,6 +110,12 @@ function countDown(time) {
   let m = Math.floor((diff / 1000 / 60) % 60);
   let s = Math.floor((diff / 1000) % 60);
   return `${h < 10 ? '0' + h : h}:${m < 10 ? '0' + m : m}:${s < 10 ? '0' + s : s}`;
+}
+
+// 把下次切换时间戳格式化为「HH:mm」展示
+function formatTime(time) {
+  if (!time) return '--:--';
+  return new Date(time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
 }
 
 function contextmenuFn(event) {

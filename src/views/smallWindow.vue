@@ -36,73 +36,72 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
-import useWorkOrResetStore from '@/store/useWorkOrReset';
+import usePomodoroRuntime from '@/store/usePomodoroRuntime';
+import { useWorkOrRest } from '@/hooks/useWorkOrReset';
 import { storeToRefs } from 'pinia';
 import LucideIcon from '@/components/LucideIcon.vue';
 
 const router = useRouter();
 const timer = ref(null);
 
-const {
-  nextRestTime,
-  nextWorkTime,
-  startWorkTime,
-  closeWorkTime,
-  curStatus,
-} = storeToRefs(useWorkOrResetStore());
+// 番茄钟运行时（多状态提醒）由主进程驱动，这里仅做展示
+const runtime = usePomodoroRuntime();
+const { currentStateKey, nextStateTime, stateStartTime } = storeToRefs(runtime);
+
+// 第二窗口是独立渲染进程，需自行注册状态监听并拉取当前状态
+const { registerGlobalListener, unregisterGlobalListener } = useWorkOrRest();
 
 const statusIcon = computed(() => {
-  return curStatus.value === 'work' ? 'timer' : 'coffee';
+  if (currentStateKey.value === 'work') return 'timer';
+  if (currentStateKey.value === 'lock') return 'lock';
+  return 'coffee';
 });
 
 const statusClass = computed(() => {
-  return curStatus.value === 'work' ? 'status-work' : 'status-rest';
+  if (currentStateKey.value === 'work') return 'status-work';
+  if (currentStateKey.value === 'lock') return 'status-lock';
+  return 'status-rest';
 });
 
 const statusLabel = computed(() => {
-  return curStatus.value === 'work' ? '工作中' : '休息中';
+  if (currentStateKey.value === 'work') return '工作中';
+  if (currentStateKey.value === 'lock') return '锁屏中';
+  return '休息中';
 });
 
 const nextTimeLabel = computed(() => {
-  return curStatus.value === 'work' ? '下次休息' : '下次工作';
+  if (currentStateKey.value === 'work') return '下次休息';
+  if (currentStateKey.value === 'lock') return '结束后回到';
+  return '下次工作';
 });
 
 const nextTimeValue = computed(() => {
-  const time = curStatus.value === 'work' ? nextRestTime.value : nextWorkTime.value;
-  if (!time) return '--:--';
-  return new Date(time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+  if (!nextStateTime.value) return '--:--';
+  return new Date(nextStateTime.value).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
 });
 
 const countdownLabel = computed(() => {
-  return curStatus.value === 'work' ? '距离休息' : '距离工作';
+  if (currentStateKey.value === 'work') return '距离休息';
+  if (currentStateKey.value === 'lock') return '距离解锁';
+  return '距离工作';
 });
 
 const countdownValue = ref('00:00:00');
 
 const progressPercent = computed(() => {
-  const now = new Date().getTime();
-  const status = curStatus.value;
-  
-  if (status === 'work') {
-    const start = startWorkTime.value ? new Date(startWorkTime.value).getTime() : now;
-    const end = nextRestTime.value ? new Date(nextRestTime.value).getTime() : now;
-    const total = end - start;
-    const current = now - start;
-    if (total <= 0) return 0;
-    return Math.max(0, Math.min(100, (current / total) * 100));
-  } else {
-    const start = closeWorkTime.value ? new Date(closeWorkTime.value).getTime() : now;
-    const end = nextWorkTime.value ? new Date(nextWorkTime.value).getTime() : now;
-    const total = end - start;
-    const current = now - start;
-    if (total <= 0) return 0;
-    return Math.max(0, Math.min(100, (current / total) * 100));
-  }
+  const now = Date.now();
+  const start = stateStartTime.value || now;
+  const end = nextStateTime.value || now;
+  const total = end - start;
+  const current = now - start;
+  if (total <= 0) return 0;
+  return Math.max(0, Math.min(100, (current / total) * 100));
 });
 
 function countDown(time) {
-  const now = new Date().getTime();
-  const diff = new Date(time).getTime() - now;
+  if (!time) return '00:00:00';
+  const now = Date.now();
+  const diff = (new Date(time)).getTime() - now;
   if (diff < 0) return '00:00:00';
   const h = Math.floor(diff / 1000 / 60 / 60);
   const m = Math.floor((diff / 1000 / 60) % 60);
@@ -111,14 +110,11 @@ function countDown(time) {
 }
 
 function updateCountdown() {
-  if (curStatus.value === 'work') {
-    countdownValue.value = countDown(nextRestTime.value);
-  } else {
-    countdownValue.value = countDown(nextWorkTime.value);
-  }
+  countdownValue.value = countDown(nextStateTime.value);
 }
 
 onMounted(() => {
+  registerGlobalListener();
   updateCountdown();
   timer.value = setInterval(updateCountdown, 1000);
 });
@@ -127,6 +123,7 @@ onUnmounted(() => {
   if (timer.value) {
     clearInterval(timer.value);
   }
+  unregisterGlobalListener();
 });
 
 function toSetting() {
@@ -188,6 +185,26 @@ function toSetting() {
     
     .countdown-value {
       color: #1565c0;
+    }
+  }
+
+  &.status-lock {
+    background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+
+    .status-icon {
+      background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+    }
+
+    .status-label {
+      color: #e65100;
+    }
+
+    .progress-fill {
+      background: linear-gradient(90deg, #ff9800 0%, #ffb74d 100%);
+    }
+
+    .countdown-value {
+      color: #e65100;
     }
   }
 }

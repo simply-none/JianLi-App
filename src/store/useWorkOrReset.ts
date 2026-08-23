@@ -1,9 +1,14 @@
-import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue';
-import { storeToRefs, defineStore } from 'pinia';
-import { getStore, sendSync, setStore } from "../utils/common";
+import { ref, computed, onMounted } from 'vue';
+import { defineStore } from 'pinia';
+import { setStore } from "../utils/common";
 import { initPiniaStatus, type defaultField } from "@/utils/store";
+// 桥接：番茄钟时间线统一由主进程持有（见 usePomodoroRuntime）。
+// 旧组件（home 各主题等）仍引用本 store 的 nextWorkTime/nextRestTime，
+// 这里直接从运行时派生，确保永远不会显示「过去的时间」。
+import usePomodoroRuntime from "./usePomodoroRuntime";
 
 const useWorkOrRestStore = defineStore('workOrRest', () => {
+  // 旧字段仍保留，供 useGlobalSetting 快照/兼容（不再参与时间计算）
   const closeWorkTime = ref()
   const startWorkTime = ref();
   const workTimeGap = ref();
@@ -17,34 +22,17 @@ const useWorkOrRestStore = defineStore('workOrRest', () => {
   const restTimeGapC = computed(() => restTimeGap.value)
   const workTimeGapUnitC = computed(() => workTimeGapUnit.value)
   const restTimeGapUnitC = computed(() => restTimeGapUnit.value)
-  // 计算式
-  const nextWorkTime = computed(() => {
-    let next = 0
-    if (startWorkTimeC.value >= closeWorkTimeC.value) {
-      // 当前正在工作
-      next = Number(startWorkTimeC.value) + Number(workTimeGapC.value) * Number(workTimeGapUnitC.value) + Number(restTimeGapC.value) * Number(restTimeGapUnitC.value)
-    } else {
-      // 当前正在休息
-      next = Number(closeWorkTimeC.value) + Number(restTimeGapC.value) * Number(restTimeGapUnitC.value)
-    }
-    return new Date(Number(next)).toLocaleString('zh', {
-      hour12: false,
-    })
-  })
 
-  const nextRestTime = computed(() => {
-    let next = 0
-    if (startWorkTimeC.value >= closeWorkTimeC.value) {
-      // 当前正在工作
-      next = Number(startWorkTimeC.value) + Number(workTimeGapC.value) * Number(workTimeGapUnitC.value)
-    } else {
-      // 当前正在休息
-      next = Number(closeWorkTimeC.value) + Number(restTimeGapC.value) * Number(restTimeGapUnitC.value) + Number(workTimeGapC.value) * Number(workTimeGapUnitC.value)
-    }
-    return new Date(Number(next)).toLocaleString('zh', {
-      hour12: false,
-    })
-  })
+  // 番茄钟运行时（由 reminder-state-change 事件驱动写入）
+  const runtime = usePomodoroRuntime();
+  const nextStateTimeC = computed(() => runtime.nextStateTime);
+
+  // 统一返回主进程下发的权威「下次切换」时间；旧组件按 curStatus 自行选择展示其一。
+  const formatNext = (t: number | null) =>
+    t ? new Date(t).toLocaleString('zh', { hour12: false }) : '--';
+
+  const nextWorkTime = computed(() => formatNext(nextStateTimeC.value))
+  const nextRestTime = computed(() => formatNext(nextStateTimeC.value))
 
   // 修改变量
   function setCloseWorkTime(value: number) {

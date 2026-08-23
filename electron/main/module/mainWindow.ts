@@ -11,6 +11,11 @@ import { setAutoStartup, checkAutoStartupStatus } from "./autoStartup.ts";
 
 export let win: BrowserWindow | null;
 
+// 强制锁屏态聚焦：顶级置顶（screen-saver 级 + 全屏）。
+// 用于多状态提醒中 lockScreen=true 的状态进入时——默认操作（Alt+Tab /
+// 点击其他窗口 / 最小化）无法切换到其他应用，实现「专注锁屏」。
+// 唯一出口：show_app 全局快捷键 / 系统托盘「隐藏应用」调用 hideApp()
+// （取消置顶 + 隐藏），从而在锁屏态也能释放钉死、切走。
 export function focusAppToTop() {
   win?.setAlwaysOnTop(true, "screen-saver");
   win?.setFullScreen(true);
@@ -27,6 +32,14 @@ export function isSetStartup(isStartup: boolean, hidden = false) {
 export function hideApp() {
   win?.setAlwaysOnTop(false);
   win?.hide();
+}
+
+// 主窗口当前是否对用户可见（未隐藏且未最小化）。
+// 用于番茄钟「工作态隐藏主窗口」副作用的护栏：仅当窗口本就不可见时才隐藏，
+// 避免用户在列表页/设置页操作时被状态切换突然藏掉整个界面。
+export function isMainWindowVisible(): boolean {
+  if (!win) return false;
+  return win.isVisible() && !win.isMinimized();
 }
 
 /** 确保主窗口可见并置前（用于提醒触发后需要用户记录等场景）。
@@ -135,7 +148,14 @@ export function initMainWindow() {
   });
   win.webContents.on("did-finish-load", () => {
     win?.webContents.send("main-process-message", new Date().toLocaleString());
-    focusAppToTop();
+    // 主窗口必须保持全屏（应用基础布局要求），所以加载完成仍要 setFullScreen(true) + show + focus。
+    // 注意：这里【不可】调用 focusAppToTop()——后者会额外 setAlwaysOnTop(true, "screen-saver")，
+    // 即 screen-saver 级「顶级置顶锁屏」，会让 app 一启动就被钉死、切不走，且覆盖番茄钟
+    // lockScreen 语义。强制锁屏置顶严格只由番茄钟 state.lockScreen === true 的状态进入路径
+    // 触发（见 job.ts applyStateWindowBehavior）。此处仅全屏显示，不强制顶级置顶。
+    win?.setFullScreen(true);
+    win?.show();
+    win?.focus();
   });
   win.on("close", (e) => {
     e.preventDefault(); //先阻止一下默认行为，不然直接关了，提示框只会闪一下

@@ -13,6 +13,9 @@ import defaultSqlite3 from "sqlite3";
 // 事务状态跟踪变量
 let transactionCount = 0;
 
+// 提醒表名（每条提醒一行，平铺列，JSON 字段序列化存储；独立于 basic_info.reminders 字段）
+export const reminderTable = 'reminders';
+
 // 简单的互斥锁实现
 const dbLocks = new Map();
 

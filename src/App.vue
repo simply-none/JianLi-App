@@ -41,8 +41,8 @@ useOpenWindow()
 const isSecondWindow = location.href.includes('isSecondWindow=true');
 if (!isSecondWindow) {
   window.ipcRenderer.on('reminder-trigger', (event, reminder: any) => {
-    const title = reminder?.title || '定时提醒';
-    const content = reminder?.content || title;
+    const title = reminder?.title || '提醒';
+    const content = reminder?.content || `${title}提醒到了`;
     sysNotify(title, content, '');
     appNotify(title, content, 5000);
     if (reminder?.recordAfter) {
@@ -60,6 +60,16 @@ if (!isSecondWindow) {
   window.ipcRenderer.on('todo-reminder-trigger', (event, todo: any) => {
     const title = `待办提醒：${todo?.title || '待办事项'}`;
     const content = todo?.dueDate ? `即将到期（截止 ${todo.dueDate}）` : '即将到期';
+    sysNotify(title, content, '');
+    appNotify(title, content, 5000);
+  });
+
+  // 轮次（stateful）状态进入提醒：主进程进入新状态时下发 notify:true，弹系统/站内通知。
+  // emitCurrentStateful 的启动补偿恢复不带 notify，故不会在启动时重复弹窗。
+  window.ipcRenderer.on('reminder-state-change', (event, arg: any) => {
+    if (!arg || !arg.notify) return;
+    const title = arg.title || '提醒';
+    const content = arg.content || `${arg.stateLabel || ''}提醒到了`;
     sysNotify(title, content, '');
     appNotify(title, content, 5000);
   });
