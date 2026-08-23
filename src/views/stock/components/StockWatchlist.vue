@@ -1,21 +1,26 @@
 <template>
-  <div class="favorites">
-    <div class="fav-header">
-      <span class="fav-title">常用股票</span>
-      <span class="fav-sub">从本地缓存中识别你最近查询过的标的（最多 {{ MAX }} 个），实时行情为批量获取</span>
-      <button class="refresh-btn" :disabled="loading" :title="loading ? '加载中…' : '刷新实时行情'" @click="load">
+  <div class="watchlist">
+    <div class="wl-header">
+      <span class="wl-title">自选股</span>
+      <span class="wl-sub">你手动加入的标的（{{ watch.items.value.length }}），实时行情为批量获取</span>
+      <button
+        class="refresh-btn"
+        :disabled="loading"
+        :title="loading ? '加载中…' : '刷新实时行情'"
+        @click="refresh"
+      >
         <LucideIcon name="RefreshCw" :size="14" :class="{ spinning: loading }" />
       </button>
     </div>
 
-    <div v-if="loading && rows.length === 0" class="fav-loading">加载中…</div>
+    <div v-if="loading && rows.length === 0" class="wl-loading">加载中…</div>
 
-    <div v-else-if="rows.length === 0" class="fav-empty">
-      暂无常用股票。去「股票查询分析」搜索或查看某个标的，它就会出现在这里。
+    <div v-else-if="rows.length === 0" class="wl-empty">
+      暂无自选股。在「股票查询分析」详情右上角，或「市场总览」右键某只股票，即可加入自选。
     </div>
 
-    <!-- 虚拟表格：Element Plus 的 ElTableV2，仅渲染可视区行，数据量大也不卡顿 -->
-    <div v-else ref="wrapRef" class="fav-table-wrap">
+    <!-- 虚拟表格：Element Plus 的 ElTableV2，仅渲染可视区行 -->
+    <div v-else ref="wrapRef" class="wl-table-wrap">
       <el-table-v2
         :columns="columns"
         :data="rows"
@@ -36,16 +41,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, h } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, h, watch as vueWatch } from 'vue'
 import { ElTableV2, ElMessage } from 'element-plus'
 import type { Column } from 'element-plus'
 import LucideIcon from '@/components/LucideIcon.vue'
-import { getRecentSymbols, getQuotesBatch } from '../api'
+import { getQuotesBatch } from '../api'
 import type { Quote } from '../types'
+import { useWatchlistStore } from '../watchlistStore'
 
 const emit = defineEmits<{ (e: 'drill', symbol: string): void }>()
 
-interface FavRow {
+const watch = useWatchlistStore()
+
+interface WatchRow {
   symbol: string
   name: string
   last_price?: number
@@ -57,10 +65,28 @@ interface FavRow {
   turnover_rate?: number
 }
 
-const MAX = 30
-
-const rows = ref<FavRow[]>([])
 const loading = ref(false)
+/** 实时行情索引（按 symbol），与 watch.items 解耦，避免列表变动时丢失行情 */
+const quoteMap = ref<Record<string, Quote>>({})
+
+/** 列表行：由 watch.items（名称/代码）与 quoteMap（行情）派生，增删即时联动 */
+const rows = computed<WatchRow[]>(() =>
+  watch.items.value.map((item) => {
+    const q = quoteMap.value[item.symbol]
+    const ext = q?.ext
+    return {
+      symbol: item.symbol,
+      name: item.name || baseSymbol(item.symbol),
+      last_price: q?.last_price,
+      change_amount: ext?.change_amount,
+      change_pct: ext?.change_pct,
+      amplitude: ext?.amplitude,
+      volume: q?.volume,
+      amount: q?.amount,
+      turnover_rate: ext?.turnover_rate,
+    }
+  }),
+)
 
 /** 虚拟表格尺寸（随容器测量） */
 const wrapRef = ref<HTMLElement | null>(null)
@@ -72,19 +98,15 @@ let ro: ResizeObserver | null = null
 const UP = '#e63946'
 const DOWN = '#2ea043'
 
-/** 去掉交易所后缀：600000.SH -> 600000 */
 function baseSymbol(symbol: string): string {
   return (symbol || '').split('.')[0] || symbol
 }
-
-/** 正红负绿，0/空不染色 */
 function colorFor(v?: number): string | undefined {
   if (v == null) return undefined
   if (v > 0) return UP
   if (v < 0) return DOWN
   return undefined
 }
-
 function fmtPrice(v?: number): string {
   return v == null ? '-' : v.toFixed(2)
 }
@@ -109,10 +131,9 @@ function fmtAmount(v?: number): string {
   return '¥' + v.toFixed(2)
 }
 
-/** 除「名称」列外的固定列宽之和；名称列动态填充剩余宽度 */
-const FIXED_W = 110 + 100 + 105 + 105 + 90 + 120 + 130 + 95 // = 855
+/** 除「名称」「操作」外的固定列宽之和；名称列动态填充剩余宽度 */
+const FIXED_W = 110 + 100 + 105 + 105 + 90 + 120 + 130 + 95 + 80 // = 935
 
-/** 列定义：代码 / 名称 / 现价 / 涨跌额 / 涨跌幅 / 振幅 / 成交量 / 成交额 / 换手率 */
 const columns = computed<Column[]>(() => {
   const nameW = Math.max(120, tableWidth.value - FIXED_W)
   return [
@@ -164,7 +185,8 @@ const columns = computed<Column[]>(() => {
       dataKey: 'amplitude',
       width: 90,
       align: 'right',
-      cellRenderer: ({ rowData }) => h('span', {}, rowData.amplitude == null ? '-' : rowData.amplitude.toFixed(2) + '%'),
+      cellRenderer: ({ rowData }) =>
+        h('span', {}, rowData.amplitude == null ? '-' : rowData.amplitude.toFixed(2) + '%'),
     },
     {
       key: 'volume',
@@ -191,54 +213,73 @@ const columns = computed<Column[]>(() => {
       cellRenderer: ({ rowData }) =>
         h('span', {}, rowData.turnover_rate == null ? '-' : rowData.turnover_rate.toFixed(2) + '%'),
     },
+    {
+      key: 'op',
+      title: '操作',
+      dataKey: 'op',
+      width: 80,
+      align: 'center',
+      cellRenderer: ({ rowData }) =>
+        h(
+          'button',
+          {
+            class: 'rm-btn',
+            title: '移出自选股',
+            // 阻止冒泡，避免触发整行下钻
+            onClick: (e: MouseEvent) => {
+              e.stopPropagation()
+              onRemove(rowData.symbol)
+            },
+          },
+          '移除',
+        ),
+    },
   ]
 })
 
 /** 点击行下钻到「股票查询分析」 */
 const rowEventHandlers = {
-  onClick: ({ rowData }: { rowData: FavRow }) => {
+  onClick: ({ rowData }: { rowData: WatchRow }) => {
     const symbol = rowData?.symbol
     if (!symbol) return
     emit('drill', symbol)
   },
 }
 
-async function load() {
+/** 批量拉取实时行情并按 symbol 建索引 */
+async function loadQuotes() {
+  const syms = watch.items.value.map((i) => i.symbol)
+  if (!syms.length) {
+    quoteMap.value = {}
+    return
+  }
   loading.value = true
   try {
-    const syms = await getRecentSymbols(MAX)
-    if (!syms.length) {
-      rows.value = []
-      return
-    }
-    // 批量实时行情（一次回源），名称直接取返回结构里的 ext.name
-    // 批量行情失败仍保留代码行（不阻断列表展示），但需提示用户
-    const quoteArr = await getQuotesBatch(syms).catch((e) => {
-      ElMessage.error('批量获取实时行情失败：' + (e instanceof Error ? e.message : '未知错误'))
-      return [] as Quote[]
-    })
-    const qMap = new Map(quoteArr.map((q) => [q.symbol, q]))
-    rows.value = syms.map((sym) => {
-      const q = qMap.get(sym)
-      const ext = q?.ext
-      return {
-        symbol: sym,
-        name: ext?.name || baseSymbol(sym),
-        last_price: q?.last_price,
-        change_amount: ext?.change_amount,
-        change_pct: ext?.change_pct,
-        amplitude: ext?.amplitude,
-        volume: q?.volume,
-        amount: q?.amount,
-        turnover_rate: ext?.turnover_rate,
-      }
-    })
+    const list = await getQuotesBatch(syms)
+    const map: Record<string, Quote> = {}
+    for (const q of list) map[q.symbol] = q
+    quoteMap.value = map
   } catch (e) {
-    rows.value = []
-    console.error('读取常用股票失败:', e)
-    ElMessage.error('读取常用股票失败：' + (e instanceof Error ? e.message : '未知错误'))
+    ElMessage.error('批量获取实时行情失败：' + (e instanceof Error ? e.message : '未知错误'))
   } finally {
     loading.value = false
+  }
+}
+
+async function refresh() {
+  await watch.load()
+  await loadQuotes()
+}
+
+async function onRemove(symbol: string) {
+  try {
+    await watch.remove(symbol)
+    ElMessage.success(`已移出自选股：${symbol}`)
+    // 列表已随 store 更新；顺手刷新行情索引，避免残留
+    delete quoteMap.value[symbol]
+    quoteMap.value = { ...quoteMap.value }
+  } catch (e) {
+    ElMessage.error('移出自选股失败：' + (e instanceof Error ? e.message : '未知错误'))
   }
 }
 
@@ -249,13 +290,19 @@ function measure() {
   tableWidth.value = Math.max(320, el.clientWidth)
 }
 
-onMounted(() => {
-  load()
+onMounted(async () => {
+  if (!watch.loaded.value) await watch.load()
+  await loadQuotes()
   if (wrapRef.value && typeof ResizeObserver !== 'undefined') {
     ro = new ResizeObserver(measure)
     ro.observe(wrapRef.value)
     measure()
   }
+  // 自选股列表变动（如从详情头部按钮加入）时，补充拉取行情
+  vueWatch(
+    () => watch.items.value.map((i) => i.symbol).join(','),
+    () => loadQuotes(),
+  )
 })
 
 onBeforeUnmount(() => {
@@ -265,26 +312,26 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped lang="scss">
-.favorites {
+.watchlist {
   height: 100%;
   display: flex;
   flex-direction: column;
   padding: 16px;
   overflow: hidden;
 
-  .fav-header {
+  .wl-header {
     display: flex;
     align-items: center;
     gap: 10px;
     margin-bottom: 16px;
     flex-shrink: 0;
 
-    .fav-title {
+    .wl-title {
       font-size: 1rem;
       font-weight: 700;
       color: var(--text-primary);
     }
-    .fav-sub {
+    .wl-sub {
       font-size: 0.8rem;
       color: var(--text-muted);
     }
@@ -311,21 +358,20 @@ onBeforeUnmount(() => {
         cursor: default;
       }
       .spinning {
-        animation: fav-spin 0.8s linear infinite;
+        animation: wl-spin 0.8s linear infinite;
       }
     }
   }
 
-  .fav-loading,
-  .fav-empty {
+  .wl-loading,
+  .wl-empty {
     color: var(--text-muted);
     font-size: 0.88rem;
     padding: 24px 0;
     text-align: center;
   }
 
-  /* 虚拟表格容器：撑满剩余高度，尺寸由 JS 测量后传给 ElTableV2 */
-  .fav-table-wrap {
+  .wl-table-wrap {
     flex: 1;
     min-height: 0;
   }
@@ -333,13 +379,29 @@ onBeforeUnmount(() => {
   .muted {
     color: var(--text-muted);
   }
+
+  :deep(.rm-btn) {
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    padding: 3px 10px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+
+    &:hover {
+      color: #e63946;
+      border-color: #e63946;
+      background: rgba(230, 57, 70, 0.06);
+    }
+  }
 }
 
-@keyframes fav-spin {
+@keyframes wl-spin {
   to { transform: rotate(360deg); }
 }
 
-/* 单元格文字样式（与列表整体配色一致） */
 .cell-symbol {
   font-variant-numeric: tabular-nums;
   color: var(--text-primary);

@@ -31,7 +31,6 @@
           <div class="suggest-item">
             <span class="suggest-name">{{ item.name || item.symbol }}</span>
             <span class="suggest-symbol">{{ item.symbol }}</span>
-            <span v-if="item.exchange" class="suggest-exchange">{{ item.exchange }}</span>
           </div>
         </template>
       </el-autocomplete>
@@ -89,7 +88,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import LucideIcon from '@/components/LucideIcon.vue'
-import { searchInstruments, getInstruments } from '../api'
+import { searchInstruments, getInstrumentsDb } from '../api'
 
 const props = defineProps<{
   loading?: boolean
@@ -143,18 +142,27 @@ function tagLabel(symbol: string): string {
   return name ? `${name} (${base})` : base
 }
 
-/** 批量解析 symbol 名称并写入 nameMap（查不到不影响，fallback 到去后缀代码） */
-async function fillNames(symbols: string[]): Promise<void> {
+/** 批量从本地个股主表解析 symbol 名称并写入 nameMap（不请求 TickFlow，离线可用，避免累积 GET） */
+async function fillNamesFromDb(symbols: string[]): Promise<void> {
   const targets = (symbols || []).filter((s) => s && !nameMap.value[s])
   if (!targets.length) return
   try {
-    const rows = await getInstruments(targets.join(','))
+    const rows = await getInstrumentsDb()
+    const dbMap: Record<string, string> = {}
     for (const r of rows) {
-      if (r.symbol && r.name) nameMap.value[r.symbol] = r.name
+      if (r.symbol && r.name) dbMap[r.symbol] = r.name
     }
-    nameMap.value = { ...nameMap.value }
+    const next = { ...nameMap.value }
+    let changed = false
+    for (const s of targets) {
+      if (dbMap[s]) {
+        next[s] = dbMap[s]
+        changed = true
+      }
+    }
+    if (changed) nameMap.value = next
   } catch {
-    /* 忽略：展示 fallback 即可 */
+    /* 本地库读取失败：标签回退展示代码，不影响功能 */
   }
 }
 
@@ -320,9 +328,9 @@ function applyHistory(item: string) {
   onSubmit()
 }
 
-/** 初始化：对 localStorage 里的历史 symbol 批量解析名称 */
+/** 初始化：对 localStorage 里的历史 symbol 从本地库批量解析名称（不发接口） */
 onMounted(() => {
-  if (history.value.length) fillNames(history.value)
+  if (history.value.length) fillNamesFromDb(history.value)
 })
 </script>
 

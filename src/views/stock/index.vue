@@ -14,6 +14,7 @@
         <el-tabs v-model="activeTab">
           <el-tab-pane label="股票查询分析" name="analyze" />
           <el-tab-pane label="市场总览" name="market" />
+          <el-tab-pane label="自选股" name="watchlist" />
           <el-tab-pane label="常用" name="favorites" />
         </el-tabs>
         <button class="reconfig-btn" title="股票设置" @click="showSettings = true">
@@ -31,6 +32,10 @@
         />
         <StockFavorites
           v-else-if="activeTab === 'favorites'"
+          @drill="onDrillFromMarket"
+        />
+        <StockWatchlist
+          v-else-if="activeTab === 'watchlist'"
           @drill="onDrillFromMarket"
         />
       </div>
@@ -57,8 +62,10 @@ import MarketOverview from './components/MarketOverview.vue'
 import ApiKeySetup from './components/ApiKeySetup.vue'
 import StockSettings from './components/StockSettings.vue'
 import StockFavorites from './components/StockFavorites.vue'
+import StockWatchlist from './components/StockWatchlist.vue'
 import { getApiKey } from './api'
 import { getStore, setStore, send } from '@/utils/common'
+import { useWatchlistStore } from './watchlistStore'
 
 type KeyStatus = 'loading' | 'missing' | 'ready'
 
@@ -95,6 +102,10 @@ onMounted(async () => {
   } catch {
     // 读取失败视为未配置，展示输入界面
     keyStatus.value = 'missing'
+  }
+  // 预加载自选股，使详情头部「加入自选」按钮的状态（是否已加入）即时准确
+  if (keyStatus.value === 'ready') {
+    useWatchlistStore().load().catch(() => {})
   }
 })
 

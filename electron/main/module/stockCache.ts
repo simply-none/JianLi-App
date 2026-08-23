@@ -509,3 +509,159 @@ export function searchInstrumentsDb(
   })
 }
 
+/* ===================== 自选股表 =====================
+ * 与「常用」（从缓存提炼）不同，自选股是用户主动维护的标的集合，
+ * 长期落库、可增删。主键 symbol；name/exchange/region/type 冗余存一份，
+ * 便于离线直接展示；created_at 用于排序（新加入的排在前面）。
+ *
+ * 注意：不使用通用 upsertData（它会把 created_at 也覆盖成新值），
+ * 这里用专属 SQL，冲突时只更新元数据字段、保留 created_at。
+ */
+
+export const STOCK_WATCHLIST_TABLE = 'stock_watchlist'
+
+/** 自选股单条（对外返回结构） */
+export interface WatchlistItem {
+  symbol: string
+  name: string
+  exchange: string
+  region: string
+  type: string
+  created_at: number
+}
+
+/** 加入自选股时传入的单条（symbol 必填，其余可选，前端尽量带全） */
+export interface WatchlistInput {
+  symbol: string
+  name?: string
+  exchange?: string
+  region?: string
+  type?: string
+}
+
+/** 确保表存在（首次自动建表，仅 symbol 主键一列；其余列在写入时按需 ALTER 补齐） */
+export function ensureStockWatchlistTable(): Promise<void> {
+  return new Promise((resolve) => {
+    createTable({
+      db: myDb.db,
+      tableName: STOCK_WATCHLIST_TABLE,
+      config: { primaryKey: 'symbol' },
+      callback: () => resolve(),
+    })
+  })
+}
+
+/** 写入前确保 name/exchange/region/type/created_at 列存在（表由 createTable 仅建主键列） */
+function ensureWatchlistColumns(): Promise<void> {
+  return new Promise((resolve) => {
+    const db = myDb.db as any
+    db.get(
+      `SELECT sql FROM sqlite_master WHERE type='table' AND name='${STOCK_WATCHLIST_TABLE}'`,
+      (err: any, row: any) => {
+        if (err || !row?.sql) return resolve()
+        const sql = String(row.sql)
+        const needed = ['name', 'exchange', 'region', 'type', 'created_at']
+        const existing = needed.filter((c) => new RegExp(`\\b${c}\\b`, 'i').test(sql))
+        const missing = needed.filter((c) => !existing.includes(c))
+        if (!missing.length) return resolve()
+        let i = 0
+        const next = () => {
+          if (i >= missing.length) return resolve()
+          const col = missing[i++]
+          db.run(`ALTER TABLE ${STOCK_WATCHLIST_TABLE} ADD COLUMN ${col} TEXT`, (e: any) => {
+            if (e) console.warn('补齐自选股列失败:', e)
+            next()
+          })
+        }
+        next()
+      },
+    )
+  })
+}
+
+/** 加入 / 更新自选股（可批量）。symbol 统一转大写。返回最新全量列表。 */
+export function addToWatchlist(rows: WatchlistInput[]): Promise<WatchlistItem[]> {
+  const items = (rows || [])
+    .filter((r) => r && r.symbol)
+    .map((r) => ({
+      symbol: String(r.symbol).toUpperCase(),
+      name: String(r.name ?? ''),
+      exchange: String(r.exchange ?? ''),
+      region: String(r.region ?? ''),
+      type: String(r.type ?? ''),
+      created_at: Date.now(),
+    }))
+  if (!items.length) return Promise.resolve([])
+  return new Promise((resolve, reject) => {
+    const db = myDb.db as any
+    ensureWatchlistColumns()
+      .then(() => {
+        const sql = `INSERT INTO ${STOCK_WATCHLIST_TABLE} (symbol, name, exchange, region, type, created_at)
+          VALUES (?, ?, ?, ?, ?, ?)
+          ON CONFLICT(symbol) DO UPDATE SET
+            name=excluded.name, exchange=excluded.exchange, region=excluded.region, type=excluded.type`
+        const stmt = db.prepare(sql)
+        let errored: Error | null = null
+        let pending = items.length
+        for (const it of items) {
+          stmt.run(
+            [it.symbol, it.name, it.exchange, it.region, it.type, it.created_at],
+            (err: any) => {
+              if (err) errored = err
+              pending--
+              if (pending === 0) {
+                stmt.finalize()
+                if (errored) reject(errored)
+                else getWatchlist().then(resolve).catch(reject)
+              }
+            },
+          )
+        }
+      })
+      .catch(reject)
+  })
+}
+
+/** 移出自选股（可批量，按 symbol 大写匹配）。返回最新全量列表。 */
+export function removeFromWatchlist(symbols: string[]): Promise<WatchlistItem[]> {
+  const syms = (symbols || [])
+    .map((s) => String(s).toUpperCase())
+    .filter(Boolean)
+  if (!syms.length) return getWatchlist()
+  return new Promise((resolve, reject) => {
+    const db = myDb.db as any
+    const placeholders = syms.map(() => '?').join(',')
+    db.run(
+      `DELETE FROM ${STOCK_WATCHLIST_TABLE} WHERE symbol IN (${placeholders})`,
+      syms,
+      (err: any) => {
+        if (err) return reject(err)
+        getWatchlist().then(resolve).catch(reject)
+      },
+    )
+  })
+}
+
+/** 读取自选股全量（按 created_at 倒序：新加入的排前面） */
+export function getWatchlist(): Promise<WatchlistItem[]> {
+  return new Promise((resolve) => {
+    const db = myDb.db as any
+    db.all(
+      `SELECT symbol, name, exchange, region, type, created_at FROM ${STOCK_WATCHLIST_TABLE} ORDER BY created_at DESC`,
+      (err: any, rows: any[]) => {
+        if (err || !Array.isArray(rows)) return resolve([])
+        resolve(
+          rows.map((r) => ({
+            symbol: r.symbol,
+            name: r.name || '',
+            exchange: r.exchange || '',
+            region: r.region || '',
+            type: r.type || '',
+            created_at: Number(r.created_at) || 0,
+          })),
+        )
+      },
+    )
+  })
+}
+

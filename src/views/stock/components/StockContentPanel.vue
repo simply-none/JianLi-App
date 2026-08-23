@@ -13,7 +13,8 @@
     <!-- 多标的：顶部 Tab 切换 -->
     <template v-else-if="symbols.length > 1">
       <el-tabs v-model="active" class="stock-tabs">
-        <el-tab-pane v-for="s in symbols" :key="s" :label="s" :name="s">
+        <!-- lazy：tab 首次激活时才挂载内容，避免非激活页在 display:none 里初始化 ECharts 导致 dataZoom/布局异常 -->
+        <el-tab-pane v-for="s in symbols" :key="s" :label="s" :name="s" lazy>
           <StockSinglePanel
             :symbol="s"
             :quote="quoteMap[s]"
@@ -36,6 +37,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
 import type { Quote, Instrument } from '../types'
 import { getQuotes, getInstrumentsBatch } from '../api'
 import StockSinglePanel from './StockSinglePanel.vue'
@@ -67,9 +69,10 @@ async function loadQuotes() {
     for (const inst of instruments) iMap[inst.symbol] = inst
     instrumentMap.value = iMap
   } catch (err) {
-    // 行情/元数据失败不影响 K 线/分析展示
+    // 行情/元数据失败不影响 K 线/分析展示，但需提示用户
     quoteMap.value = {}
     instrumentMap.value = {}
+    ElMessage.error('实时行情/标的信息获取失败：' + (err instanceof Error ? err.message : '未知错误'))
   } finally {
     loadingQuote.value = false
   }

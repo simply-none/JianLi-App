@@ -36,12 +36,38 @@ export async function getQuotes(symbols: string): Promise<Quote[]> {
   return res.data as Quote[]
 }
 
-/** 批量实时行情（POST /v1/quotes，按 symbols[]） */
+/**
+ * 批量实时行情（POST /v1/quotes，按 symbols[]）。
+ * TickFlow 单次最多 5 个，这里自动按 5 个一组拆分、并发请求并合并结果，
+ * 对调用方透明（仍返回合并后的 Quote[]）。
+ */
 export async function getQuotesBatch(symbols: string[]): Promise<Quote[]> {
-  const body: QuotesBatchBody = { symbols: toPlain(symbols) }
-  const res = await window.ipcRenderer.invoke('stock:getQuotesBatch', body)
-  if (!res?.success) throw new Error(res?.error || '批量查询实时行情失败')
-  return res.data as Quote[]
+  const list = symbols.filter((s) => !!s)
+  if (!list.length) return []
+  const CHUNK = 5
+  const chunks: string[][] = []
+  for (let i = 0; i < list.length; i += CHUNK) chunks.push(list.slice(i, i + CHUNK))
+
+  const out: Quote[] = []
+  const errors: string[] = []
+  await Promise.all(
+    chunks.map(async (chunk) => {
+      try {
+        const body: QuotesBatchBody = { symbols: toPlain(chunk) }
+        const res = await window.ipcRenderer.invoke('stock:getQuotesBatch', body)
+        if (!res?.success) throw new Error(res?.error || '批量查询实时行情失败')
+        out.push(...((res.data as Quote[]) || []))
+      } catch (e) {
+        errors.push(e instanceof Error ? e.message : String(e))
+      }
+    }),
+  )
+
+  // 部分分片失败时抛出聚合错误（调用方已有 message 提示与降级处理）
+  if (errors.length) {
+    throw new Error('批量获取实时行情部分失败：' + errors.join('；'))
+  }
+  return out
 }
 
 /** K 线（单标的，GET /v1/klines） */
@@ -152,6 +178,46 @@ export async function searchInstruments(
   const res = await window.ipcRenderer.invoke('stock:searchInstruments', { keyword, limit })
   if (!res?.success) throw new Error(res?.error || '个股搜索失败')
   return (res.data as any[]) || []
+}
+
+/** 自选股单条（主进程返回结构，来自 stockCache.ts 的 WatchlistItem） */
+export interface WatchlistItem {
+  symbol: string
+  name: string
+  exchange: string
+  region: string
+  type: string
+  created_at: number
+}
+
+/** 加入自选股时传入的单条（symbol 必填，其余可选） */
+export interface WatchlistInput {
+  symbol: string
+  name?: string
+  exchange?: string
+  region?: string
+  type?: string
+}
+
+/** 读取自选股全量（按加入时间倒序） */
+export async function getWatchlist(): Promise<WatchlistItem[]> {
+  const res = await window.ipcRenderer.invoke('stock:getWatchlist')
+  if (!res?.success) throw new Error(res?.error || '读取自选股失败')
+  return (res.data as WatchlistItem[]) || []
+}
+
+/** 加入 / 更新自选股（可批量）。返回最新全量列表 */
+export async function addToWatchlist(items: WatchlistInput[]): Promise<WatchlistItem[]> {
+  const res = await window.ipcRenderer.invoke('stock:addToWatchlist', { items })
+  if (!res?.success) throw new Error(res?.error || '加入自选股失败')
+  return (res.data as WatchlistItem[]) || []
+}
+
+/** 移出自选股（可批量，按 symbol 匹配）。返回最新全量列表 */
+export async function removeFromWatchlist(symbols: string[]): Promise<WatchlistItem[]> {
+  const res = await window.ipcRenderer.invoke('stock:removeFromWatchlist', { symbols })
+  if (!res?.success) throw new Error(res?.error || '移出自选股失败')
+  return (res.data as WatchlistItem[]) || []
 }
 
 /** 缓存 TTL 配置（默认 + 当前覆盖），毫秒 */

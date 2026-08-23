@@ -30,6 +30,10 @@ import {
   getAllExchangesDb,
   getInstrumentsDb,
   searchInstrumentsDb,
+  ensureStockWatchlistTable,
+  addToWatchlist,
+  removeFromWatchlist,
+  getWatchlist,
 } from './stockCache.ts'
 import { tableName as basicInfoTable } from './store.ts'
 import { encrypt, decrypt, generateRSAKeyPair } from './crypto.ts'
@@ -592,6 +596,9 @@ export function initStock() {
   // 确保交易所 / 个股主表存在（首次自动建表，失败静默）
   ensureStockMetaTables().catch(() => {})
 
+  // 确保自选股表存在（首次自动建表，失败静默）
+  ensureStockWatchlistTable().catch(() => {})
+
   // 10 个图中接口（全部走统一缓存处理器）
   ipcMain.handle('stock:getQuotes', (_e, p) => cachedHandler('stock:getQuotes', getQuotes, p))
   ipcMain.handle('stock:getDepth', (_e, p) => cachedHandler('stock:getDepth', getDepth, p))
@@ -601,8 +608,21 @@ export function initStock() {
   ipcMain.handle('stock:getKlinesBatch', (_e, p) => cachedHandler('stock:getKlinesBatch', getKlinesBatch, p))
   ipcMain.handle('stock:getIntraday', (_e, p) => cachedHandler('stock:getIntraday', getIntraday, p))
   ipcMain.handle('stock:getIntradayBatch', (_e, p) => cachedHandler('stock:getIntradayBatch', getIntradayBatch, p))
-  ipcMain.handle('stock:getInstruments', (_e, p) => cachedHandler('stock:getInstruments', getInstruments, p))
-  ipcMain.handle('stock:getInstrumentsBatch', (_e, p) => cachedHandler('stock:getInstrumentsBatch', getInstrumentsBatch, p))
+  // 标的元数据：请求成功后额外落库到 stock_instruments（单条标的也能离线命中名字）
+  ipcMain.handle('stock:getInstruments', async (_e, p) => {
+    const res = await cachedHandler('stock:getInstruments', getInstruments, p)
+    if (res.success && Array.isArray(res.data)) {
+      saveInstruments(res.data).catch(() => {})
+    }
+    return res
+  })
+  ipcMain.handle('stock:getInstrumentsBatch', async (_e, p) => {
+    const res = await cachedHandler('stock:getInstrumentsBatch', getInstrumentsBatch, p)
+    if (res.success && Array.isArray(res.data)) {
+      saveInstruments(res.data).catch(() => {})
+    }
+    return res
+  })
 
   // 11~14：交易所 / 标的池（行业分类）相关接口，缓存一周
   // 交易所列表：请求成功后额外落库到 stock_exchanges（数组每项 = 一条）
@@ -682,6 +702,33 @@ export function initStock() {
       return { success: true, data: list }
     } catch (e) {
       return { success: false, error: (e as { message?: string })?.message || '读取常用股票失败' }
+    }
+  })
+
+  // 自选股：增 / 删 / 查（用户主动维护的标的集合，长期落库）
+  ipcMain.handle('stock:getWatchlist', async () => {
+    try {
+      return { success: true, data: await getWatchlist() }
+    } catch (e) {
+      return { success: false, error: (e as { message?: string })?.message || '读取自选股失败' }
+    }
+  })
+  ipcMain.handle(
+    'stock:addToWatchlist',
+    async (_e, p: { items?: Array<{ symbol: string; name?: string; exchange?: string; region?: string; type?: string }> }) => {
+      try {
+        const data = await addToWatchlist(p?.items || [])
+        return { success: true, data }
+      } catch (e) {
+        return { success: false, error: (e as { message?: string })?.message || '加入自选股失败' }
+      }
+    },
+  )
+  ipcMain.handle('stock:removeFromWatchlist', async (_e, p: { symbols?: string[] }) => {
+    try {
+      return { success: true, data: await removeFromWatchlist(p?.symbols || []) }
+    } catch (e) {
+      return { success: false, error: (e as { message?: string })?.message || '移出自选股失败' }
     }
   })
 

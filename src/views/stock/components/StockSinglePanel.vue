@@ -1,18 +1,32 @@
 <template>
   <div class="stock-single-panel" :class="{ compact }">
     <div class="panel-header">
-      <LucideIcon name="TrendingUp" :size="18" color="var(--color-primary)" />
-      <span class="symbol">{{ symbol }}</span>
-      <span v-if="loadingQuote" class="q-state">行情加载中…</span>
-      <span v-else-if="!quote" class="q-state muted">（无实时行情）</span>
-      <span
-        v-else-if="changePercent !== null"
-        class="change"
-        :class="changePercent >= 0 ? 'up' : 'down'"
-      >
-        {{ quote.last_price?.toFixed(2) }}
-        {{ changePercent >= 0 ? '▲' : '▼' }} {{ Math.abs(changePercent).toFixed(2) }}%
-      </span>
+      <div class="header-left">
+        <LucideIcon name="TrendingUp" :size="18" color="var(--color-primary)" />
+        <span class="name">{{ instrument?.name || symbol }}</span>
+        <span class="symbol">{{ symbol }}</span>
+      </div>
+      <div class="header-right">
+        <button
+          class="watch-btn"
+          :class="{ added: isWatched }"
+          :title="isWatched ? '移出自选股' : '加入自选股'"
+          @click="toggleWatch"
+        >
+          <LucideIcon :name="isWatched ? 'Check' : 'Star'" :size="14" />
+          <span>{{ isWatched ? '已加入' : '加入自选' }}</span>
+        </button>
+        <span v-if="loadingQuote" class="q-state">行情加载中…</span>
+        <span v-else-if="!quote" class="q-state muted">（无实时行情）</span>
+        <span
+          v-else-if="changePercent !== null"
+          class="change"
+          :class="changePercent >= 0 ? 'up' : 'down'"
+        >
+          {{ quote.last_price?.toFixed(2) }}
+          {{ changePercent >= 0 ? '▲' : '▼' }} {{ Math.abs(changePercent).toFixed(2) }}%
+        </span>
+      </div>
     </div>
 
     <div class="panel-body">
@@ -42,10 +56,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
 import type { Quote, Period, Instrument } from '../types'
 import { getKlines } from '../api'
 import { toBars, type KlineBar } from '../klineUtils'
+import { useWatchlistStore } from '../watchlistStore'
 import StockBasicCard from './StockBasicCard.vue'
 import KlineChartCard from './KlineChartCard.vue'
 import KlineAnalysisCard from './KlineAnalysisCard.vue'
@@ -64,6 +80,35 @@ const changePercent = computed(() => {
   const q = props.quote
   if (!q || q.last_price == null || q.prev_close == null || !q.prev_close) return null
   return ((q.last_price - q.prev_close) / q.prev_close) * 100
+})
+
+/* ---- 自选股：详情头部「加入自选」按钮状态与切换 ---- */
+const watchStore = useWatchlistStore()
+const isWatched = computed(() => watchStore.has(props.symbol))
+
+async function toggleWatch() {
+  try {
+    if (isWatched.value) {
+      await watchStore.remove(props.symbol)
+      ElMessage.success(`已移出自选股：${props.symbol}`)
+    } else {
+      await watchStore.add({
+        symbol: props.symbol,
+        name: props.instrument?.name,
+        exchange: props.instrument?.exchange,
+        region: props.instrument?.region,
+        type: props.instrument?.type,
+      })
+      ElMessage.success(`已加入自选股：${props.symbol}`)
+    }
+  } catch (e) {
+    ElMessage.error('操作自选股失败：' + (e instanceof Error ? e.message : '未知错误'))
+  }
+}
+
+onMounted(() => {
+  // 确保自选股列表已加载，使按钮「是否已加入」状态准确
+  if (!watchStore.loaded.value) watchStore.load().catch(() => {})
 })
 
 /* ---- K 线单一数据源：本面板统一拉取，图表/分析共享，避免重复请求 ---- */
@@ -120,18 +165,61 @@ function onVisibleRange(r: { start: number; end: number }) {
   .panel-header {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 10px;
 
-    .symbol {
+    .header-left,
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .name {
       font-size: 1.1rem;
       font-weight: 700;
       color: var(--text-primary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .symbol {
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--text-muted);
     }
 
     .q-state {
       font-size: 0.85rem;
       font-weight: 600;
       &.muted { color: var(--text-muted); font-weight: 400; }
+    }
+
+    .watch-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      background: transparent;
+      color: var(--color-primary);
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+
+      &:hover {
+        background: var(--bg-hover, rgba(0, 0, 0, 0.05));
+      }
+
+      &.added {
+        color: #f5a623;
+        border-color: #f5a623;
+        background: rgba(245, 166, 35, 0.08);
+      }
     }
 
     .change {
@@ -153,7 +241,11 @@ function onVisibleRange(r: { start: number; end: number }) {
 
     .panel-header {
       gap: 8px;
-      .symbol { font-size: 0.95rem; }
+      .header-left,
+      .header-right { gap: 8px; }
+      .name { font-size: 0.95rem; }
+      .symbol { font-size: 0.8rem; }
+      .watch-btn { padding: 3px 8px; font-size: 0.75rem; }
       .change { font-size: 0.82rem; }
     }
 

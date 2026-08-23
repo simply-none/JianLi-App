@@ -23,12 +23,12 @@
 
     <!-- 虚拟表格：交易所下全部股票 -->
     <div v-else class="table-wrap" :style="{ height: tableHeight + 'px' }">
-     <div>{{ rows.length }}</div>
+     <div class="row-count">共 {{ visibleRows.length }} 条标的</div>
 
         <el-table-v2
           v-if="rows.length"
           :columns="columns"
-          :data="displayRows"
+          :data="visibleRows"
           :width="tableWidth"
           :height="tableHeight"
           :row-height="44"
@@ -48,16 +48,56 @@
         <span>{{ loadingInstruments ? '正在加载标的列表…' : '该交易所暂无标的' }}</span>
       </div>
     </div>
+
+    <!-- 右键上下文菜单（加入自选股 / 进入分析） -->
+    <div
+      v-if="menu.visible"
+      class="ctx-menu"
+      :style="{ left: menu.x + 'px', top: menu.y + 'px' }"
+      @click.stop
+    >
+      <div class="ctx-item" @click="menuAddToWatchlist">
+        <LucideIcon name="Star" :size="14" />
+        <span>加入自选股</span>
+      </div>
+      <div class="ctx-item" @click="menuDrill">
+        <LucideIcon name="ArrowRight" :size="14" />
+        <span>进入分析</span>
+      </div>
+    </div>
+
+    <!-- 类型过滤浮层（点击「类型」列表头漏斗图标弹出，多选过滤标的类型） -->
+    <div
+      v-if="typeFilter.visible"
+      class="type-filter"
+      :style="{ left: typeFilter.x + 'px', top: typeFilter.y + 'px' }"
+      @click.stop
+    >
+      <div class="tf-item tf-all" :class="{ on: !activeTypes.length }" @click="clearTypeFilter">
+        全部类型
+      </div>
+      <div
+        v-for="t in availableTypes"
+        :key="t"
+        class="tf-item"
+        :class="{ on: activeTypes.includes(t) }"
+        @click="toggleType(t)"
+      >
+        <span>{{ t }}</span>
+        <span v-if="activeTypes.includes(t)" class="tf-check">✓</span>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, shallowRef, onMounted, onUnmounted, watch, h, computed } from 'vue'
-import { ElTableV2 } from 'element-plus'
+import { ElTableV2, ElMessage } from 'element-plus'
 import type { Column, SortState, ColumnSortParams } from 'element-plus'
 import { TableV2SortOrder } from 'element-plus'
 import LucideIcon from '@/components/LucideIcon.vue'
 import { getExchanges, getExchangeInstruments, getQuotesBatch } from '../api'
+import { useWatchlistStore } from '../watchlistStore'
 import type { Instrument, Quote, ExchangeInfo } from '../types'
 
 const emit = defineEmits<{
@@ -118,6 +158,43 @@ function onColumnSort({ key }: ColumnSortParams<Row>) {
   }
 }
 
+/** 类型过滤：el-table-v2 不原生支持表头过滤，这里用自定义表头 + 浮层实现多选过滤 */
+const activeTypes = ref<string[]>([]) // 空数组 = 全部类型
+const typeFilter = ref<{ visible: boolean; x: number; y: number }>({ visible: false, x: 0, y: 0 })
+
+/** 当前交易所标的中出现的全部类型（去重），用于过滤浮层选项 */
+const availableTypes = computed<string[]>(() => {
+  const set = new Set<string>()
+  for (const r of rows.value) if (r.type) set.add(r.type)
+  return Array.from(set)
+})
+
+/** 在「排序后」数据基础上叠加类型过滤 */
+const visibleRows = computed<Row[]>(() => {
+  const base = displayRows.value
+  if (!activeTypes.value.length) return base
+  const set = new Set(activeTypes.value)
+  return base.filter((r) => set.has(r.type))
+})
+
+function openTypeFilter(e: MouseEvent) {
+  typeFilter.value = { visible: true, x: e.clientX, y: e.clientY }
+}
+function closeTypeFilter() {
+  typeFilter.value.visible = false
+}
+function toggleType(t: string) {
+  const arr = activeTypes.value
+  const i = arr.indexOf(t)
+  if (i >= 0) arr.splice(i, 1)
+  else arr.push(t)
+  // 重新赋值以触发响应式刷新
+  activeTypes.value = [...arr]
+}
+function clearTypeFilter() {
+  activeTypes.value = []
+}
+
 /** 点击某一行下钻到「股票查询分析」页面（el-table-v2 通过 row-event-handlers 绑定，非 @row-click） */
 const rowEventHandlers = {
   onClick: ({ rowData }: { rowData: Row }) => {
@@ -125,6 +202,46 @@ const rowEventHandlers = {
     if (!symbol) return
     emit('drill', symbol)
   },
+  onContextmenu: (params: any) => {
+    const rowData: Row | undefined = params?.rowData
+    const event: MouseEvent | undefined = params?.event
+    if (!rowData?.symbol || !event) return
+    event.preventDefault()
+    openMenu(event, rowData)
+  },
+}
+
+/** 右键上下文菜单（加入自选股 / 进入分析） */
+const watchStore = useWatchlistStore()
+const menu = ref<{ visible: boolean; x: number; y: number; row: Row | null }>({
+  visible: false,
+  x: 0,
+  y: 0,
+  row: null,
+})
+
+function openMenu(e: MouseEvent, row: Row) {
+  menu.value = { visible: true, x: e.clientX, y: e.clientY, row }
+}
+function closeMenu() {
+  menu.value.visible = false
+}
+async function menuAddToWatchlist() {
+  const r = menu.value.row
+  if (r) {
+    try {
+      await watchStore.add({ symbol: r.symbol, name: r.name, exchange: r.exchange, region: r.region, type: r.type })
+      ElMessage.success(`已加入自选股：${r.symbol}`)
+    } catch (e) {
+      ElMessage.error('加入自选股失败：' + (e instanceof Error ? e.message : '未知错误'))
+    }
+  }
+  closeMenu()
+}
+function menuDrill() {
+  const r = menu.value.row
+  if (r) emit('drill', r.symbol)
+  closeMenu()
 }
 
 /** 已加载的交易所数据缓存（交易所列表一周缓存，单次会话内避免重复拉取） */
@@ -172,19 +289,43 @@ function typeLabel(t?: string): string {
   }
   return map[t] || t
 }
+function exchangeLabel(ex?: string): string {
+  if (!ex) return '-'
+  const map: Record<string, string> = {
+    SH: '上交所', SSE: '上交所',
+    SZ: '深交所', SZSE: '深交所',
+    BJ: '北交所', BSE: '北交所',
+    HK: '港交所', HKEX: '港交所',
+    US: '美股', NASDAQ: '纳斯达克', NYSE: '纽交所',
+    TW: '台交所', TSE: '台交所',
+    JP: '日本', TYO: '东京证交所',
+    LON: '伦交所', LSE: '伦交所',
+    SG: '新加坡', SGX: '新加坡',
+  }
+  return map[ex] || ex
+}
+function regionLabel(rg?: string): string {
+  if (!rg) return '-'
+  const map: Record<string, string> = {
+    cn: '中国', CN: '中国', china: '中国',
+    us: '美国', US: '美国', usa: '美国',
+    hk: '香港', HK: '香港',
+    tw: '台湾', TW: '台湾',
+    jp: '日本', JP: '日本',
+    uk: '英国', UK: '英国',
+    sg: '新加坡', SG: '新加坡',
+  }
+  return map[rg] || rg
+}
 
-/** 批量拉取实时行情并按 symbol 建索引（TickFlow 单次最多 1000，分批） */
+/** 批量拉取实时行情并按 symbol 建索引（getQuotesBatch 内部已按 TickFlow 单次≤5 自动分批） */
 async function loadQuotes(symbols: string[]): Promise<Record<string, Quote>> {
   const map: Record<string, Quote> = {}
-  const BATCH = 1000
-  for (let i = 0; i < symbols.length; i += BATCH) {
-    const slice = symbols.slice(i, i + BATCH)
-    try {
-      const list = await getQuotesBatch(slice)
-      for (const q of list) map[q.symbol] = q
-    } catch {
-      // 单批失败不影响其余批次与静态数据展示
-    }
+  try {
+    const list = await getQuotesBatch(symbols)
+    for (const q of list) map[q.symbol] = q
+  } catch {
+    // 批量失败不影响静态数据展示
   }
   return map
 }
@@ -276,6 +417,7 @@ const columns = computed<Column[]>(() => [
     dataKey: 'exchange',
     width: 90,
     sortable: true,
+    cellRenderer: ({ rowData }) => h('span', exchangeLabel(rowData.exchange)),
   },
   {
     key: 'region',
@@ -283,6 +425,7 @@ const columns = computed<Column[]>(() => [
     dataKey: 'region',
     width: 90,
     sortable: true,
+    cellRenderer: ({ rowData }) => h('span', regionLabel(rowData.region)),
   },
   {
     key: 'type',
@@ -290,53 +433,29 @@ const columns = computed<Column[]>(() => [
     dataKey: 'type',
     width: 110,
     sortable: true,
-  },
-  {
-    key: 'lastPrice',
-    title: '最新价',
-    dataKey: 'lastPrice',
-    width: 110,
-    sortable: true,
-    cellRenderer: ({ rowData }) => {
-      const v = rowData.lastPrice
-      const up = v != null && rowData.changePercent != null && rowData.changePercent >= 0
-      const down = v != null && rowData.changePercent != null && rowData.changePercent < 0
-      const color = up ? UP : down ? DOWN : undefined
-      return h('span', { style: { color } }, fmtPrice(v))
+    headerCellRenderer: () => {
+      const active = activeTypes.value.length > 0
+      return h('div', { class: 'type-header' }, [
+        h('span', { class: 'th-title' }, '类型'),
+        h(
+          'span',
+          {
+            class: 'filter-icon',
+            title: active ? '按类型过滤（已筛选）' : '按类型过滤',
+            onClick: (e: MouseEvent) => {
+              e.stopPropagation()
+              e.preventDefault()
+              openTypeFilter(e)
+            },
+          },
+          h(LucideIcon, {
+            name: 'Filter',
+            size: 13,
+            color: active ? 'var(--color-primary)' : 'var(--text-muted)',
+          }),
+        ),
+      ])
     },
-  },
-  {
-    key: 'changePercent',
-    title: '涨跌幅',
-    dataKey: 'changePercent',
-    width: 110,
-    sortable: true,
-    cellRenderer: ({ rowData }) => {
-      const v = rowData.changePercent
-      if (v == null) return h('span', { class: 'muted' }, '-')
-      const color = v >= 0 ? UP : DOWN
-      return h(
-        'span',
-        { style: { color } },
-        `${v >= 0 ? '▲' : '▼'} ${Math.abs(v).toFixed(2)}%`,
-      )
-    },
-  },
-  {
-    key: 'volume',
-    title: '成交量',
-    dataKey: 'volume',
-    width: 120,
-    sortable: true,
-    cellRenderer: ({ rowData }) => h('span', {}, fmtVolume(rowData.volume)),
-  },
-  {
-    key: 'amount',
-    title: '成交额',
-    dataKey: 'amount',
-    width: 130,
-    sortable: true,
-    cellRenderer: ({ rowData }) => h('span', {}, fmtAmount(rowData.amount)),
   },
 ])
 
@@ -349,10 +468,16 @@ function measure() {
 }
 
 let ro: ResizeObserver | null = null
+/** 关闭右键菜单 / 类型过滤浮层（点击页面其它位置时） */
+function onWindowClick() {
+  if (menu.value.visible) closeMenu()
+  if (typeFilter.value.visible) closeTypeFilter()
+}
 onMounted(async () => {
   measure()
   ro = new ResizeObserver(measure)
   if (rootRef.value) ro.observe(rootRef.value)
+  window.addEventListener('click', onWindowClick)
   try {
     const list = await getExchanges()
     exchanges.value = list || []
@@ -369,6 +494,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (ro) ro.disconnect()
+  window.removeEventListener('click', onWindowClick)
 })
 </script>
 
@@ -414,6 +540,106 @@ onUnmounted(() => {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .row-count {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    padding: 0 2px 6px;
+  }
+
+  /* 类型列表头的自定义渲染：标题 + 漏斗过滤图标 */
+  .type-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    width: 100%;
+    height: 100%;
+    padding: 0 10px;
+    box-sizing: border-box;
+
+    .th-title {
+      font-weight: 600;
+    }
+    .filter-icon {
+      display: inline-flex;
+      align-items: center;
+      cursor: pointer;
+      line-height: 1;
+    }
+  }
+
+  /* 类型过滤浮层 */
+  .type-filter {
+    position: fixed;
+    z-index: 9999;
+    min-width: 130px;
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 4px;
+    background: var(--bg-card, #fff);
+    border: 1px solid var(--border-subtle, #e5e7eb);
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+
+    .tf-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: background 0.12s;
+
+      &:hover {
+        background: var(--bg-hover, rgba(0, 0, 0, 0.05));
+      }
+      &.on {
+        color: var(--color-primary);
+        font-weight: 600;
+      }
+      &.tf-all {
+        border-bottom: 1px solid var(--border-subtle, #eee);
+        border-radius: 0;
+        margin-bottom: 2px;
+      }
+      .tf-check {
+        font-size: 0.8rem;
+      }
+    }
+  }
+
+  /* 右键上下文菜单 */
+  .ctx-menu {
+    position: fixed;
+    z-index: 9999;
+    min-width: 140px;
+    padding: 4px;
+    background: var(--bg-card, #fff);
+    border: 1px solid var(--border-subtle, #e5e7eb);
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+
+    .ctx-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: background 0.12s;
+
+      &:hover {
+        background: var(--bg-hover, rgba(0, 0, 0, 0.05));
+        color: var(--color-primary);
+      }
+    }
   }
 }
 </style>

@@ -23,6 +23,22 @@ export type AdjustType =
 /** 地区 */
 export type Region = string
 
+/** 实时行情扩展字段（ext 子对象，来自 TickFlow /v1/quotes 真实返回结构） */
+export interface QuoteExt {
+  /** 标的类别，如 cn_equity */
+  type?: string
+  /** 振幅（%） */
+  amplitude?: number
+  /** 涨跌额 */
+  change_amount?: number
+  /** 涨跌幅（%） */
+  change_pct?: number
+  /** 中文名 */
+  name?: string
+  /** 换手率（%） */
+  turnover_rate?: number
+}
+
 /** 实时行情单条记录 */
 export interface Quote {
   symbol: string
@@ -35,7 +51,8 @@ export interface Quote {
   volume?: number
   amount?: number
   timestamp?: number
-  ext?: Record<string, unknown>
+  /** 实时行情扩展字段（来自真实返回结构） */
+  ext?: QuoteExt
   session?: string
 }
 
