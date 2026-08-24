@@ -301,21 +301,15 @@ function realignStatefulRuntime(rt: any, now: number) {
   }, 0);
 
   let cycleStart = rt.cycleStart;
-  // 整轮已过期：把 cycleStart 对齐到「包含 now 的当前轮起点」（而非未来轮起点）。
-  // 旧实现用 floor+1 会多推一整轮，导致 cycleStart 跑到未来、跳过下方定位、
-  // index 错乱、nextTime 算出过去时刻。正确做法：cycleStart += 整轮 * floor(已流逝/整轮)，
-  // 落在 [now-整轮, now] 区间内，保证 now 仍处于该轮内，定位与 nextTime 都正确。
+  // 整轮是否过期：上一轮「开始时间 + 整轮时长」是否 ≤ 当前时间 now。
+  // - 未过期（cycleStart + 整轮 > now）：上一轮仍在进行 → 续跑当前状态，保持 cycleStart/startTime 不动。
+  // - 已过期（cycleStart + 整轮 ≤ now）：上一轮已结束 → 开始新一轮，把 cycleStart/startTime/startedAt
+  //   对齐到「当前时间 now」，index 回到首个序列状态，并持久化新的 startTime（满足「刷新开始时间为当前时间，开始新一轮」）。
   if (cycleDuration > 0 && cycleStart + cycleDuration <= now) {
-    const elapsed = now - cycleStart;
-    const rounds = Math.floor(elapsed / cycleDuration);
-    cycleStart += cycleDuration * rounds;
+    cycleStart = now;
     rt.cycleStart = cycleStart;
     reminder.startTime = cycleStart;
     persistStartTime(reminder);
-  }
-  // 即便未整轮过期，但 cycleStart 本身已落后当前（理论上不应发生，防御性修正）
-  if (cycleStart < now) {
-    // 不强行前推，仅用于下方定位；若仍小于 now 说明第 1 状态本应过去，定位逻辑会处理
   }
 
   // 定位当前应处的序列状态：从 cycleStart 起按序列间隔累加，找到 now 所在区段
@@ -668,6 +662,30 @@ function emitCurrentStateful(id: string) {
   });
 }
 
+// 静默（无通知、无锁屏）重新排程当前状态的推进 CronJob：
+// 停掉旧 Job，按「当前状态真实结束时刻 = rt.startedAt + 当前状态时长」新建，到点触发 advanceStateful。
+// 供「刷新当前时间 / 启动补偿」路径使用——realign 实时对齐时间线后，必须重新排程才能让下一状态继续流转，否则卡死。
+function rescheduleStatefulAdvance(id: string) {
+  const rt = statefulRuntime[id];
+  if (!rt) return;
+  const state = rt.reminder.states[rt.index];
+  if (!state) return;
+  const curDur = Number(state.duration) * Number(state.unit);
+  if (isNaN(curDur) || curDur <= 0) return; // 永久 / 0 时长状态不排程（与 emitStatefulEnter 一致）
+  const completedIndex = rt.index;
+  if (reminderJobs[id]) {
+    reminderJobs[id].stop();
+    delete reminderJobs[id];
+  }
+  reminderJobs[id] = new CronJob(
+    new Date(rt.startedAt + curDur),
+    () => advanceStateful(id, completedIndex),
+    null,
+    true,
+    'Asia/Shanghai'
+  );
+}
+
 // 某状态结束，推进到下一状态
 function advanceStateful(id: string, completedIndex: number) {
   const rt = statefulRuntime[id];
@@ -835,6 +853,10 @@ export function endInjectedState(reminderId: string) {
 // 把主进程算出的「开始时间」回写渲染端存储（仅当与现有值不同，避免无意义写库）
 function persistStartTime(reminder: any) {
   if (!reminder || !reminder.id) return;
+  // 直接在主进程落库（upsert 整行，含最新 startTime），不依赖渲染端 IPC 回写——
+  // 否则启动补偿时渲染端 onMounted 监听尚未注册，IPC 消息丢失，DB 的 startTime 永不更新（重启后仍是旧值）。
+  persistReminder(reminder);
+  // 通知渲染端同步内存中的 startTime，保持 UI 一致。
   win?.webContents.send('reminder-starttime-updated', {
     id: reminder.id,
     startTime: reminder.startTime,
@@ -1206,24 +1228,24 @@ export function initJob() {
   });
 
   // 渲染进程初始化后请求当前多状态运行时（补偿启动竞态，避免错过首次 state-change）。
-  // 优先从 lastStateEvents 缓存补发：无论主进程 restore 早于/晚于渲染端注册监听，
-  // 都能拿到「最后一次状态事件」，彻底消除竞态导致的列表/番茄钟状态空白。
+  // 先按「当前时间」重新对齐运行时：整轮已过期则前推到包含 now 的当前轮、
+  // 刷新 startedAt 与下一状态时刻并持久化新的开始时间；再下发当前状态仅用于刷新 UI/计时。
+  // 彻底消除「番茄钟长时间运行/挂起后，打开页面看到的是早已过去的轮次、nextTime 倒流、startTime 不刷新」。
+  // 注意：恢复补偿只 emitCurrentStateful（不带 notify），真实状态进入通知仍由 emitStatefulEnter 下发。
   ipcMain.on("request-reminder-state", () => {
-    let hasCached = false;
-    for (const id in lastStateEvents) {
-      hasCached = true;
-      broadcastStateChange(lastStateEvents[id]);
+    const now = Date.now();
+    let hasRuntime = false;
+    for (const id in statefulRuntime) {
+      hasRuntime = true;
+      const rt = statefulRuntime[id];
+      realignStatefulRuntime(rt, now);
+      // 刷新补偿：realign 已按「续跑 / 开新一轮」规则对齐时间线，此处静默重排程推进 CronJob，
+      // 否则刷新后状态机卡在当前状态、下一状态不流转；并用 emitCurrentStateful 仅刷新 UI/计时（不带 notify、不锁屏）。
+      rescheduleStatefulAdvance(id);
+      emitCurrentStateful(id);
     }
-    // 若缓存为空（stateful 运行时尚未由 restoreReminders 建好）：遍历已建好的 runtime 补发；
-    // 若 runtime 也空（restore 异步链未完成），置 pendingStateRequest，待建好时统一补发首帧。
-    if (!hasCached) {
-      let hasRuntime = false;
-      for (const id in statefulRuntime) {
-        hasRuntime = true;
-        emitCurrentStateful(id);
-      }
-      if (!hasRuntime) pendingStateRequest = true;
-    }
+    // 若 runtime 尚未建好（restore 异步链未完成）：置 pending，待建好时由 applyReminders 统一补发首帧。
+    if (!hasRuntime) pendingStateRequest = true;
   });
 
   // 启动时恢复待办截止提醒

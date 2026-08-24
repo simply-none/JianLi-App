@@ -251,6 +251,7 @@ const {
   stateLabel,
   nextStateLabel,
   nextStateTime,
+  stateStartTime,
   injected,
   stopped,
 } = storeToRefs(usePomodoroRuntime());
@@ -262,6 +263,7 @@ function runtimeByItem(id: string) {
     stateLabel: stateLabel.value,
     nextStateLabel: nextStateLabel.value,
     nextTime: nextStateTime.value,
+    stateStartTime: stateStartTime.value,
     injected: !!injected.value,
     stopped: !!stopped.value,
   };
@@ -391,7 +393,13 @@ function subInfoText(item: Reminder): string {
     const cur = rt.stateLabel || '?';
     const nextLabel = rt.nextStateLabel || '?';
     const nextT = fmt(rt.nextTime);
-    return `当前状态：${cur}，下一个状态：${nextLabel} 的提醒时间为 ${nextT}${startTimeText}`;
+    // 「本次开始时间」优先用运行时真实对齐后的状态起点（主进程按当前时间 realign 得到），
+    // 避免展示配置里陈旧的 startTime（如 00:02）而番茄钟实际早已在新一轮；
+    // 无运行时（极端竞态）才回退到配置值。
+    const startText = rt.stateStartTime && !isNaN(rt.stateStartTime)
+      ? `（本次开始时间：${fmt(rt.stateStartTime)}）`
+      : startTimeText;
+    return `当前状态：${cur}，下一个状态：${nextLabel} 的提醒时间为 ${nextT}${startText}`;
   }
   const nextT = fmt(nextTriggerTime(item));
   return `下一次提醒时间：${nextT}${startTimeText}`;
