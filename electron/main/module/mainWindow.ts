@@ -17,10 +17,20 @@ export let win: BrowserWindow | null;
 // 唯一出口：show_app 全局快捷键 / 系统托盘「隐藏应用」调用 hideApp()
 // （取消置顶 + 隐藏），从而在锁屏态也能释放钉死、切走。
 export function focusAppToTop() {
-  win?.setAlwaysOnTop(true, "screen-saver");
-  win?.setFullScreen(true);
+  // 必须先 show + focus，让窗口进入可见生命周期，再设置置顶/全屏；
+  // 否则若窗口此前被 hideApp() 完全隐藏，先 setAlwaysOnTop/setFullScreen 再 show
+  // 会导致置顶/全屏属性在显示前被丢弃（表现为「状态切到锁屏态却没置顶」）。
   win?.show();
   win?.focus();
+  // defer 设置置顶与全屏：确保窗口完成显示后再生效（electron 已知行为坑——
+  // 刚 show 的同一 tick 内设置 screen-saver 级置顶/全屏常被忽略）。
+  if (win) {
+    setTimeout(() => {
+      win?.setAlwaysOnTop(true, "screen-saver");
+      win?.setFullScreen(true);
+      win?.focus();
+    }, 0);
+  }
 }
 
 export function isSetStartup(isStartup: boolean, hidden = false) {

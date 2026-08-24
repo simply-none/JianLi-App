@@ -119,7 +119,7 @@
 import { storeToRefs } from 'pinia';
 import LucideIcon from '@/components/LucideIcon.vue';
 import useGlobalSetting from '@/store/useGlobalSetting';
-import useWorkOrRestStore from '@/store/useWorkOrReset';
+import useWorkOrRestStore from '@/store/usePomodoroDisplay';
 const terminalRef = ref(null);
 const outputRef = ref(null);
 const inputRef = ref(null);

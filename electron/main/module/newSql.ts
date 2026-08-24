@@ -298,7 +298,7 @@ export async function count(tableName: string, condition?: Record<string, any>):
  */
 export async function insert(options: InsertOptions): Promise<{ lastID: number; changes: number }> {
   const { tableName, data, config } = options;
-  await ensureTableExists(tableName, undefined, config?.primaryKey);
+  await ensureTableExists(tableName, undefined, config?.primaryKey, config);
   const db = myDb.db;
   const newData = Array.isArray(data) ? data : [data];
 
@@ -374,7 +374,7 @@ export async function insert(options: InsertOptions): Promise<{ lastID: number; 
  */
 export async function upsert(options: InsertOptions): Promise<{ lastID: number; changes: number }> {
   const { tableName, data, config } = options;
-  await ensureTableExists(tableName, undefined, config?.primaryKey);
+  await ensureTableExists(tableName, undefined, config?.primaryKey, config);
   const db = myDb.db;
   const newData = Array.isArray(data) ? data : [data];
 
@@ -682,7 +682,7 @@ export async function transaction(options: TransactionOptions): Promise<{ succes
  * 番茄钟状态记录：写入 pomodoro_status 表，并做「同天 + 同状态 + 10 秒内」去重。
  *
  * 为什么去重要在主进程做：主窗口与番茄钟小窗是两个独立渲染进程，都会收到主进程下发的
- * reminder-state-change 并各自发起写入；若去重放在渲染端，会因两进程「读都早于彼此写」出现竞态、
+ * tips-state-change 并各自发起写入；若去重放在渲染端，会因两进程「读都早于彼此写」出现竞态、
  * 各自落一条，导致同一状态进入被记成两条。本函数经主进程唯一 IPC 入口串行执行，
  * 保证每次真实状态进入（启动 / 状态切换）只落一条。
  *
@@ -718,7 +718,25 @@ export async function recordPomodoro(data: Record<string, any>) {
  * @param {string} [primaryKey='id'] - 主键字段名，默认为 id
  * @returns {Promise<void>}
  */
-export async function ensureTableExists(tableName: string, columns?: string[], primaryKey: string = 'id'): Promise<void> {
+/**
+ * 生成主键列定义。
+ * - 主键名为 id 且类型为 INTEGER：使用自增整数（兼容截图/电子书等老表的自增 id）。
+ * - 其余情况：使用调用方指定的类型（默认 TEXT）作为主键，支持字符串 id（如 reminders）。
+ */
+function getPrimaryKeyDef(primaryKey: string, pkType: string): string {
+  const upper = (pkType || "INTEGER").toUpperCase();
+  if (primaryKey === "id" && upper === "INTEGER") {
+    return "id INTEGER PRIMARY KEY AUTOINCREMENT";
+  }
+  return `${primaryKey} ${upper} PRIMARY KEY`;
+}
+
+export async function ensureTableExists(
+  tableName: string,
+  columns?: string[],
+  primaryKey: string = "id",
+  config?: { primaryKeyType?: "INTEGER" | "TEXT" }
+): Promise<void> {
   const db = myDb.db;
   return new Promise((resolve, reject) => {
     db.get(
@@ -733,10 +751,9 @@ export async function ensureTableExists(tableName: string, columns?: string[], p
         if (!row) {
           const defaultColumns = (columns?.length ? columns : ['name', 'value', 'created_at']).filter(col => col.toLowerCase() !== primaryKey.toLowerCase());
           const columnDefs = defaultColumns.map(col => `${col} TEXT`).join(', ');
-          
-          const primaryKeyDef = primaryKey === 'id' 
-            ? `${primaryKey} INTEGER PRIMARY KEY AUTOINCREMENT`
-            : `${primaryKey} TEXT PRIMARY KEY`;
+
+          const pkType = config?.primaryKeyType || (primaryKey === 'id' ? 'INTEGER' : 'TEXT');
+          const primaryKeyDef = getPrimaryKeyDef(primaryKey, pkType);
             
           await new Promise<void>((res, rej) => {
             const sql = columnDefs
@@ -774,9 +791,7 @@ export async function ensureTableExists(tableName: string, columns?: string[], p
           const alterPromises = [primaryKey].map(
             (col) =>
               new Promise<void>((res) => {
-                const colDef = primaryKey === 'id' 
-                  ? 'id INTEGER PRIMARY KEY AUTOINCREMENT'
-                  : `${primaryKey} TEXT PRIMARY KEY`;
+                const colDef = getPrimaryKeyDef(primaryKey, config?.primaryKeyType || (primaryKey === 'id' ? 'INTEGER' : 'TEXT'));
                 db.run(`ALTER TABLE ${tableName} ADD COLUMN ${colDef}`, (alterErr) => {
                   if (alterErr) {
                     const errMsg = (alterErr as Error).message;
@@ -918,17 +933,21 @@ function extractColumnNames(sql: string): string[] {
  * @param {{ primaryKey?: string }} [config] - 配置选项
  * @returns {Promise<void>}
  */
-async function ensureTableColumns(db: Database, tableName: string, data: Record<string, any>[], config?: { primaryKey?: string }) {
+async function ensureTableColumns(
+  db: Database,
+  tableName: string,
+  data: Record<string, any>[],
+  config?: { primaryKey?: string; primaryKeyType?: "INTEGER" | "TEXT" }
+) {
   return new Promise<void>((resolve, reject) => {
     db.get(`SELECT sql FROM sqlite_master WHERE type='table' AND name='${tableName}'`, async (err, result) => {
       if (err) return reject(err);
 
       const pk = config?.primaryKey || 'id';
+      const pkType = config?.primaryKeyType || (pk === 'id' ? 'INTEGER' : 'TEXT');
 
       if (!result || !result.sql) {
-        const primaryKey = config?.primaryKey
-          ? `${config.primaryKey} TEXT PRIMARY KEY`
-          : "id INTEGER PRIMARY KEY AUTOINCREMENT";
+        const primaryKey = getPrimaryKeyDef(pk, pkType);
 
         await new Promise<void>((res, rej) => {
           db.run(`CREATE TABLE IF NOT EXISTS ${tableName} (${primaryKey});`, [], (createErr) => {
@@ -948,9 +967,7 @@ async function ensureTableColumns(db: Database, tableName: string, data: Record<
           const alterPromises = [pk].map(
             (col) =>
               new Promise<void>((res) => {
-                const colDef = pk === 'id' 
-                  ? 'id INTEGER PRIMARY KEY AUTOINCREMENT'
-                  : `${pk} TEXT PRIMARY KEY`;
+                const colDef = getPrimaryKeyDef(pk, pkType);
                 db.run(`ALTER TABLE ${tableName} ADD COLUMN ${colDef}`, (alterErr) => {
                   if (alterErr) {
                     const errMsg = (alterErr as Error).message;
@@ -1063,7 +1080,7 @@ ipcMain.handle("new-sql:insert", async (event, options: InsertOptions) => {
 /**
  * IPC 处理器：番茄钟状态记录（带去重）
  *
- * 主窗口与番茄钟小窗是独立渲染进程，各自收到 reminder-state-change 后都会请求写入，
+ * 主窗口与番茄钟小窗是独立渲染进程，各自收到 tips-state-change 后都会请求写入，
  * 去重在主进程串行执行，保证每次真实状态进入只落一条。
  *
  * 渲染进程调用方式：

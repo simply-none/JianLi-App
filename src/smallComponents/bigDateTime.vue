@@ -19,7 +19,7 @@ import { ref, reactive, watch, computed, onMounted, onUnmounted, toRaw } from 'v
 import { storeToRefs } from 'pinia';
 
 import useGlobalSetting from '@/store/useGlobalSetting';
-import useWorkOrRestStore from '@/store/useWorkOrReset';
+import useWorkOrRestStore from '@/store/usePomodoroDisplay';
 import moment from 'moment';
 
 import draggableContainer from '@/components/draggableContainer.vue';

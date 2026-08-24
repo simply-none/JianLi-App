@@ -40,7 +40,7 @@ useOpenWindow()
 // 仅主窗口处理，避免第二窗口重复弹通知/跳转。
 const isSecondWindow = location.href.includes('isSecondWindow=true');
 if (!isSecondWindow) {
-  window.ipcRenderer.on('reminder-trigger', (event, reminder: any) => {
+  window.ipcRenderer.on('tips-trigger', (event, reminder: any) => {
     const title = reminder?.title || '提醒';
     const content = reminder?.content || `${title}提醒到了`;
     sysNotify(title, content, '');
@@ -65,9 +65,9 @@ if (!isSecondWindow) {
   });
 
   // 轮次（stateful）状态进入提醒：主进程「真实进入新状态」（emitStatefulEnter / emitStatefulEvent）走
-  // reminder-state-change（channel A）下发；仅该通道代表「状态进入=提醒到了」，直接弹系统+应用内通知。
-  // 状态同步（补偿/恢复/停止）走独立的 reminder-state-sync（channel B），不会触发本监听，故不在「打开提醒页/启动」时误弹。
-  window.ipcRenderer.on('reminder-state-change', (event, arg: any) => {
+  // tips-state-change（channel A）下发；仅该通道代表「状态进入=提醒到了」，直接弹系统+应用内通知。
+  // 状态同步（补偿/恢复/停止）走独立的 tips-state-sync（channel B），不会触发本监听，故不在「打开提醒页/启动」时误弹。
+  window.ipcRenderer.on('tips-state-change', (event, arg: any) => {
     if (!arg || !arg.reminderId) return;
     const title = arg.title || '提醒';
     const content = arg.content || `${arg.stateLabel || ''}提醒到了`;

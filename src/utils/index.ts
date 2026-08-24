@@ -121,7 +121,7 @@ export const mergeShortcuts = (origin: ObjectType[], current: ObjectType[]) => {
 // 路由名称 → Lucide 图标名称映射
 export const iconMap: Record<string, string> = {
   setting: 'Settings',
-  reminder: 'BellRing',
+  newTips: 'BellRing',
   systemInfo: 'Monitor',
   routeSetting: 'Settings',
   homeMode: 'House',

@@ -18,7 +18,7 @@ import { storeToRefs } from 'pinia';
 
 import CusLoading from '@/components/loading.vue';
 import useGlobalSetting from '@/store/useGlobalSetting';
-import useWorkOrRestStore from '@/store/useWorkOrReset';
+import useWorkOrRestStore from '@/store/usePomodoroDisplay';
 
 const showContent = ref({ error: true });
 const timer = ref(null);

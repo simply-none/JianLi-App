@@ -44,13 +44,13 @@ import PoetryHome from '@/views/home/poetryHome.vue';
 import LayoutVue from '@/components/layout.vue';
 import useGlobalSetting from '@/store/useGlobalSetting';
 import useSafetyProtection from '@/store/useSafetyProtection';
-import { useWorkOrRest } from '@/hooks/useWorkOrReset';
+import { useTipsActions } from '@/store/useTipsActions';
 import { ElMessage, ElMessageBox } from 'element-plus';
 
 const router = useRouter();
 const isHiddenHomeBtns = ref(false)
 const { homeModeC, curStatusC } = storeToRefs(useGlobalSetting());
-const { startScreenSaverFn, closeScreenSaverFn, injectState, endInjectedState } = useWorkOrRest();
+const { startScreenSaverFn, closeScreenSaverFn, injectState, endInjectedState } = useTipsActions();
 const { isPwdSame } = useSafetyProtection();
 const curComponent = shallowRef(custom)
 

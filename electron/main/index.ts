@@ -13,6 +13,7 @@ import { initClipboard } from "./module/clipboard.ts";
 import { registerJlocalProtocol, registerJlocalProtocolBefore } from "./module/protocol.ts";
 import { initSqlite } from "./module/sql.ts";
 import { initNewSqlite } from "./module/newSql.ts";
+import { initNewReminder } from "./module/newReminder.ts";
 import { appName } from "./variables.ts";
 import { initRegisterShortcut } from "./module/registerShortcut.ts";
 import { initSys } from "./module/sys.ts";
@@ -57,6 +58,8 @@ async function createWindow() {
   await initSqlite();
   // 高性能数据库
   await initNewSqlite();
+  // 全新提醒引擎（定点/周期/多状态），依赖 newSql
+  await initNewReminder();
   // 诗词数据
   initPoetData();
   // 定时任务（番茄钟）

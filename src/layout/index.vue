@@ -127,7 +127,7 @@ interface MenuGroup {
 }
 
 const groupDefs: MenuGroup[] = [
-  { label: '通用', names: ['setting', 'reminder', 'homeMode', 'windowMode'] },
+  { label: '通用', names: ['setting', 'newTips', 'homeMode', 'windowMode'] },
   { label: '系统与资源', names: ['systemInfo', 'routeSetting', 'appCache', 'fileRela', 'resourceManage', 'safetyProtection'] },
   { label: '效率工具', names: ['pomodoroRecord', 'clipboard', 'notebookApp', 'categorizableNotes', 'themeConversation', 'todoList', 'accounting', 'stock', 'registerShortcut', 'function', 'weather', 'browser', 'ebookReader', 'screenshot'] },
   { label: '开发工具', names: ['netRequest', 'sqlTest', 'highPerfSql', 'flow', 'ttsTest'] },

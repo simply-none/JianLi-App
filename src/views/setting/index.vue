@@ -210,14 +210,14 @@
               <LucideIcon name="Crosshair"  :padding="12" color="#6366f1" type="rounded"/>
               <div class="action-title">开始工作</div>
               <div class="action-desc">立即开始工作模式</div>
-              <el-button type="primary" @click="() => forceToState('work')" class="action-button">开始</el-button>
+              <el-button type="primary" @click="() => forceToState('pomodoro', 'work')" class="action-button">开始</el-button>
             </div>
 
             <div class="action-card rest-action">
               <LucideIcon name="Coffee" :padding="12" color="#67c23a" type="rounded" />
               <div class="action-title">开始休息</div>
               <div class="action-desc">立即开始休息模式</div>
-              <el-button type="success" @click="() => forceToState('rest')" class="action-button">休息</el-button>
+              <el-button type="success" @click="() => forceToState('pomodoro', 'rest')" class="action-button">休息</el-button>
             </div>
 
             <div class="action-card clear-action">
@@ -244,24 +244,23 @@
 import { ref, watch, onMounted, nextTick, computed } from 'vue';
 import LayoutVue from '@/components/layout.vue';
 import LucideIcon from '@/components/LucideIcon.vue';
-import { useWorkOrRest } from '@/hooks/useWorkOrReset';
+import { useTipsActions } from '@/store/useTipsActions';
 import useClearStore from '@/hooks/useClearStore';
 import useGlobalSetting from '@/store/useGlobalSetting';
-import useReminder from '@/store/useReminder';
-import usePomodoroRuntime from '@/store/usePomodoroRuntime';
-import { requestPomodoroState } from '@/hooks/usePomodoroBridge';
+import useNewReminder from '@/store/useNewReminder';
+import useTipsRuntime from '@/store/useTipsRuntime';
+import { requestTipsState } from '@/hooks/useTipsBridge';
 import { storeToRefs } from 'pinia';
 import { timeUnit } from '@/utils/time';
-import { send } from '@/utils/common';
 import confirmDialog from '@/utils/confirmDialog';
 import CacheSet from '@/views/setting/cacheSet.vue';
 
 const { clearStore } = useClearStore();
-const { forceWorkWithTimes } = useWorkOrRest();
-const reminderStore = useReminder();
+const { forceWorkWithTimes, forceToState } = useTipsActions();
+const reminderStore = useNewReminder();
 const { remindersC } = storeToRefs(reminderStore);
 const { updateReminder } = reminderStore;
-const { nextStateTime } = storeToRefs(usePomodoroRuntime());
+const { nextStateTime } = storeToRefs(useTipsRuntime());
 const { setForceWorkTimes, setIsStartup, setGlobalFont, setGlobalFontEN } = useGlobalSetting();
 const { isStartupC, forceWorkTimesC, todayForceWorkTimesC, globalFontC, globalFontENC, globalFontOpsC, curStatusC } = storeToRefs(useGlobalSetting());
 
@@ -297,7 +296,7 @@ const nextSwitchText = computed(() => {
   return m > 0 ? `约 ${m} 分 ${s} 秒后` : `约 ${s} 秒后`;
 });
 
-// 番茄钟状态 = 主进程下发的多状态运行时；curStatus 由 reminder-state-change 驱动写入
+// 番茄钟状态 = 主进程下发的多状态运行时；curStatus 由 tips-state-change 驱动写入
 
 // 回填期间抑制本地 ref watch，避免「写回→回填→再写回」循环（声明须在使用前，避免 TDZ）
 let suppressSync = false;
@@ -373,11 +372,6 @@ watch(
   () => scheduleSavePomodoro()
 );
 
-// 强制切换到指定状态（主进程立即进入并下发新的权威下一次切换时间）
-function forceToState(stateKey: string) {
-  send('reminder-force-state', { reminderId: 'pomodoro', stateKey });
-}
-
 function quitApp() {
   confirmDialog.open('确定要退出应用吗？', 3, () => {
     window.ipcRenderer.send('quit-app');
@@ -404,7 +398,7 @@ function setGlobalFontENC() {
 onMounted(async () => {
   await nextTick();
   // 补偿启动竞态：确保番茄钟设置卡片挂载即拿到当前状态（全局桥接已注册，幂等安全）
-  requestPomodoroState();
+  requestTipsState();
   window.ipcRenderer.handlePromise('get-fonts', {}).then(result => {
     sysFonts.value = result || [];
   }).catch(err => {

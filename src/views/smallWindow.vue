@@ -36,8 +36,8 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
-import usePomodoroRuntime from '@/store/usePomodoroRuntime';
-import { useWorkOrRest } from '@/hooks/useWorkOrReset';
+import useTipsRuntime from '@/store/useTipsRuntime';
+import { useTipsActions } from '@/store/useTipsActions';
 import { storeToRefs } from 'pinia';
 import LucideIcon from '@/components/LucideIcon.vue';
 
@@ -45,11 +45,11 @@ const router = useRouter();
 const timer = ref(null);
 
 // 番茄钟运行时（多状态提醒）由主进程驱动，这里仅做展示
-const runtime = usePomodoroRuntime();
+const runtime = useTipsRuntime();
 const { currentStateKey, nextStateTime, stateStartTime } = storeToRefs(runtime);
 
 // 第二窗口是独立渲染进程，需自行注册状态监听并拉取当前状态
-const { registerGlobalListener, unregisterGlobalListener } = useWorkOrRest();
+const { registerGlobalListener, unregisterGlobalListener } = useTipsActions();
 
 const statusIcon = computed(() => {
   if (currentStateKey.value === 'work') return 'timer';

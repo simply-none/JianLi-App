@@ -3,8 +3,8 @@ import type { Ref } from "vue";
 import { defineStore, storeToRefs } from "pinia";
 import { basicInfoTable, getStore, send, sendSync, setPomodoroStatus, setStore } from "../utils/common";
 import moment from "moment";
-import useWorkOrRestStore from "@/store/useWorkOrReset";
-import usePomodoroRuntime from "@/store/usePomodoroRuntime";
+import usePomodoroDisplay from "@/store/usePomodoroDisplay";
+import useTipsRuntime from "@/store/useTipsRuntime";
 import { initPiniaStatus, type defaultField } from "@/utils/store";
 
 export const prefix = 'curStatusInfo'
@@ -35,15 +35,15 @@ interface HomeModeOps {
 }
 
 export default defineStore("global-setting", () => {
-  const { startWorkTimeC, closeWorkTimeC, workTimeGapC, workTimeGapUnitC, restTimeGapC, restTimeGapUnitC } = storeToRefs(useWorkOrRestStore());
+  const { startWorkTimeC, closeWorkTimeC, workTimeGapC, workTimeGapUnitC, restTimeGapC, restTimeGapUnitC } = storeToRefs(usePomodoroDisplay());
   // 番茄钟运行时：当前状态由主进程 authority 下发，避免旧锚点失效导致判定错误
-  const pomodoroRuntime = usePomodoroRuntime();
+  const tipsRuntime = useTipsRuntime();
   // 当前的状态
   const curStatus = ref<Status>({});
   const curStatusC = computed(() => curStatus.value);
   function setCurStatus(status?: Status, record = true) {
     if (!status) {
-      const key = pomodoroRuntime.currentStateKey;
+      const key = tipsRuntime.currentStateKey;
       curStatus.value =
         key === 'rest'
           ? {

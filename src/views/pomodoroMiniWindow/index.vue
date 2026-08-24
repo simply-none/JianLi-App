@@ -28,11 +28,11 @@ import LayoutCircle from './layouts/LayoutCircle.vue';
 import LayoutCompact from './layouts/LayoutCompact.vue';
 import LayoutClassic from './layouts/LayoutClassic.vue';
 import LayoutFlip from './layouts/LayoutFlip.vue';
-import usePomodoroRuntime from '@/store/usePomodoroRuntime';
-import { setupPomodoroBridge } from '@/hooks/usePomodoroBridge';
+import useTipsRuntime from '@/store/useTipsRuntime';
+import { setupTipsBridge } from '@/hooks/useTipsBridge';
 
 // 复用与主窗口一致的番茄钟运行时 store（时间线完全由主进程 stateful 引擎下发，杜绝旧锚点漂移）
-const runtime = usePomodoroRuntime()
+const runtime = useTipsRuntime()
 const nextDiffTime = ref('00:00:00')
 const sysData = ref<any>({})
 const progressPercentValue = ref(0)
@@ -130,8 +130,8 @@ const loadConfig = () => {
   }
 }
 
-// 番茄钟运行时状态由 usePomodoroBridge 统一监听主进程下发的 reminder-state-change 写入
-// usePomodoroRuntime store（与主窗口 home 完全一致的逻辑），本窗口只消费 store，不再自行监听。
+// 番茄钟运行时状态由 useTipsBridge 统一监听主进程下发的 tips-state-change 写入
+// useTipsRuntime store（与主窗口 home 完全一致的逻辑），本窗口只消费 store，不再自行监听。
 
 window.ipcRenderer.on('sync-data-to-other-window', (event: any, arg: any) => {
   if (Object.prototype.toString.call(arg) === '[object Object]') {
@@ -196,10 +196,10 @@ const disableMouseClickThroughFn = () => {
 
 onMounted(() => {
   loadConfig()
-  // 接入番茄钟桥接：注册全局监听主进程下发的权威状态事件，并主动 request-reminder-state
+  // 接入番茄钟桥接：注册全局监听主进程下发的权威状态事件，并主动 request-tips-state
   // 补偿启动竞态首帧（与主窗口 home 完全一致的运行展示逻辑）。小窗口是独立渲染进程，
   // 必须自己注册，否则收不到状态 → 倒计时卡在「同步中」。
-  setupPomodoroBridge()
+  setupTipsBridge()
   countDown()
 })
 

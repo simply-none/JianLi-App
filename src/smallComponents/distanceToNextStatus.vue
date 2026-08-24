@@ -30,7 +30,7 @@
 import { ref, reactive, watch, computed, onMounted, onUnmounted, toRaw } from 'vue';
 import { storeToRefs } from 'pinia';
 
-import usePomodoroRuntime from '@/store/usePomodoroRuntime';
+import useTipsRuntime from '@/store/useTipsRuntime';
 
 import draggableContainer from '@/components/draggableContainer.vue';
 
@@ -71,7 +71,7 @@ const timer = ref(null);
 const toNextWorkTime = ref('00:00:00');
 const toNextRestTime = ref('00:00:00');
 
-const { currentStateKey, nextStateTime } = storeToRefs(usePomodoroRuntime());
+const { currentStateKey, nextStateTime } = storeToRefs(useTipsRuntime());
 
 const nextWorkTimeText = computed(() => formatTime(nextStateTime.value));
 const nextRestTimeText = computed(() => formatTime(nextStateTime.value));

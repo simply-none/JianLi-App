@@ -327,7 +327,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import LucideIcon from '@/components/LucideIcon.vue';
 import useGlobalSetting from '@/store/useGlobalSetting';
-import useWorkOrRestStore from '@/store/useWorkOrReset';
+import useWorkOrRestStore from '@/store/usePomodoroDisplay';
 
 const { curStatusC } = storeToRefs(useGlobalSetting());
 const { nextRestTime, nextWorkTime, workTimeGap, restTimeGap, workTimeGapUnit, restTimeGapUnit } = storeToRefs(useWorkOrRestStore());

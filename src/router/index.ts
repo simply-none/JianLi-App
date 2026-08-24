@@ -8,7 +8,7 @@ declare module "vue-router" {
 
 export const RouteNames = {
   SETTING: "setting",
-  REMINDER: "reminder",
+  NEW_TIPS: "newTips",
   SYSTEM_INFO: "systemInfo",
   HOME_MODE: "homeMode",
   WINDOW_MODE: "windowMode",
@@ -82,9 +82,9 @@ export const layoutRouters: RouteRecordRaw[] = [
     },
   },
   {
-    path: "/reminder",
-    name: RouteNames.REMINDER,
-    component: () => import("@/views/reminder/index.vue"),
+    path: "/newTips",
+    name: RouteNames.NEW_TIPS,
+    component: () => import("@/views/newTips/index.vue"),
     meta: {
       title: "提醒",
     },

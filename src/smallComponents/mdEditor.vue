@@ -69,7 +69,7 @@ import { ref, reactive, watch, computed, onMounted, onUnmounted, toRaw } from 'v
 import { storeToRefs } from 'pinia';
 
 import useGlobalSetting from '@/store/useGlobalSetting';
-import useWorkOrRestStore from '@/store/useWorkOrReset';
+import useWorkOrRestStore from '@/store/usePomodoroDisplay';
 import moment from 'moment';
 import { v4 as uuidv4 } from 'uuid';
 import { MdEditor } from 'md-editor-v3';
