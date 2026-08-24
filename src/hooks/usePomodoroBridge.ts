@@ -19,7 +19,13 @@ import { appNotify } from "@/utils/notify";
 
 let listenerRegistered = false;
 let stateChangeListener: ((e: any, arg: any) => void) | null = null;
+let stateSyncListener: ((e: any, arg: any) => void) | null = null;
 let bootNoticeListener: ((e: any, arg: any) => void) | null = null;
+
+// 是否处于第二窗口（番茄钟小窗 / 迷你窗等独立渲染进程）：它们只消费 store 刷 UI，
+// 不写 pomodoro_status 记录（避免与主窗口重复落库），也不弹通知（由 App.vue 主窗口专有监听负责）。
+const isSecondWindow =
+  typeof location !== 'undefined' && location.href.includes('isSecondWindow=true');
 
 // 主进程下发的「启动轮次提示」事件 → 系统通知
 function handleBootNotice(_e: any, arg: any) {
@@ -31,11 +37,9 @@ function handleBootNotice(_e: any, arg: any) {
   }
 }
 
-// 主进程下发的状态事件 → 写入运行时 store + 全局当前状态
-function handleStateChange(_e: any, arg: any) {
-  if (!arg || !arg.reminderId) return;
+// 把主进程下发的状态写入运行时 store（UI 刷新，通道无关，共用）
+function writeRuntime(arg: any) {
   const runtime = usePomodoroRuntime();
-  const { setCurStatus } = useGlobalSetting();
   // 权威「下次切换 / 当前状态起点」由主进程算好随事件下发
   runtime.setNextStateTime(arg.nextTime ?? null);
   runtime.setStateStartTime(arg.stateStartTime ?? null);
@@ -46,17 +50,35 @@ function handleStateChange(_e: any, arg: any) {
   runtime.setNextStateLabel(arg.nextStateLabel ?? null);
   runtime.setInjected(!!arg.injected);
   runtime.setStopped(!!arg.stopped);
-  // 仅「真实状态进入」(arg.notify === true) 且状态允许记录 (arg.recordable !== false) 才写 pomodoro_status；
-  // 其余（启动补偿 / 续跑上一轮 / 打开提醒页刷新当前时间）只更新 UI，不写库，避免碎片重复记录。
-  const shouldRecord = arg.notify === true && arg.recordable !== false;
-  setCurStatus({ label: arg.stateLabel, value: arg.stateKey }, shouldRecord);
+  return { label: arg.stateLabel, value: arg.stateKey };
+}
+
+// 状态进入事件（channel A: reminder-state-change）→ 刷 UI + 写 pomodoro_status 记录
+function handleStateEnter(_e: any, arg: any) {
+  if (!arg || !arg.reminderId) return;
+  const cur = writeRuntime(arg);
+  // 仅主窗口写记录；第二窗口（小窗 / 迷你窗）只刷 UI，避免重复落库
+  if (isSecondWindow) return;
+  const { setCurStatus } = useGlobalSetting();
+  // 状态进入即「提醒到了」：仅「允许记录」(arg.recordable !== false) 的状态才落库，强制锁屏(record:false) 等不记。
+  // 本函数只注册在 reminder-state-change 通道，故无需 notify 标志——通道本身即语义。
+  const shouldRecord = arg.recordable !== false;
+  setCurStatus(cur, shouldRecord);
+}
+
+// 状态同步事件（channel B: reminder-state-sync）→ 仅刷 UI，不写记录、不弹通知
+function handleStateSync(_e: any, arg: any) {
+  if (!arg || !arg.reminderId) return;
+  writeRuntime(arg);
 }
 
 // App 启动期调用：注册唯一一次全局监听 + 补偿启动竞态首帧
 export function setupPomodoroBridge() {
   if (listenerRegistered) return;
-  stateChangeListener = handleStateChange;
+  stateChangeListener = handleStateEnter;
   window.ipcRenderer.on("reminder-state-change", stateChangeListener);
+  stateSyncListener = handleStateSync;
+  window.ipcRenderer.on("reminder-state-sync", stateSyncListener);
   bootNoticeListener = handleBootNotice;
   window.ipcRenderer.on("reminder-boot-notice", bootNoticeListener);
   // 补偿启动竞态：渲染端可能错过主进程首帧 state-change，主动拉取当前状态
@@ -69,6 +91,10 @@ export function teardownPomodoroBridge() {
   if (stateChangeListener) {
     window.ipcRenderer.removeListener("reminder-state-change", stateChangeListener);
     stateChangeListener = null;
+  }
+  if (stateSyncListener) {
+    window.ipcRenderer.removeListener("reminder-state-sync", stateSyncListener);
+    stateSyncListener = null;
   }
   if (bootNoticeListener) {
     window.ipcRenderer.removeListener("reminder-boot-notice", bootNoticeListener);

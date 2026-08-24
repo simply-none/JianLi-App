@@ -64,11 +64,11 @@ if (!isSecondWindow) {
     appNotify(title, content, 5000);
   });
 
-  // 轮次（stateful）状态进入提醒：主进程「真实进入新状态」（emitStatefulEnter / emitStatefulEvent）时
-  // 下发 notify:true 才弹通知；页面打开/启动补偿（request-reminder-state）回放的是剥离 notify 的当前状态，
-  // 仅刷新 UI 与计时，不弹窗——避免「番茄钟进行中、打开提醒页却误弹『xx提醒到了』」。
+  // 轮次（stateful）状态进入提醒：主进程「真实进入新状态」（emitStatefulEnter / emitStatefulEvent）走
+  // reminder-state-change（channel A）下发；仅该通道代表「状态进入=提醒到了」，直接弹系统+应用内通知。
+  // 状态同步（补偿/恢复/停止）走独立的 reminder-state-sync（channel B），不会触发本监听，故不在「打开提醒页/启动」时误弹。
   window.ipcRenderer.on('reminder-state-change', (event, arg: any) => {
-    if (!arg || !arg.notify) return;
+    if (!arg || !arg.reminderId) return;
     const title = arg.title || '提醒';
     const content = arg.content || `${arg.stateLabel || ''}提醒到了`;
     sysNotify(title, content, '');

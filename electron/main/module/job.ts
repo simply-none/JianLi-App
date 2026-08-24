@@ -27,6 +27,17 @@ function broadcastStateChange(payload: any) {
   }
 }
 
+// 状态同步事件广播（同广播范围）：用于「补偿 / 恢复 / 停止」等非「状态进入」场景，
+// 仅刷新渲染端 UI 与计时，绝不触发通知与记录。与 broadcastStateChange（状态进入=提醒到了）语义隔离，
+// 由此取代原先 payload 里混淆概念的 notify 布尔：事件走哪个通道即代表它的语义。
+function broadcastStateSync(payload: any) {
+  for (const w of BrowserWindow.getAllWindows()) {
+    if (w && !w.isDestroyed() && w.webContents) {
+      w.webContents.send('reminder-state-sync', payload);
+    }
+  }
+}
+
 export function createJob({
   win,
   time = 5 * 60 * 1000,
@@ -253,16 +264,18 @@ function applyReminders(reminders: any[]) {
     delete reminderJobs[id];
   }
 
-  // 2) stateful 运行时：保留配置未变的，清理其余（变更/停用/缺失）
+  // 2) stateful 运行时：原地更新配置引用，绝不 delete 正在运行的运行时。
+  //    编辑时间/间隔等只更新 reminder 引用，计时（cycleStart/startedAt/index）全部保留，
+  //    由下方 startStatefulReminder 的「已存在」分支静默 realign + reschedule + 同步（channel B，不弹通知）。
+  //    仅当「被删除 / 停用 / 不再是 stateful」才真正清理运行时。
   for (const id in statefulRuntime) {
     const rem = incoming.find(r => r.id === id);
-    const sameConfig =
-      !!rem && rem.mode === 'stateful' && rem.enabled &&
-      JSON.stringify(rem.states) === JSON.stringify(statefulRuntime[id].reminder.states) &&
-      rem.loop === statefulRuntime[id].reminder.loop;
-    if (!sameConfig) {
+    if (!rem || !rem.enabled || rem.mode !== 'stateful') {
       delete statefulRuntime[id];
       delete lastStateEvents[id];
+    } else {
+      // 原地替换配置引用（保留运行时计时与当前状态）
+      statefulRuntime[id].reminder = rem;
     }
   }
 
@@ -360,13 +373,20 @@ function startStatefulReminder(reminder: any) {
     persistStartTime(reminder);
   }
 
-  // 若 runtime 已存在（上一轮仍在跑 / 渲染端重复触发 / apply 重入）：先按当前时间重新对齐
-  // （过期则重置轮次 + 重写 startTime），再纯恢复当前状态（不重跑进入副作用、不重新触发锁屏），
-  // 仅按当前状态 lockScreen 值恢复窗口，避免「启动即无条件强制锁屏」。
+  // 若 runtime 已存在（上一轮仍在跑 / 渲染端重复触发 / apply 重入 / 编辑配置）：先按当前时间重新对齐
+  // （过期则重置轮次 + 重写 startTime），再静默重新排程推进 CronJob（按新时长对齐下一状态时刻），
+  // 最后纯恢复当前状态（不重跑进入副作用、不重新触发锁屏、不弹通知），仅按当前状态 lockScreen 值恢复窗口。
+  // 注意：本分支走 emitCurrentStateful → channel B（reminder-state-sync），绝不会触发通知与记录。
   if (statefulRuntime[reminder.id]) {
-    realignStatefulRuntime(statefulRuntime[reminder.id], now);
+    const rt = statefulRuntime[reminder.id];
+    // 更新配置引用（applyReminders 已原地替换，这里双保险；也覆盖 forceReminderState 等直接调用路径）
+    rt.reminder = reminder;
+    realignStatefulRuntime(rt, now);
+    // 重新排程推进 CronJob：基于新 index/startedAt 计算下一状态时刻，否则推进器仍是旧时长算出的旧时刻，
+    // 导致「倒计时显示新时长、但到点不切换」的脱节。
+    rescheduleStatefulAdvance(reminder.id);
     emitCurrentStateful(reminder.id);
-    applyStateWindowBehavior(statefulRuntime[reminder.id].reminder.states[statefulRuntime[reminder.id].index]);
+    applyStateWindowBehavior(rt.reminder.states[rt.index]);
     return;
   }
 
@@ -537,10 +557,8 @@ function emitStatefulEnter(id: string, index: number, isInjected = false) {
     // 状态进入通知文案：title 缺省「提醒」，content 优先取当前状态的 content，否则「xx提醒到了」
     title: rt.reminder.title || '提醒',
     content: (state.content && String(state.content).trim()) || `${state.label}提醒到了`,
-    // 标记这是「真正进入状态」事件，渲染端据此弹通知；emitCurrentStateful 的补偿恢复不弹
-    notify: true,
     // 是否写入 pomodoro_status 记录：跟随状态定义里的 record 字段（缺省视为 true）。
-    // 仅「真实进入 + 允许记录」的状态才应由渲染端落库，强制锁屏(record:false) 等不记。
+    // 仅「状态进入 + 允许记录」的状态才应由渲染端落库，强制锁屏(record:false) 等不记。
     recordable: state.record !== false,
   };
   lastStateEvents[id] = stateChangePayload;
@@ -595,8 +613,6 @@ function emitStatefulEvent(id: string, index: number, isInjected: boolean, nextT
     // 状态进入通知文案：title 缺省「提醒」，content 优先取当前状态的 content，否则「xx提醒到了」
     title: rt.reminder.title || '提醒',
     content: (state.content && String(state.content).trim()) || `${state.label}提醒到了`,
-    // 真正进入状态才弹通知（emitCurrentStateful 的恢复不发 notify）
-    notify: true,
     // 是否写入 pomodoro_status 记录：跟随状态定义里的 record 字段（缺省视为 true）
     recordable: state.record !== false,
   };
@@ -655,7 +671,7 @@ function emitCurrentStateful(id: string) {
   // 不依赖 cycleStart + seqOffset 的旧写法（回绕到 seqIdx[0] 时会错算成过去的 cycleStart 起点）。
   const curDur = Number(state.duration) * Number(state.unit);
   const nextTime = nextState && curDur > 0 ? rt.startedAt + curDur : null;
-  broadcastStateChange({
+  broadcastStateSync({
     reminderId: id,
     stateKey: state.key,
     stateLabel: state.label,
@@ -835,7 +851,7 @@ export function endInjectedState(reminderId: string) {
       stopped: true,
     };
     lastStateEvents[reminderId] = stoppedPayload;
-    broadcastStateChange(stoppedPayload);
+    broadcastStateSync(stoppedPayload);
     return;
   }
   // 否则：归位到插入前的序列状态继续循环
@@ -1236,7 +1252,7 @@ export function initJob() {
   // 先按「当前时间」重新对齐运行时：整轮已过期则前推到包含 now 的当前轮、
   // 刷新 startedAt 与下一状态时刻并持久化新的开始时间；再下发当前状态仅用于刷新 UI/计时。
   // 彻底消除「番茄钟长时间运行/挂起后，打开页面看到的是早已过去的轮次、nextTime 倒流、startTime 不刷新」。
-  // 注意：恢复补偿只 emitCurrentStateful（不带 notify），真实状态进入通知仍由 emitStatefulEnter 下发。
+  // 注意：恢复补偿只 emitCurrentStateful（走 channel B reminder-state-sync，不弹通知），真实状态进入通知仍由 emitStatefulEnter 走 channel A 下发。
   ipcMain.on("request-reminder-state", () => {
     const now = Date.now();
     let hasRuntime = false;
@@ -1245,12 +1261,12 @@ export function initJob() {
       const rt = statefulRuntime[id];
       realignStatefulRuntime(rt, now);
       // 刷新补偿：realign 已按「续跑 / 开新一轮」规则对齐时间线，此处静默重排程推进 CronJob，
-      // 否则刷新后状态机卡在当前状态、下一状态不流转；并用 emitCurrentStateful 仅刷新 UI/计时（不带 notify、不锁屏）。
+      // 否则刷新后状态机卡在当前状态、下一状态不流转；并用 emitCurrentStateful 走 channel B 仅刷新 UI/计时（不弹通知、不锁屏）。
       rescheduleStatefulAdvance(id);
       emitCurrentStateful(id);
       // C 修复：续跑/刷新（重启 App、打开提醒页等补偿路径）时，若当前状态的 lockScreen 为 true，
       // 重新挂上强制锁屏——否则番茄钟进行中重启/刷新后，处于锁屏态却不强制锁屏（窗口行为只在 emitStatefulEnter 等
-      // 真实进入路径 applyStateWindowBehavior，本补偿通道不发 notify 故原本不触发）。applyStateWindowBehavior 内部
+      // 真实进入路径 applyStateWindowBehavior，本补偿通道（channel B）不弹通知故原本不触发）。applyStateWindowBehavior 内部
       // 仅在 lockScreen===true 时才 focusAppToTop，非锁屏态为 no-op，安全。
       applyStateWindowBehavior(rt.reminder.states[rt.index]);
     }
