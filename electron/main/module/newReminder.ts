@@ -381,70 +381,134 @@ function applyStateWindowBehavior(state: any) {
  *  - 未过期：续跑当前状态，保持 cycleStart/startTime 不动。
  * 统一入口，避免分散实现导致 nextTime 倒流。
  */
-function realignStatefulRuntime(rt: any, now: number) {
+// ============================ 多状态运行时统一计算 ============================
+//
+// 总计算函数 recomputeRuntime(rt, now) 按情形分派到三个子函数，
+// 计算「给定当前时间 now，运行时应处于哪个状态、已进入多久、下一状态何时」，
+// 写回 rt.index / rt.startedAt / rt.nextTime。
+//
+// 核心约定：rt.startedAt 是「进入【当前正在运行】状态的真实时刻」（历史事实，
+// 不受编辑时长影响）。编辑时长后用【新时长】以 startedAt 为锚点向后递推，
+// 即可精确得出「当前状态 + 已运行时长」，且 nextTime 永远落在未来，杜绝空转。
+//
+// 例：序列 A(3) B(1) C(2)，当前在 B（真实已跑 0.7min，startedAt=进入B时刻）。
+//     改 A(2) B(0.5) C(3) 后：B 新时长 0.5，0.7 溢出 0.2 → 当前 C、已跑 0.2min。
+//     若 cycleStart + 新整轮(2+0.5+3) ≤ now → 开新一轮 A（0min）。
+
+// 子函数1：注入态（非序列状态被强制插入）。不进入序列递推，直接返回该注入态。
+function caseInjected(rt: any): { index: number; startedAt: number; nextTime: number | null } {
+  const idx = rt.reminder.states.indexOf(rt.injected.state);
+  // 注入态 duration 通常为 0（如强制锁屏），nextTime 由注入/结束流程单独管理，
+  // 这里不排程推进（rescheduleStatefulAdvance 对 injected 短路）。
+  return { index: idx, startedAt: rt.startedAt, nextTime: null };
+}
+
+// 子函数2：整轮已过期 → 开始新一轮（首个序列状态，startedAt 对齐到 now）。
+function caseWholeRoundExpired(rt: any, now: number): { index: number; startedAt: number; nextTime: number | null } {
+  const seqIdx = sequentialIndices(rt.reminder);
+  const firstIdx = seqIdx[0];
+  const firstGap = Number(rt.reminder.states[firstIdx].duration) * Number(rt.reminder.states[firstIdx].unit);
+  rt.cycleStart = now;
+  rt.reminder.startTime = now;
+  // 直接写库，不依赖渲染端回写（避免启动补偿时渲染端监听未就绪导致丢失）
+  persistReminder(rt.reminder).catch((e) => console.error("persistStartTime 失败:", e));
+  sendStarttimeUpdated(rt.reminder.id, now);
+  return {
+    index: firstIdx,
+    startedAt: now,
+    nextTime: firstGap > 0 ? now + firstGap : null,
+  };
+}
+
+// 子函数3：运行中，以【进入当前状态的真实时刻 rt.startedAt】为锚点，用【新时长】向后递推，
+// 找 now 落在哪个状态（处理溢出到下一状态、多状态溢出、序列结束溢出开新轮）。
+function caseRunningFromAnchor(rt: any, now: number): { index: number; startedAt: number; nextTime: number | null } {
+  const reminder = rt.reminder;
+  // 锚点：进入当前正在运行状态的真实时刻，不被编辑改变。
+  let t = rt.startedAt;
+  let cursor = rt.index;
+  let remain = now - t; // 从锚点起已过去的真实时间
+  if (remain < 0) remain = 0; // 防御：时钟回拨等极端情况
+
+  const maxSteps = sequentialIndices(reminder).length * 2 + 2;
+  for (let step = 0; step < maxSteps; step++) {
+    const state = reminder.states[cursor];
+    if (!state) break;
+    const dur = Number(state.duration) * Number(state.unit);
+    if (dur <= 0) {
+      // 零时长状态：视为瞬时，直接作为「当前态」，不占时间
+      return { index: cursor, startedAt: t, nextTime: null };
+    }
+    if (remain < dur) {
+      // now 落在 cursor 区间内，已运行 remain
+      return { index: cursor, startedAt: t, nextTime: t + dur };
+    }
+    // 溢出，推进到下一序列状态
+    remain -= dur;
+    t += dur;
+    const next = nextSequentialIndex(reminder, cursor);
+    if (next < 0) {
+      // 序列已结束（loop=0）仍溢出整轮 → 开新一轮
+      return caseWholeRoundExpired(rt, now);
+    }
+    cursor = next;
+  }
+  // 兜底（理论上不会到）：回到首个状态，以 now 为新起点
+  const seqIdx = sequentialIndices(reminder);
+  const firstIdx = seqIdx[0];
+  const firstGap = Number(reminder.states[firstIdx].duration) * Number(reminder.states[firstIdx].unit);
+  return { index: firstIdx, startedAt: now, nextTime: firstGap > 0 ? now + firstGap : null };
+}
+
+// 总计算函数：按情形分派，写回 rt.index / rt.startedAt / rt.nextTime。
+// 返回计算结果，便于调用方在需要时读取（如调试）。
+function recomputeRuntime(rt: any, now: number): { index: number; startedAt: number; nextTime: number | null } {
   const reminder = rt.reminder;
   const seqIdx = sequentialIndices(reminder);
-  if (seqIdx.length === 0) return;
+  if (seqIdx.length === 0) {
+    rt.index = 0;
+    rt.startedAt = now;
+    rt.nextTime = null;
+    return { index: 0, startedAt: now, nextTime: null };
+  }
+
+  // 情形1：注入态（非序列状态强制插入）——不进序列递推
+  if (rt.injected) {
+    const r = caseInjected(rt);
+    rt.index = r.index;
+    rt.startedAt = r.startedAt;
+    rt.nextTime = r.nextTime;
+    return r;
+  }
+
+  // 整轮时长（用新时长累加序列态）
   const cycleDuration = seqIdx.reduce((sum: number, i: number) => {
     const s = reminder.states[i];
     return sum + Number(s.duration) * Number(s.unit);
   }, 0);
 
-  let cycleStart = rt.cycleStart;
+  // 情形2：整轮已过期（开始时间 + 新整轮时长 ≤ now）→ 开新一轮
+  const cycleStart = rt.cycleStart;
   if (cycleDuration > 0 && cycleStart + cycleDuration <= now) {
-    cycleStart = now;
-    rt.cycleStart = cycleStart;
-    reminder.startTime = cycleStart;
-    // 直接写库，不依赖渲染端回写（避免启动补偿时渲染端监听未就绪导致丢失）
-    persistReminder(reminder).catch((e) => console.error("persistStartTime 失败:", e));
-    sendStarttimeUpdated(reminder.id, cycleStart);
+    const r = caseWholeRoundExpired(rt, now);
+    rt.index = r.index;
+    rt.startedAt = r.startedAt;
+    rt.nextTime = r.nextTime;
+    return r;
   }
 
-  let index = seqIdx[0];
-  if (cycleStart <= now) {
-    let acc = cycleStart;
-    let cursor = seqIdx[0];
-    const maxSteps = seqIdx.length + 1;
-    for (let step = 0; step < maxSteps; step++) {
-      const s = reminder.states[cursor];
-      const dur = Number(s.duration) * Number(s.unit);
-      if (dur <= 0) {
-        index = cursor;
-        break;
-      }
-      if (now < acc + dur) {
-        index = cursor;
-        break;
-      }
-      acc += dur;
-      const pos = seqIdx.indexOf(cursor);
-      const nextPos = pos >= 0 && pos + 1 < seqIdx.length ? pos + 1 : reminder.loop ? 0 : -1;
-      if (nextPos < 0) {
-        index = cursor;
-        break;
-      }
-      cursor = seqIdx[nextPos];
-      if (step === maxSteps - 1) index = cursor;
-    }
-  }
+  // 情形3：运行中，从锚点递推
+  const r = caseRunningFromAnchor(rt, now);
+  rt.index = r.index;
+  rt.startedAt = r.startedAt;
+  rt.nextTime = r.nextTime;
+  return r;
+}
 
-  rt.index = index;
-  rt.startedAt = Math.min(cycleStart + seqOffsetFromCycleStart(reminder, seqIdx[0], index), now);
-
-  // 重新计算「当前状态结束（下一状态进入）时刻」，供推进排程使用；
-  // 注入态的 nextTime 由 injectStatefulState / endInjectedState 单独管理，这里不动。
-  if (!rt.injected) {
-    const curState = reminder.states[rt.index];
-    const gap = curState ? Number(curState.duration) * Number(curState.unit) : 0;
-    rt.nextTime = gap > 0 ? rt.startedAt + gap : null;
-    // 防御：编辑续跑时 startedAt 可能算成过去，导致 nextTime 倒流 < now，
-    // 进而 rescheduleStatefulAdvance 的 delay=0 → 状态机 0ms 空转卡死。
-    // 把「当前状态」视为从现在重新开始，nextTime 永远落在未来。
-    if (rt.nextTime && rt.nextTime < now) {
-      rt.startedAt = now;
-      rt.nextTime = now + gap;
-    }
-  }
+// 对外兼容别名：历史调用方（scheduleReminder / startStatefulReminder / requestTipsState）
+// 仍使用 realignStatefulRuntime 名字，内部统一委托 recomputeRuntime。
+function realignStatefulRuntime(rt: any, now: number) {
+  return recomputeRuntime(rt, now);
 }
 
 function startStatefulReminder(reminder: any) {

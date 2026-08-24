@@ -25,8 +25,8 @@
             <div class="status-right">
               <div class="status-time">
                 <LucideIcon name="Timer" :size="16" />
-                <span>{{ nextSwitchText }}</span>
-                <span class="time-label">{{ curStatusC.label || '未开始' }} · 下次切换</span>
+                <span class="countdown-text">{{ nextSwitchText }}</span>
+                <span class="time-label">{{ switchHintText }}</span>
               </div>
             </div>
           </div>
@@ -241,7 +241,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, nextTick, computed } from 'vue';
+import { ref, watch, onMounted, onUnmounted, nextTick, computed } from 'vue';
 import LayoutVue from '@/components/layout.vue';
 import LucideIcon from '@/components/LucideIcon.vue';
 import { useTipsActions } from '@/store/useTipsActions';
@@ -260,7 +260,7 @@ const { forceWorkWithTimes, forceToState } = useTipsActions();
 const reminderStore = useNewReminder();
 const { remindersC } = storeToRefs(reminderStore);
 const { updateReminder } = reminderStore;
-const { nextStateTime } = storeToRefs(useTipsRuntime());
+const { nextStateTime, nextStateLabel } = storeToRefs(useTipsRuntime());
 const { setForceWorkTimes, setIsStartup, setGlobalFont, setGlobalFontEN } = useGlobalSetting();
 const { isStartupC, forceWorkTimesC, todayForceWorkTimesC, globalFontC, globalFontENC, globalFontOpsC, curStatusC } = storeToRefs(useGlobalSetting());
 
@@ -285,15 +285,29 @@ let fontOps = computed(() => {
   return ops;
 })
 
-// 下次切换的权威时间由主进程算好下发，绝不会是「过去的时间」
+// 实时时钟：每 500ms 刷新一次，驱动右侧倒计时每秒跳动
+const nowRef = ref(Date.now());
+let clockTimer: ReturnType<typeof setInterval> | null = null;
+
+// 下次切换的权威时间由主进程算好下发，绝不会是「过去的时间」；
+// 倒计时基于 nowRef 实时计算，mm:ss 显示
 const nextSwitchText = computed(() => {
   if (!nextStateTime.value) return '未开始';
-  const diff = nextStateTime.value - Date.now();
+  const diff = nextStateTime.value - nowRef.value;
   if (diff <= 0) return '即将切换';
   const totalSec = Math.floor(diff / 1000);
   const m = Math.floor(totalSec / 60);
   const s = totalSec % 60;
-  return m > 0 ? `约 ${m} 分 ${s} 秒后` : `约 ${s} 秒后`;
+  const mm = String(m).padStart(2, '0');
+  const ss = String(s).padStart(2, '0');
+  return `${mm}:${ss}`;
+});
+
+// 时间下方文案：将切换为【下一状态】状态
+const switchHintText = computed(() => {
+  if (!nextStateTime.value) return '尚未开始';
+  const name = nextStateLabel.value || '下一';
+  return `将切换为【${name}】状态`;
 });
 
 // 番茄钟状态 = 主进程下发的多状态运行时；curStatus 由 tips-state-change 驱动写入
@@ -397,6 +411,9 @@ function setGlobalFontENC() {
 
 onMounted(async () => {
   await nextTick();
+  // 实时倒计时时钟：每 500ms 刷新 nowRef，驱动右侧倒计时跳动
+  nowRef.value = Date.now();
+  clockTimer = setInterval(() => { nowRef.value = Date.now(); }, 500);
   // 补偿启动竞态：确保番茄钟设置卡片挂载即拿到当前状态（全局桥接已注册，幂等安全）
   requestTipsState();
   window.ipcRenderer.handlePromise('get-fonts', {}).then(result => {
@@ -404,6 +421,13 @@ onMounted(async () => {
   }).catch(err => {
     console.log('获取系统字体失败:', err);
   });
+});
+
+onUnmounted(() => {
+  if (clockTimer) {
+    clearInterval(clockTimer);
+    clockTimer = null;
+  }
 });
 </script>
 
@@ -587,6 +611,15 @@ onMounted(async () => {
           font-size: 14px;
           color: var(--text-primary);
           font-weight: 500;
+        }
+
+        .countdown-text {
+          font-size: 28px;
+          font-weight: 700;
+          line-height: 1.1;
+          font-variant-numeric: tabular-nums;
+          letter-spacing: 1px;
+          color: var(--color-primary);
         }
 
         .time-label {
