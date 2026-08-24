@@ -539,6 +539,9 @@ function emitStatefulEnter(id: string, index: number, isInjected = false) {
     content: (state.content && String(state.content).trim()) || `${state.label}提醒到了`,
     // 标记这是「真正进入状态」事件，渲染端据此弹通知；emitCurrentStateful 的补偿恢复不弹
     notify: true,
+    // 是否写入 pomodoro_status 记录：跟随状态定义里的 record 字段（缺省视为 true）。
+    // 仅「真实进入 + 允许记录」的状态才应由渲染端落库，强制锁屏(record:false) 等不记。
+    recordable: state.record !== false,
   };
   lastStateEvents[id] = stateChangePayload;
   broadcastStateChange(stateChangePayload);
@@ -594,6 +597,8 @@ function emitStatefulEvent(id: string, index: number, isInjected: boolean, nextT
     content: (state.content && String(state.content).trim()) || `${state.label}提醒到了`,
     // 真正进入状态才弹通知（emitCurrentStateful 的恢复不发 notify）
     notify: true,
+    // 是否写入 pomodoro_status 记录：跟随状态定义里的 record 字段（缺省视为 true）
+    recordable: state.record !== false,
   };
   lastStateEvents[id] = stateChangePayload;
   broadcastStateChange(stateChangePayload);
@@ -1243,6 +1248,11 @@ export function initJob() {
       // 否则刷新后状态机卡在当前状态、下一状态不流转；并用 emitCurrentStateful 仅刷新 UI/计时（不带 notify、不锁屏）。
       rescheduleStatefulAdvance(id);
       emitCurrentStateful(id);
+      // C 修复：续跑/刷新（重启 App、打开提醒页等补偿路径）时，若当前状态的 lockScreen 为 true，
+      // 重新挂上强制锁屏——否则番茄钟进行中重启/刷新后，处于锁屏态却不强制锁屏（窗口行为只在 emitStatefulEnter 等
+      // 真实进入路径 applyStateWindowBehavior，本补偿通道不发 notify 故原本不触发）。applyStateWindowBehavior 内部
+      // 仅在 lockScreen===true 时才 focusAppToTop，非锁屏态为 no-op，安全。
+      applyStateWindowBehavior(rt.reminder.states[rt.index]);
     }
     // 若 runtime 尚未建好（restore 异步链未完成）：置 pending，待建好时由 applyReminders 统一补发首帧。
     if (!hasRuntime) pendingStateRequest = true;

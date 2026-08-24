@@ -18,6 +18,10 @@
           placeholder="选择日期"
           class="date-picker"
         ></el-date-picker>
+        <div class="date-actions">
+          <el-button size="small" type="danger" plain @click="deleteTodayData">删除今日数据</el-button>
+          <el-button size="small" type="danger" plain @click="deleteAllDevData">删除开发数据</el-button>
+        </div>
       </div>
 
       <div class="record-list" v-if="curDateData.length > 0">
@@ -60,7 +64,8 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import { getSqlData, pomodoroStatusTable, getStore, setStore } from '@/utils/common'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { pomodoroStatusTable, getStore, setStore, deletePomodoroStatus } from '@/utils/common'
 import moment from 'moment'
 import ChartsView from './charts.vue'
 
@@ -75,22 +80,68 @@ watch(activeTab, (val) => {
 const curDate = ref(moment().format('YYYY-MM-DD'))
 const curDateData = ref<ObjectType[]>([])
 
-watch(curDate, (val) => {
-  if (val) {
-    getSqlData({
-      tableName: pomodoroStatusTable,
-      conditions: {
-        date: val,
-      }
-    }).then(res => {
-      let getData = res.data || [] as ObjectType[]
-      getData.sort((a: any, b: any) => {
-        return new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime()
-      })
-      curDateData.value = getData
+// 重新加载当前日期的番茄钟记录（列表倒序：最新状态排在最前）
+function reloadData() {
+  const val = curDate.value
+  if (!val) return
+  window.ipcRenderer.handlePromise('new-sql:query', {
+    tableName: pomodoroStatusTable,
+    conditions: {
+      date: val,
+    }
+  }).catch(() => ({ data: [] as ObjectType[] })).then(res => {
+    let getData = (res as any)?.data || [] as ObjectType[]
+    getData.sort((a: any, b: any) => {
+      return new Date(b.dateTime).getTime() - new Date(a.dateTime).getTime()
     })
-  }
+    curDateData.value = getData
+  })
+}
+
+watch(curDate, () => {
+  reloadData()
 }, { immediate: true })
+
+// 数据库操作：删除所有 mode 为 development 的记录
+async function deleteAllDevData() {
+  try {
+    await ElMessageBox.confirm(
+      '确定删除所有「开发环境（development）」的番茄钟记录吗？此操作不可恢复。',
+      '删除确认',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消', confirmButtonClass: 'el-button--danger' }
+    )
+  } catch {
+    return
+  }
+  const res = await deletePomodoroStatus({ mode: 'development' })
+  if (res) {
+    reloadData()
+    ElMessage.success('已删除所有 development 记录')
+  } else {
+    ElMessage.error('删除失败')
+  }
+}
+
+// 数据库操作：删除今日（当前日期）的记录
+async function deleteTodayData() {
+  const today = moment().format('YYYY-MM-DD')
+  try {
+    await ElMessageBox.confirm(
+      `确定删除今日（${today}）的番茄钟记录吗？此操作不可恢复。`,
+      '删除确认',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消', confirmButtonClass: 'el-button--danger' }
+    )
+  } catch {
+    return
+  }
+  const res = await deletePomodoroStatus({ date: today })
+  if (res) {
+    reloadData()
+    ElMessage.success('已删除今日记录')
+  } else {
+    ElMessage.error('删除失败')
+  }
+}
 
 const getStatusColor = (status: string) => {
   const colorMap: Record<string, string> = {
@@ -198,6 +249,13 @@ const processedData = computed(() => {
     .date-picker {
       flex: 1;
       max-width: 280px;
+    }
+
+    .date-actions {
+      margin-left: auto;
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
     }
   }
 

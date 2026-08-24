@@ -67,7 +67,7 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import * as echarts from 'echarts'
 import moment from 'moment'
-import { getSqlData, pomodoroStatusTable, getStore } from '@/utils/common'
+import { pomodoroStatusTable, getStore } from '@/utils/common'
 import { storeToRefs } from 'pinia'
 import useThemeStore, { type ThemeName } from '@/store/useTheme'
 import LucideIcon from '@/components/LucideIcon.vue'
@@ -816,10 +816,10 @@ async function loadData () {
   const val = curDate.value
   if (!val) return
 
-  const res = await getSqlData({
+  const res = await window.ipcRenderer.handlePromise('new-sql:query', {
     tableName: pomodoroStatusTable,
     conditions: { date: val },
-  })
+  }).catch(() => ({ data: [] as any[] }))
 
   const getData = res?.data || []
   noData.value = getData.length === 0

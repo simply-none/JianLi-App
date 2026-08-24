@@ -1,7 +1,7 @@
 import { computed, onMounted, ref, toRaw, watchEffect } from "vue";
 import type { Ref } from "vue";
 import { defineStore, storeToRefs } from "pinia";
-import { basicInfoTable, getStore, pomodoroStatusTable, send, sendSync, setSqlData, setStore } from "../utils/common";
+import { basicInfoTable, getStore, send, sendSync, setPomodoroStatus, setStore } from "../utils/common";
 import moment from "moment";
 import useWorkOrRestStore from "@/store/useWorkOrReset";
 import usePomodoroRuntime from "@/store/usePomodoroRuntime";
@@ -41,8 +41,7 @@ export default defineStore("global-setting", () => {
   // 当前的状态
   const curStatus = ref<Status>({});
   const curStatusC = computed(() => curStatus.value);
-  function setCurStatus(status?: Status) {
-    console.log(status, '测试')
+  function setCurStatus(status?: Status, record = true) {
     if (!status) {
       const key = pomodoroRuntime.currentStateKey;
       curStatus.value =
@@ -55,13 +54,15 @@ export default defineStore("global-setting", () => {
               label: "正在工作",
               value: "work",
             };
-      cacheCurStatusInfo(curStatus.value)
+      // 仅 record=true 时落库；补偿/刷新路径传 false，只更新展示不写 pomodoro_status
+      if (record) cacheCurStatusInfo(curStatus.value);
+      else setStore("curStatus", curStatus.value);
       return true;
     }
     curStatus.value = status;
-    // setStore("curStatus", status);
-    // 存储当前状态和时间
-    cacheCurStatusInfo(status)
+    setStore("curStatus", status);
+    // record=false（启动补偿 / 续跑 / 刷新当前时间）时只更新内存状态，不写 pomodoro_status，避免碎片记录
+    if (record) cacheCurStatusInfo(status);
   }
 
   function cacheCurStatusInfo(status: Status) {
@@ -77,18 +78,14 @@ export default defineStore("global-setting", () => {
         curDate = curDate.filter((item: any) => item != current)
       }
     }
-    setSqlData({
-      tableName: pomodoroStatusTable,
-      data: {
-        ...status,
-        date: moment().format("YYYY-MM-DD"),
-        dateTime: moment().format("YYYY-MM-DD HH:mm:ss"),
-        mode: import.meta.env.MODE,
-      }
-    }).then(res => {
-      console.error(res, 'setSqlData')
+    // 番茄钟记录统一走 newSql.ts（new-sql:record-pomodoro），主进程带去重，防主窗口/小窗双写
+    setPomodoroStatus({
+      ...status,
+      date: moment().format("YYYY-MM-DD"),
+      dateTime: moment().format("YYYY-MM-DD HH:mm:ss"),
+      mode: import.meta.env.MODE,
     }).catch(err => {
-      console.error(err, 'setSqlData error')
+      console.error(err, 'setPomodoroStatus error')
     })
     setStore("curStatus", status);
   }

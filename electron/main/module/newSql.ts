@@ -679,6 +679,35 @@ export async function transaction(options: TransactionOptions): Promise<{ succes
 }
 
 /**
+ * 番茄钟状态记录：写入 pomodoro_status 表，并做「同天 + 同状态 + 10 秒内」去重。
+ *
+ * 为什么去重要在主进程做：主窗口与番茄钟小窗是两个独立渲染进程，都会收到主进程下发的
+ * reminder-state-change 并各自发起写入；若去重放在渲染端，会因两进程「读都早于彼此写」出现竞态、
+ * 各自落一条，导致同一状态进入被记成两条。本函数经主进程唯一 IPC 入口串行执行，
+ * 保证每次真实状态进入（启动 / 状态切换）只落一条。
+ *
+ * @param data 渲染端构造的记录对象（含 label/value/date/dateTime/mode 等）
+ * @returns 写入结果；若被判定为碎片返回 { deduped: true }
+ */
+export async function recordPomodoro(data: Record<string, any>) {
+  await ensureTableExists('pomodoro_status');
+  const { date, value } = data || {};
+  if (date && value != null) {
+    const rows: any[] = await query({ tableName: 'pomodoro_status', conditions: { date } });
+    if (Array.isArray(rows) && rows.length) {
+      const last = rows.reduce((a: any, b: any) =>
+        new Date(a.dateTime).getTime() > new Date(b.dateTime).getTime() ? a : b);
+      if (last.value === value &&
+          Math.abs(Date.now() - new Date(last.dateTime).getTime()) <= 10000) {
+        return { success: true, deduped: true, data: last };
+      }
+    }
+  }
+  const result = await insert({ tableName: 'pomodoro_status', data });
+  return { success: true, ...result };
+}
+
+/**
  * 确保表存在
  * 
  * 如果表不存在则自动创建，支持指定初始列和自定义主键。
@@ -1026,6 +1055,26 @@ ipcMain.handle("new-sql:insert", async (event, options: InsertOptions) => {
   try {
     const data = await insert(options);
     return { success: true, data };
+  } catch (err) {
+    return { success: false, error: (err as Error).message };
+  }
+});
+
+/**
+ * IPC 处理器：番茄钟状态记录（带去重）
+ *
+ * 主窗口与番茄钟小窗是独立渲染进程，各自收到 reminder-state-change 后都会请求写入，
+ * 去重在主进程串行执行，保证每次真实状态进入只落一条。
+ *
+ * 渲染进程调用方式：
+ * ```javascript
+ * await window.ipcRenderer.handlePromise("new-sql:record-pomodoro", data);
+ * ```
+ */
+ipcMain.handle("new-sql:record-pomodoro", async (event, data: Record<string, any>) => {
+  try {
+    const result = await recordPomodoro(data);
+    return { success: true, ...result };
   } catch (err) {
     return { success: false, error: (err as Error).message };
   }

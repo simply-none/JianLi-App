@@ -46,8 +46,10 @@ function handleStateChange(_e: any, arg: any) {
   runtime.setNextStateLabel(arg.nextStateLabel ?? null);
   runtime.setInjected(!!arg.injected);
   runtime.setStopped(!!arg.stopped);
-  // setCurStatus 会写入 pomodoro_status 记录，保留番茄钟记录功能
-  setCurStatus({ label: arg.stateLabel, value: arg.stateKey });
+  // 仅「真实状态进入」(arg.notify === true) 且状态允许记录 (arg.recordable !== false) 才写 pomodoro_status；
+  // 其余（启动补偿 / 续跑上一轮 / 打开提醒页刷新当前时间）只更新 UI，不写库，避免碎片重复记录。
+  const shouldRecord = arg.notify === true && arg.recordable !== false;
+  setCurStatus({ label: arg.stateLabel, value: arg.stateKey }, shouldRecord);
 }
 
 // App 启动期调用：注册唯一一次全局监听 + 补偿启动竞态首帧

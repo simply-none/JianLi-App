@@ -135,6 +135,30 @@ export const getSqlData = async ({
   })
 }
 
+// 番茄钟状态记录：走 newSql.ts 的 new-sql:record-pomodoro 通道（主进程带去重，防主窗口/小窗双写）
+export const setPomodoroStatus = async (data: Object) => {
+  const curTime = moment().format('YYYY-MM-DD HH:mm:ss')
+  return window.ipcRenderer.handlePromise('new-sql:record-pomodoro', {
+    ...toPlain(data),
+    create_time: curTime,
+  }).catch(err => {
+    console.error(err, 'setPomodoroStatus error')
+    return false
+  })
+}
+
+// 番茄钟记录删除：走 newSql.ts 的 new-sql:delete 通道（按 condition 构造 WHERE）
+export const deletePomodoroStatus = async (condition: Object) => {
+  const res = await window.ipcRenderer.handlePromise('new-sql:delete', {
+    tableName: pomodoroStatusTable,
+    condition: toPlain(condition),
+  }).catch(err => {
+    console.error(err, 'deletePomodoroStatus error')
+    return { success: false }
+  })
+  return res?.success === true
+}
+
 export const deleteSqlData = async ({
   tableName,
   conditions,
