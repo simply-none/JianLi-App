@@ -218,7 +218,10 @@ function scheduleReminder(r: any): void {
       // 终止旧的推进定时器（克隆表达式）由 rescheduleStatefulAdvance 负责，无需整体销毁运行时。
       const rt = statefulRT[r.id];
       rt.reminder = r; // 原地替换配置（含新时长）
-      rt.cycleStart = Number(r.startTime) || rt.cycleStart; // 以「开始时间」为轮次基准
+      // 注意：不要在此处无条件覆盖 rt.cycleStart —— recomputeRuntime 会根据情形
+      // （整轮过期→开新轮时把 cycleStart 对齐到 now 并写库；运行中→沿用旧 cycleStart）
+      // 自行维护 cycleStart，避免运行时 cycleStart 与库里 startTime 脱节导致反复判过期、
+      // 状态错乱（表现为连续进入同态）。
       realignStatefulRuntime(rt, Date.now()); // 新时长重算当前态；整轮过期→开新轮
       rescheduleStatefulAdvance(r.id); // 终止旧定时器，按新 nextTime 重新排程
       emitCurrentStateful(r.id); // channel B：仅刷 UI，不弹不记
@@ -440,8 +443,11 @@ function caseRunningFromAnchor(rt: any, now: number): { index: number; startedAt
       return { index: cursor, startedAt: t, nextTime: null };
     }
     if (remain < dur) {
-      // now 落在 cursor 区间内，已运行 remain
-      return { index: cursor, startedAt: t, nextTime: t + dur };
+      // now 落在 cursor 区间内，已运行 remain。
+      // 关键：startedAt 必须是「真正进入当前态的时刻」= now - remain，
+      // 而不是锚点递推链的 t（t 可能远早于 now，导致 nextTime 倒流/推进错位）。
+      // 这样 nextTime = now - remain + dur ≥ now，永远落在未来，杜绝空转与重复同态。
+      return { index: cursor, startedAt: now - remain, nextTime: now - remain + dur };
     }
     // 溢出，推进到下一序列状态
     remain -= dur;
@@ -458,6 +464,14 @@ function caseRunningFromAnchor(rt: any, now: number): { index: number; startedAt
   const firstIdx = seqIdx[0];
   const firstGap = Number(reminder.states[firstIdx].duration) * Number(reminder.states[firstIdx].unit);
   return { index: firstIdx, startedAt: now, nextTime: firstGap > 0 ? now + firstGap : null };
+}
+
+// 子函数4：未来首轮（开始时间 startTime 在 now 之后，尚未进入任何状态）。
+// 此时不排程推进，也不下发「当前状态」，由 startStatefulReminder 在到点后正式进入。
+function caseFutureStart(rt: any, now: number): { index: number; startedAt: number; nextTime: number | null } {
+  const seqIdx = sequentialIndices(rt.reminder);
+  const firstIdx = seqIdx[0];
+  return { index: firstIdx, startedAt: Number(rt.reminder.startTime), nextTime: null };
 }
 
 // 总计算函数：按情形分派，写回 rt.index / rt.startedAt / rt.nextTime。
@@ -487,8 +501,20 @@ function recomputeRuntime(rt: any, now: number): { index: number; startedAt: num
     return sum + Number(s.duration) * Number(s.unit);
   }, 0);
 
-  // 情形2：整轮已过期（开始时间 + 新整轮时长 ≤ now）→ 开新一轮
+  // 情形F：未来首轮（开始时间 startTime 在 now 之后，尚未进入任何状态）。
+  // 不排程推进、不下发当前状态，由 startStatefulReminder 在到点后正式进入首个状态。
+  const startTs = Number(reminder.startTime);
+  if (!isNaN(startTs) && startTs > now) {
+    const r = caseFutureStart(rt, now);
+    rt.index = r.index;
+    rt.startedAt = r.startedAt;
+    rt.nextTime = r.nextTime;
+    return r;
+  }
+
   const cycleStart = rt.cycleStart;
+
+  // 情形2：整轮已过期（开始时间 + 新整轮时长 ≤ now）→ 开新一轮
   if (cycleDuration > 0 && cycleStart + cycleDuration <= now) {
     const r = caseWholeRoundExpired(rt, now);
     rt.index = r.index;
@@ -534,45 +560,54 @@ function startStatefulReminder(reminder: any) {
     return;
   }
 
-  const oldCycleStart = Number(reminder.startTime);
-  const cycleDuration = seqIdx.reduce((sum: number, i: number) => {
-    const s = reminder.states[i];
-    return sum + Number(s.duration) * Number(s.unit);
-  }, 0);
-
-  statefulRT[reminder.id] = { reminder, index: firstIdx, startedAt: now, cycleStart: oldCycleStart, nextTime: null };
+  // 新建运行时：以 startTime 为轮次基准初始化，交给 recomputeRuntime 统一分派
+  // （覆盖情形 C 整轮过期开新轮 / F 未来首轮 / D 运行中续跑 / E 首次启动），
+  // 消除此处原先与 recompute 重复且不一致的整轮过期手写逻辑。
+  statefulRT[reminder.id] = {
+    reminder,
+    index: firstIdx,
+    startedAt: Number(reminder.startTime) || now,
+    cycleStart: Number(reminder.startTime) || now,
+    nextTime: null,
+  };
   realignStatefulRuntime(statefulRT[reminder.id], now);
+  const rt = statefulRT[reminder.id];
 
-  if (cycleDuration > 0 && oldCycleStart + cycleDuration <= now) {
-    const newCycleStart = now + 30000;
-    statefulRT[reminder.id].cycleStart = newCycleStart;
-    statefulRT[reminder.id].startedAt = newCycleStart;
-    statefulRT[reminder.id].index = firstIdx;
-    reminder.startTime = newCycleStart;
-    persistReminder(reminder).catch(() => {});
-    sendStarttimeUpdated(reminder.id, newCycleStart);
-    const firstGap = Number(reminder.states[firstIdx].duration) * Number(reminder.states[firstIdx].unit);
-    statefulRT[reminder.id].nextTime = firstGap > 0 ? newCycleStart + firstGap : null;
+  if (rt.nextTime === null && rt.startedAt > now) {
+    // 情形F：未来首轮 —— 排程到点后正式进入首个状态（按 lockScreen 触发行为）
+    const delay = Math.max(0, rt.startedAt - now);
+    if (timers[reminder.id]) {
+      clearTimeout(timers[reminder.id]);
+      delete timers[reminder.id];
+    }
+    timers[reminder.id] = setTimeout(() => {
+      const cur = statefulRT[reminder.id];
+      if (cur) emitStatefulEnter(reminder.id, firstIdx);
+    }, delay);
     emitCurrentStateful(reminder.id);
-    setTimeout(() => {
-      const rt = statefulRT[reminder.id];
-      if (rt) emitStatefulEnter(reminder.id, firstIdx);
+    return;
+  }
+
+  // 整轮过期开新轮（caseWholeRoundExpired 已将 cycleStart/startTime 对齐到 now）：
+  // 睡眠错过整轮后不要立刻弹锁屏，延迟 30s 再进入首个状态。
+  const justStartedNewRound = rt.cycleStart >= now - 100;
+  if (justStartedNewRound && rt.nextTime !== null) {
+    emitCurrentStateful(reminder.id); // 先刷 UI（不落库、不弹）
+    if (timers[reminder.id]) {
+      clearTimeout(timers[reminder.id]);
+      delete timers[reminder.id];
+    }
+    timers[reminder.id] = setTimeout(() => {
+      const cur = statefulRT[reminder.id];
+      if (cur) emitStatefulEnter(reminder.id, firstIdx); // 延迟 30s 进入首个状态
     }, 30000);
     return;
   }
 
-  if (oldCycleStart <= now) {
-    // 上一轮仍在进行（含首次启动 startTime≈now）：恢复当前状态展示（channel B 不重弹通知），
-    // 但必须排程推进，否则状态机停滞、轮次不流转。
-    // 属于「非状态流转」恢复，不触发窗口置顶/隐藏行为。
-    const cur = statefulRT[reminder.id];
-    rescheduleStatefulAdvance(reminder.id);
-    emitCurrentStateful(reminder.id);
-    return;
-  }
-
-  // 未来首轮：正常进入首个状态（会按 lockScreen 触发行为）
-  emitStatefulEnter(reminder.id, firstIdx);
+  // 运行中 / 上一轮仍在进行（含首次启动 startTime≈now）：恢复展示 + 排程推进，
+  // 属于「非状态流转」恢复，不触发窗口置顶/隐藏行为，也不重复落库。
+  rescheduleStatefulAdvance(reminder.id);
+  emitCurrentStateful(reminder.id);
 }
 
 // 进入指定状态并排程推进（channel A：状态进入=提醒到了）
