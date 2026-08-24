@@ -184,7 +184,7 @@ export default defineStore("global-setting", () => {
   // 应用强制锁定（即休息时）设置存储思路：
   // 1. 包含多套方案
   // 2. 每套方案包含一种或多种属性
-  const homeMode = ref<Record<StatusMode, ObjectType>>({
+  const homeMode = ref<Record<string, ObjectType>>({
     work: {},
     rest: {},
     screen: {},
@@ -202,6 +202,39 @@ export default defineStore("global-setting", () => {
   function setHomeModeOps(value: ObjectType[]) {
     homeModeOps.value = value;
     setStore("homeModeOps", value);
+  }
+
+  // 内置状态 key 集合：番茄钟 work/rest/lock + 历史遗留 screen（全屏/锁屏态）。
+  // 这些 key 在 homeMode 中必须永远存在，缺失会触发 watch 取值崩溃。
+  const BUILTIN_STATUS_KEYS = ["work", "rest", "screen", "lock"];
+
+  /**
+   * 将 homeMode 的 key 集合与番茄钟 states / 当前运行状态对齐：
+   *  - 传入的 key（如番茄钟 states 的 key 数组）缺失时，用默认皮肤配置补齐；
+   *  - 内置 key（work/rest/screen/lock）即使不在传入集合中也强制保留，绝不删除；
+   *  - 用户自定义的、不在内置集合但已存在于 homeMode 的 key 同样保留（不丢已配皮肤）。
+   * 这是「homeMode 动态取番茄钟对应 status」的核心：番茄钟 states 变动时调用本函数，
+   * homeMode 的 key 自动跟随，且永不缺键。
+   */
+  function alignHomeModeKeys(statusKeys: string[] = []) {
+    const keys = Array.isArray(statusKeys) ? statusKeys : [];
+    const defaultEntry = homeModeOps.value[0] || {};
+    const next: Record<string, ObjectType> = {};
+    // 1. 内置 key 永远保留（不足则补默认）
+    for (const k of BUILTIN_STATUS_KEYS) {
+      next[k] = homeMode.value[k] || { ...defaultEntry };
+    }
+    // 2. 传入的 key（番茄钟 states）补齐
+    for (const k of keys) {
+      if (!k) continue;
+      next[k] = homeMode.value[k] || { ...defaultEntry };
+    }
+    // 3. 保留 homeMode 中已存在、但既非内置也未被传入的自定义 key（不丢用户配置）
+    for (const k of Object.keys(homeMode.value)) {
+      if (!(k in next)) next[k] = homeMode.value[k];
+    }
+    homeMode.value = next;
+    setStore("homeMode", next);
   }
 
   // pinia状态初始化
@@ -352,10 +385,13 @@ export default defineStore("global-setting", () => {
       },
       {
         field: "homeMode",
+        // 内置状态集合（番茄钟 work/rest/lock + 历史遗留 screen 全屏态）一律预置，
+        // 保证 homeMode[key] 永远存在，杜绝「缺 lock 键 → watch 取值 undefined 崩溃」。
         default: {
           work: originHomeModeOps[0],
           rest: originHomeModeOps[0],
           screen: originHomeModeOps[0],
+          lock: originHomeModeOps[0],
         },
         map: homeMode,
       },
@@ -378,6 +414,9 @@ export default defineStore("global-setting", () => {
 
     // 默认值赋值
     initPiniaStatus(allVars);
+    // 初始化后对齐 homeMode 的 key 集合（保证内置状态 key 齐全），
+    // 番茄钟 states 加载/变化时会再次调用以纳入自定义状态。
+    alignHomeModeKeys();
   }
 
   // 当天时间判断，初始化
@@ -454,6 +493,7 @@ export default defineStore("global-setting", () => {
     setGlobalFontOps,
     setHomeMode,
     setHomeModeOps,
+    alignHomeModeKeys,
     // getters
     curStatusC,
     forceWorkTimesC,

@@ -54,9 +54,11 @@ const { startScreenSaverFn, closeScreenSaverFn, injectState, endInjectedState } 
 const { isPwdSame } = useSafetyProtection();
 const curComponent = shallowRef(custom)
 
-watch(() => homeModeC.value[curStatusC.value.value], (n, o) => {
+watch(() => (homeModeC.value[curStatusC.value.value] || {}), (n, o) => {
   console.log(n, o, 'homeModeC')
-  switch (n.value) {
+  // 状态 key 缺失配置时（理论上已被 alignHomeModeKeys 补齐）安全降级，不崩
+  const modeValue = n?.value
+  switch (modeValue) {
     case '1':
       curComponent.value = ImitationWindowsUpdate
       break;
@@ -140,8 +142,8 @@ function closeLockedFn() {
     cancelButtonText: '取消',
     inputType: 'password',
   }).then(({ value }) => {
-    console.log(value, 'value', isPwdSame(value));
-    if (isPwdSame(value)) {
+    const same = isPwdSame(value);
+    if (same) {
       closeScreenSaverFn()
       // 让主进程状态机解除「强制锁屏」非序列状态：
       // 按 lock 的 continueLoop（默认 true）归位到 work/rest 序列继续循环
@@ -149,7 +151,25 @@ function closeLockedFn() {
       closeHomeBtnsFn()
     }
     else {
-      ElMessage.error('密码错误')
+      // 密码校验失败：可能因 RSAKey 被历史异常覆盖导致已存密文无法匹配。
+      // 提供密保问题重置密码的出口，避免用户被永久卡在锁屏界面。
+      ElMessageBox.confirm(
+        '密码校验失败。可通过密保问题重置密码后重新设置。是否前往安全防护页重置密码？',
+        '密码错误',
+        {
+          confirmButtonText: '前往重置密码',
+          cancelButtonText: '再试一次',
+          type: 'warning',
+        }
+      ).then(() => {
+        // 先解除锁屏置顶，再跳转安全防护页重设密码
+        closeScreenSaverFn()
+        endInjectedState()
+        closeHomeBtnsFn()
+        router.push('/safetyProtection')
+      }).catch(() => {
+        // 用户选择再试一次，保持锁屏状态
+      })
     }
   }).catch(() => {
     ElMessage({

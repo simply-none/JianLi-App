@@ -43,6 +43,9 @@ const { setHomeMode } = useGlobalSetting();
 const homeModeCc = ref(JSON.parse(JSON.stringify(homeModeC.value || {})))
 const modeData = ref({})
 
+// 新建缺省 homeMode 条目的默认值（与 store 中 originHomeModeOps[0] 对齐）
+const originHomeModeValue = (homeModeC.value && Object.values(homeModeC.value)[0]?.value) || '1'
+
 console.log(homeModeC.value, curStatusC.value, 'homeModeC')
 
 const useSmallComponentsOpsStore = useSmallComponentsOps()
@@ -61,10 +64,13 @@ const currentSmallComps = computed(() => {
   })
 })
 
-watch(() => homeModeC.value[curStatusC.value.value], (n, o) => {
+watch(() => homeModeC.value[curStatusC.value.value] || {}, (n, o) => {
   console.log(n, o, 'homeModeC', curStatusC.value.value)
   homeModeCc.value = JSON.parse(JSON.stringify(homeModeC.value || {}))
-  const md = (homeModeCc.value[curStatusC.value.value].mode || {})[homeModeCc.value[curStatusC.value.value].value] || {}
+  const curKey = curStatusC.value.value
+  const curEntry = homeModeCc.value[curKey] || {}
+  // 状态 key 缺失时安全降级为空布局，不崩
+  const md = (curEntry.mode || {})[curEntry.value] || {}
   console.log(md, 'md')
   modeData.value = md
 }, { immediate: true, deep: true })
@@ -107,6 +113,12 @@ function updatePosition(e, name) {
 
 function updateDataFn(e, name) {
   console.log(e, name, 'updateDataFn')
+  // 确保当前状态 key 在 homeModeCc 中存在（双保险，理论上已被 alignHomeModeKeys 补齐）
+  const curKey = curStatusC.value.value
+  if (!homeModeCc.value[curKey]) {
+    homeModeCc.value[curKey] = { value: originHomeModeValue, mode: {} }
+  }
+  const curEntry = homeModeCc.value[curKey]
   // modeData.value[name]判断是否是对象
   if (typeof modeData.value[name] === 'object') {
     modeData.value[name][e.el] = e.data
@@ -115,20 +127,20 @@ function updateDataFn(e, name) {
       [e.el]: toRaw(e.data),
     }
   }
-  if (!homeModeCc.value[curStatusC.value.value].mode) {
-    homeModeCc.value[curStatusC.value.value].mode = {}
+  if (!curEntry.mode) {
+    curEntry.mode = {}
   }
-  homeModeCc.value[curStatusC.value.value].mode[homeModeCc.value.value] = modeData.value
-  console.log(homeModeCc.value[curStatusC.value.value].mode, homeModeCc.value[curStatusC.value.value].value, name, 'ces es ces')
+  curEntry.mode[curEntry.value] = modeData.value
+  console.log(curEntry.mode, curEntry.value, name, 'ces es ces')
 
-  if (!homeModeCc.value[curStatusC.value.value].mode[homeModeCc.value[curStatusC.value.value].value]) {
-    homeModeCc.value[curStatusC.value.value].mode[homeModeCc.value[curStatusC.value.value].value] = {};
+  if (!curEntry.mode[curEntry.value]) {
+    curEntry.mode[curEntry.value] = {};
   }
-  if (!homeModeCc.value[curStatusC.value.value].mode[homeModeCc.value[curStatusC.value.value].value][name]) {
-    homeModeCc.value[curStatusC.value.value].mode[homeModeCc.value[curStatusC.value.value].value][name] = {};
+  if (!curEntry.mode[curEntry.value][name]) {
+    curEntry.mode[curEntry.value][name] = {};
   }
-  delete homeModeCc.value[curStatusC.value.value].mode[homeModeCc.value[curStatusC.value.value].value][name].undefined;
-  delete homeModeCc.value[curStatusC.value.value].mode.undefined;
+  delete curEntry.mode[curEntry.value][name].undefined;
+  delete homeModeCc.value[curKey].mode.undefined;
   console.warn(toRaw(homeModeCc.value), 'ces')
   setHomeMode(toRaw(homeModeCc.value))
 }

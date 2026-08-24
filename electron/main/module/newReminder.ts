@@ -875,6 +875,18 @@ function registerIpc(): void {
         return { ok: false, error: "states 为空，保存被拒绝（数据异常）" };
       }
     }
+    // 系统内置番茄钟（id=pomodoro）保护：内置状态 work/rest/lock 不可被删除。
+    // 若传入的 states 缺少任一内置状态，从种子配置补回（保留用户自定义状态及已有配置），
+    // 防止渲染端漏拦的「删内置状态」请求落库后破坏核心番茄钟流程。
+    if (r.id === "pomodoro" && Array.isArray(r.states)) {
+      const seed = makePomodoroSeed();
+      const haveKeys = new Set(r.states.map((s: any) => s && s.key));
+      const missing = seed.states.filter((s: any) => !haveKeys.has(s.key));
+      if (missing.length > 0) {
+        console.warn("[tips-save] 番茄钟缺少内置状态，已从种子补回：", missing.map((s: any) => s.key));
+        r.states = [...missing, ...r.states];
+      }
+    }
     await persistReminder(r);
     scheduleReminder(r);
     return { ok: true };

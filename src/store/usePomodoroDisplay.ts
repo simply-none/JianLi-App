@@ -1,7 +1,8 @@
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { defineStore } from "pinia";
 import useTipsRuntime from "@/store/useTipsRuntime";
 import useNewReminder from "@/store/useNewReminder";
+import useGlobalSetting from "@/store/useGlobalSetting";
 
 /**
  * 番茄钟展示数据「转发适配层」。
@@ -44,6 +45,20 @@ const usePomodoroDisplay = defineStore("pomodoro-display", () => {
   const restTimeGapUnitC = computed(() => restTimeGapUnit.value);
   const startWorkTimeC = computed(() => startWorkTime.value);
   const closeWorkTimeC = computed(() => closeWorkTime.value);
+
+  // 番茄钟 states 变动（启动加载 / 编辑保存 / 新增自定义状态）时，
+  // 同步对齐 homeMode 的状态 key 集合：让 homeMode 的键动态取自番茄钟对应 status，
+  // 保证每个状态 key 都有皮肤配置，永不缺键崩溃。
+  const globalSetting = useGlobalSetting();
+  watch(
+    () => pomodoro.value?.states?.map((s: any) => s.key),
+    (keys) => {
+      if (Array.isArray(keys) && keys.length) {
+        globalSetting.alignHomeModeKeys(keys as string[]);
+      }
+    },
+    { immediate: true, deep: true }
+  );
 
   return {
     workTimeGap,

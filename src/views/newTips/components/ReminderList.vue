@@ -32,7 +32,13 @@
             <LucideIcon name="Pen" :size="14" />
             编辑
           </el-button>
-          <el-button size="small" @click="$emit('delete', item)" class="act-btn delete">
+          <el-tooltip v-if="item.id === 'pomodoro'" content="系统内置番茄钟不可删除" placement="top">
+            <el-button size="small" disabled class="act-btn delete" title="系统内置番茄钟不可删除">
+              <LucideIcon name="Lock" :size="14" />
+              删除
+            </el-button>
+          </el-tooltip>
+          <el-button v-else size="small" @click="$emit('delete', item)" class="act-btn delete">
             <LucideIcon name="Trash" :size="14" />
             删除
           </el-button>

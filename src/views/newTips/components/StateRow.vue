@@ -4,7 +4,12 @@
     <div class="state-card-body">
       <div class="state-card-row state-row-head">
         <el-input v-model="state.label" placeholder="状态名（例：工作、休息）" class="state-label-input" />
-        <el-button size="small" circle plain type="danger" @click="$emit('remove')" class="state-del-btn" title="删除该状态">
+        <el-tooltip v-if="isBuiltin" content="系统内置状态不可删除" placement="top">
+          <el-button size="small" circle plain type="info" disabled class="state-del-btn" title="系统内置状态不可删除">
+            <LucideIcon name="Lock" :size="14" />
+          </el-button>
+        </el-tooltip>
+        <el-button v-else size="small" circle plain type="danger" @click="$emit('remove')" class="state-del-btn" title="删除该状态">
           <LucideIcon name="Trash" :size="14" />
         </el-button>
       </div>
@@ -46,8 +51,12 @@
 import LucideIcon from "@/components/LucideIcon.vue";
 import type { TipsState } from "../types";
 
-defineProps<{ state: TipsState; index: number }>();
+const props = defineProps<{ state: TipsState; index: number }>();
 defineEmits<{ remove: [] }>();
+
+// 系统内置状态 key（番茄钟 work/rest/lock 不可删除，保证核心功能不被破坏）
+const BUILTIN_STATE_KEYS = ["work", "rest", "lock"];
+const isBuiltin = BUILTIN_STATE_KEYS.includes(props.state.key);
 
 const unitOptions = [
   { label: "秒", value: 1000 },
