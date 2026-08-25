@@ -68,6 +68,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { pomodoroStatusTable, getStore, setStore, deletePomodoroStatus } from '@/utils/common'
 import moment from 'moment'
 import ChartsView from './charts.vue'
+import { getConfiguredIntervalMs } from './segment'
 
 const POMODORO_TAB_KEY = 'pomodoroRecordActiveTab'
 const savedTab = getStore(POMODORO_TAB_KEY)
@@ -147,7 +148,8 @@ const getStatusColor = (status: string) => {
   const colorMap: Record<string, string> = {
     work: 'var(--color-primary, #6366f1)',
     rest: '#22c55e',
-    screen: '#9ca3af',
+    lock: '#9ca3af',
+    screen: '#9ca3af', // 兼容历史记录
   }
   return colorMap[status] || '#9ca3af'
 }
@@ -160,19 +162,29 @@ const processedData = computed(() => {
   const dayEnd = moment(dateStr).endOf('day')
   const now = moment()
   const isToday = dateStr === moment().format('YYYY-MM-DD')
+  // 当天未结束 → 最新一条的段尾取「现在」；历史日期 → 取当天 23:59:59
   const endTime = isToday ? now : dayEnd
 
+  // curDateData 为倒序（最新在前）。某条记录的「时间上下一条」= 数组里前一条（更早进入的反而在后）。
+  // 倒序下 data[i-1] 才是时间上更晚（后创建）的那条；i===0 即最新一条，无后续 → 用 endTime。
   return data.map((item: any, index: number) => {
     const curTime = moment(item.dateTime)
-    const nextTime = index + 1 < data.length 
-      ? moment(data[index + 1].dateTime) 
-      : endTime
+    const nextInTime = index === 0 ? endTime : moment(data[index - 1].dateTime)
+
+    // 段尾 = min(下一条创建时间, 创建时间 + 配置间隔)；lock 无固定间隔 → 不截断
+    const intervalMs = getConfiguredIntervalMs(item.value)
+    let segEnd = nextInTime
+    if (intervalMs != null) {
+      const cappedEnd = moment(curTime).add(intervalMs, 'milliseconds')
+      if (cappedEnd.isBefore(nextInTime)) segEnd = cappedEnd
+    }
+    if (segEnd.isBefore(curTime)) segEnd = curTime // 防御：异常数据钳到起点
 
     const startTime = curTime.format('HH:mm:ss')
-    const endTimeStr = nextTime.format('HH:mm:ss')
-    const durationMs = nextTime.diff(curTime)
+    const endTimeStr = segEnd.format('HH:mm:ss')
+    const durationMs = segEnd.diff(curTime)
     const durationSec = Math.round(durationMs / 1000)
-    
+
     let duration = ''
     if (durationSec < 60) {
       duration = `${durationSec}秒`
@@ -182,10 +194,10 @@ const processedData = computed(() => {
     } else {
       const hours = Math.floor(durationSec / 3600)
       const mins = Math.round((durationSec % 3600) / 60)
-      duration = hours > 0 && mins > 0 
-        ? `${hours}小时${mins}分钟` 
-        : hours > 0 
-          ? `${hours}小时` 
+      duration = hours > 0 && mins > 0
+        ? `${hours}小时${mins}分钟`
+        : hours > 0
+          ? `${hours}小时`
           : `${mins}分钟`
     }
 

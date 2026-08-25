@@ -18,32 +18,40 @@ let stateSyncListener: ((e: any, arg: any) => void) | null = null;
 const isSecondWindow =
   typeof location !== "undefined" && location.href.includes("isSecondWindow=true");
 
-// 状态进入事件（channel A）→ 刷 UI + 写记录
+// 状态进入事件（channel A：状态切换 / 强制锁屏注入等）→ 刷 UI + 写记录
 function handleStateEnter(_e: any, arg: any) {
   if (!arg || !arg.reminderId) return;
   const runtime = useTipsRuntime();
   runtime.applyPayload(arg);
   if (isSecondWindow) return;
   const { setCurStatus } = useGlobalSetting();
-  // 仅「允许记录」(recordable !== false) 的状态才落库（强制锁屏 record=0 不记）
-  const shouldRecord = arg.recordable !== false;
-  setCurStatus({ label: arg.stateLabel, value: arg.stateKey }, shouldRecord);
+  // 仅主窗口落库；小窗只刷 UI（避免主/小窗双写）。
+  // 三个状态（工作 / 休息 / 强制锁屏）一律记录；其余自定义状态沿用 recordable 标记 opt-out。
+  // arg.stateStartTime 为主进程算出的「真实进入时刻」，作为记录起点（而非渲染端 moment()）。
+  const shouldRecord = arg.stateKey === "lock" ? true : arg.recordable !== false;
+  setCurStatus({ label: arg.stateLabel, value: arg.stateKey }, shouldRecord, arg.stateStartTime);
 }
 
-// 状态同步事件（channel B）→ 仅刷 UI
+// 状态同步事件（channel B：启动补偿 / 编辑重算 / 主动请求）→ 刷 UI + 补记「当前运行段」起点
 function handleStateSync(_e: any, arg: any) {
   if (!arg || !arg.reminderId) return;
   const runtime = useTipsRuntime();
   runtime.applyPayload(arg);
-  // 启动竞态补偿 / 恢复 / 停止等「同步」事件也必须刷新 curStatus，
-  // 否则 home、设置页等消费 curStatus 的模块在「状态进入(channel A)」发生前会停留在上一轮记录态，
-  // 与提醒列表 / 番茄钟小窗（直接读 runtime）显示不一致。
-  // record=false：仅刷新展示态，不写 pomodoro_status，避免碎片记录。
-  // 小窗只消费 runtime 刷 UI，不写 curStatus（与 handleStateEnter 的 isSecondWindow 一致）。
-  if (!isSecondWindow && arg && typeof arg.stateKey === "string") {
-    const { setCurStatus } = useGlobalSetting();
-    setCurStatus({ label: arg.stateLabel, value: arg.stateKey }, false);
+  // 小窗只消费 runtime 刷 UI，不写 curStatus / 不落库（与 handleStateEnter 一致）。
+  if (isSecondWindow) return;
+  if (!arg || typeof arg.stateKey !== "string") return;
+  const { setCurStatus } = useGlobalSetting();
+
+  // 带权威开始时刻且非「停止」广播，且开始时刻不晚于当前（排除未来首轮占位）→
+  // 既是刷新展示，也是「补记当前运行段的起点」：应用在状态开始后才启动，这段已运行时长
+  // 也能计入统计（此前通道 B 从不记录，导致整段缺失）。去重在主进程按「开始时刻」合并，重复补偿不会写多条。
+  if (arg.stateStartTime && !arg.stopped && Number(arg.stateStartTime) <= Date.now()) {
+    const shouldRecord = arg.stateKey === "lock" ? true : arg.recordable !== false;
+    setCurStatus({ label: arg.stateLabel, value: arg.stateKey }, shouldRecord, arg.stateStartTime);
+    return;
   }
+  // 其余同步（如停止广播、未来首轮占位、无开始时刻）→ 仅刷 UI 不落库
+  setCurStatus({ label: arg.stateLabel, value: arg.stateKey }, false);
 }
 
 // App 启动期调用：注册唯一一次全局监听 + 补偿启动竞态首帧

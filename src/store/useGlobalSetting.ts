@@ -41,7 +41,7 @@ export default defineStore("global-setting", () => {
   // 当前的状态
   const curStatus = ref<Status>({});
   const curStatusC = computed(() => curStatus.value);
-  function setCurStatus(status?: Status, record = true) {
+  function setCurStatus(status?: Status, record = true, startTime?: number) {
     if (!status) {
       const key = tipsRuntime.currentStateKey;
       curStatus.value =
@@ -55,17 +55,17 @@ export default defineStore("global-setting", () => {
               value: "work",
             };
       // 仅 record=true 时落库；补偿/刷新路径传 false，只更新展示不写 pomodoro_status
-      if (record) cacheCurStatusInfo(curStatus.value);
+      if (record) cacheCurStatusInfo(curStatus.value, startTime);
       else setStore("curStatus", curStatus.value);
       return true;
     }
     curStatus.value = status;
     setStore("curStatus", status);
     // record=false（启动补偿 / 续跑 / 刷新当前时间）时只更新内存状态，不写 pomodoro_status，避免碎片记录
-    if (record) cacheCurStatusInfo(status);
+    if (record) cacheCurStatusInfo(status, startTime);
   }
 
-  function cacheCurStatusInfo(status: Status) {
+  function cacheCurStatusInfo(status: Status, startTime?: number) {
     const current = moment().format("YYYY-MM-DD");
     let curDate = getStore(`${prefix}`)
     let storeValue = []
@@ -78,11 +78,17 @@ export default defineStore("global-setting", () => {
         curDate = curDate.filter((item: any) => item != current)
       }
     }
+    // 记录起点优先用主进程下发的「真实进入时刻」startTime：
+    // 1) 消除渲染端 moment() 的时钟漂移；
+    // 2) 按开始时刻把记录归到正确的那一天（避免跨午夜错归档）。
+    // startTime 缺省（极低概率的兜底路径）时回退到当前时刻。
+    const recordTs = startTime && !isNaN(Number(startTime)) ? Number(startTime) : Date.now();
+    const recordMoment = moment(recordTs);
     // 番茄钟记录统一走 newSql.ts（new-sql:record-pomodoro），主进程带去重，防主窗口/小窗双写
     setPomodoroStatus({
       ...status,
-      date: moment().format("YYYY-MM-DD"),
-      dateTime: moment().format("YYYY-MM-DD HH:mm:ss"),
+      date: recordMoment.format("YYYY-MM-DD"),
+      dateTime: recordMoment.format("YYYY-MM-DD HH:mm:ss"),
       mode: import.meta.env.MODE,
     }).catch(err => {
       console.error(err, 'setPomodoroStatus error')

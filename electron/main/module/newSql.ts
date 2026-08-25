@@ -691,15 +691,19 @@ export async function transaction(options: TransactionOptions): Promise<{ succes
  */
 export async function recordPomodoro(data: Record<string, any>) {
   await ensureTableExists('pomodoro_status');
-  const { date, value } = data || {};
-  if (date && value != null) {
+  const { date, value, dateTime } = data || {};
+  // 去重改为「按开始时刻」：记录的 dateTime 现为主进程下发的真实状态进入时刻。
+  // 同状态 + 同开始时刻（如启动补偿通道 B 在多处重复下发同一段起点）→ 视为重复，合并为一条；
+  // 真正的新状态进入（开始时刻不同）→ 放行落库。相比旧的「|now-last.dateTime|<=10s」，
+  // 新的判定能正确区分「同一段被重复下发」与「同一状态再次进入（不同开始时刻）」，不会误合并、也不会漏记。
+  if (date && value != null && dateTime != null) {
     const rows: any[] = await query({ tableName: 'pomodoro_status', conditions: { date } });
     if (Array.isArray(rows) && rows.length) {
-      const last = rows.reduce((a: any, b: any) =>
-        new Date(a.dateTime).getTime() > new Date(b.dateTime).getTime() ? a : b);
-      if (last.value === value &&
-          Math.abs(Date.now() - new Date(last.dateTime).getTime()) <= 10000) {
-        return { success: true, deduped: true, data: last };
+      const sameStart = rows.find(
+        (r: any) => r.value === value && r.dateTime === dateTime
+      );
+      if (sameStart) {
+        return { success: true, deduped: true, data: sameStart };
       }
     }
   }

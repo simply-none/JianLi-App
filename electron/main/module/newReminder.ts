@@ -146,7 +146,7 @@ function makePomodoroSeed(): any {
       { key: "rest", label: "休息", content: "", duration: 5, unit: 60 * 1000, record: 1, lockScreen: 0, sequential: 1, continueLoop: 1 },
       // 非序列状态：强制锁屏。lockScreen=1 进入时锁屏；sequential=0 不进循环；
       // duration=0 永久（需手动解除）；continueLoop=0 → 解锁后开始新循环（按用户定义）。
-      { key: "lock", label: "强制锁屏", content: "已开启强制锁屏，请输入密码解除", duration: 0, unit: 1000, record: 0, lockScreen: 1, sequential: 0, continueLoop: 0 },
+      { key: "lock", label: "强制锁屏", content: "已开启强制锁屏，请输入密码解除", duration: 0, unit: 1000, record: 1, lockScreen: 1, sequential: 0, continueLoop: 0 },
     ],
   };
 }

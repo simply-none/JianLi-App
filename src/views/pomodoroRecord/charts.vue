@@ -67,7 +67,7 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import * as echarts from 'echarts'
 import moment from 'moment'
-import { pomodoroStatusTable, getStore } from '@/utils/common'
+import { pomodoroStatusTable } from '@/utils/common'
 import { storeToRefs } from 'pinia'
 import useThemeStore, { type ThemeName } from '@/store/useTheme'
 import LucideIcon from '@/components/LucideIcon.vue'
@@ -80,19 +80,8 @@ installPassiveScrollListeners()
 
 const { currentTheme } = storeToRefs(useThemeStore())
 
-// 获取配置的间隔时长（毫秒），用于截断超时段时长
-function getConfiguredIntervalMs (type: string): number | null {
-  if (type === 'work') {
-    const gap = getStore('workTimeGap')
-    const unit = getStore('workTimeGapUnit')
-    if (gap != null && unit != null) return Number(gap) * Number(unit)
-  } else if (type === 'rest') {
-    const gap = getStore('restTimeGap')
-    const unit = getStore('restTimeGapUnit')
-    if (gap != null && unit != null) return Number(gap) * Number(unit)
-  }
-  return null
-}
+// 各状态配置间隔（毫秒）取自 ./segment，用于截断超时段时长
+import { getConfiguredIntervalMs } from './segment'
 
 const curDate = ref(moment().format('YYYY-MM-DD'))
 const noData = ref(false)
@@ -498,14 +487,16 @@ const themeColors = computed(() => THEME_COLORS[currentTheme.value] || THEME_COL
 const TYPE_LABEL_MAP: Record<string, string> = {
   work: '工作',
   rest: '休息',
-  screen: '锁屏',
+  lock: '锁屏',
+  screen: '锁屏', // 兼容历史记录（旧数据 value 可能为 screen）
 }
 
 // 动态颜色 Map，随主题切换
 const typeColorMap = computed<Record<string, string>>(() => ({
   work: themeColors.value.work,
   rest: themeColors.value.rest,
-  screen: themeColors.value.screen,
+  lock: themeColors.value.screen,
+  screen: themeColors.value.screen, // 兼容历史记录
 }))
 
 function formatDuration (minutes: number): string {
@@ -579,7 +570,7 @@ function calcDurations (segments: { type: string; start: Date; end: Date }[]) {
     const diff = (seg.end.getTime() - seg.start.getTime()) / 1000 / 60
     if (seg.type === 'work') workMin += diff
     else if (seg.type === 'rest') restMin += diff
-    else if (seg.type === 'screen') screenMin += diff
+    else if (seg.type === 'screen' || seg.type === 'lock') screenMin += diff
   })
   return { workMin, restMin, screenMin }
 }
