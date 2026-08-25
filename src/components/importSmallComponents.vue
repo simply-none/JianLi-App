@@ -46,8 +46,6 @@ const modeData = ref({})
 // 新建缺省 homeMode 条目的默认值（与 store 中 originHomeModeOps[0] 对齐）
 const originHomeModeValue = (homeModeC.value && Object.values(homeModeC.value)[0]?.value) || '1'
 
-console.log(homeModeC.value, curStatusC.value, 'homeModeC')
-
 const useSmallComponentsOpsStore = useSmallComponentsOps()
 const { smallComponentsC, defaultSmallComponentC } = storeToRefs(useSmallComponentsOpsStore);
 
@@ -65,13 +63,11 @@ const currentSmallComps = computed(() => {
 })
 
 watch(() => homeModeC.value[curStatusC.value.value] || {}, (n, o) => {
-  console.log(n, o, 'homeModeC', curStatusC.value.value)
   homeModeCc.value = JSON.parse(JSON.stringify(homeModeC.value || {}))
   const curKey = curStatusC.value.value
   const curEntry = homeModeCc.value[curKey] || {}
   // 状态 key 缺失时安全降级为空布局，不崩
   const md = (curEntry.mode || {})[curEntry.value] || {}
-  console.log(md, 'md')
   modeData.value = md
 }, { immediate: true, deep: true })
 
@@ -112,7 +108,6 @@ function updatePosition(e, name) {
 }
 
 function updateDataFn(e, name) {
-  console.log(e, name, 'updateDataFn')
   // 确保当前状态 key 在 homeModeCc 中存在（双保险，理论上已被 alignHomeModeKeys 补齐）
   const curKey = curStatusC.value.value
   if (!homeModeCc.value[curKey]) {
@@ -131,7 +126,6 @@ function updateDataFn(e, name) {
     curEntry.mode = {}
   }
   curEntry.mode[curEntry.value] = modeData.value
-  console.log(curEntry.mode, curEntry.value, name, 'ces es ces')
 
   if (!curEntry.mode[curEntry.value]) {
     curEntry.mode[curEntry.value] = {};
@@ -141,7 +135,6 @@ function updateDataFn(e, name) {
   }
   delete curEntry.mode[curEntry.value][name].undefined;
   delete homeModeCc.value[curKey].mode.undefined;
-  console.warn(toRaw(homeModeCc.value), 'ces')
   setHomeMode(toRaw(homeModeCc.value))
 }
 

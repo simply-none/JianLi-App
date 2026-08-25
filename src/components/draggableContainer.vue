@@ -30,21 +30,15 @@ const myPosition = ref({
   h: 100,
 })
 
-watch(() => props, (n) => {
-  console.log('newP watch', n);
-  if (!n) return;
-  myPosition.value = n
-}, {
-  immediate: true,
-  deep: true,
-})
-
-watch(() => myPosition.value, (n) => {
-  console.log('newP watch', n);
-}, {
-  immediate: true,
-  deep: true,
-})
+// 同步父组件传入的位置/尺寸：必须拷贝为「普通对象」，
+// 直接把 props（只读代理）赋给 myPosition 会导致 v-model 写入时报 "target is readonly"
+watch(
+  () => [props.x, props.y, props.w, props.h],
+  ([x, y, w, h]) => {
+    myPosition.value = { x, y, w, h }
+  },
+  { immediate: true }
+)
 
 // 修正myPosition
 function fixMyPosition(pos) {
@@ -65,13 +59,10 @@ function fixMyPosition(pos) {
   if (newP.h > screenHeight) { newP.h = screenHeight }
   if (newP.x > maxX) { newP.x = maxX - gap }
   if (newP.y > maxY) { newP.y = maxY - gap }
-  console.log('newP', newP);
-  console.log('newP screenWidth', screenWidth, 'screenHeight', screenHeight);
   return newP
 }
 
 function dragEndCont({ x, y }) {
-  console.log('newP dragEndCont', x, y);
   myPosition.value = fixMyPosition({
     ...myPosition.value,
     x,
@@ -81,7 +72,6 @@ function dragEndCont({ x, y }) {
 }
 
 function resizeEndCont({ x, y, w, h }) {
-  console.log('newP resizeEndCont', x, y, w, h);
   myPosition.value = fixMyPosition({
     ...myPosition.value,
     x,
@@ -92,15 +82,17 @@ function resizeEndCont({ x, y, w, h }) {
   emit('update', myPosition.value)
 }
 
+function handleResize() {
+  emit('update', fixMyPosition(myPosition.value))
+}
+
 onMounted(() => {
-  fixMyPosition(myPosition.value)
-  window.addEventListener('resize', () => {
-    emit('update', fixMyPosition(myPosition.value))
-  })
+  myPosition.value = fixMyPosition(myPosition.value)
+  window.addEventListener('resize', handleResize)
 })
 
 onUnmounted(() => {
-  window.removeEventListener('resize', () => { })
+  window.removeEventListener('resize', handleResize)
 })
 
 </script>
