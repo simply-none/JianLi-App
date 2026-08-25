@@ -642,6 +642,58 @@ function findFreeName(target: string): string {
   return candidate;
 }
 
+// 复制一组零散文件到目标文件夹（平铺）；用于「文件扫描结果复制到文件夹」
+export function copyFiles(
+  args: { files: string[]; target: string; strategy?: 'overwrite' | 'skip' | 'rename' },
+  win: BrowserWindow
+) {
+  const { files, target, strategy = 'rename' } = args;
+  const total = files.length;
+  let processed = 0;
+  let lastEmit = 0;
+  let skipped = 0;
+  const failed: string[] = [];
+  const usedNames = new Set<string>(); // 本次批次内已占用名，防相互覆盖
+  try {
+    fs.mkdirSync(target, { recursive: true });
+  } catch (e) {
+    win.webContents.send('copy-files', { ok: false, skipped: 0, failed: [`创建目标目录失败: ${(e as Error).message}`] });
+    return;
+  }
+  if (total > 0) win.webContents.send('copy-files-progress', { current: 0, total, currentPath: '' });
+  for (const src of files) {
+    try {
+      if (!fs.existsSync(src)) {
+        failed.push(`${src}: 源不存在`);
+        processed++;
+        continue;
+      }
+      const base = path.basename(src);
+      let dest = path.join(target, base);
+      if (strategy === 'skip' && (fs.existsSync(dest) || usedNames.has(base))) {
+        skipped++;
+        processed++;
+        continue;
+      }
+      if (strategy === 'rename' && (fs.existsSync(dest) || usedNames.has(base))) {
+        dest = findFreeName(dest);
+      }
+      fs.copyFileSync(src, dest);
+      usedNames.add(path.basename(dest));
+    } catch (err) {
+      failed.push(`${src}: ${(err as Error).message}`);
+    }
+    processed++;
+    const now = Date.now();
+    if (now - lastEmit >= 80 || processed === total) {
+      lastEmit = now;
+      win.webContents.send('copy-files-progress', { current: processed, total, currentPath: src });
+    }
+  }
+  if (total > 0) win.webContents.send('copy-files-progress', { current: total, total, currentPath: '' });
+  win.webContents.send('copy-files', { ok: failed.length === 0, skipped, failed });
+}
+
 export async function renameFiles(args: RenameFilesType, win: BrowserWindow) {
   const items = args.items || [];
   const strategy: RenameStrategy = args.strategy || 'block';
@@ -802,6 +854,11 @@ export function initFile() {
     copyFolder(copyArgs, win);
   });
 
+  // 复制零散文件到目标文件夹（扫描结果 → 文件夹）
+  ipcMain.on("copy-files", async (e, args: { files: string[]; target: string; strategy?: 'overwrite' | 'skip' | 'rename' }) => {
+    copyFiles(args, win);
+  });
+
   // 数据保存
   ipcMain.on("export-data-to-json", (e, { data, path }) => {
     e.returnValue = exportDataToJson(data, path);
@@ -910,6 +967,30 @@ async function searchAllDrives(startPatha: string, extensions: string[], ops: Ob
       markDirectories: true,
     })
 
-    resolve(results.flat());
+    // 文件夹含/不含：语义与 copy-folder 的 matchFilter 完全一致（祖先目录名子串匹配）。
+    // 「不含」文件夹：其下所有子孙文件与子孙文件夹均跳过。
+    const includeFolder: string[] = (ops?.includeFolder || []).map((s: string) => s.toLowerCase());
+    const ignoreFolder: string[] = (ops?.ignoreFolder || []).map((s: string) => s.toLowerCase());
+
+    const mapped = results.flat().map((e: any) => {
+      let size = 0;
+      try {
+        size = fs.statSync(e.path).size;
+      } catch {
+        size = 0;
+      }
+      return { name: e.name, path: e.path, size };
+    }).filter((f: any) => {
+      const rel = f.path.slice(startPath.length).replace(/^[\\/]/, '');
+      const dirPart = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : '';
+      const segs = dirPart ? dirPart.split('/').filter(Boolean).map((s: string) => s.toLowerCase()) : [];
+      // 不含：任一祖先目录名子串命中 → 排除（整棵跳过）
+      if (ignoreFolder.length && segs.some((s) => ignoreFolder.some((k) => s.includes(k)))) return false;
+      // 含：非空时须有祖先目录名子串命中，否则排除
+      if (includeFolder.length && !segs.some((s) => includeFolder.some((k) => s.includes(k)))) return false;
+      return true;
+    });
+
+    resolve(mapped);
   });
 }

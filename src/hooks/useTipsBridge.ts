@@ -51,11 +51,11 @@ export function setupTipsBridge() {
 // 移除本桥接的监听
 export function teardownTipsBridge() {
   if (stateChangeListener) {
-    window.ipcRenderer.removeListener("tips-state-change", stateChangeListener);
+    window.ipcRenderer.removeAllListeners("tips-state-change");
     stateChangeListener = null;
   }
   if (stateSyncListener) {
-    window.ipcRenderer.removeListener("tips-state-sync", stateSyncListener);
+    window.ipcRenderer.removeAllListeners("tips-state-sync");
     stateSyncListener = null;
   }
   listenerRegistered = false;
