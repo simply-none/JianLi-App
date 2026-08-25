@@ -50,7 +50,9 @@ export function useTipsActions() {
     send("tips-end-injected-state", { reminderId });
   }
 
-  // 番茄钟：强制回到工作（受强制次数限制）
+  // 番茄钟（多状态 stateful 提醒）：强制切回工作状态，受每日强制次数限制。
+  // 新提醒系统下走 tips-force-state 通道 → 主进程 forceReminderState 强制进入 work 状态，
+  // 主进程会重置 startedAt 并开始该状态计时（即开始新一轮工作，对应 isUpdateStartTime 语义）。
   function forceWorkWithTimes(_options?: { isUpdateStartTime?: boolean }) {
     if (todayForceWorkTimesC.value?.times >= forceWorkTimesC.value) {
       appNotify("提示", "太累了，您不能再继续强制工作");

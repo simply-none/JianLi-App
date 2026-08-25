@@ -495,6 +495,181 @@ export async function deleteFiles(args: DeleteFilesType, win: BrowserWindow) {
   }
 }
 
+// 列出文件夹内容（批量重命名预览用）：返回文件名/路径/是否目录/扩展名/大小/时间
+interface ListFolderItem {
+  name: string;   // 文件名（含扩展名）
+  path: string;   // 完整路径
+  isDir: boolean; // 是否为目录
+  ext: string;    // 扩展名（含点，目录为空串）
+  size: number;   // 字节数（目录为 0）
+  mtime: number;   // 修改时间（毫秒）
+  ctime: number;   // 状态变更时间（毫秒，Windows 上接近创建时间）
+  birthtime: number; // 创建时间（毫秒，部分平台/文件系统可能为 0）
+}
+export function listFolder(args: { dir: string; recursive?: boolean; includeDirs?: boolean }): ListFolderItem[] {
+  const { dir, recursive = false, includeDirs = true } = args;
+  const result: ListFolderItem[] = [];
+  const walk = (current: string) => {
+    let entries;
+    try {
+      entries = fs.readdirSync(current, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const full = path.join(current, entry.name);
+      // Dirent 不带时间戳，必须 stat 才能拿到真实的 mtime/ctime/birthtime；
+      // 否则 entry.mtimeMs 等为 undefined，前端 formatDate 会得到 NaN
+      let st;
+      try {
+        st = fs.statSync(full);
+      } catch {
+        // 无权限/损坏等异常项：给 0 兜底，不中断整个目录遍历
+        st = { mtimeMs: 0, ctimeMs: 0, birthtimeMs: 0, size: 0 } as any;
+      }
+      if (entry.isDirectory()) {
+        if (includeDirs) {
+          result.push({ name: entry.name, path: full, isDir: true, ext: '', size: st.size, mtime: st.mtimeMs, ctime: st.ctimeMs, birthtime: st.birthtimeMs });
+        }
+        if (recursive) walk(full);
+      } else if (entry.isFile()) {
+        result.push({
+          name: entry.name,
+          path: full,
+          isDir: false,
+          ext: path.extname(entry.name),
+          size: st.size,
+          mtime: st.mtimeMs,
+          ctime: st.ctimeMs,
+          birthtime: st.birthtimeMs,
+        });
+      }
+    }
+  };
+  walk(dir);
+  // 排序：目录优先，再按名称（中文 locale 排序）
+  result.sort((a, b) => {
+    if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+    return a.name.localeCompare(b.name, 'zh');
+  });
+  return result;
+}
+
+// 批量重命名：前端已算好 oldPath/newPath，这里只负责 I/O + 进度上报
+interface RenameItemType {
+  oldPath: string;
+  newPath: string;
+}
+type RenameStrategy = 'block' | 'auto' | 'skip';
+interface RenameFilesType {
+  items: RenameItemType[];
+  strategy?: RenameStrategy; // 重名时的处理策略：block=拦截报错（默认） / auto=自动加序号 / skip=跳过
+}
+
+// 在目标已存在时，寻找一个空闲名（于扩展名前插入 (n)）
+function findFreeName(target: string): string {
+  const dir = target.replace(/[\\/][^\\/]*$/, '');
+  const base = target.replace(/^.*[\\/]/, '');
+  const dot = base.lastIndexOf('.');
+  const nameOnly = dot > 0 ? base.slice(0, dot) : base;
+  const ext = dot > 0 ? base.slice(dot) : '';
+  let n = 2;
+  let candidate = path.join(dir, `${nameOnly} (${n})${ext}`);
+  while (fs.existsSync(candidate)) {
+    n++;
+    candidate = path.join(dir, `${nameOnly} (${n})${ext}`);
+  }
+  return candidate;
+}
+
+export async function renameFiles(args: RenameFilesType, win: BrowserWindow) {
+  const items = args.items || [];
+  const strategy: RenameStrategy = args.strategy || 'block';
+  const total = items.length;
+  let processed = 0;
+  let lastEmit = 0;
+  // 先发一条初始进度
+  win.webContents.send('rename-files-progress', { current: 0, total, currentPath: '' });
+
+  const failed: string[] = [];
+  const renamed: RenameItemType[] = []; // 实际成功重命名的映射，供前端「撤销」
+  for (const it of items) {
+    try {
+      // 源 === 目标：无变化，跳过（前端已过滤，这里再兜底一次）
+      if (it.oldPath === it.newPath) {
+        processed++;
+        continue;
+      }
+      let target = it.newPath;
+      // 目标已在磁盘上存在：按策略处理
+      if (fs.existsSync(target)) {
+        if (strategy === 'skip') {
+          processed++;
+          continue; // 跳过，不计入已重命名
+        } else if (strategy === 'auto') {
+          target = findFreeName(target);
+        } else {
+          throw new Error('目标已存在，可能发生覆盖');
+        }
+      }
+      fs.renameSync(it.oldPath, target);
+      renamed.push({ oldPath: it.oldPath, newPath: target });
+    } catch (e) {
+      failed.push(`${it.oldPath} -> ${it.newPath}: ${(e as Error).message}`);
+    }
+    processed++;
+    const now = Date.now();
+    if (now - lastEmit >= 80 || processed === total) {
+      lastEmit = now;
+      win.webContents.send('rename-files-progress', { current: processed, total, currentPath: it.newPath });
+    }
+  }
+
+  // 收尾强制上报一次完整进度，保证进度条走到 100%
+  win.webContents.send('rename-files-progress', { current: total, total, currentPath: '' });
+  if (failed.length) {
+    win.webContents.send(
+      'rename-files',
+      { error: `重命名完成，但有 ${failed.length} 个失败:\n` + failed.slice(0, 20).join('\n'), renamed }
+    );
+  } else {
+    // 成功：返回实际重命名映射，供撤销
+    win.webContents.send('rename-files', { renamed });
+  }
+}
+
+// 撤销重命名：将上一次 newPath 还原回 oldPath（反向重命名）
+export async function reverseRename(args: RenameFilesType, win: BrowserWindow) {
+  const items = args.items || [];
+  const total = items.length;
+  let processed = 0;
+  let lastEmit = 0;
+  win.webContents.send('rename-files-progress', { current: 0, total, currentPath: '' });
+  const failed: string[] = [];
+  for (const it of items) {
+    try {
+      // it.newPath 是当前名，it.oldPath 是原名；仅当「新名存在且原名不存在」时才还原
+      if (it.newPath !== it.oldPath && fs.existsSync(it.newPath) && !fs.existsSync(it.oldPath)) {
+        fs.renameSync(it.newPath, it.oldPath);
+      }
+    } catch (e) {
+      failed.push(`${it.newPath} -> ${it.oldPath}: ${(e as Error).message}`);
+    }
+    processed++;
+    const now = Date.now();
+    if (now - lastEmit >= 80 || processed === total) {
+      lastEmit = now;
+      win.webContents.send('rename-files-progress', { current: processed, total, currentPath: it.newPath });
+    }
+  }
+  win.webContents.send('rename-files-progress', { current: total, total, currentPath: '' });
+  if (failed.length) {
+    win.webContents.send('rename-files-reversed', `撤销完成，但有 ${failed.length} 个失败:\n` + failed.slice(0, 20).join('\n'));
+  } else {
+    win.webContents.send('rename-files-reversed', null);
+  }
+}
+
 // 导出数据到json
 export function exportDataToJson(data: any, path: string) {
   try {
@@ -584,6 +759,26 @@ export function initFile() {
   // 文件删除（整体 / 后缀类型 / 模糊文件名）
   ipcMain.on("delete-files", async (e, args: DeleteFilesType) => {
     deleteFiles(args, win);
+  });
+
+  // 列出文件夹内容（批量重命名预览用），同步返回
+  ipcMain.on("list-folder", (e, args: { dir: string; recursive?: boolean; includeDirs?: boolean }) => {
+    try {
+      e.returnValue = listFolder(args);
+    } catch (err) {
+      console.error('[dialog] list-folder 失败:', err);
+      e.returnValue = [];
+    }
+  });
+
+  // 批量重命名：前端算好 oldPath/newPath，后端执行 + 进度上报
+  ipcMain.on("rename-files", async (e, args: RenameFilesType) => {
+    renameFiles(args, win);
+  });
+
+  // 撤销重命名：将上一次重命名的结果反向还原
+  ipcMain.on("reverse-rename", async (e, args: RenameFilesType) => {
+    reverseRename(args, win);
   });
 
   ipcMain.handle("save-debug-data", (e, { data, fileName }) => {

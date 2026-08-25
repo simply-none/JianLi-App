@@ -23,6 +23,8 @@
 
       <FileScanVue :defaultAppPaths="defaultAppPaths"></FileScanVue>
 
+      <FileRenameVue></FileRenameVue>
+
       <div class="file-card">
         <div class="card-header">
           <h3 class="card-title">
@@ -43,6 +45,7 @@ import { ref } from 'vue';
 import LucideIcon from '@/components/LucideIcon.vue';
 import UploadVue from '@/components/upload.vue';
 import FileScanVue from './fileScan.vue';
+import FileRenameVue from './fileRename.vue';
 import FileTransferVue from './fileTransfer.vue';
 import FileDeleteVue from './fileDelete.vue';
 import DefaultApp from './defaultApp.vue';
