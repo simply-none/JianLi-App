@@ -30,9 +30,16 @@ export type CopyFolderType = {
   include?: string[];
   ignoreSuffix?: string[];
   includeSuffix?: string[];
+  // 文件夹（子目录）名称包含/排除，作用于整棵子树
+  includeFolder?: string[];
+  ignoreFolder?: string[];
   preserveTimestamps?: boolean;
-  force?: boolean;
+  force?: boolean; // 遗留字段：true 等价于 strategy='overwrite'
   recursive?: boolean;
+  // 操作模式：copy=复制(保留源) / move=移动(拷贝成功后删除源)
+  op?: 'copy' | 'move';
+  // 同名冲突处理：overwrite=覆盖 / skip=跳过 / rename=自动加序号
+  strategy?: 'overwrite' | 'skip' | 'rename';
 };
 
 function getSelectType(type: String | String[]) {
@@ -180,7 +187,7 @@ export async function saveFile({
   }
 }
 
-// 使用fs.cp 进行整个文件夹的复制
+// 使用fs.cp 进行整个文件夹的复制 / 移动
 export function copyFolder(
   {
     source,
@@ -193,32 +200,41 @@ export function copyFolder(
     ignoreSuffix,
     // 想包含的文件后缀名
     includeSuffix,
+    // 文件夹（子目录）名称包含
+    includeFolder,
+    // 文件夹（子目录）名称排除
+    ignoreFolder,
+    // 是否包含子目录（false 时仅拷贝顶层文件，保持与前端预览一致）
+    recursive = true,
     // 是否保留源文件的时间戳
     preserveTimestamps = true,
-    // 是否覆盖现有文件或目录
+    // 是否覆盖现有文件或目录（遗留字段，等价于 strategy='overwrite'）
     force = true,
+    // 操作模式：copy=复制(保留源) / move=移动(拷贝成功后删除源)
+    op = 'copy',
+    // 同名冲突处理：overwrite=覆盖 / skip=跳过 / rename=自动加序号
+    strategy = 'overwrite',
   }: CopyFolderType,
   win: BrowserWindow
 ) {
-  const isExist = fs.existsSync(target);
-  if (isExist) {
-    // 使用moment获取当前格式化时间YYYY-MM-DD_HH-mm-ss
-    const time = moment().format("YYYY-MM-DD_HH-mm-ss");
-    target = target + "_copy_" + time;
-  }
   try {
-    // 自写递归遍历 + 受控并发复制，替代 fs.cp 的串行复制，提升大目录吞吐（P2）
+    // 不再对目标目录整体重命名；同名冲突交由 strategy 逐文件处理
     runCopyFolder(source, target, {
       ignore,
       include,
       includeSuffix,
       ignoreSuffix,
+      includeFolder,
+      ignoreFolder,
+      recursive,
       preserveTimestamps,
       force,
+      op,
+      strategy,
       win
     });
   } catch (err) {
-    win.webContents.send("copy-folder", err);
+    win.webContents.send("copy-folder", { ok: false, error: (err as Error).message });
     console.log(err, "res");
   }
 }
@@ -228,6 +244,7 @@ export function copyFolder(
  * - 目录即时创建，文件入队后用受控并发池复制（默认 8 路），重叠 I/O 提升吞吐（P2）。
  * - 符号链接节点跳过（不复制、不跟随），避免指向祖先目录时无限递归（P3）。
  * - 过滤语义与原 fs.cp filter 完全一致，且跨平台（path 模块替代硬编码分隔符，P1）。
+ * - 支持 op=move（拷贝成功后删除源）与 strategy（overwrite/skip/rename）同名冲突处理。
  */
 async function runCopyFolder(
   source: string,
@@ -237,8 +254,13 @@ async function runCopyFolder(
     include?: string[];
     includeSuffix?: string[];
     ignoreSuffix?: string[];
+    includeFolder?: string[];
+    ignoreFolder?: string[];
+    recursive?: boolean;
     preserveTimestamps?: boolean;
     force?: boolean;
+    op?: 'copy' | 'move';
+    strategy?: 'overwrite' | 'skip' | 'rename';
     win: BrowserWindow;
   }
 ) {
@@ -247,34 +269,45 @@ async function runCopyFolder(
     include,
     includeSuffix,
     ignoreSuffix,
+    includeFolder,
+    ignoreFolder,
+    recursive = true,
     preserveTimestamps = true,
     force = true,
+    op = 'copy',
+    strategy = 'overwrite',
     win
   } = opts;
 
-  // 统一过滤谓词：后缀取第一个点之后的全部；include 按相对路径任一段精确匹配（与原逻辑一致）
-  const matchFilter = (absSrc: string, relParts: string[]) => {
+  // 统一过滤谓词：仅对「文件」生效，语义与前端预览完全一致——
+  // 名称含/不含按文件名子串（不区分大小写）匹配；后缀按扩展名匹配。
+  // 排除优先于包含；包含集合非空时须命中其一才复制，否则全部复制。
+  const matchFilter = (absSrc: string): boolean => {
     const srcName = path.basename(absSrc);
+    const srcLower = srcName.toLowerCase();
     const srcNameSuffix = srcName.split(".").slice(1).join(".");
-    const isInclude = include && include.some((item) => relParts.includes(item));
-    if (isInclude && ignoreSuffix && !ignoreSuffix.includes(srcNameSuffix)) return true;
-    if (includeSuffix && includeSuffix.includes(srcNameSuffix)) return true;
-    if (ignore && ignore.includes(srcName)) return false;
+    // 排除（最高优先级）
+    if (ignore && ignore.some((item) => srcLower.includes(item.toLowerCase()))) return false;
     if (ignoreSuffix && ignoreSuffix.includes(srcNameSuffix)) return false;
-    if ((include && include.length) || (includeSuffix && includeSuffix.length)) return false;
+    // 名称包含：非空时须命中
+    if (include && include.length && !include.some((item) => srcLower.includes(item.toLowerCase()))) return false;
+    // 后缀包含：非空时须命中
+    if (includeSuffix && includeSuffix.length && !includeSuffix.includes(srcNameSuffix)) return false;
+    // 文件夹（祖先目录链）包含/排除：与前端预览完全一致（OR 语义）
+    // 任一祖先命中排除→排除；包含非空时须有任一祖先命中才复制
+    const rel = path.relative(source, absSrc);
+    const dirPart = rel.replace(/[\\/][^\\/]*$/, ""); // 去掉文件名，保留相对目录
+    const segs = dirPart ? dirPart.split(/[\\/]/).filter(Boolean) : [];
+    const igF = ignoreFolder;
+    const incF = includeFolder;
+    if (igF && igF.length && segs.some((seg) => igF.some((k) => seg.toLowerCase().includes(k.toLowerCase())))) return false;
+    if (incF && incF.length && !segs.some((seg) => incF.some((k) => seg.toLowerCase().includes(k.toLowerCase())))) return false;
     return true;
   };
 
   const fileJobs: { src: string; dest: string }[] = [];
 
   const walk = async (currentSrc: string, currentDest: string) => {
-    const rel = path.relative(source, currentSrc);
-    // 根目录本身始终放行；子节点用相对路径各段做过滤判断
-    if (rel !== "") {
-      const relParts = rel.split(/[\\/]/).filter(Boolean);
-      if (!matchFilter(currentSrc, relParts)) return;
-    }
-
     const entries = await fs.promises.readdir(currentSrc, { withFileTypes: true });
     await fs.promises.mkdir(currentDest, { recursive: true });
 
@@ -284,9 +317,14 @@ async function runCopyFolder(
       // 符号链接环路防护：跳过软链接（文件/目录），既不复制也不跟随（P3）
       if (entry.isSymbolicLink()) continue;
       if (entry.isDirectory()) {
+        // 非递归模式：跳过子目录，仅拷贝顶层文件（与前端预览一致）
+        if (!recursive) continue;
+        // 文件夹排除：名称命中排除关键字则整棵跳过（与前端预览一致）
+        if (ignoreFolder && ignoreFolder.some((k) => entry.name.toLowerCase().includes(k.toLowerCase()))) continue;
         await walk(absSrc, absDest);
       } else if (entry.isFile()) {
-        fileJobs.push({ src: absSrc, dest: absDest });
+        // 过滤仅在文件层生效，目录始终下钻，保证预览=实际拷贝结果
+        if (matchFilter(absSrc)) fileJobs.push({ src: absSrc, dest: absDest });
       }
     }
   };
@@ -294,7 +332,7 @@ async function runCopyFolder(
   try {
     await walk(source, target);
   } catch (err) {
-    win.webContents.send("copy-folder", err);
+    win.webContents.send("copy-folder", { ok: false, error: (err as Error).message });
     console.log(err, "res");
     return;
   }
@@ -310,6 +348,7 @@ async function runCopyFolder(
   let cursor = 0;
   let processed = 0;
   let lastEmit = 0;
+  let skipped = 0; // 因 strategy='skip' 跳过已存在目标的计数
   const failed: string[] = [];
 
   // 节流上报进度：至少间隔 80ms 或已到收尾，避免海量文件时 IPC 刷屏
@@ -325,14 +364,24 @@ async function runCopyFolder(
     while (cursor < fileJobs.length) {
       const job = fileJobs[cursor++];
       try {
-        if (!force && fs.existsSync(job.dest)) {
-          // 不覆盖模式：目标已存在则跳过（仍计入进度）
-        } else {
-          await fs.promises.copyFile(job.src, job.dest);
-          if (preserveTimestamps) {
-            const st = await fs.promises.stat(job.src);
-            await fs.promises.utimes(job.dest, st.atime, st.mtime);
+        let dest = job.dest;
+        if (fs.existsSync(dest)) {
+          if (strategy === 'skip') {
+            // 跳过已存在目标：保留目标、源不动，仍计入进度
+            skipped++;
+            processed++;
+            emitProgress(job.src);
+            continue;
+          } else if (strategy === 'rename') {
+            // 自动加序号：于扩展名前插入 (n) 找空闲名
+            dest = findFreeName(dest);
           }
+          // overwrite / force：直接覆盖（copyFile 会替换）
+        }
+        await fs.promises.copyFile(job.src, dest);
+        if (preserveTimestamps) {
+          const st = await fs.promises.stat(job.src);
+          await fs.promises.utimes(dest, st.atime, st.mtime);
         }
       } catch (e) {
         failed.push(`${job.src}: ${(e as Error).message}`);
@@ -345,16 +394,30 @@ async function runCopyFolder(
   const poolSize = Math.min(CONCURRENCY, Math.max(1, fileJobs.length));
   await Promise.all(Array.from({ length: poolSize }, () => worker()));
 
+  // 移动模式：仅在「全部拷贝 + 无过滤 + 无跳过/失败」时删除源，避免误删被过滤排除的文件
+  const hasFilter =
+    (include && include.length) || (ignore && ignore.length) ||
+    (includeSuffix && includeSuffix.length) || (ignoreSuffix && ignoreSuffix.length) ||
+    (includeFolder && includeFolder.length) || (ignoreFolder && ignoreFolder.length);
+  if (op === 'move' && failed.length === 0 && skipped === 0 && !hasFilter) {
+    try {
+      fs.rmSync(source, { recursive: true, force: true });
+    } catch (e) {
+      failed.push(`删除源目录失败: ${(e as Error).message}`);
+    }
+  }
+
   // 收尾强制上报一次完整进度，保证进度条走到 100%
   win.webContents.send("copy-folder-progress", { current: total, total, currentPath: "" });
 
   if (failed.length) {
     win.webContents.send(
       "copy-folder",
-      `复制完成，但有 ${failed.length} 个文件失败:\n` + failed.slice(0, 20).join("\n")
+      { ok: false, skipped, error: `转移完成，但有 ${failed.length} 个失败:\n` + failed.slice(0, 20).join("\n") }
     );
   } else {
-    win.webContents.send("copy-folder", null);
+    // 成功：回传汇总（skipped 供前端完成提示）
+    win.webContents.send("copy-folder", { ok: true, skipped });
   }
 }
 
@@ -495,7 +558,7 @@ export async function deleteFiles(args: DeleteFilesType, win: BrowserWindow) {
   }
 }
 
-// 列出文件夹内容（批量重命名预览用）：返回文件名/路径/是否目录/扩展名/大小/时间
+// 列出文件夹内容（批量重命名/文件转移预览用）：返回文件名/路径/是否目录/扩展名/大小/时间
 interface ListFolderItem {
   name: string;   // 文件名（含扩展名）
   path: string;   // 完整路径
@@ -505,10 +568,58 @@ interface ListFolderItem {
   mtime: number;   // 修改时间（毫秒）
   ctime: number;   // 状态变更时间（毫秒，Windows 上接近创建时间）
   birthtime: number; // 创建时间（毫秒，部分平台/文件系统可能为 0）
+  index?: number;    // 过滤后在最终结果中的全局序号（0 起），供前端按序编号/分页
 }
-export function listFolder(args: { dir: string; recursive?: boolean; includeDirs?: boolean }): ListFolderItem[] {
-  const { dir, recursive = false, includeDirs = true } = args;
-  const result: ListFolderItem[] = [];
+// 过滤 + 分页的入参（语义与 copy-folder 的 matchFilter 完全一致）
+interface ListFolderArgs {
+  dir: string;
+  recursive?: boolean;
+  includeDirs?: boolean;
+  include?: string[];      // 名称包含（子串，不区分大小写）
+  ignore?: string[];       // 名称排除
+  includeSuffix?: string[];// 类型包含（不含点）
+  ignoreSuffix?: string[]; // 类型排除
+  includeFolder?: string[];// 文件夹（祖先目录链）包含
+  ignoreFolder?: string[]; // 文件夹（祖先目录链）排除
+  page?: number;           // 1 起；pageSize<=0 时忽略，返回全部
+  pageSize?: number;       // <=0 或省略 => 返回全部（用于动作时全量构建 renameItems）
+}
+export function listFolder(args: ListFolderArgs): { items: ListFolderItem[]; total: number } {
+  const {
+    dir,
+    recursive = false,
+    includeDirs = true,
+    include = [],
+    ignore = [],
+    includeSuffix = [],
+    ignoreSuffix = [],
+    includeFolder = [],
+    ignoreFolder = [],
+    page = 1,
+    pageSize = 0,
+  } = args;
+  const matched: ListFolderItem[] = [];
+  // 统一过滤谓词：仅对「文件」生效，语义与 copy-folder 的 matchFilter 完全一致——
+  // 名称含/不含按文件名子串（不区分大小写）；后缀按扩展名；文件夹按祖先目录链 OR 语义。
+  const matchFilter = (absSrc: string): boolean => {
+    const srcName = path.basename(absSrc);
+    const srcLower = srcName.toLowerCase();
+    const srcNameSuffix = srcName.split('.').slice(1).join('.');
+    // 排除（最高优先级）
+    if (ignore.length && ignore.some((item) => srcLower.includes(item.toLowerCase()))) return false;
+    if (ignoreSuffix.length && ignoreSuffix.includes(srcNameSuffix)) return false;
+    // 名称包含：非空时须命中
+    if (include.length && !include.some((item) => srcLower.includes(item.toLowerCase()))) return false;
+    // 后缀包含：非空时须命中
+    if (includeSuffix.length && !includeSuffix.includes(srcNameSuffix)) return false;
+    // 文件夹（祖先目录链）包含/排除：OR 语义，与 copy-folder 一致
+    const rel = path.relative(dir, absSrc);
+    const dirPart = rel.replace(/[\\/][^\\/]*$/, '');
+    const segs = dirPart ? dirPart.split(/[\\/]/).filter(Boolean) : [];
+    if (ignoreFolder.length && segs.some((seg) => ignoreFolder.some((k) => seg.toLowerCase().includes(k.toLowerCase())))) return false;
+    if (includeFolder.length && !segs.some((seg) => includeFolder.some((k) => seg.toLowerCase().includes(k.toLowerCase())))) return false;
+    return true;
+  };
   const walk = (current: string) => {
     let entries;
     try {
@@ -528,31 +639,45 @@ export function listFolder(args: { dir: string; recursive?: boolean; includeDirs
         st = { mtimeMs: 0, ctimeMs: 0, birthtimeMs: 0, size: 0 } as any;
       }
       if (entry.isDirectory()) {
+        // 文件夹排除：命中排除关键字整棵跳过（与 copy-folder 一致），保证预览=实际拷贝
+        if (ignoreFolder.length && ignoreFolder.some((k) => entry.name.toLowerCase().includes(k.toLowerCase()))) continue;
         if (includeDirs) {
-          result.push({ name: entry.name, path: full, isDir: true, ext: '', size: st.size, mtime: st.mtimeMs, ctime: st.ctimeMs, birthtime: st.birthtimeMs });
+          matched.push({ name: entry.name, path: full, isDir: true, ext: '', size: st.size, mtime: st.mtimeMs, ctime: st.ctimeMs, birthtime: st.birthtimeMs });
         }
         if (recursive) walk(full);
       } else if (entry.isFile()) {
-        result.push({
-          name: entry.name,
-          path: full,
-          isDir: false,
-          ext: path.extname(entry.name),
-          size: st.size,
-          mtime: st.mtimeMs,
-          ctime: st.ctimeMs,
-          birthtime: st.birthtimeMs,
-        });
+        // 过滤仅在文件层生效，目录始终下钻，保证预览=实际拷贝结果
+        if (matchFilter(full)) {
+          matched.push({
+            name: entry.name,
+            path: full,
+            isDir: false,
+            ext: path.extname(entry.name),
+            size: st.size,
+            mtime: st.mtimeMs,
+            ctime: st.ctimeMs,
+            birthtime: st.birthtimeMs,
+          });
+        }
       }
     }
   };
   walk(dir);
   // 排序：目录优先，再按名称（中文 locale 排序）
-  result.sort((a, b) => {
+  matched.sort((a, b) => {
     if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
     return a.name.localeCompare(b.name, 'zh');
   });
-  return result;
+  // 排序后编号，保证 index 与最终展示顺序一致；供前端按序编号/分页
+  matched.forEach((m, i) => (m.index = i));
+  const total = matched.length;
+  // 分页：pageSize<=0 返回全部（用于动作时全量构建 renameItems）；否则按页切片
+  let items = matched;
+  if (pageSize > 0) {
+    const start = Math.max(0, (page - 1) * pageSize);
+    items = matched.slice(start, start + pageSize);
+  }
+  return { items, total };
 }
 
 // 批量重命名：前端已算好 oldPath/newPath，这里只负责 I/O + 进度上报

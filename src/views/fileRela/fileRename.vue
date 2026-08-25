@@ -51,84 +51,8 @@
           </el-button>
         </div>
 
-        <!-- 重命名规则面板 -->
-        <div class="rules-panel" v-if="folder">
-          <!-- 1. 查找替换 -->
-          <div class="rule-block">
-            <div class="rule-title">
-              <el-switch v-model="rules.search.enabled" size="small" />
-              <span>查找替换</span>
-            </div>
-            <div class="rule-body" :class="{ disabled: !rules.search.enabled }">
-              <el-input v-model="rules.search.find" placeholder="查找内容" class="rule-input" :disabled="!rules.search.enabled" />
-              <el-input v-model="rules.search.replace" placeholder="替换为（可空）" class="rule-input" :disabled="!rules.search.enabled" />
-              <el-checkbox v-model="rules.search.regex" :disabled="!rules.search.enabled">正则</el-checkbox>
-              <el-checkbox v-model="rules.search.case" :disabled="!rules.search.enabled">区分大小写</el-checkbox>
-            </div>
-          </div>
-
-          <!-- 2. 前后缀 -->
-          <div class="rule-block">
-            <div class="rule-title"><span>前后缀</span></div>
-            <div class="rule-body">
-              <el-input v-model="rules.prefix" placeholder="前缀（加在文件名前）" class="rule-input" />
-              <el-input v-model="rules.suffix" placeholder="后缀（加在文件名后，扩展名前）" class="rule-input" />
-            </div>
-          </div>
-
-          <!-- 3. 序号 -->
-          <div class="rule-block">
-            <div class="rule-title">
-              <el-switch v-model="rules.seq.enabled" size="small" />
-              <span>添加序号</span>
-            </div>
-            <div class="rule-body" :class="{ disabled: !rules.seq.enabled }">
-              <div class="seq-grid">
-                <label>起始<el-input v-model.number="rules.seq.start" type="number" :disabled="!rules.seq.enabled" size="small" /></label>
-                <label>步长<el-input v-model.number="rules.seq.step" type="number" :disabled="!rules.seq.enabled" size="small" /></label>
-                <label>位数<el-input v-model.number="rules.seq.digits" type="number" :disabled="!rules.seq.enabled" size="small" /></label>
-                <label>分隔符<el-input v-model="rules.seq.sep" placeholder="_" :disabled="!rules.seq.enabled" size="small" /></label>
-                <label>位置
-                  <el-select v-model="rules.seq.pos" :disabled="!rules.seq.enabled" size="small">
-                    <el-option label="序号在前" value="prefix" />
-                    <el-option label="序号在后" value="suffix" />
-                  </el-select>
-                </label>
-              </div>
-            </div>
-          </div>
-
-          <!-- 4. 大小写 -->
-          <div class="rule-block">
-            <div class="rule-title"><span>大小写</span></div>
-            <div class="rule-body">
-              <el-select v-model="rules.caseMode" class="rule-input">
-                <el-option label="保持不变" value="keep" />
-                <el-option label="全部大写" value="upper" />
-                <el-option label="全部小写" value="lower" />
-                <el-option label="首字母大写" value="title" />
-              </el-select>
-            </div>
-          </div>
-
-          <!-- 5. 扩展名 -->
-          <div class="rule-block">
-            <div class="rule-title"><span>扩展名</span></div>
-            <div class="rule-body">
-              <el-select v-model="rules.ext.mode" class="rule-input">
-                <el-option label="保持不变" value="keep" />
-                <el-option label="改为…" value="set" />
-              </el-select>
-              <el-input v-model="rules.ext.value" placeholder="如 png / .jpg" class="rule-input" :disabled="rules.ext.mode !== 'set'" />
-            </div>
-          </div>
-
-          <!-- 6~9. 新规则子组件 -->
-          <RuleDate v-model="rules.date" />
-          <RuleRandom v-model="rules.random" />
-          <RuleClean v-model="rules.clean" />
-          <RuleTrim v-model="rules.trim" />
-        </div>
+        <!-- 重命名规则面板（共享引擎组件，与文件转移复用） -->
+        <RenameRulesPanel v-model="rules" v-if="folder" />
 
         <!-- 实时预览 -->
         <div class="preview-block" v-if="folder">
@@ -150,13 +74,13 @@
               <el-button link size="small" @click="toggleAll(false)">全不选</el-button>
             </span>
           </div>
-          <el-table :data="previewList" class="preview-table" max-height="320" size="small" :row-class-name="rowClassName">
+          <el-table :data="pagedPreview" class="preview-table" max-height="320" size="small" :row-class-name="rowClassName">
             <el-table-column width="48" align="center" class-name="col-check">
               <template #header>
                 <el-checkbox :model-value="allSelected" @change="onHeaderCheck" />
               </template>
               <template #default="{ row }">
-                <el-checkbox :model-value="row.selected" @change="(v) => onRowCheck(row.oldPath, v)" />
+                <el-checkbox :model-value="row.selected" @change="(v: any) => onRowCheck(row.oldPath, v)" />
               </template>
             </el-table-column>
             <el-table-column label="原文件名" min-width="200">
@@ -182,6 +106,19 @@
               </template>
             </el-table-column>
           </el-table>
+          <div class="preview-pager" v-if="totalFiltered > pageSize">
+            <el-pagination
+              layout="total, sizes, prev, pager, next, jumper"
+              :total="totalFiltered"
+              :page-size="pageSize"
+              :current-page="currentPage"
+              :page-sizes="[50, 100, 200, 500]"
+              @current-change="(p: number) => { currentPage = p; }"
+              @size-change="(s: number) => { pageSize = s; currentPage = 1; }"
+              small
+              background
+            />
+          </div>
         </div>
 
         <div class="copy-btn-wrap" v-if="folder">
@@ -230,10 +167,8 @@ import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue';
 import LucideIcon from '@/components/LucideIcon.vue';
 import { send, sendSync } from '@/utils/common';
 import { ElMessage } from 'element-plus';
-import RuleDate from './rename/rules/RuleDate.vue';
-import RuleRandom from './rename/rules/RuleRandom.vue';
-import RuleClean from './rename/rules/RuleClean.vue';
-import RuleTrim from './rename/rules/RuleTrim.vue';
+import RenameRulesPanel from './rename/RenameRulesPanel.vue';
+import { computeNewName, createDefaultRules, getExt, getBase, type RenameRules, type ListFolderItem } from './rename/engine';
 import type { ConflictStrategy } from './rename/types';
 
 // 目标文件夹
@@ -246,28 +181,17 @@ function selectFolder() {
   }
 }
 
-interface ListFolderItem {
-  name: string;
-  path: string;
-  isDir: boolean;
-  ext: string;
-  size: number;
-  mtime: number;
-  ctime: number;
-  birthtime: number;
-}
-
-// 文件夹内容（来自主进程 list-folder）
+// 文件夹内容（来自主进程 list-folder，返回 { items, total }）
 const fileList = ref<ListFolderItem[]>([]);
 function refreshList() {
   if (!folder.value) return;
   try {
-    const list = sendSync('list-folder', {
+    const res = sendSync('list-folder', {
       dir: folder.value,
       recursive: recursive.value,
       includeDirs: true,
-    }) as ListFolderItem[];
-    fileList.value = Array.isArray(list) ? list : [];
+    }) as { items: ListFolderItem[]; total: number };
+    fileList.value = res?.items || [];
   } catch (e) {
     console.error('list-folder 失败:', e);
     fileList.value = [];
@@ -286,153 +210,15 @@ watch(recursive, () => {
   if (folder.value) refreshList();
 });
 
-// 所有重命名规则（集中管理，传递给各规则子组件）
-const rules = reactive({
-  search: { enabled: false, find: '', replace: '', regex: false, case: false },
-  prefix: '',
-  suffix: '',
-  seq: { enabled: false, start: 1, step: 1, digits: 2, sep: '_', pos: 'prefix' as 'prefix' | 'suffix' },
-  caseMode: 'keep' as 'keep' | 'upper' | 'lower' | 'title',
-  ext: { mode: 'keep' as 'keep' | 'set', value: '' },
-  date: { enabled: false, mode: 'mtime' as 'mtime' | 'ctime', format: 'YYYY-MM-DD', pos: 'prefix' as 'prefix' | 'suffix', sep: '_' },
-  random: { enabled: false, kind: 'uuid' as 'uuid' | 'alnum' | 'alpha' | 'digit', length: 8, pos: 'prefix' as 'prefix' | 'suffix', sep: '_' },
-  clean: { enabled: false, ops: [] as string[], specified: '' },
-  trim: { enabled: false, mode: 'keepStart' as 'keepStart' | 'keepEnd' | 'removeStart' | 'removeEnd', n: 5 },
-});
+// 所有重命名规则（共享引擎提供默认值，集中管理）
+const rules = reactive(createDefaultRules()) as RenameRules;
 
-// 纯前端文件名工具（渲染进程无 node path）
-function getExt(name: string): string {
-  const i = name.lastIndexOf('.');
-  return i > 0 && i < name.length - 1 ? name.slice(i) : '';
-}
-function getBase(name: string): string {
-  const i = name.lastIndexOf('.');
-  return i > 0 && i < name.length - 1 ? name.slice(0, i) : name;
-}
+// 路径工具（渲染进程无 node path）：用于拼接目标路径
 function dirOf(p: string): string {
   return p.replace(/[\\/][^\\/]*$/, '');
 }
 function sepOf(p: string): string {
   return p.includes('\\') ? '\\' : '/';
-}
-function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-function toTitleCase(s: string): string {
-  return s.replace(/(^|\s)\S/g, (c) => c.toUpperCase());
-}
-function formatDate(ts: number, fmt: string): string {
-  const d = new Date(ts);
-  const pad = (n: number, l = 2) => String(n).padStart(l, '0');
-  const Y = d.getFullYear();
-  // 占位符：YYYY(年) YY(两位年) MM(月) DD(日) HH(24时) hh(12时) mm(分) ss(秒)
-  // 中文「年月日时分秒」等非占位符原样保留，故可直接写 YYYY年MM月DD日 等
-  return fmt
-    .replace(/YYYY/g, String(Y))
-    .replace(/YY/g, String(Y).slice(-2))
-    .replace(/MM/g, pad(d.getMonth() + 1))
-    .replace(/DD/g, pad(d.getDate()))
-    .replace(/HH/g, pad(d.getHours()))
-    .replace(/hh/g, pad(d.getHours() % 12 || 12))
-    .replace(/mm/g, pad(d.getMinutes()))
-    .replace(/ss/g, pad(d.getSeconds()));
-}
-function genRandom(kind: 'uuid' | 'alnum' | 'alpha' | 'digit', length: number): string {
-  if (kind === 'uuid') return (crypto as any).randomUUID ? (crypto as any).randomUUID() : Math.random().toString(36).slice(2);
-  const alpha = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  const digit = '0123456789';
-  const pool = kind === 'digit' ? digit : kind === 'alpha' ? alpha : alpha + digit;
-  let s = '';
-  for (let i = 0; i < Math.max(1, length); i++) s += pool[Math.floor(Math.random() * pool.length)];
-  return s;
-}
-
-// 计算单个文件的新文件名（index 用于序号；日期/随机各自独立生成）
-function computeNewName(f: ListFolderItem, index: number): string {
-  let base = getBase(f.name);
-  const ext = getExt(f.name);
-  const r = rules;
-
-  // 1. 查找替换（作用于文件名主体）
-  if (r.search.enabled && r.search.find) {
-    const rep = r.search.replace;
-    if (r.search.regex) {
-      try {
-        const re = new RegExp(r.search.find, r.search.case ? 'g' : 'gi');
-        base = base.replace(re, rep);
-      } catch {
-        // 非法正则：忽略
-      }
-    } else if (r.search.case) {
-      base = base.split(r.search.find).join(rep);
-    } else {
-      base = base.replace(new RegExp(escapeRegExp(r.search.find), 'gi'), rep);
-    }
-  }
-
-  // 2. 大小写
-  if (r.caseMode === 'upper') base = base.toUpperCase();
-  else if (r.caseMode === 'lower') base = base.toLowerCase();
-  else if (r.caseMode === 'title') base = toTitleCase(base);
-
-  // 3. 字符清理
-  if (r.clean.enabled) {
-    let s = base;
-    if (r.clean.ops.includes('spaceToUnderscore')) s = s.replace(/\s+/g, '_');
-    if (r.clean.ops.includes('removeSpaces')) s = s.replace(/\s+/g, '');
-    if (r.clean.ops.includes('removeDigits')) s = s.replace(/\d+/g, '');
-    if (r.clean.ops.includes('removeBrackets')) s = s.replace(/[\(\[\{][\s\S]*?[\)\]\}]/g, '');
-    if (r.clean.ops.includes('removeSpecified') && r.clean.specified) {
-      const set = r.clean.specified.split('').map(escapeRegExp).join('');
-      if (set) s = s.replace(new RegExp('[' + set + ']', 'g'), '');
-    }
-    base = s;
-  }
-
-  // 4. 按位置截取
-  if (r.trim.enabled && r.trim.n > 0) {
-    const n = r.trim.n;
-    if (r.trim.mode === 'keepStart') base = base.slice(0, n);
-    else if (r.trim.mode === 'keepEnd') base = base.slice(-n);
-    else if (r.trim.mode === 'removeStart') base = base.slice(n);
-    else if (r.trim.mode === 'removeEnd') base = base.slice(0, Math.max(0, base.length - n));
-  }
-
-  // 5. 前后缀（包裹整体）
-  base = (r.prefix || '') + base + (r.suffix || '');
-
-  // 6. 序号（插入到主体，位置可选）
-  if (r.seq.enabled) {
-    const n = (r.seq.start || 0) + index * (r.seq.step || 1);
-    const seqStr = String(n).padStart(Math.max(0, r.seq.digits || 0), '0');
-    const sep = r.seq.sep || '';
-    base = r.seq.pos === 'prefix' ? seqStr + sep + base : base + sep + seqStr;
-  }
-
-  // 7. 日期片段（按文件时间生成）
-  if (r.date.enabled) {
-    const ts = r.date.mode === 'ctime' ? f.ctime : f.mtime;
-    const seg = formatDate(ts, r.date.format);
-    // 分隔符始终位于「原文件名主体」与「日期片段」之间：
-    // 日期在前 = 日期 + 分隔 + 主体；日期在后 = 主体 + 分隔 + 日期
-    const sep = r.date.sep || '';
-    base = r.date.pos === 'prefix' ? seg + sep + base : base + sep + seg;
-  }
-
-  // 8. 随机片段（去标识化）
-  if (r.random.enabled) {
-    const seg = genRandom(r.random.kind, r.random.length);
-    const ins = r.random.sep ? seg + r.random.sep : seg;
-    base = r.random.pos === 'prefix' ? ins + base : base + ins;
-  }
-
-  // 9. 扩展名
-  let finalExt = ext;
-  if (r.ext.mode === 'set') {
-    const v = (r.ext.value || '').trim();
-    finalExt = v ? (v.startsWith('.') ? v : '.' + v) : '';
-  }
-  return base + finalExt;
 }
 
 // 实时预览：范围/类型过滤/排序/规则计算新名，并按冲突策略处理重名
@@ -450,7 +236,7 @@ const previewList = computed(() => {
   else if (sortBy.value === 'name') arr.sort((a, b) => a.name.localeCompare(b.name, 'zh'));
 
   const mapped = arr.map((f, i) => {
-    const newName = computeNewName(f, i);
+    const newName = computeNewName(f, i, rules);
     const newPath = dirOf(f.path) + sepOf(f.path) + newName;
     return {
       oldPath: f.path,
@@ -530,6 +316,20 @@ const hasBlockingConflict = computed(
 const allSelected = computed(
   () => previewList.value.length > 0 && previewList.value.every((m) => m.selected)
 );
+
+// ===== 预览分页（显示分页，数据仍在内存；重命名需全局序号+冲突去重，不全量下沉后端）=====
+const currentPage = ref(1);
+const pageSize = ref(100);
+// 重命名预览为全量计算（冲突去重依赖全集合），分页仅裁切展示
+const totalFiltered = computed(() => previewList.value.length);
+const pagedPreview = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value;
+  return previewList.value.slice(start, start + pageSize.value);
+});
+// 范围/类型/含子目录变化后回到第 1 页
+watch([recursive, renameDirs, extFilter], () => {
+  currentPage.value = 1;
+});
 
 function rowClassName({ row }: { row: { conflict: boolean; unchanged: boolean; selected: boolean; skipped: boolean } }) {
   if (row.conflict) return 'row-conflict';
@@ -741,95 +541,6 @@ onUnmounted(() => {
 
 .ext-filter {
   width: 180px;
-}
-
-.rules-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.rule-block {
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-  padding: 10px 14px;
-}
-
-.rule-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-primary);
-  margin-bottom: 10px;
-}
-
-.rule-body {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-
-  &.disabled {
-    opacity: 0.5;
-    pointer-events: none;
-  }
-
-  &.col {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-}
-
-.rule-input {
-  width: 220px;
-}
-
-.mini-input {
-  width: 90px;
-}
-
-.mini-select {
-  width: 110px;
-}
-
-.mini-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
-.specified-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.specified-input {
-  width: 140px;
-}
-
-.seq-grid {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
-
-  label {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 13px;
-    color: var(--text-secondary);
-
-    .el-input,
-    .el-select {
-      width: 90px;
-    }
-  }
 }
 
 .preview-block {
