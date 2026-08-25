@@ -421,83 +421,30 @@ async function runCopyFolder(
   }
 }
 
-// 递归收集目录下的文件绝对路径（是否遍历子目录由 recursive 决定）
-function collectFiles(dir: string, recursive: boolean): string[] {
-  const result: string[] = [];
-  const walk = (current: string) => {
-    let entries;
-    try {
-      entries = fs.readdirSync(current, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      const full = path.join(current, entry.name);
-      if (entry.isDirectory()) {
-        if (recursive) walk(full);
-      } else if (entry.isFile()) {
-        result.push(full);
-      }
-    }
-  };
-  walk(dir);
-  return result;
-}
-
-// 递归收集目录（按关键字模糊匹配目录名）；recursive 决定是否深入子目录查找匹配文件夹
-function collectDirs(dir: string, recursive: boolean, keyword: string): string[] {
-  const result: string[] = [];
-  const kw = keyword.toLowerCase();
-  const walk = (current: string) => {
-    let entries;
-    try {
-      entries = fs.readdirSync(current, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
-      const full = path.join(current, entry.name);
-      if (entry.name.toLowerCase().includes(kw)) result.push(full);
-      if (recursive) walk(full);
-    }
-  };
-  walk(dir);
-  return result;
-}
-
 interface DeleteFilesType {
-  folder: string;
-  // 删除模式：整体删除 / 按后缀类型 / 模糊匹配文件名 / 模糊匹配文件夹
-  mode: 'all' | 'suffix' | 'fuzzy' | 'folder';
-  // 后缀类型模式：要删除的后缀列表，如 ['.log', '.tmp']
-  suffixes?: string[];
-  // 模糊匹配模式：文件名包含的关键字
-  pattern?: string;
-  // 是否遍历子目录
-  recursive?: boolean;
-  // 是否放入回收站（false=彻底删除）
+  folder: string;          // 根文件夹（wholeFolder 时整体删除）
+  // 显式待删除文件列表（前端按筛选+勾选计算，保证预览=结果）
+  paths?: string[];
+  // 整体删除整个文件夹（忽略 paths，含子目录）
+  wholeFolder?: boolean;
+  // 是否放入回收站（false=永久删除，不可恢复）
   recycleBin?: boolean;
 }
 
-// 文件删除：整体 / 后缀类型 / 模糊文件名；支持遍历、回收站、可选真实进度
+// 文件删除：显式路径批量删除 或 整体删除文件夹；支持回收站/永久删除、真实进度上报
 export async function deleteFiles(args: DeleteFilesType, win: BrowserWindow) {
-  const { folder, mode, suffixes, pattern, recursive = false, recycleBin = true } = args;
+  const { folder, paths, wholeFolder = false, recycleBin = true } = args;
 
-  // 1. 收集待删除文件列表
+  // 1. 收集待删除目标
   let targets: string[] = [];
-  if (mode === 'all') {
-    // 整体删除忽略遍历选项，整文件夹（含子目录）全部删除
-    targets = collectFiles(folder, true);
-  } else if (mode === 'suffix') {
-    const norm = (suffixes || []).map((s) => (s.startsWith('.') ? s : '.' + s).toLowerCase());
-    targets = collectFiles(folder, recursive).filter((f) => norm.includes(path.extname(f).toLowerCase()));
-  } else if (mode === 'fuzzy') {
-    const kw = (pattern || '').toLowerCase();
-    targets = collectFiles(folder, recursive).filter((f) => path.basename(f).toLowerCase().includes(kw));
-  } else if (mode === 'folder') {
-    const kw = (pattern || '').toLowerCase();
-    targets = collectDirs(folder, recursive, kw);
+  if (wholeFolder) {
+    targets = [folder];
+  } else {
+    if (!paths || !paths.length) {
+      win.webContents.send('delete-files', '没有可删除的文件');
+      return;
+    }
+    targets = paths;
   }
 
   const total = targets.length;
@@ -531,19 +478,6 @@ export async function deleteFiles(args: DeleteFilesType, win: BrowserWindow) {
     }
     processed++;
     emitProgress(file);
-  }
-
-  // 整体删除：文件删完后清理（已空的）文件夹本身
-  if (mode === 'all') {
-    try {
-      if (recycleBin) {
-        await shell.trashItem(folder);
-      } else {
-        fs.rmSync(folder, { recursive: true, force: true });
-      }
-    } catch (e) {
-      failed.push(`${folder}: ${(e as Error).message}`);
-    }
   }
 
   // 收尾强制上报一次完整进度，保证进度条走到 100%
@@ -671,13 +605,14 @@ export function listFolder(args: ListFolderArgs): { items: ListFolderItem[]; tot
   // 排序后编号，保证 index 与最终展示顺序一致；供前端按序编号/分页
   matched.forEach((m, i) => (m.index = i));
   const total = matched.length;
+  const totalSize = matched.reduce((s, m) => s + (m.size || 0), 0);
   // 分页：pageSize<=0 返回全部（用于动作时全量构建 renameItems）；否则按页切片
   let items = matched;
   if (pageSize > 0) {
     const start = Math.max(0, (page - 1) * pageSize);
     items = matched.slice(start, start + pageSize);
   }
-  return { items, total };
+  return { items, total, totalSize };
 }
 
 // 批量重命名：前端已算好 oldPath/newPath，这里只负责 I/O + 进度上报
