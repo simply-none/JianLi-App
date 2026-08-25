@@ -219,15 +219,19 @@ export default defineStore("global-setting", () => {
   function alignHomeModeKeys(statusKeys: string[] = []) {
     const keys = Array.isArray(statusKeys) ? statusKeys : [];
     const defaultEntry = homeModeOps.value[0] || {};
+    // 保证补齐/创建的 entry 始终带 mode 字段（空对象也算兜底），
+    // 否则 changeHomeMode 读取 homeMode[key].mode[value] 会因 mode 为 undefined 抛错
+    // （如历史遗留的空壳 lock:{} 被保留后，点击强制锁屏模式即崩溃）。
+    const withMode = (entry: ObjectType) => ({ mode: {}, ...entry });
     const next: Record<string, ObjectType> = {};
     // 1. 内置 key 永远保留（不足则补默认）
     for (const k of BUILTIN_STATUS_KEYS) {
-      next[k] = homeMode.value[k] || { ...defaultEntry };
+      next[k] = withMode(homeMode.value[k] || { ...defaultEntry });
     }
     // 2. 传入的 key（番茄钟 states）补齐
     for (const k of keys) {
       if (!k) continue;
-      next[k] = homeMode.value[k] || { ...defaultEntry };
+      next[k] = withMode(homeMode.value[k] || { ...defaultEntry });
     }
     // 3. 保留 homeMode 中已存在、但既非内置也未被传入的自定义 key（不丢用户配置）
     for (const k of Object.keys(homeMode.value)) {

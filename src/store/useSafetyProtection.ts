@@ -25,6 +25,22 @@ export default defineStore("safety-protection", () => {
     return encryText;
   }
 
+  // 检测已存储的密码密文是否可被当前 RSAKey 解密成功。
+  // 用于区分「解密失败（密钥不匹配/密文损坏）」与「密码输入错误」，
+  // 解密失败时应引导用户直接重置密码，而非困在密保流程。
+  function isStoredPasswordDecryptable(): boolean {
+    // 未设置密码时无需解密，视为可解密
+    if (!passwordC.value) return true;
+    try {
+      const res = sendSync("decrypt-pwd", { text: passwordC.value });
+      return !!(res && res.ok);
+    } catch (error) {
+      // 接口异常时保守按「可解密」处理，避免误触发重置流程
+      console.error("[safety-protection] 检测密码可解密性失败:", error);
+      return true;
+    }
+  }
+
   // 密保问题，总共有3个问题
   const pwdQuestionList = ref();
   const pwdQuestionListC = computed(() => pwdQuestionList.value);
@@ -106,6 +122,7 @@ export default defineStore("safety-protection", () => {
     // 方法
     setPassword,
     isPwdSame,
+    isStoredPasswordDecryptable,
     setPwdQuestionList,
     // 其他
     $reset,

@@ -70,6 +70,28 @@
           </div>
         </div>
       </div>
+
+      <!-- 强制锁屏模式：番茄钟 lock 状态（非序列、强制锁屏）对应的皮肤方案 -->
+      <div class="mode-card lock-card">
+        <div class="mode-card-header">
+          <div class="mode-card-icon">
+            <LucideIcon name="Key" :size="22" />
+          </div>
+          <div class="mode-card-title">强制锁屏模式</div>
+        </div>
+        <div class="mode-options">
+          <div
+            v-for="item in homeModeOpsCc"
+            :key="item.value"
+            class="mode-option"
+            :class="{ active: homeModeCc.lock.value === item.value }"
+            :title="item.label"
+            @click="selectMode('lock', item.value)"
+          >
+            <div class="mode-option-label">{{ item.label }}</div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -176,6 +198,11 @@ function changeHomeMode(key: StatusMode) {
   &.screen-card .mode-card-icon {
     background: linear-gradient(135deg, rgba(103, 194, 58, 0.15), rgba(82, 190, 128, 0.15));
     color: #67c23a;
+  }
+
+  &.lock-card .mode-card-icon {
+    background: linear-gradient(135deg, rgba(230, 162, 60, 0.15), rgba(245, 108, 108, 0.15));
+    color: #e6a23c;
   }
 }
 

@@ -16,6 +16,17 @@
         </h3>
       </div>
 
+      <!-- 密文解密失败提示条：RSAKey 不匹配 / 密文损坏时引导直接重置密码（不删任何数据） -->
+      <el-alert
+        v-if="pwdDecryptFailed"
+        title="密码解密失败，请重新设置密码"
+        description="检测到已存储的密码密文无法解密（密钥不匹配或密文损坏），请直接在此重新设置密码。"
+        type="error"
+        :closable="false"
+        show-icon
+        class="decrypt-failed-alert"
+      />
+
       <div class="security-card">
         <div class="form-group" v-if="passwordC">
           <label class="form-label">
@@ -44,7 +55,7 @@
           </div>
         </div>
 
-        <div class="form-group" v-if="passwordC">
+        <div class="form-group" v-if="passwordC && !pwdDecryptFailed">
           <label class="form-label">
             <LucideIcon class="label-icon" name="Lock" :size="16" />
             原密码校验
@@ -254,25 +265,37 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, toRaw } from 'vue';
+import { ref, watch, toRaw, onMounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import { ElMessage } from 'element-plus';
 import useSafetyProtection from '@/store/useSafetyProtection';
 import LucideIcon from '@/components/LucideIcon.vue';
 
 const { passwordC, pwdQuestionListC } = storeToRefs(useSafetyProtection());
-const { setPassword, isPwdSame, setPwdQuestionList } = useSafetyProtection();
+const { setPassword, isPwdSame, isStoredPasswordDecryptable, setPwdQuestionList } = useSafetyProtection();
 const passwordCc = ref(passwordC.value);
 const ischeckPassword = ref(false);
 const activeAnswer = ref(0);
 const showValidatePwdQuestion = ref(false);
 const showValidatePwdQuestionBtn = ref(false);
 const showValidatePwdQuestionList = ref(false);
+// 已存密文是否无法解密（RSAKey 不匹配 / 密文损坏），用于引导直接重置
+const pwdDecryptFailed = ref(false);
 
 watch(() => passwordC.value, (newVal) => {
   passwordCc.value = newVal;
   ischeckPassword.value = passwordCc.value ? false : true;
 }, { immediate: true, deep: true });
+
+// 进入页面检测：若已设密码但密文无法解密，提示并允许直接重置（不删任何数据）
+onMounted(() => {
+  if (passwordCc.value && !isStoredPasswordDecryptable()) {
+    pwdDecryptFailed.value = true;
+    // 解密失败：直接展开「新密码 / 确认密码」表单，跳过原密码校验框
+    ischeckPassword.value = true;
+    ElMessage.warning('密码解密失败，请重新设置密码');
+  }
+});
 
 const pwdQuestionListCc = ref(JSON.parse(JSON.stringify(pwdQuestionListC.value || [])));
 watch(() => pwdQuestionListC.value, (newVal) => {
@@ -344,6 +367,15 @@ function getStrengthClass(password: string, index: number) {
 function checkPassword() {
   if (!passwordCc.value) {
     ElMessage.error('当前系统无原密码，校验通过');
+    ischeckPassword.value = true;
+    return;
+  }
+
+  // 密文无法解密（密钥不匹配 / 密文损坏）：直接展示重置表单，跳过原密码校验与密保问题，
+  // 让用户「直接重置密码」，且全程不删除任何数据。
+  if (!isStoredPasswordDecryptable()) {
+    ElMessage.warning('密码解密失败，请重新设置密码');
+    pwdDecryptFailed.value = true;
     ischeckPassword.value = true;
     return;
   }
@@ -475,6 +507,10 @@ function validatePwdQuestion() {
     border-color: var(--color-primary);
     box-shadow: var(--shadow-card);
   }
+}
+
+.decrypt-failed-alert {
+  margin-bottom: 16px;
 }
 
 .form-group {

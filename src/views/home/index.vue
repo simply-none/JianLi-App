@@ -51,7 +51,7 @@ const router = useRouter();
 const isHiddenHomeBtns = ref(false)
 const { homeModeC, curStatusC } = storeToRefs(useGlobalSetting());
 const { startScreenSaverFn, closeScreenSaverFn, injectState, endInjectedState } = useTipsActions();
-const { isPwdSame } = useSafetyProtection();
+const { isPwdSame, isStoredPasswordDecryptable } = useSafetyProtection();
 const curComponent = shallowRef(custom)
 
 watch(() => (homeModeC.value[curStatusC.value.value] || {}), (n, o) => {
@@ -127,10 +127,10 @@ watch(() => curStatusC.value.value, () => {
   toggleComponent(curStatusC.value.value)
 }, { immediate: true, deep: true })
 
-// 开启锁屏状态：注入「强制锁屏」非序列状态（sequential:false），
+// 开启锁屏状态：向番茄钟（多状态提醒 id='pomodoro'）注入「强制锁屏」非序列状态（sequential:false），
 // 结束后由主进程自动归位到 work/rest 序列循环
 function startLockedFn() {
-  injectState('lock')
+  injectState("pomodoro", "lock")
   closeHomeBtnsFn()
 }
 
@@ -151,8 +151,17 @@ function closeLockedFn() {
       closeHomeBtnsFn()
     }
     else {
-      // 密码校验失败：可能因 RSAKey 被历史异常覆盖导致已存密文无法匹配。
-      // 提供密保问题重置密码的出口，避免用户被永久卡在锁屏界面。
+      // 已存密文无法解密（RSAKey 被历史异常覆盖 / 密文损坏）：专属提示并直接去重置密码，
+      // 不再走密保问题流程，避免用户被永久卡在锁屏界面。
+      if (!isStoredPasswordDecryptable()) {
+        ElMessage.error('密码解密失败，请重新设置密码')
+        // closeScreenSaverFn()
+        endInjectedState()
+        closeHomeBtnsFn()
+        router.push('/safetyProtection')
+        return
+      }
+      // 密码输入错误（密文可解密但不匹配）：提供密保问题重置密码的出口
       ElMessageBox.confirm(
         '密码校验失败。可通过密保问题重置密码后重新设置。是否前往安全防护页重置密码？',
         '密码错误',
@@ -163,7 +172,7 @@ function closeLockedFn() {
         }
       ).then(() => {
         // 先解除锁屏置顶，再跳转安全防护页重设密码
-        closeScreenSaverFn()
+        // closeScreenSaverFn()
         endInjectedState()
         closeHomeBtnsFn()
         router.push('/safetyProtection')

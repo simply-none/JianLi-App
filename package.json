@@ -36,6 +36,7 @@
   },
   "devDependencies": {
     "@originjs/vite-plugin-commonjs": "^1.0.3",
+    "@types/node": "^22.20.1",
     "@umoteam/editor": "^8.0.0",
     "@umoteam/viewer": "^0.1.8",
     "@vitejs/plugin-vue": "^5.0.4",
