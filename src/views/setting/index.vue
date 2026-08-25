@@ -11,15 +11,15 @@
           <div class="status-card">
             <div class="status-left">
               <div class="status-indicator-wrapper">
-                <div class="status-indicator" :class="curStatusC.value === 'rest' ? 'rest' : 'work'">
-                  <LucideIcon name="Coffee" :size="20" class="status-icon" v-if="curStatusC.value === 'rest'" />
+                <div class="status-indicator" :class="currentStateKey === 'rest' ? 'rest' : 'work'">
+                  <LucideIcon name="Coffee" :size="20" class="status-icon" v-if="currentStateKey === 'rest'" />
                   <LucideIcon name="Timer" :size="20" class="status-icon" v-else />
                 </div>
-                <div class="status-ring" :class="curStatusC.value === 'rest' ? 'rest' : 'work'"></div>
+                <div class="status-ring" :class="currentStateKey === 'rest' ? 'rest' : 'work'"></div>
               </div>
               <div class="status-text">
-                <div class="status-title">{{ curStatusC.label }}</div>
-                <div class="status-desc">{{ curStatusC.value === 'rest' ? '正在休息中' : '正在工作中' }}</div>
+                <div class="status-title">{{ stateLabel || (currentStateKey === 'rest' ? '休息' : '工作') }}</div>
+                <div class="status-desc">{{ currentStateKey === 'rest' ? '正在休息中' : '正在工作中' }}</div>
               </div>
             </div>
             <div class="status-right">
@@ -260,9 +260,9 @@ const { forceWorkWithTimes, forceToState } = useTipsActions();
 const reminderStore = useNewReminder();
 const { remindersC } = storeToRefs(reminderStore);
 const { updateReminder } = reminderStore;
-const { nextStateTime, nextStateLabel } = storeToRefs(useTipsRuntime());
+const { nextStateTime, nextStateLabel, currentStateKey, stateLabel } = storeToRefs(useTipsRuntime());
 const { setForceWorkTimes, setIsStartup, setGlobalFont, setGlobalFontEN } = useGlobalSetting();
-const { isStartupC, forceWorkTimesC, todayForceWorkTimesC, globalFontC, globalFontENC, globalFontOpsC, curStatusC } = storeToRefs(useGlobalSetting());
+const { isStartupC, forceWorkTimesC, todayForceWorkTimesC, globalFontC, globalFontENC, globalFontOpsC } = storeToRefs(useGlobalSetting());
 
 const sysFonts = ref([]);
 // 番茄钟（stateful 提醒）绑定：工作状态=states[0]，休息状态=states[1]

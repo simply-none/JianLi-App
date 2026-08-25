@@ -8,10 +8,10 @@
             <LucideIcon class="setting-icon" name="Settings" @click="toSetting" :padding="12" :size="24" />
           </template>
           <div class="home-btns">
-            <el-button type="primary" v-if="curStatusC.value != 'lock'" @click="startLockedFn">
+            <el-button type="primary" v-if="currentStateKey !== 'lock'" @click="startLockedFn">
               开启锁屏状态
             </el-button>
-            <el-button v-if="curStatusC.value == 'lock'" @click="closeLockedFn">
+            <el-button v-if="currentStateKey === 'lock'" @click="closeLockedFn">
               开始工作
             </el-button>
             <el-button @click="closeHomeBtnsFn">隐藏操作按钮</el-button>
@@ -43,18 +43,20 @@ import SearchEngine from '@/views/home/searchEngine.vue';
 import PoetryHome from '@/views/home/poetryHome.vue';
 import LayoutVue from '@/components/layout.vue';
 import useGlobalSetting from '@/store/useGlobalSetting';
+import useTipsRuntime from '@/store/useTipsRuntime';
 import useSafetyProtection from '@/store/useSafetyProtection';
 import { useTipsActions } from '@/store/useTipsActions';
 import { ElMessage, ElMessageBox } from 'element-plus';
 
 const router = useRouter();
 const isHiddenHomeBtns = ref(false)
-const { homeModeC, curStatusC } = storeToRefs(useGlobalSetting());
+const { homeModeC } = storeToRefs(useGlobalSetting());
+const { currentStateKey } = storeToRefs(useTipsRuntime());
 const { startScreenSaverFn, closeScreenSaverFn, injectState, endInjectedState } = useTipsActions();
 const { isPwdSame, isStoredPasswordDecryptable } = useSafetyProtection();
 const curComponent = shallowRef(custom)
 
-watch(() => (homeModeC.value[curStatusC.value.value] || {}), (n, o) => {
+watch(() => (homeModeC.value[currentStateKey.value] || {}), (n, o) => {
   console.log(n, o, 'homeModeC')
   // 状态 key 缺失配置时（理论上已被 alignHomeModeKeys 补齐）安全降级，不崩
   const modeValue = n?.value
@@ -122,9 +124,9 @@ function toggleComponent(status) {
   }
 }
 
-watch(() => curStatusC.value.value, () => {
+watch(() => currentStateKey.value, () => {
   // 首页展示组件模式变更
-  toggleComponent(curStatusC.value.value)
+  toggleComponent(currentStateKey.value)
 }, { immediate: true, deep: true })
 
 // 开启锁屏状态：向番茄钟（多状态提醒 id='pomodoro'）注入「强制锁屏」非序列状态（sequential:false），

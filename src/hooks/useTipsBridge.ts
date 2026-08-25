@@ -33,7 +33,17 @@ function handleStateEnter(_e: any, arg: any) {
 // 状态同步事件（channel B）→ 仅刷 UI
 function handleStateSync(_e: any, arg: any) {
   if (!arg || !arg.reminderId) return;
-  useTipsRuntime().applyPayload(arg);
+  const runtime = useTipsRuntime();
+  runtime.applyPayload(arg);
+  // 启动竞态补偿 / 恢复 / 停止等「同步」事件也必须刷新 curStatus，
+  // 否则 home、设置页等消费 curStatus 的模块在「状态进入(channel A)」发生前会停留在上一轮记录态，
+  // 与提醒列表 / 番茄钟小窗（直接读 runtime）显示不一致。
+  // record=false：仅刷新展示态，不写 pomodoro_status，避免碎片记录。
+  // 小窗只消费 runtime 刷 UI，不写 curStatus（与 handleStateEnter 的 isSecondWindow 一致）。
+  if (!isSecondWindow && arg && typeof arg.stateKey === "string") {
+    const { setCurStatus } = useGlobalSetting();
+    setCurStatus({ label: arg.stateLabel, value: arg.stateKey }, false);
+  }
 }
 
 // App 启动期调用：注册唯一一次全局监听 + 补偿启动竞态首帧
