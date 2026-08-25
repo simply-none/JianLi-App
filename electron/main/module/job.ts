@@ -175,46 +175,6 @@ export function initJob() {
     applyTodoReminders();
   });
 
-  ipcMain.on("start-work", (e, workTimeGap: number) => {
-    hideApp();
-    createJob({
-      win,
-      msgName: "close-work",
-      time: workTimeGap,
-      onTick: () => {
-        // 打开第二窗口
-        // createOtherWindow('small')
-      },
-    });
-  });
-
-  ipcMain.on("start-rest", (e, restTimeGap: number) => {
-    focusAppToTop();
-    createJob({
-      win,
-      msgName: "close-rest",
-      time: restTimeGap,
-      onTick: () => {
-        hideApp();
-        // closeOtherWindow('small')
-      },
-    });
-  });
-
-  // 开启屏保模式
-  ipcMain.on("start-screen-saver", (e, restTimeGap?: number) => {
-    focusAppToTop();
-    createJob({
-      win,
-      msgName: "close-screen-saver",
-      time: restTimeGap || 1000 * 60 * 60 * 24 * 30,
-      onTick: () => {
-        hideApp();
-        // closeOtherWindow('small')
-      },
-    });
-  });
-
   // 开启job
   ipcMain.on("start-job", (e, { type, gap, auto }: { type: 'string', gap: number | string, auto: boolean }) => {
     startJobFn({ type, gap, auto });
