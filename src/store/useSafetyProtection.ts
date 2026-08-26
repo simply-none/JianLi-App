@@ -47,21 +47,17 @@ export default defineStore("safety-protection", () => {
 
   function setPwdQuestionList(value: ObjectType[] = []) {
     // 先加密
-    console.log(JSON.stringify(value))
     try {
       const newValue = value.map((item) => {
-        console.log(item.answer)
         const answer = sendSync("encrypt-pwd", { text: item.answer });
         return {
           question: item.question,
-          answer: answer, 
+          answer: answer,
         }
       });
-      // console.log(JSON.stringify(newValue), 'newValue')
-      pwdQuestionList.value = [...toRaw(pwdQuestionList.value), ...newValue];
-      // console.log(JSON.stringify(pwdQuestionList.value));
-      // console.log(toRaw(pwdQuestionList.value), 'toRaw(pwdQuestionList.value)')
-      setStore("pwdQuestionList", pwdQuestionList);
+      // 整体覆盖（修改原有项 / 新增项都以传入的完整列表替换存储，避免追加造成重复）
+      pwdQuestionList.value = toRaw(newValue);
+      setStore("pwdQuestionList", pwdQuestionList.value);
     } catch (error) {
       ElMessage.error(error + '');
     }

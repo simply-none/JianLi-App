@@ -159,17 +159,50 @@
       </div>
 
       <div class="security-card">
+        <!-- 修改密保需先验证密码（密文损坏时跳过校验入口，仅可查看） -->
+        <div class="form-group" v-if="!isQuestionPwdVerified && !pwdDecryptFailed">
+          <label class="form-label">
+            <LucideIcon class="label-icon" name="Lock" :size="16" />
+            查看或修改密保需验证密码
+          </label>
+          <el-input
+            v-model="verifyQuestionPwd"
+            type="password"
+            placeholder="请输入密码以修改密保问题"
+            class="form-input"
+            @keyup.enter="verifyQuestionPwdFn"
+          >
+            <template #suffix>
+              <el-button type="primary" @click="verifyQuestionPwdFn">
+                <LucideIcon name="Check" :size="16" />
+                校验
+              </el-button>
+            </template>
+          </el-input>
+          <div v-if="showQuestionPwdFailed" class="validate-hint">
+            <LucideIcon class="hint-icon" name="CircleAlert" :size="16" />
+            密码校验失败，请重新输入
+          </div>
+        </div>
+
+        <!-- 已验证：提示可修改，并提供退出 -->
+        <div v-else-if="isQuestionPwdVerified" class="verified-banner">
+          <LucideIcon name="Check" :size="16" />
+          <span>密码校验通过，可修改密保问题与答案</span>
+          <el-button link @click="cancelQuestionPwdVerify">退出修改</el-button>
+        </div>
+
         <div class="card-actions">
-          <el-button @click="showValidatePwdQuestionList = !showValidatePwdQuestionList">
+          <el-button @click="toggleShowPwdQuestion">
             <LucideIcon :name="showValidatePwdQuestionList ? 'EyeOff' : 'Eye'" :size="16" />
             {{ showValidatePwdQuestionList ? '收起' : '显示密保问题' }}
           </el-button>
         </div>
 
         <div v-if="showValidatePwdQuestionList" class="question-list">
-          <div 
-            v-for="(item, index) in pwdQuestionListCc" 
-            :Key="index" 
+          <div
+            v-for="(item, index) in pwdQuestionListCc"
+            :Key="index"
             class="question-card"
           >
             <div class="question-header">
@@ -179,28 +212,28 @@
             <div class="question-body">
               <div class="question-field">
                 <label>问题内容</label>
-                <el-input 
-                  v-model="item.question" 
+                <el-input
+                  v-model="item.question"
                   placeholder="请输入密保问题"
-                  :disabled="!item.isAdd"
+                  :disabled="!isQuestionPwdVerified"
                   class="question-input"
                 />
               </div>
               <div class="answer-field">
                 <label>答案</label>
-                <el-input 
-                  v-model="item.answer" 
-                  type="textarea" 
+                <el-input
+                  v-model="item.answer"
+                  type="textarea"
                   :rows="2"
                   placeholder="请输入答案"
-                  :disabled="!item.isAdd"
+                  :disabled="!isQuestionPwdVerified"
                   class="question-input"
                 />
               </div>
             </div>
           </div>
 
-          <div v-if="pwdQuestionListCc?.length < 3" class="add-question">
+          <div v-if="pwdQuestionListCc?.length < 3 && isQuestionPwdVerified" class="add-question">
             <el-button type="primary" plain @click="addPwdQuestion">
               <LucideIcon name="Plus" :size="16" />
               新增密保问题
@@ -208,7 +241,7 @@
           </div>
 
           <div class="form-actions">
-            <el-button type="primary" @click="savePwdQuestion">
+            <el-button type="primary" :disabled="!isQuestionPwdVerified" @click="savePwdQuestion">
               <LucideIcon name="CircleCheck" :size="16" />
               保存密保问题
             </el-button>
@@ -269,6 +302,7 @@ import { ref, watch, toRaw, onMounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import { ElMessage } from 'element-plus';
 import useSafetyProtection from '@/store/useSafetyProtection';
+import { sendSync } from '@/utils/common';
 import LucideIcon from '@/components/LucideIcon.vue';
 
 const { passwordC, pwdQuestionListC } = storeToRefs(useSafetyProtection());
@@ -297,14 +331,42 @@ onMounted(() => {
   }
 });
 
-const pwdQuestionListCc = ref(JSON.parse(JSON.stringify(pwdQuestionListC.value || [])));
+// 密保答案在存储层为密文，进入编辑/展示前解密为明文供用户查看与修改；
+// answerEnc 保留原始密文，专供「密保重置密码」流程的 isPwdSame 比对（compare-pwd 需传入密文）。
+function decryptAnswer(enc: string): string {
+  if (!enc) return '';
+  try {
+    const res = sendSync('decrypt-pwd', { text: enc });
+    if (res && res.ok) return res.decrypted ?? '';
+    return enc; // 解密失败（密钥不匹配/密文损坏）时保留原密文，避免崩溃
+  } catch (e) {
+    return enc;
+  }
+}
+
+function buildPwdQuestionList(src: any[]) {
+  return (src || []).map((item) => {
+    const answerEnc = (item && item.answer) || '';
+    return {
+      ...item,
+      answerEnc,
+      answer: decryptAnswer(answerEnc),
+    };
+  });
+}
+
+const pwdQuestionListCc = ref(buildPwdQuestionList(pwdQuestionListC.value));
 watch(() => pwdQuestionListC.value, (newVal) => {
-  pwdQuestionListCc.value = JSON.parse(JSON.stringify(newVal || []));
+  pwdQuestionListCc.value = buildPwdQuestionList(newVal);
 });
 
 const newPassword = ref('');
 const confirmPassword = ref('');
 const verifyPassword = ref('');
+// 密保修改专用：校验密码后解锁编辑（与密码设置区的校验相互独立，避免耦合）
+const verifyQuestionPwd = ref('');
+const isQuestionPwdVerified = ref(false);
+const showQuestionPwdFailed = ref(false);
 
 function updatePwd() {
   if (newPassword.value !== confirmPassword.value) {
@@ -396,7 +458,58 @@ function addPwdQuestion() {
   pwdQuestionListCc.value.push({ question: '', answer: '', isAdd: true });
 }
 
+// 进入密保修改前校验密码：正确则解锁编辑，错误提示；无密码/密文损坏时按既有策略处理
+function verifyQuestionPwdFn() {
+  // 系统未设置密码：直接放行（与 checkPassword 一致）
+  if (!passwordCc.value) {
+    isQuestionPwdVerified.value = true;
+    showQuestionPwdFailed.value = false;
+    ElMessage.success('校验通过，可修改密保问题');
+    return;
+  }
+  // 已存密文无法解密（密钥不匹配 / 密文损坏）：交由顶部重置提示引导，此处不解锁
+  if (!isStoredPasswordDecryptable()) {
+    ElMessage.warning('密码解密失败，请先在上方重新设置密码');
+    return;
+  }
+  if (isPwdSame(verifyQuestionPwd.value, passwordCc.value)) {
+    isQuestionPwdVerified.value = true;
+    showQuestionPwdFailed.value = false;
+    ElMessage.success('校验通过，可修改密保问题');
+  } else {
+    showQuestionPwdFailed.value = true;
+    ElMessage.error('密码校验失败');
+  }
+}
+
+// 退出修改：复位校验态，收回编辑权限
+function cancelQuestionPwdVerify() {
+  isQuestionPwdVerified.value = false;
+  verifyQuestionPwd.value = '';
+  showQuestionPwdFailed.value = false;
+}
+
+// 显示/收起密保问题：查看也需先验证密码（密文损坏无法校验时，仅可查看不可修改）
+function toggleShowPwdQuestion() {
+  // 密文损坏无法解密：无密码可校验，允许直接查看（只读态）
+  if (pwdDecryptFailed.value) {
+    showValidatePwdQuestionList.value = !showValidatePwdQuestionList.value;
+    return;
+  }
+  // 未验证密码：拦截查看，提示先校验
+  if (!isQuestionPwdVerified.value) {
+    ElMessage.warning('查看密保问题需先验证密码');
+    return;
+  }
+  showValidatePwdQuestionList.value = !showValidatePwdQuestionList.value;
+}
+
 function savePwdQuestion() {
+  // 未通过密码校验不得保存，收回修改权限
+  if (!isQuestionPwdVerified.value) {
+    ElMessage.warning('请先验证密码后再保存');
+    return;
+  }
   pwdQuestionListCc.value = pwdQuestionListCc.value.map((item: ObjectType) => ({
     ...item,
     question: (item.question || '').trim(),
@@ -410,17 +523,21 @@ function savePwdQuestion() {
     return;
   }
 
-  let addPwdQuestions = pwdQuestionListCc.value.filter((item: ObjectType) => item.isAdd).map((item: ObjectType) => toRaw({
-    question: item.question,
-    answer: item.answer,
-  }));
+  // 保存完整密保列表（含原有项与新增项），修改原有问题/答案也会一并持久化
+  setPwdQuestionList(toRaw(filteredPwdQuestions));
 
-  setPwdQuestionList(toRaw(addPwdQuestions));
+  // 保存成功：回到查看状态，收回编辑权限
+  isQuestionPwdVerified.value = false;
+  verifyQuestionPwd.value = '';
+  showQuestionPwdFailed.value = false;
+  showValidatePwdQuestionList.value = false;
+  ElMessage.success('密保修改成功');
 }
 
 function validatePwdQuestion() {
   const item = pwdQuestionListCc.value[activeAnswer.value];
-  const hasSame = isPwdSame(item.answerValid, item.answer)
+  // 比对必须用原始密文 answerEnc（compare-pwd 内部会先解密再与明文 answerValid 比较）
+  const hasSame = isPwdSame(item.answerValid, item.answerEnc)
   if (hasSame) {
     activeAnswer.value = activeAnswer.value + 1;
 
@@ -658,6 +775,33 @@ function validatePwdQuestion() {
   display: flex;
   justify-content: flex-end;
   margin-bottom: 16px;
+}
+
+.verified-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: rgba(103, 194, 58, 0.1);
+  border: 1px solid rgba(103, 194, 58, 0.3);
+  border-radius: 8px;
+  font-size: 13px;
+  color: #67c23a;
+
+  .el-icon {
+    color: #67c23a;
+    flex-shrink: 0;
+  }
+
+  span {
+    flex: 1;
+  }
+
+  .el-button {
+    padding: 0;
+    font-weight: 600;
+  }
 }
 
 .question-list {
