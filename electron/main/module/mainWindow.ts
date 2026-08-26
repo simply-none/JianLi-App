@@ -8,6 +8,7 @@ import {
 } from "../variables.ts";
 import { destroyTray } from "./tray.ts";
 import { setAutoStartup, checkAutoStartupStatus } from "./autoStartup.ts";
+import { getStatefulCurrentState, restartStatefulRound } from "./newReminder.ts";
 
 export let win: BrowserWindow | null;
 
@@ -40,6 +41,21 @@ export function isSetStartup(isStartup: boolean, hidden = false) {
 }
 
 export function hideApp() {
+  // 番茄钟联动：当前状态 lockScreen=1 时按 key 特殊处理（快捷键/托盘/IPC 全汇聚于此）
+  const st = getStatefulCurrentState("pomodoro");
+  if (st) {
+    // 强制锁屏态：禁止通过快捷键/托盘隐藏应用，保持锁屏无法切走
+    if (st.key === "lock" && st.lockScreen === 1) {
+      return;
+    }
+    // 休息态(lockScreen=1)：隐藏应用的同时重新开始新的一轮轮次
+    if (st.key === "rest" && st.lockScreen === 1) {
+      win?.setAlwaysOnTop(false);
+      win?.hide();
+      restartStatefulRound("pomodoro");
+      return;
+    }
+  }
   win?.setAlwaysOnTop(false);
   win?.hide();
 }

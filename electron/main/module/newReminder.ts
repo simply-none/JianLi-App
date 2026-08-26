@@ -830,6 +830,36 @@ function endInjectedState(reminderId: string): void {
   }
 }
 
+// 暴露当前多状态提醒的运行态状态（兼容注入态），供主进程隐藏逻辑判断
+export function getStatefulCurrentState(reminderId = "pomodoro"): { key: string; lockScreen: number } | null {
+  const rt = statefulRT[reminderId];
+  if (!rt || !rt.reminder) return null;
+  const state = rt.injected ? rt.injected.state : rt.reminder.states?.[rt.index];
+  if (!state) return null;
+  return { key: state.key, lockScreen: Number(state.lockScreen) };
+}
+
+// 重新开始多状态提醒的一轮轮次：回到首个序列状态并重置 cycleStart/startTime，
+// 复用现有「开始新的一轮」逻辑（与锁屏解锁后默认行为一致），不产生重复定时器。
+export function restartStatefulRound(reminderId = "pomodoro"): void {
+  const rt = statefulRT[reminderId];
+  if (!rt || !rt.reminder) return;
+  rt.injected = undefined;
+  rt.stopped = false;
+  const seqIdx = sequentialIndices(rt.reminder);
+  if (!seqIdx.length) return;
+  const firstIdx = seqIdx[0];
+  rt.cycleStart = Date.now();
+  rt.reminder.startTime = rt.cycleStart;
+  persistReminder(rt.reminder).catch((e) => console.error("persistStartTime 失败:", e));
+  sendStarttimeUpdated(reminderId, rt.cycleStart);
+  rt.index = firstIdx;
+  rt.startedAt = Date.now();
+  const gap = Number(rt.reminder.states[firstIdx].duration) * Number(rt.reminder.states[firstIdx].unit);
+  rt.nextTime = gap > 0 ? rt.startedAt + gap : null;
+  emitStatefulEnter(reminderId, firstIdx);
+}
+
 // 渲染端请求当前状态（补偿启动竞态）
 // 注意：本函数属于「查询/补偿当前状态」，不是状态流转，严禁调用
 // applyStateWindowBehavior —— 否则渲染端初始化（如从 home 跳到设置页）拉取状态时会
