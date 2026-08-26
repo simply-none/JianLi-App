@@ -1,5 +1,6 @@
 <template>
   <div class="layout-simple">
+    <template v-if="enabled">
     <div class="theme-switch" @click.stop="$emit('cycle-theme')">
       <div class="switch-icon">◉</div>
     </div>
@@ -16,17 +17,22 @@
     <div class="countdown-section">
       <div class="countdown-value">{{ countdown }}</div>
     </div>
+    </template>
+    <div v-else class="pomodoro-mini-disabled">番茄钟已关闭</div>
   </div>
 </template>
 
 <script setup lang="ts">
-defineProps<{
+withDefaults(defineProps<{
   status: string
   countdown: string
   progress: number
   statusLabel: string
   statusSubtitle: string
-}>()
+  enabled: boolean
+}>(), {
+  enabled: true,
+})
 
 defineEmits<{
   (e: 'cycle-theme'): void

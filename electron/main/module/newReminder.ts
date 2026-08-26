@@ -211,6 +211,21 @@ function stopReminder(id: string): void {
 }
 
 function scheduleReminder(r: any): void {
+  // enabled=0：关闭后取消该提醒的全部执行（定时器 + 多状态运行时），
+  // 并下发 stopped 同步让渲染端 UI 复位。这是覆盖三种模式的单一拦截点：
+  // stateful 不再 tick、time/interval 定时器被清、下次触发不再排程。
+  if (!r.enabled) {
+    const rt = statefulRT[r.id];
+    const st = rt && rt.reminder && rt.reminder.states ? rt.reminder.states[rt.index] : null;
+    stopReminder(r.id); // 清定时器 + 删多状态运行时
+    broadcastSync({
+      reminderId: r.id,
+      stopped: true,
+      stateKey: st ? st.key : null,
+      stateLabel: st ? st.label : null,
+    });
+    return;
+  }
   if (r.mode === "stateful") {
     const futureStart = Number(r.startTime) > Date.now();
     if (statefulRT[r.id] && !futureStart) {
@@ -538,6 +553,8 @@ function realignStatefulRuntime(rt: any, now: number) {
 }
 
 function startStatefulReminder(reminder: any) {
+  // 防御性双保险：关闭状态（enabled=0）不应启动任何多状态运行时
+  if (!reminder.enabled) return;
   if (!reminder.states || !reminder.states.length) return;
   const seqIdx = sequentialIndices(reminder);
   if (seqIdx.length === 0) return;
@@ -821,6 +838,11 @@ function requestTipsState(reminderId?: string): void {
   const now = Date.now();
   if (reminderId && statefulRT[reminderId]) {
     const rt = statefulRT[reminderId];
+    // 运行时存在但已关闭：取消执行，避免残留 disabled 运行时被续命
+    if (!rt.reminder || !rt.reminder.enabled) {
+      stopReminder(reminderId);
+      return;
+    }
     realignStatefulRuntime(rt, now);
     rescheduleStatefulAdvance(reminderId);
     emitCurrentStateful(reminderId);
@@ -836,8 +858,13 @@ function requestTipsState(reminderId?: string): void {
   // 未指定 id：补偿全部
   let has = false;
   for (const id in statefulRT) {
-    has = true;
     const rt = statefulRT[id];
+    // 已关闭的运行时不再续命（防御性，正常路径下 disabled 运行时已被 stopReminder 移除）
+    if (!rt.reminder || !rt.reminder.enabled) {
+      stopReminder(id);
+      continue;
+    }
+    has = true;
     realignStatefulRuntime(rt, now);
     rescheduleStatefulAdvance(id);
     emitCurrentStateful(id);

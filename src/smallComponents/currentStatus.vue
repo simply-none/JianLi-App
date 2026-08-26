@@ -5,7 +5,7 @@
         当前状态
       </div>
       <div class="value">
-        {{ curStatusC.label }}
+        {{ currentEnabled ? curStatusC.label : '番茄钟已关闭' }}
       </div>
     </div>
   </draggableContainer>
@@ -16,6 +16,7 @@ import { ref, reactive, watch, computed, onMounted, onUnmounted, toRaw } from 'v
 import { storeToRefs } from 'pinia';
 
 import useGlobalSetting from '@/store/useGlobalSetting';
+import useNewReminder from '@/store/useNewReminder';
 
 import draggableContainer from '@/components/draggableContainer.vue';
 
@@ -53,6 +54,13 @@ const computedPosition = computed({
 })
 
 const { homeModeOpsC, curStatusC } = storeToRefs(useGlobalSetting());
+// 番茄钟总开关：enabled=1 开启时显示当前状态；enabled=0 关闭时显示「番茄钟已关闭」
+const reminderStore = useNewReminder();
+const { remindersC } = storeToRefs(reminderStore);
+const currentEnabled = computed(() => {
+  const p = remindersC.value.find((r) => r.id === 'pomodoro');
+  return p ? p.enabled === 1 : true;
+});
 
 function updateFn(position) {
   console.log(position, 'position')

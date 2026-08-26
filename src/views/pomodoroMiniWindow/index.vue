@@ -13,6 +13,7 @@
         :progress="progressPercentValue"
         :status-label="statusLabel"
         :status-subtitle="statusSubtitle"
+        :enabled="currentEnabled"
         @cycle-theme="cycleTheme"
       />
     </div>
@@ -29,10 +30,22 @@ import LayoutCompact from './layouts/LayoutCompact.vue';
 import LayoutClassic from './layouts/LayoutClassic.vue';
 import LayoutFlip from './layouts/LayoutFlip.vue';
 import useTipsRuntime from '@/store/useTipsRuntime';
+import useNewReminder from '@/store/useNewReminder';
 import { setupTipsBridge } from '@/hooks/useTipsBridge';
 
 // 复用与主窗口一致的番茄钟运行时 store（时间线完全由主进程 stateful 引擎下发，杜绝旧锚点漂移）
 const runtime = useTipsRuntime()
+// 读取番茄钟提醒的 enabled 开关，作为 props 下发给各 layout 组件（关闭时各 layout 显示「番茄钟已关闭」）
+const reminderStore = useNewReminder()
+const pomodoroReminder = computed(() => reminderStore.reminders.find((r) => r.id === 'pomodoro'))
+// 综合「本地提醒表 enabled」与「主进程下发 stopped 同步」判定是否开启：
+// - 冷启动读 enabled 字段，覆盖「打开小窗时番茄钟已被关闭」、主进程无状态下发的情形；
+// - 主窗口切换开关时，主进程下发 stopped 同步（关闭）或状态进入（开启），据此刷新本地表，实现跨窗口同步。
+const currentEnabled = computed(() => {
+  const localEnabled = pomodoroReminder.value ? pomodoroReminder.value.enabled === 1 : true
+  if (!localEnabled) return false
+  return !runtime.stopped
+})
 const nextDiffTime = ref('00:00:00')
 const sysData = ref<any>({})
 const progressPercentValue = ref(0)
@@ -133,6 +146,14 @@ const loadConfig = () => {
 // 番茄钟运行时状态由 useTipsBridge 统一监听主进程下发的 tips-state-change 写入
 // useTipsRuntime store（与主窗口 home 完全一致的逻辑），本窗口只消费 store，不再自行监听。
 
+// 主进程切换番茄钟开关时，会下发 stopped 同步（关闭）或状态进入（开启）；据此刷新本地提醒表 enabled，
+// 使小窗口跨窗口同步显示「番茄钟已关闭 / 运行中」（小窗口是独立渲染进程，store 不共享）。
+function onPomodoroStateSync(_e: any, arg: any) {
+  if (arg && arg.reminderId === 'pomodoro') {
+    reminderStore.load()
+  }
+}
+
 window.ipcRenderer.on('sync-data-to-other-window', (event: any, arg: any) => {
   if (Object.prototype.toString.call(arg) === '[object Object]') {
     Object.assign(sysData.value, arg || {})
@@ -196,10 +217,15 @@ const disableMouseClickThroughFn = () => {
 
 onMounted(() => {
   loadConfig()
+  // 拉取提醒表，确保 currentEnabled 能读到 pomodoro 的 enabled 开关
+  reminderStore.load()
   // 接入番茄钟桥接：注册全局监听主进程下发的权威状态事件，并主动 request-tips-state
   // 补偿启动竞态首帧（与主窗口 home 完全一致的运行展示逻辑）。小窗口是独立渲染进程，
   // 必须自己注册，否则收不到状态 → 倒计时卡在「同步中」。
   setupTipsBridge()
+  // 监听主进程状态下发，跨窗口同步 enabled 开关（主窗口拨动开关时刷新本地提醒表）
+  window.ipcRenderer.on('tips-state-sync', onPomodoroStateSync)
+  window.ipcRenderer.on('tips-state-change', onPomodoroStateSync)
   countDown()
 })
 
@@ -227,6 +253,20 @@ function updateProgressByRange(startTime: number | null, nextTimeTs: number | nu
 
 html, body {
   font-family: var(--jianli-global-font-EN), var(--jianli-global-font);
+}
+
+// 番茄钟关闭时各 layout 统一展示的占位（全局样式，覆盖所有小窗 layout 组件）
+.pomodoro-mini-disabled {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--skin-text-secondary);
+  font-size: 1.4em;
+  font-weight: 600;
+  -webkit-app-region: drag;
+  user-select: none;
 }
 
 </style>

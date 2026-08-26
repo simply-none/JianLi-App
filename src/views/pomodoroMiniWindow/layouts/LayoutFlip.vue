@@ -1,5 +1,6 @@
 <template>
   <div class="layout-flip">
+    <template v-if="enabled">
     <div class="theme-switch" @click.stop="$emit('cycle-theme')">
       <div class="switch-icon">◉</div>
     </div>
@@ -16,19 +17,24 @@
     <div class="countdown-section">
       <FlipCountdown :countdown="countdown" />
     </div>
+    </template>
+    <div v-else class="pomodoro-mini-disabled">番茄钟已关闭</div>
   </div>
 </template>
 
 <script setup lang="ts">
 import FlipCountdown from '../components/FlipCountdown.vue'
 
-defineProps<{
+withDefaults(defineProps<{
   status: string
   countdown: string
   progress: number
   statusLabel: string
   statusSubtitle: string
-}>()
+  enabled: boolean
+}>(), {
+  enabled: true,
+})
 
 defineEmits<{
   (e: 'cycle-theme'): void

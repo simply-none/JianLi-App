@@ -1,26 +1,31 @@
 <template>
   <draggableContainer v-bind="computedPosition" @update="updateFn">
-    <div class="item" v-if="currentStateKey === 'rest'" @contextmenu.stop="contextmenuFn" data-el="1">
-      <div class="label">
-        下次工作时间
+    <template v-if="currentEnabled">
+      <div class="item" v-if="currentStateKey === 'rest'" @contextmenu.stop="contextmenuFn" data-el="1">
+        <div class="label">
+          下次工作时间
+        </div>
+        <div class="value">
+          {{ nextWorkTimeText }}
+        </div>
+        <div class="value">
+          倒计时：{{ toNextWorkTime }}
+        </div>
       </div>
-      <div class="value">
-        {{ nextWorkTimeText }}
+      <div class="item" v-else-if="currentStateKey === 'work'" @contextmenu.stop="contextmenuFn" data-el="1">
+        <div class="label">
+          下次休息时间
+        </div>
+        <div class="value">
+          {{ nextRestTimeText }}
+        </div>
+        <div class="value">
+          倒计时：{{ toNextRestTime }}
+        </div>
       </div>
-      <div class="value">
-        倒计时：{{ toNextWorkTime }}
-      </div>
-    </div>
-    <div class="item" v-else-if="currentStateKey === 'work'" @contextmenu.stop="contextmenuFn" data-el="1">
-      <div class="label">
-        下次休息时间
-      </div>
-      <div class="value">
-        {{ nextRestTimeText }}
-      </div>
-      <div class="value">
-        倒计时：{{ toNextRestTime }}
-      </div>
+    </template>
+    <div v-else class="item" @contextmenu.stop="contextmenuFn" data-el="1">
+      <div class="value">番茄钟已关闭</div>
     </div>
   </draggableContainer>
 
@@ -31,6 +36,7 @@ import { ref, reactive, watch, computed, onMounted, onUnmounted, toRaw } from 'v
 import { storeToRefs } from 'pinia';
 
 import useTipsRuntime from '@/store/useTipsRuntime';
+import useNewReminder from '@/store/useNewReminder';
 
 import draggableContainer from '@/components/draggableContainer.vue';
 
@@ -72,6 +78,13 @@ const toNextWorkTime = ref('00:00:00');
 const toNextRestTime = ref('00:00:00');
 
 const { currentStateKey, nextStateTime } = storeToRefs(useTipsRuntime());
+// 番茄钟总开关：enabled=1 开启时保持原 work/rest 倒计时分支；enabled=0 关闭时显示「番茄钟已关闭」
+const reminderStore = useNewReminder();
+const { remindersC } = storeToRefs(reminderStore);
+const currentEnabled = computed(() => {
+  const p = remindersC.value.find((r) => r.id === 'pomodoro');
+  return p ? p.enabled === 1 : true;
+});
 
 const nextWorkTimeText = computed(() => formatTime(nextStateTime.value));
 const nextRestTimeText = computed(() => formatTime(nextStateTime.value));

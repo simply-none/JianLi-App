@@ -8,89 +8,102 @@
             番茄钟设置
           </h2>
 
-          <div class="status-card">
-            <div class="status-left">
-              <div class="status-indicator-wrapper">
-                <div class="status-indicator" :class="currentStateKey === 'rest' ? 'rest' : 'work'">
-                  <LucideIcon name="Coffee" :size="20" class="status-icon" v-if="currentStateKey === 'rest'" />
-                  <LucideIcon name="Timer" :size="20" class="status-icon" v-else />
-                </div>
-                <div class="status-ring" :class="currentStateKey === 'rest' ? 'rest' : 'work'"></div>
-              </div>
-              <div class="status-text">
-                <div class="status-title">{{ stateLabel || (currentStateKey === 'rest' ? '休息' : '工作') }}</div>
-                <div class="status-desc">{{ currentStateKey === 'rest' ? '正在休息中' : '正在工作中' }}</div>
-              </div>
-            </div>
-            <div class="status-right">
-              <div class="status-time">
-                <LucideIcon name="Timer" :size="16" />
-                <span class="countdown-text">{{ nextSwitchText }}</span>
-                <span class="time-label">{{ switchHintText }}</span>
-              </div>
-            </div>
-          </div>
+          <template v-if="currentEnabled">
 
-          <div class="time-cards">
-            <div class="time-card work-time-card">
-              <div class="time-card-icon">
-                <LucideIcon name="Building2" :size="24" />
-              </div>
-              <div class="time-card-content">
-                <div class="time-card-title">工作时间</div>
-                <div class="time-display">
-                  <el-button size="large" link @click="adjustWorkTime(-1)" class="time-btn-minus">-</el-button>
-                  <div class="time-value-wrapper">
-                    <span class="time-value">{{ workDurationCc }}</span>
-                    <span class="time-unit">{{ workUnitCc === 60 * 60 * 1000 ? '小时' : workUnitCc === 60 * 1000 ? '分钟' : '秒' }}</span>
+            <div class="status-card">
+              <div class="status-left">
+                
+                <div class="status-indicator-wrapper">
+                  <div class="status-indicator" :class="currentStateKey === 'rest' ? 'rest' : 'work'">
+                    <LucideIcon name="Coffee" :size="20" class="status-icon" v-if="currentStateKey === 'rest'" />
+                    <LucideIcon name="Timer" :size="20" class="status-icon" v-else />
                   </div>
-                  <el-button size="large" link @click="adjustWorkTime(1)" class="time-btn-plus">+</el-button>
+                  <div class="status-ring" :class="currentStateKey === 'rest' ? 'rest' : 'work'"></div>
                 </div>
+                <div class="status-text">
+                  <div class="status-title">{{ stateLabel || (currentStateKey === 'rest' ? '休息' : '工作') }}</div>
+                  <div class="status-desc">{{ currentStateKey === 'rest' ? '正在休息中' : '正在工作中' }}</div>
+                </div>
+                
               </div>
-              <div class="time-card-select">
-                <el-select
-                  v-model="workUnitCc"
-                  size="small"
-                  class="time-unit-select"
-                >
-                  <el-option v-for="value in timeUnit" :key="value.times" :label="value.label" :value="value.times" />
-                </el-select>
+              <div class="status-right">
+                <div class="status-time">
+                  <LucideIcon name="Timer" :size="16" />
+                  <span class="countdown-text">{{ nextSwitchText }}</span>
+                  <span class="time-label">{{ switchHintText }}</span>
+                </div>
               </div>
             </div>
 
-            <div class="time-card rest-time-card">
-              <div class="time-card-icon">
-                <LucideIcon name="Coffee" :size="24" />
-              </div>
-              <div class="time-card-content">
-                <div class="time-card-title">休息时间</div>
-                <div class="time-display">
-                  <el-button size="large" link @click="adjustRestTime(-1)" class="time-btn-minus">-</el-button>
-                  <div class="time-value-wrapper">
-                    <span class="time-value">{{ restDurationCc }}</span>
-                    <span class="time-unit">{{ restUnitCc === 60 * 60 * 1000 ? '小时' : restUnitCc === 60 * 1000 ? '分钟' : '秒' }}</span>
+            <div class="time-cards">
+              <div class="time-card work-time-card">
+                <div class="time-card-icon">
+                  <LucideIcon name="Building2" :size="24" />
+                </div>
+                <div class="time-card-content">
+                  <div class="time-card-title">工作时间</div>
+                  <div class="time-display">
+                    <el-button size="large" link @click="adjustWorkTime(-1)" class="time-btn-minus">-</el-button>
+                    <div class="time-value-wrapper">
+                      <span class="time-value">{{ workDurationCc }}</span>
+                      <span class="time-unit">{{ workUnitCc === 60 * 60 * 1000 ? '小时' : workUnitCc === 60 * 1000 ? '分钟' : '秒' }}</span>
+                    </div>
+                    <el-button size="large" link @click="adjustWorkTime(1)" class="time-btn-plus">+</el-button>
                   </div>
-                  <el-button size="large" link @click="adjustRestTime(1)" class="time-btn-plus">+</el-button>
+                </div>
+                <div class="time-card-select">
+                  <el-select
+                    v-model="workUnitCc"
+                    size="small"
+                    class="time-unit-select"
+                  >
+                    <el-option v-for="value in timeUnit" :key="value.times" :label="value.label" :value="value.times" />
+                  </el-select>
                 </div>
               </div>
-              <div class="time-card-select">
-                <el-select
-                  v-model="restUnitCc"
-                  size="small"
-                  class="time-unit-select"
-                >
-                  <el-option v-for="value in timeUnit" :key="value.times" :label="value.label" :value="value.times" />
-                </el-select>
+
+              <div class="time-card rest-time-card">
+                <div class="time-card-icon">
+                  <LucideIcon name="Coffee" :size="24" />
+                </div>
+                <div class="time-card-content">
+                  <div class="time-card-title">休息时间</div>
+                  <div class="time-display">
+                    <el-button size="large" link @click="adjustRestTime(-1)" class="time-btn-minus">-</el-button>
+                    <div class="time-value-wrapper">
+                      <span class="time-value">{{ restDurationCc }}</span>
+                      <span class="time-unit">{{ restUnitCc === 60 * 60 * 1000 ? '小时' : restUnitCc === 60 * 1000 ? '分钟' : '秒' }}</span>
+                    </div>
+                    <el-button size="large" link @click="adjustRestTime(1)" class="time-btn-plus">+</el-button>
+                  </div>
+                </div>
+                <div class="time-card-select">
+                  <el-select
+                    v-model="restUnitCc"
+                    size="small"
+                    class="time-unit-select"
+                  >
+                    <el-option v-for="value in timeUnit" :key="value.times" :label="value.label" :value="value.times" />
+                  </el-select>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div class="action-bar">
-            <el-button type="primary" @click="savePomodoro" class="action-btn">
-              <LucideIcon name="StarCheck" />
-              立即生效
-            </el-button>
-          </div>
+            <div class="action-bar">
+              <el-button type="primary" @click="savePomodoro" class="action-btn">
+                <LucideIcon name="StarCheck" />
+                立即生效
+              </el-button>
+            </div>
+          </template>
+          <template v-else>
+             <div class="status-card">
+              <div  class="status-disabled">
+                <LucideIcon name="CircleX" :size="20" class="status-disabled-icon" />
+                <span class="status-disabled-text">番茄钟已关闭</span>
+              </div>
+            </div>
+          </template>
         </div>
 
         <!-- <div class="section">
@@ -267,6 +280,11 @@ const { isStartupC, forceWorkTimesC, todayForceWorkTimesC, globalFontC, globalFo
 const sysFonts = ref([]);
 // 番茄钟（stateful 提醒）绑定：工作状态=states[0]，休息状态=states[1]
 const pomodoro = computed(() => remindersC.value.find((r: any) => r.id === 'pomodoro' && r.mode === 'stateful'));
+// 番茄钟总开关：enabled=1 开启（保留原有结构），enabled=0 关闭（左侧显示「番茄钟已关闭」）
+const currentEnabled = computed(() => {
+  const p = remindersC.value.find((r: any) => r.id === 'pomodoro');
+  return p ? p.enabled === 1 : true;
+});
 const workDurationCc = ref(35);
 const restDurationCc = ref(5);
 const workUnitCc = ref(60 * 1000);
@@ -526,6 +544,22 @@ onUnmounted(() => {
       display: flex;
       align-items: center;
       gap: 16px;
+
+      .status-disabled {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+
+        .status-disabled-icon {
+          color: var(--text-muted);
+        }
+
+        .status-disabled-text {
+          font-size: 15px;
+          font-weight: 500;
+          color: var(--text-secondary);
+        }
+      }
     }
 
     .status-indicator-wrapper {

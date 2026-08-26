@@ -1,5 +1,6 @@
 <template>
   <div class="layout-default">
+    <template v-if="enabled">
     <div class="top-section">
       <div class="status-section">
         <div class="status-indicator">
@@ -25,17 +26,22 @@
       </div>
       <div class="progress-text">{{ Math.round(progress) }}%</div>
     </div>
+    </template>
+    <div v-else class="pomodoro-mini-disabled">番茄钟已关闭</div>
   </div>
 </template>
 
 <script setup lang="ts">
-defineProps<{
+withDefaults(defineProps<{
   status: string
   countdown: string
   progress: number
   statusLabel: string
   statusSubtitle: string
-}>()
+  enabled: boolean
+}>(), {
+  enabled: true,
+})
 
 defineEmits<{
   (e: 'cycle-theme'): void

@@ -20,6 +20,7 @@ import { storeToRefs } from 'pinia';
 
 import useGlobalSetting from '@/store/useGlobalSetting';
 import useWorkOrRestStore from '@/store/usePomodoroDisplay';
+import useNewReminder from '@/store/useNewReminder';
 import moment from 'moment';
 
 import draggableContainer from '@/components/draggableContainer.vue';
@@ -66,6 +67,13 @@ const {
   nextWorkTime,
 } = storeToRefs(useWorkOrRestStore());
 const { homeModeOpsC, curStatusC } = storeToRefs(useGlobalSetting());
+// 番茄钟总开关：enabled=1 开启时保持原有倒计时逻辑；enabled=0 关闭时改为展示系统时间（不再倒计时）
+const reminderStore = useNewReminder();
+const { remindersC } = storeToRefs(reminderStore);
+const currentEnabled = computed(() => {
+  const p = remindersC.value.find((r) => r.id === 'pomodoro');
+  return p ? p.enabled === 1 : true;
+});
 
 function updateFn(position) {
   console.log(position, 'position')
@@ -82,6 +90,11 @@ function updateFn(position) {
 
 onMounted(() => {
   timer.value = setInterval(() => {
+    // 番茄钟已关闭：直接展示系统时间，不再做倒计时
+    if (!currentEnabled.value) {
+      toNextTime.value = moment().format('HH:mm:ss');
+      return;
+    }
     if (curStatusC.value.value === 'work') {
       // console.log(countDown(nextRestTime.value), 'countDown', nextRestTime.value)
       toNextTime.value = countDown(nextRestTime.value);
