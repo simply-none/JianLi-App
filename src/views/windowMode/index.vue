@@ -1994,7 +1994,7 @@ function confirmCustom() {
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  background: var(--bg-subtle);
+  background: var(--bg-base);
   font-size: 16px;
   font-weight: 600;
   color: var(--text-primary);

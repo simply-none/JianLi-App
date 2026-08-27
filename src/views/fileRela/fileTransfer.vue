@@ -682,7 +682,7 @@ onUnmounted(() => {
     padding: 5px 18px;
     border-radius: 8px;
     font-size: 13px;
-    background: var(--bg-subtle, #f2f3f5);
+    background: var(--bg-base, #f2f3f5);
     color: var(--text-secondary);
     cursor: pointer;
     user-select: none;
@@ -767,7 +767,7 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 10px;
   padding: 12px 14px;
-  background: var(--bg-subtle, #f7f8fa);
+  background: var(--bg-base, #f7f8fa);
   border-radius: 8px;
 }
 

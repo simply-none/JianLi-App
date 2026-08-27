@@ -553,7 +553,7 @@ async function getShortcut() {
       border-radius: 8px;
 
       &:hover {
-        background: var(--bg-subtle);
+        background: var(--bg-base);
       }
     }
   }

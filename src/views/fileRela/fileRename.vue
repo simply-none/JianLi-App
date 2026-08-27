@@ -522,7 +522,7 @@ onUnmounted(() => {
   gap: 18px;
   flex-wrap: wrap;
   padding: 12px 14px;
-  background: var(--bg-subtle, #f7f8fa);
+  background: var(--bg-base, #f7f8fa);
   border-radius: 8px;
 }
 

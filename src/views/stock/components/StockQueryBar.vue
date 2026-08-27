@@ -407,7 +407,7 @@ onMounted(() => {
       font-size: 0.72rem;
       padding: 1px 6px;
       border-radius: 4px;
-      background: var(--bg-subtle, #f2f3f5);
+      background: var(--bg-base, #f2f3f5);
       color: var(--text-muted, #86909c);
     }
   }

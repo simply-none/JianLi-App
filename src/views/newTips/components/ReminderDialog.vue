@@ -19,7 +19,7 @@
 
       <div class="form-item">
         <span class="form-label">提醒方式</span>
-        <el-radio-group v-model="form.mode">
+        <el-radio-group v-model="form.mode" :disabled="isEdit">
           <el-radio-button value="time">定点提醒</el-radio-button>
           <el-radio-button value="interval">周期提醒</el-radio-button>
           <el-radio-button value="stateful">多状态提醒</el-radio-button>

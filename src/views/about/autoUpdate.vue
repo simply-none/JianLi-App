@@ -78,7 +78,7 @@
 
       <div v-if="releaseUrl" class="update-item">
         <span class="update-label">发布详情</span>
-        <el-button type="primary" link @click="openReleaseUrl">
+        <el-button type="primary" link @click="openReleaseUrl" class="update-label">
           查看 GitHub 发布页 ↗
         </el-button>
       </div>
@@ -307,7 +307,7 @@ onUnmounted(() => {
 
   .release-body {
     padding: 12px 14px;
-    background-color: var(--bg-subtle);
+    background-color: var(--bg-base);
     border-radius: 8px;
     max-height: 200px;
     overflow-y: auto;
