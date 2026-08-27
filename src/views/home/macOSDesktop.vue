@@ -70,8 +70,8 @@
       <div class="window-content">
         <div class="pomodoro-display">
           <div class="status-row">
-            <span class="status-badge" :class="curStatusC.value">
-              {{ curStatusC.value === 'work' ? '专注中' : '休息中' }}
+            <span class="status-badge" :class="status.key">
+              {{ statusText }}
             </span>
             <span class="round-text">第 3 轮</span>
           </div>
@@ -87,7 +87,7 @@
               <LucideIcon name="SkipBack" :size="16" />
             </button>
             <button class="action-btn primary">
-              <LucideIcon :name="curStatusC.value === 'work' ? 'Pause' : 'Play'" :size="18" />
+              <LucideIcon :name="statusIcon" :size="18" />
             </button>
             <button class="action-btn">
               <LucideIcon name="SkipForward" :size="16" />
@@ -153,14 +153,36 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import LucideIcon from '@/components/LucideIcon.vue';
-import useGlobalSetting from '@/store/useGlobalSetting';
+import usePomodoroStatus from '@/store/usePomodoroStatus';
 import useWorkOrRestStore from '@/store/usePomodoroDisplay';
 
-const { curStatusC } = storeToRefs(useGlobalSetting());
+const { status } = usePomodoroStatus();
 const { nextRestTime, nextWorkTime, workTimeGapUnit, restTimeGapUnit } = storeToRefs(useWorkOrRestStore());
+
+// 番茄钟统一状态：文案 + 控制按钮图标（工作/休息/强制锁屏/空闲/已关闭）
+const statusText = computed(() => {
+  switch (status.value.key) {
+    case 'work': return '专注中';
+    case 'rest': return '休息中';
+    case 'lock': return '强制锁屏';
+    case 'idle': return '空闲中';
+    case 'disabled': return '番茄钟已关闭';
+    default: return '专注中';
+  }
+});
+const statusIcon = computed(() => {
+  switch (status.value.key) {
+    case 'work': return 'Pause';
+    case 'rest': return 'Play';
+    case 'lock': return 'Lock';
+    case 'idle': return 'Moon';
+    case 'disabled': return 'Power';
+    default: return 'Pause';
+  }
+});
 
 const currentTime = ref('');
 const displayTime = ref('00:00:00');
@@ -187,16 +209,20 @@ function updateTime() {
 }
 
 function updateCountdown() {
-  if (curStatusC.value.value === 'work') {
+  // 非运行态（锁屏/空闲/已关闭）不展示倒计时
+  if (status.value.key === 'work') {
     displayTime.value = countDown(nextRestTime.value);
     const total = workTimeGapUnit.value * 60 * 1000;
     const remaining = new Date(nextRestTime.value).getTime() - new Date().getTime();
     progress.value = Math.max(0, Math.min(100, (1 - remaining / total) * 100));
-  } else {
+  } else if (status.value.key === 'rest') {
     displayTime.value = countDown(nextWorkTime.value);
     const total = restTimeGapUnit.value * 60 * 1000;
     const remaining = new Date(nextWorkTime.value).getTime() - new Date().getTime();
     progress.value = Math.max(0, Math.min(100, (1 - remaining / total) * 100));
+  } else {
+    displayTime.value = '--:--:--';
+    progress.value = 0;
   }
 }
 
@@ -426,6 +452,14 @@ function countDown(time) {
           &.rest {
             background: rgba(81, 207, 102, 0.2);
             color: #51cf66;
+          }
+
+          // 空闲 / 锁屏 / 已关闭：中性灰
+          &.idle,
+          &.lock,
+          &.disabled {
+            background: rgba(108, 117, 125, 0.15);
+            color: #6c757d;
           }
         }
 

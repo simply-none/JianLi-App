@@ -18,6 +18,7 @@ import { storeToRefs } from 'pinia';
 
 import CusLoading from '@/components/loading.vue';
 import useGlobalSetting from '@/store/useGlobalSetting';
+import usePomodoroStatus from '@/store/usePomodoroStatus';
 import useWorkOrRestStore from '@/store/usePomodoroDisplay';
 
 const showContent = ref({ error: true });
@@ -30,15 +31,17 @@ const {
   nextRestTime,
   nextWorkTime,
 } = storeToRefs(useWorkOrRestStore());
-const { homeModeOpsC, curStatusC } = storeToRefs(useGlobalSetting());
+const { homeModeOpsC } = storeToRefs(useGlobalSetting());
+const { status } = usePomodoroStatus();
 
 onMounted(() => {
   toNext();
   timer.value = setInterval(() => {
-    if (curStatusC.value.value === 'work') {
+    // 仅 work/rest 运行态推进模拟更新；锁屏/空闲/已关闭时暂停
+    if (status.value.key === 'work') {
       console.log(countDown(nextRestTime.value), 'countDown', nextRestTime.value)
       toNextRestTime.value = countDown(nextRestTime.value);
-    } else if (curStatusC.value.value === 'rest') {
+    } else if (status.value.key === 'rest') {
       console.log(countDown(nextWorkTime.value), 'countDown', nextWorkTime.value)
       toNextWorkTime.value = countDown(nextWorkTime.value);
       let isAdd = 1
@@ -71,11 +74,11 @@ function toggleComponent(status) {
   }
 }
 
-watch(() => curStatusC.value.value, () => {
-  console.log(curStatusC.value, 'curStatusC')
+watch(() => status.value.key, () => {
+  console.log(status.value, 'pomodoro status')
   percentage.value = 1;
   // 首页展示组件模式变更
-  toggleComponent(curStatusC.value.value)
+  toggleComponent(status.value.key)
 }, { immediate: true, deep: true })
 
 // 写一个倒计时函数，用来计算当前时间距离下次工作时间的时间差，格式是00:00:00

@@ -61,8 +61,8 @@
           </div>
         </div>
         <div class="focus-info">
-          <div class="focus-badge" :class="curStatusC.value">
-            {{ curStatusC.value === 'work' ? '专注模式' : '休息模式' }}
+          <div class="focus-badge" :class="status.key">
+            {{ statusText }}
           </div>
           <div class="focus-time">
             <span class="label">剩余</span>
@@ -128,11 +128,23 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { storeToRefs } from 'pinia';
 import LucideIcon from '@/components/LucideIcon.vue';
-import useGlobalSetting from '@/store/useGlobalSetting';
+import usePomodoroStatus from '@/store/usePomodoroStatus';
 import useWorkOrRestStore from '@/store/usePomodoroDisplay';
 
-const { curStatusC } = storeToRefs(useGlobalSetting());
+const { status } = usePomodoroStatus();
 const { nextRestTime, nextWorkTime, workTimeGapUnit, restTimeGapUnit } = storeToRefs(useWorkOrRestStore());
+
+// 番茄钟统一状态文案（工作/休息/强制锁屏/空闲/已关闭）
+const statusText = computed(() => {
+  switch (status.value.key) {
+    case 'work': return '专注模式';
+    case 'rest': return '休息模式';
+    case 'lock': return '强制锁屏';
+    case 'idle': return '空闲中';
+    case 'disabled': return '番茄钟已关闭';
+    default: return '专注模式';
+  }
+});
 
 const displayTime = ref('00:00');
 const progress = ref(0);
@@ -216,7 +228,9 @@ const lyricsLines = computed(() => {
 });
 
 const totalTime = computed(() => {
-  const minutes = curStatusC.value.value === 'work' ? workTimeGapUnit.value : restTimeGapUnit.value;
+  const minutes = status.value.key === 'work' ? workTimeGapUnit.value
+    : status.value.key === 'rest' ? restTimeGapUnit.value
+    : workTimeGapUnit.value;
   return `${minutes}:00`;
 });
 
@@ -277,16 +291,20 @@ function updatePlayback() {
 }
 
 function updateCountdown() {
-  if (curStatusC.value.value === 'work') {
+  // 非运行态（锁屏/空闲/已关闭）不展示倒计时
+  if (status.value.key === 'work') {
     displayTime.value = countDown(nextRestTime.value);
     const total = workTimeGapUnit.value * 60 * 1000;
     const remaining = new Date(nextRestTime.value).getTime() - new Date().getTime();
     progress.value = Math.max(0, Math.min(100, (1 - remaining / total) * 100));
-  } else {
+  } else if (status.value.key === 'rest') {
     displayTime.value = countDown(nextWorkTime.value);
     const total = restTimeGapUnit.value * 60 * 1000;
     const remaining = new Date(nextWorkTime.value).getTime() - new Date().getTime();
     progress.value = Math.max(0, Math.min(100, (1 - remaining / total) * 100));
+  } else {
+    displayTime.value = '--:--';
+    progress.value = 0;
   }
 }
 
@@ -592,6 +610,14 @@ onUnmounted(() => {
       &.rest {
         background: rgba(255, 193, 7, 0.2);
         color: #ffc107;
+      }
+
+      // 空闲 / 锁屏 / 已关闭：中性灰
+      &.idle,
+      &.lock,
+      &.disabled {
+        background: rgba(173, 181, 189, 0.18);
+        color: #adb5bd;
       }
     }
 

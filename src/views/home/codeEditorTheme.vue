@@ -69,9 +69,9 @@
             </div>
           </div>
           <div class="tab-actions">
-            <div class="pomodoro-badge" :class="curStatusC.value">
+            <div class="pomodoro-badge" :class="status.key">
               <LucideIcon name="Timer" :size="12" />
-              <span>{{ curStatusC.value === 'work' ? '专注' : '休息' }}</span>
+              <span>{{ statusBadge }}</span>
               <span class="badge-time">{{ displayTime }}</span>
             </div>
           </div>
@@ -143,7 +143,7 @@
                 </div>
                 <div class="code-line empty"></div>
                 <div class="code-line">
-                  <span class="comment">// Current Status: {{ curStatusC.value.value }}</span>
+                  <span class="comment">// Current Status: {{ status.key }}</span>
                 </div>
                 <div class="code-line">
                   <span class="keyword">const</span>
@@ -212,7 +212,7 @@
               <div class="terminal-line empty"></div>
               <div class="terminal-line highlight">
                 <LucideIcon name="Timer" :size="12" />
-                <span class="text">🍅 {{ curStatusC.value === 'work' ? '专注模式' : '休息模式' }}</span>
+                <span class="text">🍅 {{ statusModeText }}</span>
                 <span class="text"> | 剩余: {{ displayTime }}</span>
                 <span class="text"> | 进度: {{ Math.round(progress) }}%</span>
               </div>
@@ -234,9 +234,9 @@
           <LucideIcon name="GitBranch" :size="12" />
           main
         </span>
-        <span class="status-item" :class="curStatusC.value">
+        <span class="status-item" :class="status.key">
           <LucideIcon name="Circle" :size="8" fill="currentColor" />
-          {{ curStatusC.value === 'work' ? 'Working' : 'Resting' }}
+          {{ statusTextEN }}
         </span>
         <span class="status-item">
           <LucideIcon name="Check" :size="12" />
@@ -256,14 +256,46 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import LucideIcon from '@/components/LucideIcon.vue';
-import useGlobalSetting from '@/store/useGlobalSetting';
+import usePomodoroStatus from '@/store/usePomodoroStatus';
 import useWorkOrRestStore from '@/store/usePomodoroDisplay';
 
-const { curStatusC } = storeToRefs(useGlobalSetting());
+const { status } = usePomodoroStatus();
 const { nextRestTime, nextWorkTime, workTimeGapUnit, restTimeGapUnit } = storeToRefs(useWorkOrRestStore());
+
+// 番茄钟统一状态文案（工作/休息/强制锁屏/空闲/已关闭）
+const statusBadge = computed(() => {
+  switch (status.value.key) {
+    case 'work': return '专注';
+    case 'rest': return '休息';
+    case 'lock': return '锁屏';
+    case 'idle': return '空闲';
+    case 'disabled': return '已关闭';
+    default: return '专注';
+  }
+});
+const statusModeText = computed(() => {
+  switch (status.value.key) {
+    case 'work': return '专注模式';
+    case 'rest': return '休息模式';
+    case 'lock': return '强制锁屏';
+    case 'idle': return '空闲中';
+    case 'disabled': return '番茄钟已关闭';
+    default: return '专注模式';
+  }
+});
+const statusTextEN = computed(() => {
+  switch (status.value.key) {
+    case 'work': return 'Working';
+    case 'rest': return 'Resting';
+    case 'lock': return 'Locked';
+    case 'idle': return 'Idle';
+    case 'disabled': return 'Off';
+    default: return 'Working';
+  }
+});
 
 const currentTime = ref('');
 const displayTime = ref('00:00:00');
@@ -290,16 +322,20 @@ function updateTime() {
 }
 
 function updateCountdown() {
-  if (curStatusC.value.value === 'work') {
+  // 非运行态（锁屏/空闲/已关闭）不展示倒计时
+  if (status.value.key === 'work') {
     displayTime.value = countDown(nextRestTime.value);
     const total = workTimeGapUnit.value * 60 * 1000;
     const remaining = new Date(nextRestTime.value).getTime() - new Date().getTime();
     progress.value = Math.max(0, Math.min(100, (1 - remaining / total) * 100));
-  } else {
+  } else if (status.value.key === 'rest') {
     displayTime.value = countDown(nextWorkTime.value);
     const total = restTimeGapUnit.value * 60 * 1000;
     const remaining = new Date(nextWorkTime.value).getTime() - new Date().getTime();
     progress.value = Math.max(0, Math.min(100, (1 - remaining / total) * 100));
+  } else {
+    displayTime.value = '--:--:--';
+    progress.value = 0;
   }
 }
 
@@ -540,6 +576,14 @@ $warning: #dcdcaa;
         color: #51cf66;
       }
 
+      // 空闲 / 锁屏 / 已关闭：中性灰
+      &.idle,
+      &.lock,
+      &.disabled {
+        background: rgba(173, 181, 189, 0.15);
+        color: #adb5bd;
+      }
+
       .badge-time {
         font-feature-settings: 'tnum';
         font-family: 'SF Mono', monospace;
@@ -765,6 +809,13 @@ $warning: #dcdcaa;
 
     &.rest {
       background: rgba(81, 207, 102, 0.8);
+    }
+
+    // 空闲 / 锁屏 / 已关闭：中性灰
+    &.idle,
+    &.lock,
+    &.disabled {
+      background: rgba(173, 181, 189, 0.5);
     }
   }
 }

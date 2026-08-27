@@ -211,11 +211,11 @@
         </section>
 
         <aside class="right-sidebar">
-          <div class="pomodoro-card" :class="curStatusC.value">
+          <div class="pomodoro-card" :class="status.key">
             <div class="pomodoro-header">
               <LucideIcon name="Timer" :size="16" />
               <span class="pomodoro-title">Pomodoro</span>
-              <span class="pomodoro-badge">{{ curStatusC.value === 'work' ? 'Focus' : 'Break' }}</span>
+              <span class="pomodoro-badge">{{ statusBadge }}</span>
             </div>
             <div class="pomodoro-time">{{ displayTime }}</div>
             <div class="pomodoro-progress">
@@ -326,11 +326,23 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import LucideIcon from '@/components/LucideIcon.vue';
-import useGlobalSetting from '@/store/useGlobalSetting';
+import usePomodoroStatus from '@/store/usePomodoroStatus';
 import useWorkOrRestStore from '@/store/usePomodoroDisplay';
 
-const { curStatusC } = storeToRefs(useGlobalSetting());
+const { status } = usePomodoroStatus();
 const { nextRestTime, nextWorkTime, workTimeGap, restTimeGap, workTimeGapUnit, restTimeGapUnit } = storeToRefs(useWorkOrRestStore());
+
+// 番茄钟统一状态徽标（工作/休息/强制锁屏/空闲/已关闭）
+const statusBadge = computed(() => {
+  switch (status.value.key) {
+    case 'work': return 'Focus';
+    case 'rest': return 'Break';
+    case 'lock': return 'Locked';
+    case 'idle': return 'Idle';
+    case 'disabled': return 'Off';
+    default: return 'Focus';
+  }
+});
 
 const displayTime = ref('00:00');
 const progress = ref(0);
@@ -350,27 +362,30 @@ onUnmounted(() => {
 });
 
 function updateCountdown() {
-  let targetTime;
-  let totalDuration;
-  
-  if (curStatusC.value.value === 'work') {
-    targetTime = nextRestTime.value;
-    totalDuration = workTimeGap.value * workTimeGapUnit.value;
+  // 非运行态（锁屏/空闲/已关闭）不展示倒计时
+  if (status.value.key === 'work') {
+    const targetTime = nextRestTime.value;
+    const totalDuration = workTimeGap.value * workTimeGapUnit.value;
+    displayTime.value = countDown(targetTime);
+    const now = new Date().getTime();
+    const target = new Date(targetTime).getTime();
+    const diff = target - now;
+    progress.value = diff > 0 && totalDuration > 0
+      ? Math.max(0, Math.min(100, ((totalDuration - diff) / totalDuration) * 100))
+      : 100;
+  } else if (status.value.key === 'rest') {
+    const targetTime = nextWorkTime.value;
+    const totalDuration = restTimeGap.value * restTimeGapUnit.value;
+    displayTime.value = countDown(targetTime);
+    const now = new Date().getTime();
+    const target = new Date(targetTime).getTime();
+    const diff = target - now;
+    progress.value = diff > 0 && totalDuration > 0
+      ? Math.max(0, Math.min(100, ((totalDuration - diff) / totalDuration) * 100))
+      : 100;
   } else {
-    targetTime = nextWorkTime.value;
-    totalDuration = restTimeGap.value * restTimeGapUnit.value;
-  }
-  
-  displayTime.value = countDown(targetTime);
-  
-  const now = new Date().getTime();
-  const target = new Date(targetTime).getTime();
-  const diff = target - now;
-  
-  if (diff > 0 && totalDuration > 0) {
-    progress.value = Math.max(0, Math.min(100, ((totalDuration - diff) / totalDuration) * 100));
-  } else {
-    progress.value = 100;
+    displayTime.value = '--:--';
+    progress.value = 0;
   }
 }
 
@@ -982,6 +997,25 @@ function countDown(time) {
       }
       .progress-fill {
         background: #3fb950;
+      }
+    }
+
+    // 空闲 / 锁屏 / 已关闭：中性灰
+    &.idle,
+    &.lock,
+    &.disabled {
+      .pomodoro-header {
+        color: #8b949e;
+      }
+      .pomodoro-badge {
+        background: rgba(139, 148, 158, 0.15);
+        color: #8b949e;
+      }
+      .pomodoro-time {
+        color: #8b949e;
+      }
+      .progress-fill {
+        background: #8b949e;
       }
     }
   }

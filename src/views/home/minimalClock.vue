@@ -3,9 +3,9 @@
     <div class="clock-container" :style="themeStyle" @click="switchSkin">
       <div class="time-display">{{ currentTime }}</div>
       <div class="date-display">{{ currentDate }} {{ weekday }}</div>
-      <div class="status-display" :class="curStatusC.value">
+      <div class="status-display" :class="status.key">
         <span class="status-dot"></span>
-        <span class="status-text">{{ curStatusC.value === 'work' ? '正在专注' : '休息中' }}</span>
+        <span class="status-text">{{ statusText }}</span>
       </div>
       <div class="skin-indicator" :title="`当前主题: ${skinLabel} (点击切换)`">
         <span class="skin-dot" :style="{ background: currentSkin.timeColor }"></span>
@@ -95,10 +95,10 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import { ElMessage } from 'element-plus';
 import LucideIcon from '@/components/LucideIcon.vue';
-import useGlobalSetting from '@/store/useGlobalSetting';
+import usePomodoroStatus from '@/store/usePomodoroStatus';
 import { getStore, setStore } from '@/utils/common';
 
-const { curStatusC } = storeToRefs(useGlobalSetting());
+const { status } = usePomodoroStatus();
 
 // 渐变色彩背景列表
 const gradientBackgrounds = [
@@ -432,6 +432,18 @@ const currentSkin = computed(() => skinThemes.find(s => s.key === currentSkinKey
  */
 const skinLabel = computed(() => currentSkin.value.name);
 
+// 番茄钟统一状态文案：工作/休息/强制锁屏/空闲（免打扰）/番茄钟已关闭
+const statusText = computed(() => {
+  switch (status.value.key) {
+    case 'work': return '正在专注';
+    case 'rest': return '休息中';
+    case 'lock': return '强制锁屏';
+    case 'idle': return '空闲中';
+    case 'disabled': return '番茄钟已关闭';
+    default: return '正在专注';
+  }
+});
+
 /**
  * 主题样式计算属性，将主题配置转换为 CSS 变量
  */
@@ -619,6 +631,21 @@ function switchSkin() {
 
     .status-text {
       color: var(--rest-dot);
+    }
+  }
+
+  // 空闲 / 锁屏 / 已关闭：统一使用中性色（跟随主题文字色）
+  &.idle,
+  &.lock,
+  &.disabled {
+    .status-dot {
+      background: var(--date-color);
+      box-shadow: none;
+      animation: none;
+    }
+
+    .status-text {
+      color: var(--date-color);
     }
   }
 }

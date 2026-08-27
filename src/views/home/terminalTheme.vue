@@ -83,7 +83,7 @@
             </div>
             <div class="output-line">
               <span class="text-highlight">STATUS:</span>
-              <span :class="curStatusC.value === 'work' ? 'text-error' : 'text-success'">{{ curStatusC.value === 'work' ? 'WORKING' : 'RESTING' }}</span>
+              <span :class="statusClass">{{ statusText }}</span>
             </div>
             <div class="output-line">
               <span class="text-highlight">REMAINING:</span>
@@ -118,13 +118,35 @@
 <script setup>import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { storeToRefs } from 'pinia';
 import LucideIcon from '@/components/LucideIcon.vue';
-import useGlobalSetting from '@/store/useGlobalSetting';
+import usePomodoroStatus from '@/store/usePomodoroStatus';
 import useWorkOrRestStore from '@/store/usePomodoroDisplay';
 const terminalRef = ref(null);
 const outputRef = ref(null);
 const inputRef = ref(null);
-const { curStatusC } = storeToRefs(useGlobalSetting());
+const { status } = usePomodoroStatus();
 const { nextRestTime, nextWorkTime, workTimeGap, restTimeGap, workTimeGapUnit, restTimeGapUnit } = storeToRefs(useWorkOrRestStore());
+
+// 番茄钟统一状态文案 / 终端配色（工作/休息/强制锁屏/空闲/已关闭）
+const statusText = computed(() => {
+  switch (status.value.key) {
+    case 'work': return 'WORKING';
+    case 'rest': return 'RESTING';
+    case 'lock': return 'LOCKED';
+    case 'idle': return 'IDLE';
+    case 'disabled': return 'OFF';
+    default: return 'WORKING';
+  }
+});
+const statusClass = computed(() => {
+  switch (status.value.key) {
+    case 'work': return 'text-error';
+    case 'rest': return 'text-success';
+    case 'lock': return 'text-warning';
+    case 'idle': return 'text-info';
+    case 'disabled': return 'text-info';
+    default: return 'text-error';
+  }
+});
 const currentTime = ref('');
 const displayTime = ref('00:00:00');
 const progress = ref(0);
@@ -348,25 +370,30 @@ function updateTime() {
  currentTime.value = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
 }
 function updateCountdown() {
- let targetTime;
- let totalDuration;
- if (curStatusC.value.value === 'work') {
- targetTime = nextRestTime.value;
- totalDuration = workTimeGap.value * workTimeGapUnit.value;
- }
- else {
- targetTime = nextWorkTime.value;
- totalDuration = restTimeGap.value * restTimeGapUnit.value;
- }
- displayTime.value = countDown(targetTime);
- const now = new Date().getTime();
- const target = new Date(targetTime).getTime();
- const diff = target - now;
- if (diff > 0 && totalDuration > 0) {
- progress.value = Math.max(0, Math.min(100, ((totalDuration - diff) / totalDuration) * 100));
- }
- else {
- progress.value = 100;
+ // 非运行态（锁屏/空闲/已关闭）不展示倒计时
+ if (status.value.key === 'work') {
+  const targetTime = nextRestTime.value;
+  const totalDuration = workTimeGap.value * workTimeGapUnit.value;
+  displayTime.value = countDown(targetTime);
+  const now = new Date().getTime();
+  const target = new Date(targetTime).getTime();
+  const diff = target - now;
+  progress.value = diff > 0 && totalDuration > 0
+   ? Math.max(0, Math.min(100, ((totalDuration - diff) / totalDuration) * 100))
+   : 100;
+ } else if (status.value.key === 'rest') {
+  const targetTime = nextWorkTime.value;
+  const totalDuration = restTimeGap.value * restTimeGapUnit.value;
+  displayTime.value = countDown(targetTime);
+  const now = new Date().getTime();
+  const target = new Date(targetTime).getTime();
+  const diff = target - now;
+  progress.value = diff > 0 && totalDuration > 0
+   ? Math.max(0, Math.min(100, ((totalDuration - diff) / totalDuration) * 100))
+   : 100;
+ } else {
+  displayTime.value = '--:--:--';
+  progress.value = 0;
  }
 }
 function countDown(time) {
@@ -421,7 +448,7 @@ function executeCommand() {
  break;
  case 'status':
  output = [
- { text: `Status: ${curStatusC.value.value === 'work' ? 'WORKING' : 'RESTING'}`, type: curStatusC.value.value === 'work' ? 'error' : 'success' },
+ { text: `Status: ${statusText.value}`, type: statusClass.value },
  { text: `Remaining: ${displayTime.value}`, type: 'success' },
  { text: `Progress: ${Math.round(progress.value)}%`, type: '' },
  ];
@@ -442,7 +469,7 @@ function executeCommand() {
  { text: 'OS: Pomodoro OS v1.0', type: 'info' },
  { text: 'Shell: zsh', type: '' },
  { text: 'Terminal: Pomodoro Terminal', type: 'success' },
- { text: 'Status: ' + (curStatusC.value.value === 'work' ? 'WORKING' : 'RESTING'), type: curStatusC.value.value === 'work' ? 'error' : 'success' },
+ { text: 'Status: ' + statusText.value, type: statusClass.value },
  ];
  break;
  default:

@@ -7,10 +7,10 @@
         <div class="quote-text">{{ currentQuote }}</div>
         <div class="quote-author">— {{ currentAuthor }}</div>
       </div>
-      <div class="status-card" :class="curStatusC.value">
-        <LucideIcon :name="curStatusC.value === 'work' ? 'Coffee' : 'Sun'" :size="24" />
+      <div class="status-card" :class="status.key">
+        <LucideIcon :name="statusIcon" :size="24" />
         <div class="status-info">
-          <div class="status-label">{{ curStatusC.value === 'work' ? '专注中' : '休息中' }}</div>
+          <div class="status-label">{{ statusText }}</div>
           <div class="status-time">{{ displayTime }}</div>
         </div>
       </div>
@@ -19,14 +19,36 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import LucideIcon from '@/components/LucideIcon.vue';
-import useGlobalSetting from '@/store/useGlobalSetting';
+import usePomodoroStatus from '@/store/usePomodoroStatus';
 import useWorkOrRestStore from '@/store/usePomodoroDisplay';
 
-const { curStatusC } = storeToRefs(useGlobalSetting());
+const { status } = usePomodoroStatus();
 const { nextRestTime, nextWorkTime } = storeToRefs(useWorkOrRestStore());
+
+// 番茄钟统一状态：文案 + 图标（工作/休息/强制锁屏/空闲/已关闭）
+const statusText = computed(() => {
+  switch (status.value.key) {
+    case 'work': return '专注中';
+    case 'rest': return '休息中';
+    case 'lock': return '强制锁屏';
+    case 'idle': return '空闲中';
+    case 'disabled': return '番茄钟已关闭';
+    default: return '专注中';
+  }
+});
+const statusIcon = computed(() => {
+  switch (status.value.key) {
+    case 'work': return 'Coffee';
+    case 'rest': return 'Sun';
+    case 'lock': return 'Lock';
+    case 'idle': return 'Moon';
+    case 'disabled': return 'Power';
+    default: return 'Coffee';
+  }
+});
 
 const currentTime = ref('');
 const displayTime = ref('00:00:00');
@@ -67,10 +89,13 @@ function updateTime() {
 }
 
 function updateCountdown() {
-  if (curStatusC.value.value === 'work') {
+  // 非运行态（锁屏/空闲/已关闭）不展示倒计时
+  if (status.value.key === 'work') {
     displayTime.value = countDown(nextRestTime.value);
-  } else {
+  } else if (status.value.key === 'rest') {
     displayTime.value = countDown(nextWorkTime.value);
+  } else {
+    displayTime.value = '--:--:--';
   }
 }
 
@@ -159,6 +184,14 @@ function countDown(time) {
   &.rest {
     color: #51cf66;
     border: 1px solid rgba(81, 207, 102, 0.3);
+  }
+
+  // 空闲 / 锁屏 / 已关闭：中性灰
+  &.idle,
+  &.lock,
+  &.disabled {
+    color: #adb5bd;
+    border: 1px solid rgba(173, 181, 189, 0.3);
   }
 
   .status-info {
