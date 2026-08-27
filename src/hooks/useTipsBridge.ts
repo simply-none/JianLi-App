@@ -32,11 +32,13 @@ function handleStateEnter(_e: any, arg: any) {
   setCurStatus({ label: arg.stateLabel, value: arg.stateKey }, shouldRecord, arg.stateStartTime);
 }
 
-// 状态同步事件（channel B：启动补偿 / 编辑重算 / 主动请求）→ 刷 UI + 补记「当前运行段」起点
+// 状态同步事件（channel B：启动补偿 / 编辑重算 / 主动请求 / 空闲中）→ 刷 UI + 补记「当前运行段」起点
 function handleStateSync(_e: any, arg: any) {
   if (!arg || !arg.reminderId) return;
   const runtime = useTipsRuntime();
   runtime.applyPayload(arg);
+  // 空闲中（免打扰）同步：仅刷新 UI 标记，不写记录、不落库
+  if (arg.idle) return;
   // 小窗只消费 runtime 刷 UI，不写 curStatus / 不落库（与 handleStateEnter 一致）。
   if (isSecondWindow) return;
   if (!arg || typeof arg.stateKey !== "string") return;

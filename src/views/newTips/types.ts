@@ -18,12 +18,22 @@ export interface TipsState {
   continueLoop: number; // 1/0 非序列态结束后：1=继续未完成循环，0=开始新循环
 }
 
+// 空闲时间（免打扰时段）：每日固定时段，可配置多个。
+// 当前时间落在任一时段内时，该提醒不触发（定点/周期不通知、多状态不进入状态），
+// 空闲结束后立即开始新的或新一轮提醒。时段支持跨午夜（start > end，如 22:00-06:00）。
+export interface IdleTimeSlot {
+  start: string; // "HH:mm"
+  end: string; // "HH:mm"
+}
+
 export interface TipsReminder {
   id: string;
   mode: TipsMode;
   title: string;
   content: string;
   enabled: number; // 1/0
+  // 空闲时间（免打扰时段）：null / [] 表示不设置
+  idleTime?: IdleTimeSlot[] | null;
   // 开始时间（绝对毫秒时间戳）：首次生效 / 第 1 个状态进入基准；null = 立即
   startTime: number | null;
   // 定点模式

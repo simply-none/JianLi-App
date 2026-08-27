@@ -45,6 +45,8 @@
       <IntervalForm v-else-if="form.mode === 'interval'" :form="form" />
       <StatefulForm v-else-if="form.mode === 'stateful'" :form="form" />
 
+      <IdleTimeForm :form="form" />
+
       <div class="form-item">
         <span class="form-label">是否结束后记录</span>
         <div class="record-after-wrap">
@@ -66,6 +68,7 @@ import { ElMessage } from "element-plus";
 import TimeRuleForm from "./TimeRuleForm.vue";
 import IntervalForm from "./IntervalForm.vue";
 import StatefulForm from "./StatefulForm.vue";
+import IdleTimeForm from "./IdleTimeForm.vue";
 import type { TipsReminder, TipsState } from "../types";
 
 const props = defineProps<{
@@ -116,6 +119,7 @@ function defaultForm(): TipsReminder {
     recordAfter: 0,
     states: [],
     loop: 1,
+    idleTime: [],
   };
 }
 

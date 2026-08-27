@@ -51,6 +51,10 @@ function serialize(r: any) {
   row.loop = Number(r.loop) ? 1 : 0;
   row.states = r.states ? JSON.stringify(r.states) : null;
   row.weekDays = r.weekDays && r.weekDays.length ? JSON.stringify(r.weekDays) : null;
+  // 空闲时间（免打扰时段）：数组字段，以 JSON 字符串存库，格式 [{start:"HH:mm",end:"HH:mm"}]
+  row.idleTime = r.idleTime && Array.isArray(r.idleTime) && r.idleTime.length
+    ? JSON.stringify(r.idleTime)
+    : null;
   for (const k of ["startTime", "interval", "unit", "minute", "dayOfMonth", "month"]) {
     if (row[k] === undefined || row[k] === null || row[k] === "") row[k] = null;
     else row[k] = Number(row[k]);
@@ -85,7 +89,108 @@ function parse(row: any) {
   r.loop = Number(row.loop) === 1 ? 1 : 0;
   r.states = parseJsonField(row.states, []);
   r.weekDays = parseJsonField(row.weekDays, []);
+  r.idleTime = parseJsonField(row.idleTime, []);
   return r;
+}
+
+// ============================ 空闲时间（免打扰时段） ============================
+//
+// 数据形态：idleTime 为数组，元素为 { start: "HH:mm", end: "HH:mm" } 的每日固定时段。
+// 当前时间落在任一时段内 → 视为「空闲中」，该提醒不触发（定点/周期不通知；
+// 多状态不进入状态/不弹/不写）。空闲时段结束 → 立即开始新的或新一轮提醒。
+// 时段支持跨午夜（start > end，如 22:00-06:00）。
+
+// 将 "HH:mm" 转为当日分钟数；非法返回 -1
+function toMinOfDay(t?: string): number {
+  if (!t || typeof t !== "string") return -1;
+  const parts = t.split(":").map((n) => Number(n));
+  if (parts.length < 2 || parts.some((n) => isNaN(n))) return -1;
+  return parts[0] * 60 + parts[1];
+}
+
+// 判断给定时刻是否处于空闲时段内
+function isInIdlePeriod(idle: any, now: Date): boolean {
+  if (!Array.isArray(idle) || idle.length === 0) return false;
+  const cur = now.getHours() * 60 + now.getMinutes();
+  for (const w of idle) {
+    const s = toMinOfDay(w?.start);
+    const e = toMinOfDay(w?.end);
+    if (s < 0 || e < 0) continue;
+    if (s > e) {
+      // 跨午夜：晚段 [s,24) 或 早段 [0,e)
+      if (cur >= s || cur < e) return true;
+    } else if (s <= e) {
+      if (cur >= s && cur < e) return true;
+    }
+  }
+  return false;
+}
+
+// 若当前正处于某个空闲时段内，返回该时段结束的绝对时间戳（用于挂「空闲结束」唤醒定时器）；否则返回 null
+function nextIdleEnd(idle: any, now: Date): number | null {
+  if (!Array.isArray(idle) || idle.length === 0) return null;
+  const cur = now.getHours() * 60 + now.getMinutes();
+  const mk = (dayOffset: number, h: number, m: number) => {
+    const d = new Date(now);
+    d.setDate(d.getDate() + dayOffset);
+    d.setHours(h, m, 0, 0);
+    return d.getTime();
+  };
+  for (const w of idle) {
+    const s = toMinOfDay(w?.start);
+    const e = toMinOfDay(w?.end);
+    if (s < 0 || e < 0) continue;
+    if (s > e) {
+      // 跨午夜
+      if (cur >= s) return mk(1, Math.floor(e / 60), e % 60); // 晚段 → 次日结束
+      if (cur < e) return mk(0, Math.floor(e / 60), e % 60); // 早段 → 当日结束
+    } else if (s <= e) {
+      if (cur >= s && cur < e) return mk(0, Math.floor(e / 60), e % 60);
+    }
+  }
+  return null;
+}
+
+// 空闲结束唤醒：立即开始新的（定点/周期）或新一轮（多状态）
+function resumeAfterIdle(r: any): void {
+  const now = Date.now();
+  // 安全兜底：若仍处空闲（极端时钟漂移），重新挂唤醒
+  if (isInIdlePeriod(r.idleTime, new Date(now))) {
+    scheduleIdleWakeup(r);
+    return;
+  }
+  if (r.mode === "stateful") {
+    // 多状态：空闲结束立即重开新一轮。运行时已存在则重启轮次；否则（如冷启动即在空闲中、
+    // 从未建过运行时）直接启动，由 startStatefulReminder 进入首个状态。
+    if (statefulRT[r.id]) restartStatefulRound(r.id);
+    else startStatefulReminder(r);
+    return;
+  }
+  // 定点/周期：立即触发一次，并重新排程后续
+  broadcastTrigger({ ...r, triggerTime: now });
+  scheduleReminder(r);
+}
+
+// 挂「空闲结束」一次性唤醒定时器（key 与正常定时器区分，避免互相覆盖）
+function scheduleIdleWakeup(r: any): void {
+  const key = "idle-" + r.id;
+  if (timers[key]) return; // 已挂，去重
+  const end = nextIdleEnd(r.idleTime, new Date());
+  if (!end) return;
+  const delay = Math.max(0, end - Date.now());
+  timers[key] = setTimeout(() => {
+    delete timers[key];
+    resumeAfterIdle(r);
+  }, delay);
+}
+
+// 清除某提醒的空闲唤醒定时器
+function clearIdleWakeup(id: string): void {
+  const key = "idle-" + id;
+  if (timers[key]) {
+    clearTimeout(timers[key]);
+    delete timers[key];
+  }
 }
 
 // ============================ 广播 ============================
@@ -207,17 +312,18 @@ function stopReminder(id: string): void {
     clearInterval(timers[id] as any);
     delete timers[id];
   }
+  clearIdleWakeup(id); // 一并清理空闲唤醒定时器
   delete statefulRT[id];
 }
 
 function scheduleReminder(r: any): void {
-  // enabled=0：关闭后取消该提醒的全部执行（定时器 + 多状态运行时），
+  // enabled=0：关闭后取消该提醒的全部执行（定时器 + 多状态运行时 + 空闲唤醒），
   // 并下发 stopped 同步让渲染端 UI 复位。这是覆盖三种模式的单一拦截点：
   // stateful 不再 tick、time/interval 定时器被清、下次触发不再排程。
   if (!r.enabled) {
     const rt = statefulRT[r.id];
     const st = rt && rt.reminder && rt.reminder.states ? rt.reminder.states[rt.index] : null;
-    stopReminder(r.id); // 清定时器 + 删多状态运行时
+    stopReminder(r.id); // 清定时器 + 删多状态运行时 + 清空闲唤醒
     broadcastSync({
       reminderId: r.id,
       stopped: true,
@@ -226,6 +332,22 @@ function scheduleReminder(r: any): void {
     });
     return;
   }
+  // 重新排程前先清掉旧的空闲唤醒定时器，下面会按当前空闲状态重新评估
+  clearIdleWakeup(r.id);
+
+  // 空闲时段（免打扰）：不排程任何触发，仅挂「空闲结束」唤醒定时器。
+  // 空闲结束后由 resumeAfterIdle 立即开始新的（定点/周期）或新一轮（多状态）提醒。
+  if (r.idleTime?.length && isInIdlePeriod(r.idleTime, new Date())) {
+    scheduleIdleWakeup(r);
+    // 多状态：若已有运行时，停止其推进定时器并下发「空闲中」同步（不弹不记、不进入状态）
+    if (r.mode === "stateful" && statefulRT[r.id]) {
+      clearTimeout(timers[r.id]);
+      delete timers[r.id];
+      broadcastIdleSync(r.id, statefulRT[r.id]);
+    }
+    return;
+  }
+
   if (r.mode === "stateful") {
     const futureStart = Number(r.startTime) > Date.now();
     if (statefulRT[r.id] && !futureStart) {
@@ -255,6 +377,11 @@ function scheduleReminder(r: any): void {
     const gap = Number(r.interval) * Number(r.unit);
     if (!gap || gap <= 0) return;
     timers[r.id] = setInterval(() => {
+      // 空闲时段：本次不触发，挂唤醒定时器，空闲结束立即开始新一轮
+      if (isInIdlePeriod(r.idleTime, new Date())) {
+        scheduleIdleWakeup(r);
+        return;
+      }
       broadcastTrigger({ ...r, triggerTime: Date.now() });
     }, gap);
   } else if (r.mode === "time") {
@@ -262,6 +389,11 @@ function scheduleReminder(r: any): void {
     if (!next) return;
     const delay = Math.max(0, next - Date.now());
     timers[r.id] = setTimeout(() => {
+      // 空闲时段：本次不触发，挂唤醒定时器，空闲结束立即开始新一轮
+      if (isInIdlePeriod(r.idleTime, new Date())) {
+        scheduleIdleWakeup(r);
+        return;
+      }
       broadcastTrigger({ ...r, triggerTime: Date.now() });
       scheduleReminder(r); // 排下一次
     }, delay);
@@ -561,6 +693,18 @@ function startStatefulReminder(reminder: any) {
   const firstIdx = seqIdx[0];
   const now = Date.now();
 
+  // 空闲时段（免打扰）：不进入状态、不构建/推进运行时；仅挂唤醒定时器，
+  // 空闲结束由 resumeAfterIdle 重开新一轮。保持「空闲中（已暂停）」占位态。
+  if (reminder.idleTime?.length && isInIdlePeriod(reminder.idleTime, new Date(now))) {
+    scheduleIdleWakeup(reminder);
+    if (statefulRT[reminder.id]) {
+      clearTimeout(timers[reminder.id]);
+      delete timers[reminder.id];
+      broadcastIdleSync(reminder.id, statefulRT[reminder.id]);
+    }
+    return;
+  }
+
   if (!(reminder.startTime && !isNaN(reminder.startTime))) {
     reminder.startTime = now;
     persistReminder(reminder).catch(() => {});
@@ -628,9 +772,16 @@ function startStatefulReminder(reminder: any) {
 }
 
 // 进入指定状态并排程推进（channel A：状态进入=提醒到了）
-function emitStatefulEnter(id: string, index: number): void {
+// skipIdle=true 表示用户手动触发（强制切状态/解锁注入态/空闲结束恢复），绕过空闲免打扰闸。
+function emitStatefulEnter(id: string, index: number, skipIdle = false): void {
   const rt = statefulRT[id];
   if (!rt) return;
+  // 空闲时段：自动状态流转不触发，不进入状态、不弹、不记；挂唤醒定时器，空闲结束重开新一轮
+  if (!skipIdle && rt.reminder?.idleTime?.length && isInIdlePeriod(rt.reminder.idleTime, new Date())) {
+    scheduleIdleWakeup(rt.reminder);
+    broadcastIdleSync(id, rt); // 仅刷新 UI 为「空闲中」
+    return;
+  }
   const states = rt.reminder.states;
   const state = states[index];
   if (!state) return;
@@ -658,9 +809,16 @@ function emitStatefulEnter(id: string, index: number): void {
 }
 
 // 仅下发状态切换（不排程推进）：用于永久态（duration=0）进入
-function emitStatefulEvent(id: string, index: number, isInjected: boolean, nextTime: number | null): void {
+// skipIdle=true 表示用户手动触发（强制锁屏注入），绕过空闲免打扰闸。
+function emitStatefulEvent(id: string, index: number, isInjected: boolean, nextTime: number | null, skipIdle = false): void {
   const rt = statefulRT[id];
   if (!rt) return;
+  // 空闲时段：自动状态流转不触发；手动注入（skipIdle）可绕过
+  if (!skipIdle && rt.reminder?.idleTime?.length && isInIdlePeriod(rt.reminder.idleTime, new Date())) {
+    scheduleIdleWakeup(rt.reminder);
+    broadcastIdleSync(id, rt);
+    return;
+  }
   const states = rt.reminder.states;
   const state = states[index];
   if (!state) return;
@@ -674,6 +832,11 @@ function emitStatefulEvent(id: string, index: number, isInjected: boolean, nextT
 function emitCurrentStateful(id: string): void {
   const rt = statefulRT[id];
   if (!rt) return;
+  // 空闲时段：不下发真实状态，仅下发「空闲中」同步，让 UI 展示已暂停
+  if (rt.reminder?.idleTime?.length && isInIdlePeriod(rt.reminder.idleTime, new Date())) {
+    broadcastIdleSync(id, rt);
+    return;
+  }
   const states = rt.reminder.states;
   let state: any;
   let isInjected = false;
@@ -711,6 +874,7 @@ function computeNextState(rt: any, index: number, isInjected: boolean): { nextSt
 function buildPayload(rt: any, state: any, nextState: any, isInjected: boolean, nextTime: number | null) {
   return {
     reminderId: rt.reminder.id,
+    idle: false,
     stateKey: state.key,
     stateLabel: state.label,
     nextStateKey: nextState ? nextState.key : null,
@@ -722,6 +886,35 @@ function buildPayload(rt: any, state: any, nextState: any, isInjected: boolean, 
     content: state.content && String(state.content).trim() ? state.content : `${state.label}提醒到了`,
     recordable: Number(state.record) !== 0,
   };
+}
+
+// 下发「空闲中」同步（channel B）：用于空闲时段内让渲染端展示「空闲中（已暂停）」，
+// 不弹通知、不写记录、不进入状态。仅作 UI 刷新用途。
+function broadcastIdleSync(id: string, rt: any) {
+  if (!rt || !rt.reminder) return;
+  const states = rt.reminder.states;
+  let state: any;
+  let isInjected = false;
+  if (rt.injected) {
+    state = rt.injected.state;
+    isInjected = true;
+  } else {
+    state = states?.[rt.index];
+  }
+  broadcastSync({
+    reminderId: id,
+    idle: true,
+    stateKey: state ? state.key : null,
+    stateLabel: state ? state.label : null,
+    nextStateKey: null,
+    nextStateLabel: null,
+    stateStartTime: rt.startedAt,
+    nextTime: null,
+    injected: isInjected,
+    title: rt.reminder.title || "提醒",
+    content: "",
+    recordable: 0,
+  });
 }
 
 function rescheduleStatefulAdvance(id: string): void {
@@ -771,7 +964,7 @@ function forceReminderState(reminderId: string, stateKey: string): void {
   rt.startedAt = Date.now();
   const gap = Number(rt.reminder.states[idx].duration) * Number(rt.reminder.states[idx].unit);
   rt.nextTime = gap > 0 ? rt.startedAt + gap : null;
-  emitStatefulEnter(reminderId, idx);
+  emitStatefulEnter(reminderId, idx, true); // 用户手动强制切状态，绕过空闲免打扰
 }
 
 // 运行时强制插入一个非序列状态（如强制锁屏）
@@ -786,7 +979,7 @@ function injectStatefulState(reminderId: string, stateKey: string): void {
   rt.startedAt = Date.now();
   const gap = Number(state.duration) * Number(state.unit);
   rt.nextTime = gap > 0 ? rt.startedAt + gap : null;
-  emitStatefulEvent(reminderId, idx, true, rt.nextTime);
+  emitStatefulEvent(reminderId, idx, true, rt.nextTime, true); // 用户手动注入，绕过空闲免打扰
   // 有确定时长（非永久）的注入态：到点自动归位
   if (gap > 0) {
     if (timers[reminderId]) {
@@ -813,7 +1006,7 @@ function endInjectedState(reminderId: string): void {
     rt.startedAt = Date.now();
     const gap = Number(rt.reminder.states[resumeIndex].duration) * Number(rt.reminder.states[resumeIndex].unit);
     rt.nextTime = gap > 0 ? rt.startedAt + gap : null;
-    emitStatefulEnter(reminderId, resumeIndex);
+    emitStatefulEnter(reminderId, resumeIndex, true); // 用户手动解锁，绕过空闲免打扰
   } else {
     // 开始新循环（锁屏解锁后的默认行为）
     const seqIdx = sequentialIndices(rt.reminder);
@@ -826,7 +1019,7 @@ function endInjectedState(reminderId: string): void {
     rt.startedAt = Date.now();
     const gap = Number(rt.reminder.states[firstIdx].duration) * Number(rt.reminder.states[firstIdx].unit);
     rt.nextTime = gap > 0 ? rt.startedAt + gap : null;
-    emitStatefulEnter(reminderId, firstIdx);
+    emitStatefulEnter(reminderId, firstIdx, true); // 用户手动解锁，绕过空闲免打扰
   }
 }
 
@@ -857,7 +1050,7 @@ export function restartStatefulRound(reminderId = "pomodoro"): void {
   rt.startedAt = Date.now();
   const gap = Number(rt.reminder.states[firstIdx].duration) * Number(rt.reminder.states[firstIdx].unit);
   rt.nextTime = gap > 0 ? rt.startedAt + gap : null;
-  emitStatefulEnter(reminderId, firstIdx);
+  emitStatefulEnter(reminderId, firstIdx, true); // 空闲结束/手动重开：绕过空闲免打扰，立即进入首状态
 }
 
 // 渲染端请求当前状态（补偿启动竞态）

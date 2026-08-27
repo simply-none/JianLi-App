@@ -21,6 +21,15 @@
         <el-tag v-if="item.recordAfter" size="small" type="warning" effect="plain" class="record-tag">
           记录
         </el-tag>
+        <el-tag
+          v-if="item.idleTime && item.idleTime.length"
+          size="small"
+          type="info"
+          effect="plain"
+          class="idle-tag"
+        >
+          免打扰{{ item.idleTime.length }}段
+        </el-tag>
         <el-switch
           :model-value="item.enabled"
           :active-value="1"
@@ -78,6 +87,7 @@ function runtimeByItem(id: string) {
     stateStartTime: runtime.stateStartTime,
     injected: !!runtime.injected,
     stopped: !!runtime.stopped,
+    idle: !!runtime.idle,
   };
 }
 
@@ -197,6 +207,9 @@ function subInfoText(item: TipsReminder): string {
       : "（本次开始时间：立即）";
   if (item.mode === "stateful") {
     const rt = runtimeByItem(item.id);
+    if (rt?.idle) {
+      return `空闲中（已暂停，免打扰时段内不打扰）；空闲结束后立即开始新一轮${startTimeText}`;
+    }
     if (!rt || rt.stopped) {
       return `当前状态：—，下一个状态：—的提醒时间为 —${startTimeText}`;
     }
@@ -316,6 +329,7 @@ function modeTagText(mode?: string): string {
 }
 .mode-tag { flex-shrink: 0; }
 .record-tag { flex-shrink: 0; }
+.idle-tag { flex-shrink: 0; }
 .reminder-actions {
   display: flex;
   gap: 6px;

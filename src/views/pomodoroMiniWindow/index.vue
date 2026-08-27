@@ -81,11 +81,13 @@ const statusClass = computed(() => {
 });
 
 const statusLabel = computed(() => {
+  if (runtime.idle) return '空闲中';
   const status = runtime.currentStateKey;
   return status === 'work' ? '工作中' : '休息中';
 });
 
 const statusSubtitle = computed(() => {
+  if (runtime.idle) return '免打扰时段';
   const status = runtime.currentStateKey;
   return status === 'work' ? '距离休息' : '距离工作';
 });
@@ -181,8 +183,9 @@ function countDown() {
   timer = setInterval(() => {
     const nextTimeTs = runtime.nextStateTime;
     // 序列已结束（nextTime 为 null，如停止态/非序列永久态）：显示等待，等主进程下发新状态
-    if (!nextTimeTs) {
-      nextDiffTime.value = '等待中...';
+    // 空闲中（免打扰时段）：显示「空闲中」，不跑倒计时
+    if (!nextTimeTs || runtime.idle) {
+      nextDiffTime.value = runtime.idle ? '空闲中' : '等待中...';
       progressPercentValue.value = 0;
       return;
     }

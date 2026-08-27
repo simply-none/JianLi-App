@@ -21,6 +21,8 @@ export default defineStore("tips-runtime", () => {
   const injected = ref<boolean>(false);
   // 是否已停止
   const stopped = ref<boolean>(false);
+  // 是否处于「空闲中（免打扰）」：由主进程在空闲时段内下发 idle:true 同步，UI 据此展示已暂停
+  const idle = ref<boolean>(false);
 
   function setNextStateTime(t: number | null) {
     nextStateTime.value = t;
@@ -46,6 +48,9 @@ export default defineStore("tips-runtime", () => {
   function setStopped(v: boolean) {
     stopped.value = v;
   }
+  function setIdle(v: boolean) {
+    idle.value = v;
+  }
 
   // 主进程下发的状态 payload 写入运行时（A/B 通道共用）
   function applyPayload(arg: any) {
@@ -58,6 +63,8 @@ export default defineStore("tips-runtime", () => {
     setNextStateLabel(arg.nextStateLabel ?? null);
     setInjected(!!arg.injected);
     setStopped(!!arg.stopped);
+    // idle 仅在主进程显式下发 idle:true 时置位；其余 payload（含 idle:false，正常状态流转）复位为空闲中标记
+    setIdle(!!arg.idle);
   }
 
   function resetRuntime() {
@@ -69,6 +76,7 @@ export default defineStore("tips-runtime", () => {
     nextStateLabel.value = null;
     injected.value = false;
     stopped.value = false;
+    idle.value = false;
   }
 
   return {
@@ -80,6 +88,7 @@ export default defineStore("tips-runtime", () => {
     nextStateLabel,
     injected,
     stopped,
+    idle,
     setNextStateTime,
     setStateStartTime,
     setActiveId,
@@ -88,6 +97,7 @@ export default defineStore("tips-runtime", () => {
     setNextStateLabel,
     setInjected,
     setStopped,
+    setIdle,
     applyPayload,
     resetRuntime,
   };
