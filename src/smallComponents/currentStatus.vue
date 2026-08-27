@@ -5,7 +5,7 @@
         当前状态
       </div>
       <div class="value">
-        {{ currentEnabled ? curStatusC.label : '番茄钟已关闭' }}
+        {{ statusText }}
       </div>
     </div>
   </draggableContainer>
@@ -53,13 +53,19 @@ const computedPosition = computed({
   set() { }
 })
 
-const { homeModeOpsC, curStatusC } = storeToRefs(useGlobalSetting());
+const { homeModeOpsC, curStatusC, isIdleNow } = storeToRefs(useGlobalSetting());
 // 番茄钟总开关：enabled=1 开启时显示当前状态；enabled=0 关闭时显示「番茄钟已关闭」
 const reminderStore = useNewReminder();
 const { remindersC } = storeToRefs(reminderStore);
 const currentEnabled = computed(() => {
   const p = remindersC.value.find((r) => r.id === 'pomodoro');
   return p ? p.enabled === 1 : true;
+});
+// 空闲（免打扰）时段：展示「空闲中」替代番茄钟状态文案
+const statusText = computed(() => {
+  if (isIdleNow.value) return '空闲中（免打扰时段）';
+  if (!currentEnabled.value) return '番茄钟已关闭';
+  return curStatusC.value?.label || '正在工作';
 });
 
 function updateFn(position) {

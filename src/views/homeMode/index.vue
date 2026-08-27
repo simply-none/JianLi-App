@@ -93,6 +93,28 @@
         </div>
       </div>
     </div>
+
+    <!-- 空闲模式：空闲（免打扰）时段对应的皮肤方案 -->
+    <div class="mode-card idle-card">
+      <div class="mode-card-header">
+        <div class="mode-card-icon">
+          <LucideIcon name="Moon" :size="22" />
+        </div>
+        <div class="mode-card-title">空闲模式</div>
+      </div>
+      <div class="mode-options">
+        <div
+          v-for="item in homeModeOpsCc"
+          :key="item.value"
+          class="mode-option"
+          :class="{ active: homeModeCc.idle.value === item.value }"
+          :title="item.label"
+          @click="selectMode('idle', item.value)"
+        >
+          <div class="mode-option-label">{{ item.label }}</div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -203,6 +225,11 @@ function changeHomeMode(key: StatusMode) {
   &.lock-card .mode-card-icon {
     background: linear-gradient(135deg, rgba(230, 162, 60, 0.15), rgba(245, 108, 108, 0.15));
     color: #e6a23c;
+  }
+
+  &.idle-card .mode-card-icon {
+    background: linear-gradient(135deg, rgba(144, 147, 153, 0.15), rgba(96, 98, 102, 0.15));
+    color: #909399;
   }
 }
 

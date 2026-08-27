@@ -38,10 +38,12 @@ const props = defineProps({
 const widgetDrawerRef = ref()
 const styleDrawerRef = ref()
 
-const { homeModeC, curStatusC } = storeToRefs(useGlobalSetting());
+const { homeModeC, curStatusC, isIdleNow } = storeToRefs(useGlobalSetting());
 const { setHomeMode } = useGlobalSetting();
 const homeModeCc = ref(JSON.parse(JSON.stringify(homeModeC.value || {})))
 const modeData = ref({})
+// 空闲（免打扰）时段内改用 homeMode 的 idle 皮肤方案；否则沿用当前番茄钟状态（work/rest/lock/screen）
+const activeHomeModeKey = computed(() => isIdleNow.value ? 'idle' : (curStatusC.value?.value || 'work'));
 
 // 新建缺省 homeMode 条目的默认值（与 store 中 originHomeModeOps[0] 对齐）
 const originHomeModeValue = (homeModeC.value && Object.values(homeModeC.value)[0]?.value) || '1'
@@ -62,9 +64,9 @@ const currentSmallComps = computed(() => {
   })
 })
 
-watch(() => homeModeC.value[curStatusC.value.value] || {}, (n, o) => {
+watch(() => homeModeC.value[activeHomeModeKey.value] || {}, (n, o) => {
   homeModeCc.value = JSON.parse(JSON.stringify(homeModeC.value || {}))
-  const curKey = curStatusC.value.value
+  const curKey = activeHomeModeKey.value
   const curEntry = homeModeCc.value[curKey] || {}
   // 状态 key 缺失时安全降级为空布局，不崩
   const md = (curEntry.mode || {})[curEntry.value] || {}
@@ -109,7 +111,7 @@ function updatePosition(e, name) {
 
 function updateDataFn(e, name) {
   // 确保当前状态 key 在 homeModeCc 中存在（双保险，理论上已被 alignHomeModeKeys 补齐）
-  const curKey = curStatusC.value.value
+  const curKey = activeHomeModeKey.value
   if (!homeModeCc.value[curKey]) {
     homeModeCc.value[curKey] = { value: originHomeModeValue, mode: {} }
   }

@@ -31,6 +31,7 @@ import LayoutClassic from './layouts/LayoutClassic.vue';
 import LayoutFlip from './layouts/LayoutFlip.vue';
 import useTipsRuntime from '@/store/useTipsRuntime';
 import useNewReminder from '@/store/useNewReminder';
+import { isInIdlePeriod } from '@/utils/idleTime';
 import { setupTipsBridge } from '@/hooks/useTipsBridge';
 
 // 复用与主窗口一致的番茄钟运行时 store（时间线完全由主进程 stateful 引擎下发，杜绝旧锚点漂移）
@@ -38,6 +39,12 @@ const runtime = useTipsRuntime()
 // 读取番茄钟提醒的 enabled 开关，作为 props 下发给各 layout 组件（关闭时各 layout 显示「番茄钟已关闭」）
 const reminderStore = useNewReminder()
 const pomodoroReminder = computed(() => reminderStore.reminders.find((r) => r.id === 'pomodoro'))
+// 空闲（免打扰）判定：优先按提醒配置 idleTime + 当前时间本地推导（确定性、与主窗口/列表统一）；
+// 同时兼容主进程下发的 runtime.idle，任一为真即视为空闲中。nowRef 随倒计时刷新，确保跨过空闲边界时即时响应。
+const nowRef = ref(Date.now())
+const isIdleNow = computed(() =>
+  isInIdlePeriod(pomodoroReminder.value?.idleTime, new Date(nowRef.value)) || runtime.idle
+)
 // 综合「本地提醒表 enabled」与「主进程下发 stopped 同步」判定是否开启：
 // - 冷启动读 enabled 字段，覆盖「打开小窗时番茄钟已被关闭」、主进程无状态下发的情形；
 // - 主窗口切换开关时，主进程下发 stopped 同步（关闭）或状态进入（开启），据此刷新本地表，实现跨窗口同步。
@@ -81,13 +88,13 @@ const statusClass = computed(() => {
 });
 
 const statusLabel = computed(() => {
-  if (runtime.idle) return '空闲中';
+  if (isIdleNow.value) return '空闲中';
   const status = runtime.currentStateKey;
   return status === 'work' ? '工作中' : '休息中';
 });
 
 const statusSubtitle = computed(() => {
-  if (runtime.idle) return '免打扰时段';
+  if (isIdleNow.value) return '免打扰时段';
   const status = runtime.currentStateKey;
   return status === 'work' ? '距离休息' : '距离工作';
 });
@@ -181,11 +188,12 @@ function countDown() {
   }
 
   timer = setInterval(() => {
+    nowRef.value = Date.now();
     const nextTimeTs = runtime.nextStateTime;
     // 序列已结束（nextTime 为 null，如停止态/非序列永久态）：显示等待，等主进程下发新状态
     // 空闲中（免打扰时段）：显示「空闲中」，不跑倒计时
-    if (!nextTimeTs || runtime.idle) {
-      nextDiffTime.value = runtime.idle ? '空闲中' : '等待中...';
+    if (!nextTimeTs || isIdleNow.value) {
+      nextDiffTime.value = isIdleNow.value ? '空闲中' : '等待中...';
       progressPercentValue.value = 0;
       return;
     }

@@ -5,11 +5,23 @@ import { basicInfoTable, getStore, send, sendSync, setPomodoroStatus, setStore }
 import moment from "moment";
 import usePomodoroDisplay from "@/store/usePomodoroDisplay";
 import useTipsRuntime from "@/store/useTipsRuntime";
+import useNewReminder from "@/store/useNewReminder";
+import { isInIdlePeriod } from "@/utils/idleTime";
 import { initPiniaStatus, type defaultField } from "@/utils/store";
 
 export const prefix = 'curStatusInfo'
 
-export type StatusMode = "work" | "rest" | "screen" | "lock";
+// 空闲（免打扰）时段全局判定：基于番茄钟提醒的 idleTime 配置 + 每秒刷新的时钟，
+// 空闲边界（开始/结束）即时切换。模块级单例，全应用仅一个定时器。
+const idleNow = ref(Date.now());
+let idleClockStarted = false;
+function startIdleClock() {
+  if (idleClockStarted) return;
+  idleClockStarted = true;
+  setInterval(() => { idleNow.value = Date.now(); }, 1000);
+}
+
+export type StatusMode = "work" | "rest" | "screen" | "lock" | "idle";
 
 interface Status {
   label?: string;
@@ -41,6 +53,15 @@ export default defineStore("global-setting", () => {
   // 当前的状态
   const curStatus = ref<Status>({});
   const curStatusC = computed(() => curStatus.value);
+  // 空闲（免打扰）判定：当前时间落在番茄钟提醒配置的 idleTime 时段内；
+  // 渲染端统一按此判定（确定性），并兼容主进程下发的 runtime.idle 事件。
+  const reminderStoreIdle = useNewReminder();
+  const { remindersC: idleRemindersC } = storeToRefs(reminderStoreIdle);
+  const isIdleNow = computed(() => {
+    const p: any = idleRemindersC.value.find((r: any) => r.id === "pomodoro");
+    return isInIdlePeriod(p?.idleTime, new Date(idleNow.value));
+  });
+  startIdleClock();
   function setCurStatus(status?: Status, record = true, startTime?: number) {
     if (!status) {
       const key = tipsRuntime.currentStateKey;
@@ -212,7 +233,7 @@ export default defineStore("global-setting", () => {
 
   // 内置状态 key 集合：番茄钟 work/rest/lock + 历史遗留 screen（全屏/锁屏态）。
   // 这些 key 在 homeMode 中必须永远存在，缺失会触发 watch 取值崩溃。
-  const BUILTIN_STATUS_KEYS = ["work", "rest", "screen", "lock"];
+  const BUILTIN_STATUS_KEYS = ["work", "rest", "screen", "lock", "idle"];
 
   /**
    * 将 homeMode 的 key 集合与番茄钟 states / 当前运行状态对齐：
@@ -402,6 +423,7 @@ export default defineStore("global-setting", () => {
           rest: originHomeModeOps[0],
           screen: originHomeModeOps[0],
           lock: originHomeModeOps[0],
+          idle: originHomeModeOps[0],
         },
         map: homeMode,
       },
@@ -506,6 +528,7 @@ export default defineStore("global-setting", () => {
     alignHomeModeKeys,
     // getters
     curStatusC,
+    isIdleNow,
     forceWorkTimesC,
     todayForceWorkTimesC,
     isStartupC,

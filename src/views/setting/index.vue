@@ -8,21 +8,41 @@
             番茄钟设置
           </h2>
 
-          <template v-if="currentEnabled">
+          <!-- 番茄钟已关闭：与「空闲中」同级，均不显示工作/休息时长编辑 -->
+          <template v-if="!currentEnabled">
+            <div class="status-card">
+              <div class="status-disabled">
+                <LucideIcon name="CircleX" :size="20" class="status-disabled-icon" />
+                <span class="status-disabled-text">番茄钟已关闭</span>
+              </div>
+            </div>
+          </template>
+
+          <!-- 空闲时段（免打扰）：与「番茄钟已关闭」同级，不显示工作/休息时长编辑 -->
+          <template v-else-if="isIdleNow">
+            <div class="status-card">
+              <div class="status-disabled">
+                <LucideIcon name="Moon" :size="20" class="status-idle-icon" />
+                <span class="status-idle-text">空闲中（免打扰时段）</span>
+              </div>
+            </div>
+          </template>
+
+          <template v-else>
 
             <div class="status-card">
               <div class="status-left">
                 
                 <div class="status-indicator-wrapper">
-                  <div class="status-indicator" :class="currentStateKey === 'rest' ? 'rest' : 'work'">
-                    <LucideIcon name="Coffee" :size="20" class="status-icon" v-if="currentStateKey === 'rest'" />
+                  <div class="status-indicator" :class="displayStateKey === 'rest' ? 'rest' : 'work'">
+                    <LucideIcon name="Coffee" :size="20" class="status-icon" v-if="displayStateKey === 'rest'" />
                     <LucideIcon name="Timer" :size="20" class="status-icon" v-else />
                   </div>
-                  <div class="status-ring" :class="currentStateKey === 'rest' ? 'rest' : 'work'"></div>
+                  <div class="status-ring" :class="displayStateKey === 'rest' ? 'rest' : 'work'"></div>
                 </div>
                 <div class="status-text">
-                  <div class="status-title">{{ stateLabel || (currentStateKey === 'rest' ? '休息' : '工作') }}</div>
-                  <div class="status-desc">{{ currentStateKey === 'rest' ? '正在休息中' : '正在工作中' }}</div>
+                  <div class="status-title">{{ displayTitle }}</div>
+                  <div class="status-desc">{{ displayDesc }}</div>
                 </div>
                 
               </div>
@@ -94,14 +114,6 @@
                 <LucideIcon name="StarCheck" />
                 立即生效
               </el-button>
-            </div>
-          </template>
-          <template v-else>
-             <div class="status-card">
-              <div  class="status-disabled">
-                <LucideIcon name="CircleX" :size="20" class="status-disabled-icon" />
-                <span class="status-disabled-text">番茄钟已关闭</span>
-              </div>
             </div>
           </template>
         </div>
@@ -262,6 +274,7 @@ import useClearStore from '@/hooks/useClearStore';
 import useGlobalSetting from '@/store/useGlobalSetting';
 import useNewReminder from '@/store/useNewReminder';
 import useTipsRuntime from '@/store/useTipsRuntime';
+import { isInIdlePeriod } from '@/utils/idleTime';
 import { requestTipsState } from '@/hooks/useTipsBridge';
 import { storeToRefs } from 'pinia';
 import { timeUnit } from '@/utils/time';
@@ -273,7 +286,22 @@ const { forceWorkWithTimes, forceToState } = useTipsActions();
 const reminderStore = useNewReminder();
 const { remindersC } = storeToRefs(reminderStore);
 const { updateReminder } = reminderStore;
-const { nextStateTime, nextStateLabel, currentStateKey, stateLabel } = storeToRefs(useTipsRuntime());
+const runtime = useTipsRuntime();
+const { nextStateTime, nextStateLabel, currentStateKey, stateLabel } = storeToRefs(runtime);
+
+// 空闲（免打扰）判定：优先按提醒配置 idleTime + 当前时间本地推导（确定性、三端统一、不依赖事件推送时机）；
+// 同时兼容主进程下发的 runtime.idle，任一为真即视为空闲中。
+const isIdleNow = computed(() =>
+  isInIdlePeriod(pomodoro.value?.idleTime, new Date(nowRef.value)) || runtime.idle
+);
+// 展示用的状态标题/描述/类别：空闲中统一覆盖工作/休息
+const displayTitle = computed(() =>
+  isIdleNow.value ? '空闲中' : (stateLabel.value || (currentStateKey.value === 'rest' ? '休息' : '工作'))
+);
+const displayDesc = computed(() =>
+  isIdleNow.value ? '免打扰时段' : (currentStateKey.value === 'rest' ? '正在休息中' : '正在工作中')
+);
+const displayStateKey = computed(() => isIdleNow.value ? 'idle' : currentStateKey.value);
 const { setForceWorkTimes, setIsStartup, setGlobalFont, setGlobalFontEN } = useGlobalSetting();
 const { isStartupC, forceWorkTimesC, todayForceWorkTimesC, globalFontC, globalFontENC, globalFontOpsC } = storeToRefs(useGlobalSetting());
 
@@ -310,6 +338,7 @@ let clockTimer: ReturnType<typeof setInterval> | null = null;
 // 下次切换的权威时间由主进程算好下发，绝不会是「过去的时间」；
 // 倒计时基于 nowRef 实时计算，mm:ss 显示
 const nextSwitchText = computed(() => {
+  if (isIdleNow.value) return '空闲中';
   if (!nextStateTime.value) return '未开始';
   const diff = nextStateTime.value - nowRef.value;
   if (diff <= 0) return '即将切换';
@@ -323,6 +352,7 @@ const nextSwitchText = computed(() => {
 
 // 时间下方文案：将切换为【下一状态】状态
 const switchHintText = computed(() => {
+  if (isIdleNow.value) return '免打扰时段（已暂停）';
   if (!nextStateTime.value) return '尚未开始';
   const name = nextStateLabel.value || '下一';
   return `将切换为【${name}】状态`;
@@ -559,6 +589,16 @@ onUnmounted(() => {
           font-weight: 500;
           color: var(--text-secondary);
         }
+
+        .status-idle-icon {
+          color: #909399;
+        }
+
+        .status-idle-text {
+          font-size: 15px;
+          font-weight: 500;
+          color: #909399;
+        }
       }
     }
 
@@ -590,6 +630,11 @@ onUnmounted(() => {
         background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
         .status-icon { color: #fff; }
       }
+
+      &.idle {
+        background: linear-gradient(135deg, #909399 0%, #b0b3b8 100%);
+        .status-icon { color: #fff; }
+      }
     }
 
     .status-ring {
@@ -606,6 +651,10 @@ onUnmounted(() => {
 
       &.rest {
         border-color: rgba(245, 87, 108, 0.3);
+      }
+
+      &.idle {
+        border-color: rgba(144, 147, 153, 0.3);
       }
     }
 

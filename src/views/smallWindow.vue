@@ -38,6 +38,8 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import useTipsRuntime from '@/store/useTipsRuntime';
 import { useTipsActions } from '@/store/useTipsActions';
+import { useNewReminder } from '@/store/useNewReminder';
+import { isInIdlePeriod } from '@/utils/idleTime';
 import { storeToRefs } from 'pinia';
 import LucideIcon from '@/components/LucideIcon.vue';
 
@@ -47,40 +49,54 @@ const timer = ref(null);
 // 番茄钟运行时（多状态提醒）由主进程驱动，这里仅做展示
 const runtime = useTipsRuntime();
 const { currentStateKey, nextStateTime, stateStartTime } = storeToRefs(runtime);
+const reminderStore = useNewReminder();
+const pomodoroReminder = computed(() => reminderStore.reminders.find((r) => r.id === 'pomodoro'));
+// 空闲（免打扰）判定：按提醒配置 idleTime + 当前时间本地推导（确定性、与其它端统一）；
+// 同时兼容主进程下发的 runtime.idle。nowRef 随倒计时刷新，跨过空闲边界即时响应。
+const nowRef = ref(Date.now());
+const isIdleNow = computed(() =>
+  isInIdlePeriod(pomodoroReminder.value?.idleTime, new Date(nowRef.value)) || runtime.idle
+);
 
 // 第二窗口是独立渲染进程，需自行注册状态监听并拉取当前状态
 const { registerGlobalListener, unregisterGlobalListener } = useTipsActions();
 
 const statusIcon = computed(() => {
+  if (isIdleNow.value) return 'Moon';
   if (currentStateKey.value === 'work') return 'timer';
   if (currentStateKey.value === 'lock') return 'lock';
   return 'coffee';
 });
 
 const statusClass = computed(() => {
+  if (isIdleNow.value) return 'status-idle';
   if (currentStateKey.value === 'work') return 'status-work';
   if (currentStateKey.value === 'lock') return 'status-lock';
   return 'status-rest';
 });
 
 const statusLabel = computed(() => {
+  if (isIdleNow.value) return '空闲中';
   if (currentStateKey.value === 'work') return '工作中';
   if (currentStateKey.value === 'lock') return '锁屏中';
   return '休息中';
 });
 
 const nextTimeLabel = computed(() => {
+  if (isIdleNow.value) return '免打扰';
   if (currentStateKey.value === 'work') return '下次休息';
   if (currentStateKey.value === 'lock') return '结束后回到';
   return '下次工作';
 });
 
 const nextTimeValue = computed(() => {
+  if (isIdleNow.value) return '时段内不打扰';
   if (!nextStateTime.value) return '--:--';
   return new Date(nextStateTime.value).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
 });
 
 const countdownLabel = computed(() => {
+  if (isIdleNow.value) return '状态';
   if (currentStateKey.value === 'work') return '距离休息';
   if (currentStateKey.value === 'lock') return '距离解锁';
   return '距离工作';
@@ -89,6 +105,7 @@ const countdownLabel = computed(() => {
 const countdownValue = ref('00:00:00');
 
 const progressPercent = computed(() => {
+  if (isIdleNow.value) return 0;
   const now = Date.now();
   const start = stateStartTime.value || now;
   const end = nextStateTime.value || now;
@@ -110,6 +127,11 @@ function countDown(time) {
 }
 
 function updateCountdown() {
+  nowRef.value = Date.now(); // 驱动空闲边界的响应式刷新（跨过空闲段即时响应）
+  if (isIdleNow.value) {
+    countdownValue.value = '空闲中';
+    return;
+  }
   countdownValue.value = countDown(nextStateTime.value);
 }
 
@@ -205,6 +227,26 @@ function toSetting() {
 
     .countdown-value {
       color: #e65100;
+    }
+  }
+
+  &.status-idle {
+    background: linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%);
+
+    .status-icon {
+      background: linear-gradient(135deg, #9e9e9e 0%, #757575 100%);
+    }
+
+    .status-label {
+      color: #616161;
+    }
+
+    .progress-fill {
+      background: linear-gradient(90deg, #9e9e9e 0%, #bdbdbd 100%);
+    }
+
+    .countdown-value {
+      color: #616161;
     }
   }
 }

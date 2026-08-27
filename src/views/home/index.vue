@@ -50,13 +50,13 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 
 const router = useRouter();
 const isHiddenHomeBtns = ref(false)
-const { homeModeC } = storeToRefs(useGlobalSetting());
+const { homeModeC, isIdleNow } = storeToRefs(useGlobalSetting());
 const { currentStateKey } = storeToRefs(useTipsRuntime());
 const { startScreenSaverFn, closeScreenSaverFn, injectState, endInjectedState } = useTipsActions();
 const { isPwdSame, isStoredPasswordDecryptable } = useSafetyProtection();
 const curComponent = shallowRef(custom)
 
-watch(() => (homeModeC.value[currentStateKey.value] || {}), (n, o) => {
+watch(() => (homeModeC.value[isIdleNow.value ? 'idle' : currentStateKey.value] || {}), (n, o) => {
   console.log(n, o, 'homeModeC')
   // 状态 key 缺失配置时（理论上已被 alignHomeModeKeys 补齐）安全降级，不崩
   const modeValue = n?.value

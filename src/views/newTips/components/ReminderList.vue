@@ -66,6 +66,7 @@
 import { computed } from "vue";
 import LucideIcon from "@/components/LucideIcon.vue";
 import useTipsRuntime from "@/store/useTipsRuntime";
+import { isInIdlePeriod } from "@/utils/idleTime";
 import type { TipsReminder } from "../types";
 
 const props = defineProps<{ reminders: TipsReminder[] }>();
@@ -205,11 +206,14 @@ function subInfoText(item: TipsReminder): string {
     item.startTime && !isNaN(item.startTime)
       ? `（本次开始时间：${fmt(item.startTime)}）`
       : "（本次开始时间：立即）";
+  // 空闲（免打扰）时段：与番茄钟设置页/小窗统一显示「空闲中」，覆盖所有模式（定点/周期/多状态）。
+  // 按提醒配置 idleTime + 当前时间本地推导，确定性一致，不依赖主进程事件是否准时到达。
+  if (isInIdlePeriod(item.idleTime)) {
+    const tail = item.mode === "stateful" ? "；空闲结束后立即开始新一轮" : "；空闲结束后立即开始下一次提醒";
+    return `空闲中（免打扰时段）${tail}${startTimeText}`;
+  }
   if (item.mode === "stateful") {
     const rt = runtimeByItem(item.id);
-    if (rt?.idle) {
-      return `空闲中（已暂停，免打扰时段内不打扰）；空闲结束后立即开始新一轮${startTimeText}`;
-    }
     if (!rt || rt.stopped) {
       return `当前状态：—，下一个状态：—的提醒时间为 —${startTimeText}`;
     }

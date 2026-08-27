@@ -66,7 +66,7 @@ const {
   nextRestTime,
   nextWorkTime,
 } = storeToRefs(useWorkOrRestStore());
-const { homeModeOpsC, curStatusC } = storeToRefs(useGlobalSetting());
+const { homeModeOpsC, curStatusC, isIdleNow } = storeToRefs(useGlobalSetting());
 // 番茄钟总开关：enabled=1 开启时保持原有倒计时逻辑；enabled=0 关闭时改为展示系统时间（不再倒计时）
 const reminderStore = useNewReminder();
 const { remindersC } = storeToRefs(reminderStore);
@@ -90,6 +90,11 @@ function updateFn(position) {
 
 onMounted(() => {
   timer.value = setInterval(() => {
+    // 空闲（免打扰）时段：展示当前时间，不做倒计时
+    if (isIdleNow.value) {
+      toNextTime.value = moment().format('HH:mm:ss');
+      return;
+    }
     // 番茄钟已关闭：直接展示系统时间，不再做倒计时
     if (!currentEnabled.value) {
       toNextTime.value = moment().format('HH:mm:ss');

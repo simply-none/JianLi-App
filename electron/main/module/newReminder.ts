@@ -151,6 +151,36 @@ function nextIdleEnd(idle: any, now: Date): number | null {
   return null;
 }
 
+// 若当前未在空闲时段内，返回「下一个空闲时段开始」的绝对时间戳（用于在空闲开始
+// 那一刻即时挂起，而不是等到下一个状态边界才被空闲闸捕获，避免「继续上一轮」）。
+// 已在空闲中时返回 null（无需监听开始）。
+function nextIdleStart(idle: any, now: Date): number | null {
+  if (!Array.isArray(idle) || idle.length === 0) return null;
+  if (isInIdlePeriod(idle, now)) return null; // 已在空闲中
+  const cur = now.getHours() * 60 + now.getMinutes();
+  const mk = (dayOffset: number, h: number, m: number) => {
+    const d = new Date(now);
+    d.setDate(d.getDate() + dayOffset);
+    d.setHours(h, m, 0, 0);
+    return d.getTime();
+  };
+  let best: number | null = null;
+  for (const w of idle) {
+    const s = toMinOfDay(w?.start);
+    const e = toMinOfDay(w?.end);
+    if (s < 0 || e < 0) continue;
+    let ts: number;
+    if (s > e) {
+      // 跨午夜：当前在 (e, s) 区间（必不在空闲中）→ 今天晚段开始
+      ts = cur < s ? mk(0, Math.floor(s / 60), s % 60) : mk(1, Math.floor(s / 60), s % 60);
+    } else {
+      ts = cur < s ? mk(0, Math.floor(s / 60), s % 60) : mk(1, Math.floor(s / 60), s % 60);
+    }
+    if (best == null || ts < best) best = ts;
+  }
+  return best;
+}
+
 // 空闲结束唤醒：立即开始新的（定点/周期）或新一轮（多状态）
 function resumeAfterIdle(r: any): void {
   const now = Date.now();
@@ -924,6 +954,35 @@ function rescheduleStatefulAdvance(id: string): void {
   }
   const rt = statefulRT[id];
   if (!rt || rt.injected || !rt.nextTime) return;
+
+  // 空闲时段（免打扰）：不排程推进。若本状态结束前会先进入空闲，则把推进定时器
+  // 提前到「空闲开始」那一刻触发，触发后立即挂起并显示「空闲中」，以免空闲期间
+  // 仍按上一轮继续倒计时（即「继续上一轮」）。空闲结束仍由 resumeAfterIdle 重开新一轮。
+  const idle = rt.reminder?.idleTime;
+  if (Array.isArray(idle) && idle.length) {
+    const now = Date.now();
+    if (isInIdlePeriod(idle, new Date(now))) {
+      scheduleIdleWakeup(rt.reminder); // 补挂空闲结束唤醒（幂等）
+      broadcastIdleSync(id, rt); // 已在空闲中：立即挂起，不下发真实状态
+      return;
+    }
+    const idleStart = nextIdleStart(idle, new Date(now));
+    if (idleStart != null && idleStart < rt.nextTime) {
+      const delay = Math.max(0, idleStart - now);
+      timers[id] = setTimeout(() => {
+        delete timers[id];
+        // 时间漂移校验：此刻确实进入空闲才挂起，否则重新评估
+        if (isInIdlePeriod(idle, new Date())) {
+          scheduleIdleWakeup(rt.reminder); // 挂「空闲结束」唤醒，空闲结束重开新一轮
+          broadcastIdleSync(id, rt); // 挂起：显示「空闲中（已暂停）」
+        } else {
+          rescheduleStatefulAdvance(id);
+        }
+      }, delay);
+      return;
+    }
+  }
+
   const delay = Math.max(0, rt.nextTime - Date.now());
   timers[id] = setTimeout(() => advanceStateful(id), delay);
 }
