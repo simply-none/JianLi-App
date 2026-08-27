@@ -68,6 +68,8 @@ interface InsertOptions {
   config?: {
     /** 主键字段名，默认为 id */
     primaryKey?: string;
+    /** 主键类型，INTEGER 或 TEXT，缺省按主键名推导（id→INTEGER，其它→TEXT） */
+    primaryKeyType?: "INTEGER" | "TEXT";
   };
 }
 
@@ -280,7 +282,7 @@ export async function count(tableName: string, condition?: Record<string, any>):
       if (err) {
         reject(err);
       } else {
-        resolve(row?.count || 0);
+        resolve((row as any)?.count || 0);
       }
     });
   });
@@ -944,7 +946,7 @@ async function ensureTableColumns(
   config?: { primaryKey?: string; primaryKeyType?: "INTEGER" | "TEXT" }
 ) {
   return new Promise<void>((resolve, reject) => {
-    db.get(`SELECT sql FROM sqlite_master WHERE type='table' AND name='${tableName}'`, async (err, result) => {
+    db.get(`SELECT sql FROM sqlite_master WHERE type='table' AND name='${tableName}'`, async (err, result: any) => {
       if (err) return reject(err);
 
       const pk = config?.primaryKey || 'id';

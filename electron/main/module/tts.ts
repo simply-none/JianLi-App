@@ -24,7 +24,7 @@ interface TTSOptions {
 function getSystemVoices(): Promise<string[]> {
   return new Promise((resolve, reject) => {
     try {
-      say.getInstalledVoices((err, voices) => {
+      (say as any).getInstalledVoices((err: any, voices: any) => {
         if (err) {
           reject(new Error(typeof err === 'string' ? err : '获取语音列表失败'));
         } else {
@@ -65,7 +65,7 @@ function speakSystem(text: string, options: TTSOptions = {}): Promise<void> {
 function stopSystem(): Promise<void> {
   return new Promise((resolve) => {
     try {
-      say.stop(() => {
+      (say as any).stop(() => {
         resolve();
       });
     } catch (err) {

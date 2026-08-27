@@ -287,7 +287,7 @@ export async function upsertData({
           stmt.run(values, function(err) {
             if (err) {
               // SQLITE_BUSY 错误重试
-              if (err.code === 'SQLITE_BUSY') {
+              if ((err as any).code === 'SQLITE_BUSY') {
                 setTimeout(() => {
                   stmt.run(values, function(retryErr) {
                     retryErr ? reject(retryErr) : resolve(this);

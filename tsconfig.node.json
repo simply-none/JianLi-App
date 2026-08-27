@@ -5,7 +5,8 @@
     "moduleResolution": "NodeNext",
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true
   },
   "include": ["vite.config.ts", "package.json", "electron", "public/worker.mjs"]
 }

@@ -388,12 +388,12 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     },
   },
   on(...args: Parameters<typeof ipcRenderer.on>) {
-    const [channel, listener] = args
-    return ipcRenderer.on(channel, (event, ...args) => listener(event, ...args))
+    const [channel, listener] = args as [string, (event: any, ...rest: any[]) => void]
+    return ipcRenderer.on(channel, (event, ...rest) => listener(event, ...rest))
   },
   once(...args: Parameters<typeof ipcRenderer.once>) {
-    const [channel, listener] = args
-    return ipcRenderer.once(channel, (event, ...args) => listener(event, ...args))
+    const [channel, listener] = args as [string, (event: any, ...rest: any[]) => void]
+    return ipcRenderer.once(channel, (event, ...rest) => listener(event, ...rest))
   },
   off(...args: Parameters<typeof ipcRenderer.off>) {
     const [channel, ...omit] = args

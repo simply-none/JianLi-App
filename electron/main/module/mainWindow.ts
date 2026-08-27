@@ -165,7 +165,7 @@ export function initMainWindow() {
     }
   })
 
-  win.webContents.setWindowOpenHandler(({ url, webContents }) => {
+  win.webContents.setWindowOpenHandler(({ url }) => {
     // if (webContents && webContents.id !== win.webContents.id) {
     //   return { action: "allow" };
     // }

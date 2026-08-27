@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, shell, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, shell, ipcMain } from "electron";
 import fs from "fs";
 import axios from "axios";
 import moment from "moment";
@@ -518,7 +518,7 @@ interface ListFolderArgs {
   page?: number;           // 1 起；pageSize<=0 时忽略，返回全部
   pageSize?: number;       // <=0 或省略 => 返回全部（用于动作时全量构建 renameItems）
 }
-export function listFolder(args: ListFolderArgs): { items: ListFolderItem[]; total: number } {
+export function listFolder(args: ListFolderArgs): { items: ListFolderItem[]; total: number; totalSize: number } {
   const {
     dir,
     recursive = false,

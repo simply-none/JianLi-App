@@ -105,7 +105,7 @@ async function crawlWeather(cityName: string): Promise<WeatherData | null> {
     let weatherHtml: string = '';
 
     for (const stepa of steps) {
-      const step = stepa.data || stepa;
+      const step = (stepa as any).data || stepa;
       const handleType = step.handleType;
 
       switch (handleType) {
@@ -340,7 +340,7 @@ async function locatorStep(mystep: any, page: puppeteer.Page) {
         break;
 
       case 'scroll':
-        await locator.scroll({ scrollTop: step.scrollTop || 300, scrollLeft: step.scrollLeft || 300 });
+        await (locator as any).scroll({ scrollTop: step.scrollTop || 300, scrollLeft: step.scrollLeft || 300 });
         break;
 
       case 'wait':
