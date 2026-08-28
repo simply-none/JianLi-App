@@ -133,7 +133,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, PropType } from 'vue';
-import RichTextEditor from '@/smallComponents/RichTextEditor.vue';
+import RichTextEditor from '@/components/RichTextEditor.vue';
 import { notePlainText } from '@/utils/noteContent';
 import LucideIcon from '@/components/LucideIcon.vue';
 

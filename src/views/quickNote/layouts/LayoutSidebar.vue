@@ -94,7 +94,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, PropType } from 'vue';
-import RichTextEditor from '@/smallComponents/RichTextEditor.vue';
+import RichTextEditor from '@/components/RichTextEditor.vue';
 import LucideIcon from '@/components/LucideIcon.vue';
 import { notePlainText } from '@/utils/noteContent';
 import moment from 'moment';

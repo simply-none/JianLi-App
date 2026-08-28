@@ -64,7 +64,7 @@ import useGlobalSetting from '@/store/useGlobalSetting';
 import useWorkOrRestStore from '@/store/usePomodoroDisplay';
 import moment from 'moment';
 import { v4 as uuidv4 } from 'uuid';
-import RichTextEditor from '@/smallComponents/RichTextEditor.vue';
+import RichTextEditor from '@/components/RichTextEditor.vue';
 import { ElMessage } from 'element-plus';
 import { stripHtml } from '@/utils/noteContent';
 import { formatDate, getMonthRange, groupByDate } from '@/utils/time';

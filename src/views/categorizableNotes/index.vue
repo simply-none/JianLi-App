@@ -164,7 +164,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
 import { storeToRefs } from 'pinia';
-import RichTextEditor from '@/smallComponents/RichTextEditor.vue';
+import RichTextEditor from '@/components/RichTextEditor.vue';
 import { ElMessage } from 'element-plus';
 import LucideIcon from '@/components/LucideIcon.vue';
 import { v4 as uuidv4 } from 'uuid';

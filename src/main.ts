@@ -14,7 +14,7 @@ import './lib/heti.min.css'
 import { initDevtools } from './utils/devtools'
 
 import LucideIcon from './components/LucideIcon.vue'
-import AppDialog from './smallComponents/AppDialog.vue'
+import AppDialog from './components/AppDialog.vue'
 
 const isSecondWindow = location.href.includes('isSecondWindow=true')
 if (!isSecondWindow) {

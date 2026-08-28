@@ -44,7 +44,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue';
-import RichTextEditor from '@/smallComponents/RichTextEditor.vue';
+import RichTextEditor from '@/components/RichTextEditor.vue';
 import { ElMessage, ElDialog } from 'element-plus';
 import { v4 as uuidv4 } from 'uuid';
 import moment from 'moment';

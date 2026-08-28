@@ -103,7 +103,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import RichTextEditor from '@/smallComponents/RichTextEditor.vue';
+import RichTextEditor from '@/components/RichTextEditor.vue';
 import LucideIcon from '@/components/LucideIcon.vue';
 
 const props = defineProps({
