@@ -36,6 +36,9 @@ import { AlarmClock, AlarmClockCheck, AlarmClockMinus, AlarmClockPlus, ArrowDown
   RotateCcw,
   CircleEllipsis,
   Home,
+  XIcon,
+  MaximizeIcon,
+  MinimizeIcon,
  } from '@lucide/vue';
 import { ref } from 'vue';
 import { getLightColor } from '@/utils';
@@ -143,7 +146,9 @@ let nameMap = ref<Record<any, any>>({
   Webcam,
   Wand,
   MapPin,
-  
+  XIcon,
+  MaximizeIcon,
+  MinimizeIcon,
   Database,
   WebcamOff,
   Share2,

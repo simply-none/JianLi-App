@@ -1,5 +1,5 @@
 <template>
-  <el-dialog
+  <app-dialog
     :model-value="visible"
     :title="isEdit ? '编辑待办事项' : '新建待办事项'"
     width="500px"
@@ -132,7 +132,7 @@
       <el-button @click="handleClose">取消</el-button>
       <el-button type="primary" @click="handleSave">保存</el-button>
     </template>
-  </el-dialog>
+  </app-dialog>
 </template>
 
 <script setup lang="ts">

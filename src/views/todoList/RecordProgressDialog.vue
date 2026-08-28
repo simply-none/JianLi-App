@@ -1,5 +1,5 @@
 <template>
-  <el-dialog
+  <app-dialog
     :model-value="visible"
     title="记录待办进展"
     width="460px"
@@ -26,7 +26,7 @@
       <el-button @click="handleClose">取消</el-button>
       <el-button type="primary" :loading="saving" @click="handleSave">保存记录</el-button>
     </template>
-  </el-dialog>
+  </app-dialog>
 </template>
 
 <script setup lang="ts">

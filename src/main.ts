@@ -14,6 +14,7 @@ import './lib/heti.min.css'
 import { initDevtools } from './utils/devtools'
 
 import LucideIcon from './components/LucideIcon.vue'
+import AppDialog from './smallComponents/AppDialog.vue'
 
 const isSecondWindow = location.href.includes('isSecondWindow=true')
 if (!isSecondWindow) {
@@ -27,6 +28,7 @@ app.use(ElementPlus)
 app.use(router)
 app.use(pinia)
 app.component('LucideIcon', LucideIcon)
+app.component('AppDialog', AppDialog)
 
 app.mount('#app').$nextTick(() => {
   postMessage({ payload: 'removeLoading' }, '*')

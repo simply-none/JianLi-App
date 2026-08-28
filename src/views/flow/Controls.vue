@@ -205,7 +205,7 @@ function layoutInit(direction: string, mode: string, note: HTMLElement | null = 
       </button>
     </div>
   </Panel>
-  <el-dialog v-model="dialogVisible" :title="title" width="600">
+  <app-dialog v-model="dialogVisible" :title="title" width="600">
     <el-form :model="form">
       <el-form-item label="流程名称" prop="name">
         <el-input v-model="form.name" placeholder="请输入流程名称" />
@@ -216,9 +216,9 @@ function layoutInit(direction: string, mode: string, note: HTMLElement | null = 
       <el-button type="primary" @click="onSave">保存</el-button>
       <el-button type="success" @click="onSave(true)">另存为</el-button>
     </template>
-  </el-dialog>
+  </app-dialog>
   <!-- 获取所有的流程 -->
-  <el-dialog v-model="dialogVisibleFlow" title="获取所有的流程" width="600">
+  <app-dialog v-model="dialogVisibleFlow" title="获取所有的流程" width="600">
     <el-table :max-height="400" :data="flowList" style="width: 100%">
       <el-table-column prop="name" label="流程名称" />
       <el-table-column prop="time" label="创建时间" />
@@ -230,7 +230,7 @@ function layoutInit(direction: string, mode: string, note: HTMLElement | null = 
         </template>
       </el-table-column>
     </el-table>
-  </el-dialog>
+  </app-dialog>
 </template>
 
 <style  lang="scss">

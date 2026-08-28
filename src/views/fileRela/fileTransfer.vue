@@ -208,13 +208,13 @@
       </div>
     </div>
 
-    <el-dialog v-model="progressVisible" :title="phase === 'rename' ? '转移后重命名进度' : '文件转移进度'" width="440px" :close-on-click-modal="false" :close-on-press-escape="false" :show-close="false" append-to-body>
+    <app-dialog v-model="progressVisible" :title="phase === 'rename' ? '转移后重命名进度' : '文件转移进度'" width="440px" :close-on-click-modal="false" :close-on-press-escape="false" append-to-body>
       <div class="progress-body">
         <el-progress :percentage="progressPercent" :stroke-width="14" />
         <div class="progress-meta">已处理 {{ progressCurrent }} / {{ progressTotal }} 项</div>
         <div class="progress-current" :title="progressCurrentPath">{{ progressCurrentPath || '准备中…' }}</div>
       </div>
-    </el-dialog>
+    </app-dialog>
   </div>
 </template>
 

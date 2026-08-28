@@ -86,7 +86,7 @@
     </div>
 
     <!-- 新建/编辑主题弹窗 -->
-    <el-dialog
+    <app-dialog
       v-model="dialogVisible"
       :title="editingId ? '编辑主题' : '新建主题'"
       width="420px"
@@ -103,7 +103,7 @@
         <el-button @click="dialogVisible = false">取消</el-button>
         <el-button type="primary" @click="submit">确定</el-button>
       </template>
-    </el-dialog>
+    </app-dialog>
 
     <!-- 主题右键上下文菜单：修改 / 删除 -->
     <Teleport to="body">

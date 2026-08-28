@@ -81,7 +81,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <el-dialog :model-value="modelValue" title="复制到文件夹" width="560px" :close-on-click-modal="false" @update:model-value="(v:any)=>close()" @close="close">
+  <app-dialog :model-value="modelValue" title="复制到文件夹" width="560px" :close-on-click-modal="false" @update:model-value="(v:any)=>close()" @close="close">
     <div class="copy-dialog">
       <div class="row">
         <span class="lbl">目标</span>
@@ -124,7 +124,7 @@ onUnmounted(() => {
       <el-button @click="close" :disabled="copying">关闭</el-button>
       <el-button type="primary" @click="start" :disabled="copying || !files.length">开始复制</el-button>
     </template>
-  </el-dialog>
+  </app-dialog>
 </template>
 
 <style scoped lang="scss">

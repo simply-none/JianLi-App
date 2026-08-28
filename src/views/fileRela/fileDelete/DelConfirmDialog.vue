@@ -48,7 +48,7 @@ function onCancel() {
 </script>
 
 <template>
-  <el-dialog
+  <app-dialog
     :model-value="modelValue"
     title="确认删除"
     width="460px"
@@ -95,7 +95,7 @@ function onCancel() {
         确认删除
       </el-button>
     </template>
-  </el-dialog>
+  </app-dialog>
 </template>
 
 <style scoped lang="scss">

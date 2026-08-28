@@ -132,7 +132,7 @@
     </div>
 
     <!-- 引用选择器 -->
-    <el-dialog v-model="refDialog" title="引用历史对话" width="480px" append-to-body>
+    <app-dialog v-model="refDialog" title="引用历史对话" width="480px" append-to-body>
       <div class="ref-list">
         <div
           v-for="c in conversations"
@@ -152,7 +152,7 @@
       <template #footer>
         <el-button @click="refDialog = false">完成</el-button>
       </template>
-    </el-dialog>
+    </app-dialog>
   </div>
 </template>
 

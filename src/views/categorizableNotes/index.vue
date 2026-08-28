@@ -718,4 +718,9 @@ onMounted(async () => {
     min-height: 0;
   }
 }
+
+:deep(.el-dialog__body) {
+  display: flex;
+  flex-direction: column;
+}
 </style>

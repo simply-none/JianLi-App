@@ -47,13 +47,12 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <el-dialog
+  <app-dialog
     v-model="visible"
     title="文件删除进度"
     width="440px"
     :close-on-click-modal="false"
     :close-on-press-escape="false"
-    :show-close="false"
     append-to-body
   >
     <div class="progress-body">
@@ -61,7 +60,7 @@ onUnmounted(() => {
       <div class="progress-meta">已删除 {{ current }} / {{ total }} 项</div>
       <div class="progress-current" :title="currentPath">{{ currentPath || '准备中…' }}</div>
     </div>
-  </el-dialog>
+  </app-dialog>
 </template>
 
 <style scoped lang="scss">

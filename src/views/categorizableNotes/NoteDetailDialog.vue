@@ -1,5 +1,5 @@
 <template>
-  <el-dialog
+  <app-dialog
     v-model="dialogVisible"
     :title="isEdit ? '编辑笔记' : '查看笔记'"
     width="80%"
@@ -7,24 +7,19 @@
     class="note-detail-dialog"
     destroy-on-close
   >
-    <template #header>
-      <div class="dialog-header">
-        <span class="dialog-title">{{ isEdit ? '编辑笔记' : '查看笔记' }}</span>
-        <div class="dialog-tags">
-          <TagSelector v-model="selectedTags" placeholder="选择标签" v-if="isEdit" />
-          <div v-else class="view-tags">
-            <span
-              v-for="tag in viewTags"
-              :key="tag.key"
-              class="view-tag"
-              :style="{ backgroundColor: tag.color + '20', color: tag.color }"
-            >
-              {{ tag.name }}
-            </span>
-          </div>
-        </div>
+    <div class="dialog-tags">
+      <TagSelector v-model="selectedTags" placeholder="选择标签" v-if="isEdit" />
+      <div v-else class="view-tags">
+        <span
+          v-for="tag in viewTags"
+          :key="tag.key"
+          class="view-tag"
+          :style="{ backgroundColor: tag.color + '20', color: tag.color }"
+        >
+          {{ tag.name }}
+        </span>
       </div>
-    </template>
+    </div>
 
     <div class="dialog-content">
       <RichTextEditor
@@ -44,7 +39,7 @@
         <el-button v-else type="primary" @click="handleSaveBtn">保存</el-button>
       </div>
     </template>
-  </el-dialog>
+  </app-dialog>
 </template>
 
 <script setup>
@@ -252,7 +247,8 @@ async function handleSave(v, h) {
 .dialog-content {
   box-sizing: border-box;
   min-height: 400px;
-  max-height: 70vh;
+  // max-height: 70vh;
+  flex: 1;
   overflow: auto;
 }
 

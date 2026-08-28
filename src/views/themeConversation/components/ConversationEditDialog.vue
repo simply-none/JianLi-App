@@ -1,5 +1,5 @@
 <template>
-  <el-dialog
+  <app-dialog
     v-model="visible"
     title="编辑对话"
     width="640px"
@@ -107,7 +107,7 @@
       <el-button type="danger" plain @click="onDelete">删除</el-button>
       <el-button type="primary" @click="onSave">保存</el-button>
     </template>
-  </el-dialog>
+  </app-dialog>
 
   <!-- 跨主题引用选择抽屉：排除被编辑对话自身所属主题，并预选已有跨主题引用 -->
   <CrossThemeRefDialog

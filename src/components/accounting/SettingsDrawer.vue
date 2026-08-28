@@ -95,7 +95,7 @@
   </el-drawer>
 
   <!-- 分类新增/编辑弹框 -->
-  <el-dialog v-model="catDialogVisible" :title="catEditingName ? '编辑分类' : '新增分类'" width="320px" align-center
+  <app-dialog v-model="catDialogVisible" :title="catEditingName ? '编辑分类' : '新增分类'" width="320px" align-center
     append-to-body>
     <div class="cat-form">
       <label class="cf-row">
@@ -124,7 +124,7 @@
       <el-button size="small" @click="catDialogVisible = false">取消</el-button>
       <el-button size="small" type="primary" @click="saveCategory">保存</el-button>
     </template>
-  </el-dialog>
+  </app-dialog>
 </template>
 
 <script setup lang="ts">

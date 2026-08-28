@@ -1,5 +1,5 @@
 <template>
-  <el-dialog
+  <app-dialog
     :model-value="modelValue"
     title="记录情绪"
     width="460px"
@@ -48,7 +48,7 @@
       <el-button @click="emit('update:modelValue', false)">取消</el-button>
       <el-button type="primary" :loading="saving" @click="onSave">保存记录</el-button>
     </template>
-  </el-dialog>
+  </app-dialog>
 </template>
 
 <script setup lang="ts">

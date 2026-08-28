@@ -65,7 +65,7 @@
     </div>
 
     <!-- 模糊匹配不上时的确认弹窗 -->
-    <el-dialog
+    <app-dialog
       v-model="confirmVisible"
       title="股票可能不存在"
       width="360px"
@@ -80,7 +80,7 @@
         <el-button @click="onConfirmCancel">取消</el-button>
         <el-button type="primary" @click="onConfirmContinue">继续查询</el-button>
       </template>
-    </el-dialog>
+    </app-dialog>
   </div>
 </template>
 

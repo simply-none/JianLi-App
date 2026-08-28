@@ -5,7 +5,7 @@
       查看默认应用
     </el-button>
 
-    <el-dialog v-model="dialogVisible" title="默认应用" width="600px">
+    <app-dialog v-model="dialogVisible" title="默认应用" width="600px">
       <!-- v-loading 必须挂到真实 DOM 元素上，不能挂在 ElDialog 组件上，否则触发
            "Runtime directive used on component with non-element root node" 警告且加载遮罩失效 -->
       <div v-loading="loading" class="app-list-wrap">
@@ -23,7 +23,7 @@
         <el-button @click="refreshApps">刷新</el-button>
         <el-button @click="dialogVisible = false">关闭</el-button>
       </template>
-    </el-dialog>
+    </app-dialog>
   </div>
 </template>
 

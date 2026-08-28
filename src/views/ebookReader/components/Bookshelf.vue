@@ -104,7 +104,7 @@
     </div>
 
     <!-- 分类管理弹窗：新增 / 删除 / 改名 / 改色 -->
-    <el-dialog v-model="manageVisible" title="管理分类" width="440px" append-to-body>
+    <app-dialog v-model="manageVisible" title="管理分类" width="440px" append-to-body>
       <div class="cat-manage">
         <div class="cat-add">
           <el-color-picker v-model="newCatColor" size="small" />
@@ -141,10 +141,10 @@
           <div v-if="categories.length === 0" class="cat-empty">暂无分类，先添加一个吧</div>
         </div>
       </div>
-    </el-dialog>
+    </app-dialog>
 
     <!-- 书籍分类弹窗：支持搜索、可滚动的多选（分类过多时也能有效展示） -->
-    <el-dialog
+    <app-dialog
       v-model="catDialogVisible"
       title="设置分类"
       width="380px"
@@ -181,7 +181,7 @@
         <el-button size="small" @click="catDialogVisible = false">取消</el-button>
         <el-button size="small" type="primary" @click="saveBookCats">保存</el-button>
       </template>
-    </el-dialog>
+    </app-dialog>
 
     <!-- 空书架提示 -->
     <div v-if="items.length === 0" class="bookshelf-empty">

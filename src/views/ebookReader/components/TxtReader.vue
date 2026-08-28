@@ -86,7 +86,7 @@
     />
 
     <!-- 笔记编辑弹窗：编辑笔记时可在底部直接删除对应划线 -->
-    <el-dialog
+    <app-dialog
       v-model="noteDialogVisible"
       title="编辑笔记"
       width="400px"
@@ -112,7 +112,7 @@
           </div>
         </div>
       </template>
-    </el-dialog>
+    </app-dialog>
 
     <!-- 已有划线操作菜单：点击划线后弹出，提供「转为笔记」「删除」两个操作 -->
     <AnnotationActionMenu

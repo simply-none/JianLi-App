@@ -1,5 +1,5 @@
 <template>
-  <el-dialog
+  <app-dialog
     v-model="visible"
     title="发起子主题"
     width="440px"
@@ -28,7 +28,7 @@
       <el-button @click="visible = false">取消</el-button>
       <el-button type="primary" :disabled="!formTitle.trim()" @click="submit">创建子主题</el-button>
     </template>
-  </el-dialog>
+  </app-dialog>
 </template>
 
 <script setup lang="ts">

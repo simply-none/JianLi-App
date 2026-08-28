@@ -31,7 +31,7 @@ function close() {
 </script>
 
 <template>
-  <el-dialog :model-value="modelValue" title="资源展示" width="680px" @update:model-value="(v:any)=>close()" @close="close">
+  <app-dialog :model-value="modelValue" title="资源展示" width="680px" @update:model-value="(v:any)=>close()" @close="close">
     <div class="show-res" v-if="item">
       <template v-if="isImage">
         <el-image :src="imgSrc" class="res-image" fit="contain" />
@@ -43,7 +43,7 @@ function close() {
         <el-button type="primary" @click="openFile">打开文件</el-button>
       </div>
     </div>
-  </el-dialog>
+  </app-dialog>
 </template>
 
 <style scoped lang="scss">

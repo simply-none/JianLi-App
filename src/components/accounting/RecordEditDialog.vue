@@ -5,7 +5,7 @@
  * 分类改为平铺展示（图标 + 名称的 chip，点选即选中，当前项高亮），避免下拉无数据问题。
 -->
 <template>
-  <el-dialog
+  <app-dialog
     :model-value="modelValue"
     title="编辑记录"
     width="420px"
@@ -80,7 +80,7 @@
       <el-button @click="$emit('update:modelValue', false)">取消</el-button>
       <el-button type="primary" @click="onSave">保存</el-button>
     </template>
-  </el-dialog>
+  </app-dialog>
 </template>
 
 <script setup lang="ts">

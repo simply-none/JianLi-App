@@ -144,13 +144,12 @@
       </div>
     </div>
 
-    <el-dialog
+    <app-dialog
       v-model="progressVisible"
       :title="isUndoing ? '撤销重命名进度' : '文件重命名进度'"
       width="440px"
       :close-on-click-modal="false"
       :close-on-press-escape="false"
-      :show-close="false"
       append-to-body
     >
       <div class="progress-body">
@@ -158,7 +157,7 @@
         <div class="progress-meta">已重命名 {{ progressCurrent }} / {{ progressTotal }} 项</div>
         <div class="progress-current" :title="progressCurrentPath">{{ progressCurrentPath || '准备中…' }}</div>
       </div>
-    </el-dialog>
+    </app-dialog>
   </div>
 </template>
 

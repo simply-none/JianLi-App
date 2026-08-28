@@ -73,7 +73,7 @@
         </div>
 
         <!-- 预览对话框 -->
-        <el-dialog
+        <app-dialog
           v-model="previewVisible"
           :title="previewTitle"
           width="80%"
@@ -120,7 +120,7 @@
               </el-button>
             </div>
           </div>
-        </el-dialog>
+        </app-dialog>
       </div>
     </template>
   </layout-vue>

@@ -1,5 +1,5 @@
 <template>
-  <el-dialog
+  <app-dialog
     v-model="visibleModel"
     :title="isEdit ? '编辑提醒' : '新增提醒'"
     width="520px"
@@ -59,7 +59,7 @@
       <el-button @click="visibleModel = false">取消</el-button>
       <el-button type="primary" @click="submit">确定</el-button>
     </template>
-  </el-dialog>
+  </app-dialog>
 </template>
 
 <script setup lang="ts">

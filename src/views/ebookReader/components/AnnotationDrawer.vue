@@ -128,7 +128,7 @@
     </div>
 
     <!-- 书架来源的笔记编辑弹窗（书未打开时无法复用阅读组件，用独立弹窗编辑） -->
-    <el-dialog
+    <app-dialog
       v-model="shelfNoteEditVisible"
       title="编辑笔记"
       width="420px"
@@ -146,7 +146,7 @@
         <el-button size="small" @click="shelfNoteEditVisible = false">取消</el-button>
         <el-button type="primary" size="small" @click="onSaveNote">保存</el-button>
       </template>
-    </el-dialog>
+    </app-dialog>
   </el-drawer>
 </template>
 
