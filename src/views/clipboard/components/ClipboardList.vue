@@ -1,15 +1,16 @@
 <template>
-  <!-- 剪贴板列表（原子组件）：滚动分页 + 空态 + 批量删除工具条 -->
+  <!-- 剪贴板列表（原子组件）：虚拟滚动 + 空态 + 批量删除工具条 -->
   <div class="clipboard-content">
-    <el-scrollbar ref="scrollbarRef" class="content-scrollbar" @scroll="handleScroll">
-      <div v-if="items.length === 0 && !loading" class="empty-state">
-        <el-empty description="暂无剪贴板记录" />
-      </div>
-
-      <div v-else class="content-list">
+    <VirtualList
+      :items="items"
+      item-key="id"
+      :estimated-item-height="120"
+      :gap="12"
+      :loading="loading"
+      @reach-end="$emit('load-more')"
+    >
+      <template #default="{ item }">
         <ClipboardCard
-          v-for="item in items"
-          :key="item.id"
           :item="item"
           :selected="item.id != null && selectedIds.includes(item.id)"
           :keyword="keyword"
@@ -17,12 +18,18 @@
           @delete="$emit('delete', $event)"
           @toggle-select="$emit('toggle-select', $event)"
         />
-      </div>
+      </template>
 
-      <div v-if="loading" class="loading-state">加载中...</div>
-    </el-scrollbar>
+      <template #empty>
+        <el-empty description="暂无剪贴板记录" />
+      </template>
 
-    <!-- 批量删除工具条：选中后出现 -->
+      <template #footer>
+        <div v-if="loading" class="loading-state">加载中...</div>
+      </template>
+    </VirtualList>
+
+    <!-- 批量删除工具条：选中后出现（浮在滚动区之上，不随内容滚动） -->
     <div v-if="selectedIds.length > 0" class="batch-bar">
       <span class="batch-count">已选 {{ selectedIds.length }} 项</span>
       <div class="batch-actions">
@@ -37,7 +44,6 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
 import LucideIcon from '@/components/LucideIcon.vue'
 import ClipboardCard from './ClipboardCard.vue'
 import type { ClipboardItem } from '../types'
@@ -59,21 +65,6 @@ const emit = defineEmits<{
   (e: 'delete-selected'): void
   (e: 'clear-selection'): void
 }>()
-
-const scrollbarRef = ref<any>(null)
-
-// 滚动到底部加载更多
-function handleScroll() {
-  const scrollbar = scrollbarRef.value
-  if (!scrollbar) return
-  const wrap = scrollbar.wrapRef
-  if (!wrap) return
-  const { scrollTop, scrollHeight, clientHeight } = wrap
-  const distance = 100
-  if (scrollTop + clientHeight + distance >= scrollHeight) {
-    emit('load-more')
-  }
-}
 </script>
 
 <style scoped lang="scss">
@@ -81,24 +72,6 @@ function handleScroll() {
   flex: 1;
   min-height: 0;
   position: relative;
-
-  .content-scrollbar {
-    height: 100%;
-  }
-
-  .empty-state {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-  }
-
-  .content-list {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: 4px 0;
-  }
 
   .loading-state {
     text-align: center;
@@ -121,6 +94,7 @@ function handleScroll() {
     border: 1px solid var(--border-subtle);
     border-radius: 999px;
     box-shadow: var(--shadow-card);
+    z-index: 2;
 
     .batch-count {
       font-size: 13px;
