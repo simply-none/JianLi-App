@@ -42,6 +42,9 @@ export const RouteNames = {
   TODO_LIST: "todoList",
   TODO_MINI_WINDOW: "todoMiniWindow",
   CLIPBOARD_MINI_WINDOW: "clipboardMiniWindow",
+  // 命令面板小窗：路由名必须与主进程 createOtherWindow 的 arg 一致，
+  // 因为 createOtherWindow 直接用 arg 拼 hash 路由（#${arg}?isSecondWindow=true）
+  COMMAND_PALETTE: "commandPaletteMiniWindow",
   ACCOUNTING: "accounting",
   ACCOUNTING_MINI: "accountingMini",
   TTS_TEST: "ttsTest",
@@ -350,6 +353,12 @@ const routers: RouteRecordRaw[] = [
     path: "/clipboardMiniWindow",
     name: RouteNames.CLIPBOARD_MINI_WINDOW,
     component: () => import("@/views/clipboardMiniWindow/index.vue"),
+  },
+  {
+    // 命令面板小窗：路径必须与主进程 createOtherWindow 的 arg 一致
+    path: "/commandPaletteMiniWindow",
+    name: RouteNames.COMMAND_PALETTE,
+    component: () => import("@/views/commandPalette/index.vue"),
   },
   {
     path: "/accountingMini",

@@ -41,6 +41,12 @@ import { AlarmClock, AlarmClockCheck, AlarmClockMinus, AlarmClockPlus, ArrowDown
   MinimizeIcon,
   RotateCcwIcon,
   OrbitIcon,
+  // 命令面板用图标
+  Command,
+  LoaderCircle,
+  LayoutGrid,
+  ListPlus,
+  Circle,
  } from '@lucide/vue';
 import { ref } from 'vue';
 import { getLightColor } from '@/utils';
@@ -78,6 +84,12 @@ withDefaults(
 let nameMap = ref<Record<any, any>>({
   Fullscreen,
   Undo2,
+  // 命令面板用图标
+  Command,
+  LoaderCircle,
+  LayoutGrid,
+  ListPlus,
+  Circle,
   Maximize2,
   Minimize2,
   // 其他图标可以在这里添加

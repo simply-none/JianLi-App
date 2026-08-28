@@ -8,6 +8,17 @@ import { createOtherWindow, hideOtherWindow } from "./newWindow.ts";
 
 export const tableName = "register_shortcut";
 
+/** 命令面板小窗的默认配置：createOtherWindow 的兜底尺寸只有 108x81，必须给足尺寸 */
+const DEFAULT_COMMAND_PALETTE_CONFIG = {
+  position: "center-top",
+  width: 640,
+  height: 460,
+  gap: 30,
+  x: 0,
+  y: 0,
+  skin: "white",
+};
+
 function openMatchPage(url: string) {
   win.show();
   win.webContents.send("open-match-page", url);
@@ -185,6 +196,46 @@ function getClipboardWindow() {
   });
 }
 
+function toggleCommandPaletteWindow() {
+  const paletteWin = getCommandPaletteWindow();
+  if (paletteWin && paletteWin.isVisible()) {
+    hideOtherWindow("commandPaletteMiniWindow");
+  } else {
+    queryByConditions({
+      db: myDb.db,
+      tableName: "basic_info",
+      conditions: {
+        whereStr: "key = 'window-mode:commandPaletteMiniWindow'",
+      },
+      callback: (err, data) => {
+        if (err) {
+          console.log(err, "err");
+          createOtherWindow("commandPaletteMiniWindow", { ...DEFAULT_COMMAND_PALETTE_CONFIG, mouseEvents: true });
+          return;
+        }
+        // 无历史配置时用面板默认尺寸兜底（createOtherWindow 的兜底尺寸只有 108x81，面板放不下）
+        let config = { ...DEFAULT_COMMAND_PALETTE_CONFIG };
+        if (data && data.length > 0) {
+          try {
+            config = { ...config, ...JSON.parse(data[0].value) };
+          } catch (e) {
+            console.log(e, "parse error");
+          }
+        }
+        createOtherWindow("commandPaletteMiniWindow", { ...config, mouseEvents: true });
+      },
+    });
+  }
+}
+
+function getCommandPaletteWindow() {
+  const allWindows = BrowserWindow.getAllWindows();
+  return allWindows.find((w) => {
+    const url = w.webContents.getURL();
+    return url.includes("commandPaletteMiniWindow") && url.includes("isSecondWindow=true");
+  });
+}
+
 function getPomodoroWindow() {
   const allWindows = BrowserWindow.getAllWindows();
   return allWindows.find((w) => {
@@ -248,6 +299,9 @@ function globalShortcutFn(item) {
     }
     else if (item.type == 'open_clipboard_window') {
       toggleClipboardWindow();
+    }
+    else if (item.type == 'open_command_palette') {
+      toggleCommandPaletteWindow();
     }
     console.log("Electron loves global shortcuts!");
   });

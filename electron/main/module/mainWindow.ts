@@ -155,6 +155,15 @@ export function initMainWindow() {
     hideApp();
   });
 
+  // 命令面板：显示主窗口并跳转到指定路由。
+  // 复用既有的 open-match-page 链路（App.vue 里监听后 router.push）。
+  ipcMain.on("palette-navigate", (_e, routeName: string) => {
+    if (!win || !routeName) return;
+    win.show();
+    win.focus();
+    win.webContents.send("open-match-page", routeName);
+  });
+
   // //监听webview新建的窗口
   app.on('web-contents-created', (event, contents) => {
     if (contents.getType() === 'webview') {

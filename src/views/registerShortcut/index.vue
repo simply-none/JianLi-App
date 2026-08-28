@@ -264,6 +264,13 @@ const originShortcuts = ref([
     key: 'clipboardWindowShortcut',
     shortcut: ['', '', ''],
   },
+  {
+    type: 'open_command_palette',
+    url: '',
+    name: '命令面板',
+    key: 'commandPaletteShortcut',
+    shortcut: ['', '', ''],
+  },
 ])
 
 // 路由功能：基于 layoutRouters 动态生成，所有布局内路由均可注册快捷键。

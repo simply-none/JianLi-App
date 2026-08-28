@@ -12,6 +12,7 @@ export type WindowKey =
   | 'accounting'
   | 'stock'
   | 'clipboard'
+  | 'commandPalette'
 
 /** 通用可选项（皮肤、排版等） */
 export interface NamedOption {
@@ -133,6 +134,12 @@ const CLIPBOARD_SIZE_OPTIONS: SizeOption[] = [
   { label: '600×680', width: 600, height: 680 },
 ]
 
+const COMMAND_PALETTE_SIZE_OPTIONS: SizeOption[] = [
+  { label: '560×400', width: 560, height: 400 },
+  { label: '640×460', width: 640, height: 460 },
+  { label: '720×540', width: 720, height: 540 },
+]
+
 // —— 各小窗的排版预设 ——
 const POMODORO_LAYOUT_OPTIONS: NamedOption[] = [
   { label: '默认', value: 'default' },
@@ -231,5 +238,14 @@ export const WINDOW_SECTIONS: WindowSection[] = [
     sizeOptions: CLIPBOARD_SIZE_OPTIONS,
     skinOptions: SKIN_OPTIONS,
     layoutOptions: CLIPBOARD_LAYOUT_OPTIONS,
+  },
+  {
+    key: 'commandPalette',
+    title: '命令面板',
+    icon: 'Command',
+    storeKey: 'commandPaletteMiniWindow',
+    fields: { position: true, size: true, gap: true, skin: true, layout: false },
+    sizeOptions: COMMAND_PALETTE_SIZE_OPTIONS,
+    skinOptions: SKIN_OPTIONS,
   },
 ]

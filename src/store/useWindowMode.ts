@@ -134,6 +134,38 @@ export default defineStore("window-mode", () => {
     }
   });
 
+  // ============ 命令面板小窗 ============
+  const showCommandPaletteWindow = ref();
+  const showCommandPaletteWindowC = computed(() => showCommandPaletteWindow.value);
+  function setShowCommandPaletteWindow(value: boolean) {
+    showCommandPaletteWindow.value = value;
+    setStore("showCommandPaletteWindow", value);
+  }
+
+  const commandPaletteWindowConfig = ref({
+    position: 'center-top',
+    width: 640,
+    height: 460,
+    gap: 30,
+    x: 0,
+    y: 0,
+    skin: 'white',
+  });
+
+  watch(showCommandPaletteWindow, (newValue) => {
+    if (newValue == true) {
+      send("open-new-window", "commandPaletteMiniWindow", commandPaletteWindowConfig.value);
+    } else {
+      send("close-new-window", "commandPaletteMiniWindow");
+    }
+  });
+
+  watch(commandPaletteWindowConfig, (newVal) => {
+    send('sync-data-to-other-window', {
+      commandPaletteWindowConfig: toRaw(newVal),
+    });
+  }, { deep: true });
+
   const showThemeConversationMiniWindow = ref();
   const showThemeConversationMiniWindowC = computed(() => showThemeConversationMiniWindow.value);
   function setShowThemeConversationMiniWindow(value: boolean) {
@@ -282,6 +314,11 @@ export default defineStore("window-mode", () => {
         default: false,
         map: showStockMiniWindow,
       },
+      {
+        field: "showCommandPaletteWindow",
+        default: false,
+        map: showCommandPaletteWindow,
+      },
     ];
 
     const migrateOldConfig = () => {
@@ -415,6 +452,19 @@ export default defineStore("window-mode", () => {
         },
         map: stockMiniWindowConfig,
       },
+      {
+        field: "window-mode:commandPaletteMiniWindow",
+        default: {
+          position: 'center-top',
+          width: 640,
+          height: 460,
+          gap: 30,
+          x: 0,
+          y: 0,
+          skin: 'white',
+        },
+        map: commandPaletteWindowConfig,
+      },
     ];
 
     const allVars: defaultField[] = [
@@ -468,6 +518,13 @@ export default defineStore("window-mode", () => {
           clipboardWindowConfig.value = { ...currentConfig, ...newConfig };
         }
       }
+      if (arg?.commandPaletteWindowConfig) {
+        const newConfig = arg.commandPaletteWindowConfig;
+        const currentConfig = commandPaletteWindowConfig.value;
+        if (JSON.stringify(newConfig) !== JSON.stringify(currentConfig)) {
+          commandPaletteWindowConfig.value = { ...currentConfig, ...newConfig };
+        }
+      }
     });
   }
 
@@ -512,6 +569,10 @@ export default defineStore("window-mode", () => {
     showStockMiniWindowC,
     setShowStockMiniWindow,
     stockMiniWindowConfig,
+    showCommandPaletteWindow,
+    showCommandPaletteWindowC,
+    setShowCommandPaletteWindow,
+    commandPaletteWindowConfig,
     $reset,
   };
 });
