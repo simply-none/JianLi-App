@@ -34,8 +34,8 @@ export function focusAppToTop() {
   }
 }
 
-export function isSetStartup(isStartup: boolean, hidden = false) {
-  const result = setAutoStartup(isStartup)
+export async function isSetStartup(isStartup: boolean, hidden = false) {
+  const result = await setAutoStartup(isStartup)
   console.log(`[isSetStartup] 设置结果: ${result.success} - ${result.message}`)
   return result
 }
