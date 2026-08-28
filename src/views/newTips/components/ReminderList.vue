@@ -269,7 +269,7 @@ function getRuleText(item: TipsReminder): string {
 
 function modeIcon(mode?: string): string {
   if (mode === "time") return "AlarmClock";
-  if (mode === "stateful") return "Repeat";
+  if (mode === "stateful") return "OrbitIcon";
   return "RefreshCw";
 }
 function modeTagType(mode?: string): any {

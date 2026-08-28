@@ -62,7 +62,6 @@ function assignDefaultValue<T>(
   const isArrayType = isArray(storeValue)
   if (isObjType) {
     const { obj: newData, isSame } = getCompositeObj(defaultValue, storeValue)
-    console.log(key, newData, isSame, 'newData isSame assignDefaultValue isObjType', defaultValue, storeValue);
     map.value = newData || defaultValue;
     if (!isSame) {
       setStore(key, newData)
@@ -70,14 +69,12 @@ function assignDefaultValue<T>(
   }
   else if (isArrayType) {
     const { arr: newData, isSame } = getCompositeObjArr(defaultValue, storeValue, 'value')
-    console.log(newData, isSame, storeValue, defaultValue, 'newData isSame assignDefaultValue isArrayType');
     map.value = newData || defaultValue;
     if (!isSame) {
       setStore(key, newData)
     }
   }
   else {
-    console.error('都进来了这里？？？？', key, storeValue, defaultValue)
     map.value = storeValue || defaultValue;
   }
   

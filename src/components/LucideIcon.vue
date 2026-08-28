@@ -39,6 +39,8 @@ import { AlarmClock, AlarmClockCheck, AlarmClockMinus, AlarmClockPlus, ArrowDown
   XIcon,
   MaximizeIcon,
   MinimizeIcon,
+  RotateCcwIcon,
+  OrbitIcon,
  } from '@lucide/vue';
 import { ref } from 'vue';
 import { getLightColor } from '@/utils';
@@ -88,6 +90,7 @@ let nameMap = ref<Record<any, any>>({
   Hash,
   StarCheck,
   Hourglass,
+  RotateCcwIcon,
   AlarmClockCheck,
   AlarmClockMinus,
   AlarmClockPlus,
@@ -210,6 +213,7 @@ let nameMap = ref<Record<any, any>>({
   Keyboard,
   RefreshCcw,
   RefreshCw,
+  OrbitIcon,
   Clock1,
   BadgeInfo,
   Route,

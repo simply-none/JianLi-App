@@ -8,6 +8,7 @@
     </div>
 
     <div class="mode-cards">
+      <!-- 日常模式 -->
       <div class="mode-card work-card">
         <div class="mode-card-header">
           <div class="mode-card-icon">
@@ -16,19 +17,19 @@
           <div class="mode-card-title">日常模式</div>
         </div>
         <div class="mode-options">
-          <div
-            v-for="item in homeModeOpsCc"
+          <ModeOptionCard
+            v-for="(item, index) in homeModeOpsCc"
             :key="item.value"
-            class="mode-option"
-            :class="{ active: homeModeCc.work.value === item.value }"
-            :title="item.label"
-            @click="selectMode('work', item.value)"
-          >
-            <div class="mode-option-label">{{ item.label }}</div>
-          </div>
+            class="mode-option-slot"
+            :label="item.label"
+            :active="homeModeCc.work.value === item.value"
+            :gradient="gradientPalette[index % gradientPalette.length]"
+            @select="selectMode('work', item.value)"
+          />
         </div>
       </div>
 
+      <!-- 锁定模式 -->
       <div class="mode-card rest-card">
         <div class="mode-card-header">
           <div class="mode-card-icon">
@@ -37,19 +38,19 @@
           <div class="mode-card-title">锁定模式</div>
         </div>
         <div class="mode-options">
-          <div
-            v-for="item in homeModeOpsCc"
+          <ModeOptionCard
+            v-for="(item, index) in homeModeOpsCc"
             :key="item.value"
-            class="mode-option"
-            :class="{ active: homeModeCc.rest.value === item.value }"
-            :title="item.label"
-            @click="selectMode('rest', item.value)"
-          >
-            <div class="mode-option-label">{{ item.label }}</div>
-          </div>
+            class="mode-option-slot"
+            :label="item.label"
+            :active="homeModeCc.rest.value === item.value"
+            :gradient="gradientPalette[index % gradientPalette.length]"
+            @select="selectMode('rest', item.value)"
+          />
         </div>
       </div>
 
+      <!-- 屏保模式 -->
       <div class="mode-card screen-card">
         <div class="mode-card-header">
           <div class="mode-card-icon">
@@ -58,16 +59,15 @@
           <div class="mode-card-title">屏保模式</div>
         </div>
         <div class="mode-options">
-          <div
-            v-for="item in homeModeOpsCc"
+          <ModeOptionCard
+            v-for="(item, index) in homeModeOpsCc"
             :key="item.value"
-            class="mode-option"
-            :class="{ active: homeModeCc.screen.value === item.value }"
-            :title="item.label"
-            @click="selectMode('screen', item.value)"
-          >
-            <div class="mode-option-label">{{ item.label }}</div>
-          </div>
+            class="mode-option-slot"
+            :label="item.label"
+            :active="homeModeCc.screen.value === item.value"
+            :gradient="gradientPalette[index % gradientPalette.length]"
+            @select="selectMode('screen', item.value)"
+          />
         </div>
       </div>
 
@@ -80,16 +80,15 @@
           <div class="mode-card-title">强制锁屏模式</div>
         </div>
         <div class="mode-options">
-          <div
-            v-for="item in homeModeOpsCc"
+          <ModeOptionCard
+            v-for="(item, index) in homeModeOpsCc"
             :key="item.value"
-            class="mode-option"
-            :class="{ active: homeModeCc.lock.value === item.value }"
-            :title="item.label"
-            @click="selectMode('lock', item.value)"
-          >
-            <div class="mode-option-label">{{ item.label }}</div>
-          </div>
+            class="mode-option-slot"
+            :label="item.label"
+            :active="homeModeCc.lock.value === item.value"
+            :gradient="gradientPalette[index % gradientPalette.length]"
+            @select="selectMode('lock', item.value)"
+          />
         </div>
       </div>
     </div>
@@ -103,16 +102,15 @@
         <div class="mode-card-title">空闲模式</div>
       </div>
       <div class="mode-options">
-        <div
-          v-for="item in homeModeOpsCc"
+        <ModeOptionCard
+          v-for="(item, index) in homeModeOpsCc"
           :key="item.value"
-          class="mode-option"
-          :class="{ active: homeModeCc.idle.value === item.value }"
-          :title="item.label"
-          @click="selectMode('idle', item.value)"
-        >
-          <div class="mode-option-label">{{ item.label }}</div>
-        </div>
+          class="mode-option-slot"
+          :label="item.label"
+          :active="homeModeCc.idle.value === item.value"
+          :gradient="gradientPalette[index % gradientPalette.length]"
+          @select="selectMode('idle', item.value)"
+        />
       </div>
     </div>
   </div>
@@ -124,6 +122,8 @@ import { storeToRefs } from 'pinia';
 import LucideIcon from '@/components/LucideIcon.vue';
 import useGlobalSetting from '@/store/useGlobalSetting';
 import type { StatusMode } from '@/store/useGlobalSetting';
+// 原子组件：单个模式选项卡片（渐变背景 + 固定首行"选项" + 模式名）
+import ModeOptionCard from './components/ModeOptionCard.vue';
 
 const { setHomeMode } = useGlobalSetting();
 const { homeModeOpsC, homeModeC } = storeToRefs(useGlobalSetting());
@@ -141,6 +141,19 @@ watch(() => homeModeOpsC.value, (n) => {
 watch(() => homeModeC.value, (n) => {
   homeModeCc.value = JSON.parse(JSON.stringify(n));
 }, { deep: true });
+
+// 选项卡片渐变调色板：引用主题变量（src/styles/themes），随当前主题切换自动契合主题色；
+// 前两项取主色/头部渐变（最强主题关联），其余取主题内置的 icon 渐变，保证各选项颜色区分。
+const gradientPalette = [
+  'linear-gradient(135deg, var(--logo-gradient-from), var(--logo-gradient-to))',
+  'linear-gradient(135deg, var(--header-gradient-from), var(--header-gradient-to))',
+  'linear-gradient(135deg, var(--icon-blue-from), var(--icon-blue-to))',
+  'linear-gradient(135deg, var(--icon-green-from), var(--icon-green-to))',
+  'linear-gradient(135deg, var(--icon-orange-from), var(--icon-orange-to))',
+  'linear-gradient(135deg, var(--icon-yellow-from), var(--icon-yellow-to))',
+  'linear-gradient(135deg, var(--icon-cyan-from), var(--icon-cyan-to))',
+  'linear-gradient(135deg, var(--icon-purple-from), var(--icon-purple-to))',
+];
 
 function selectMode(key: StatusMode, value: string) {
   homeModeCc.value[key].value = value;
@@ -256,50 +269,28 @@ function changeHomeMode(key: StatusMode) {
   }
 }
 
+// 选项容器：弹性换行 + 槽位类控制卡片宽度
 .mode-options {
   display: flex;
   flex-wrap: wrap;
-  margin: -5px;
+  align-items: flex-start;
+  gap: 14px;
 }
 
-.mode-option {
-  flex: 0 0 calc(25% - 10px);
-  margin: 5px;
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 44px;
-  padding: 0 12px;
-  border: 1px solid var(--el-border-color, #dcdfe6);
-  border-radius: 8px;
-  background: var(--el-fill-color-blank, #ffffff);
-  color: var(--el-text-color-regular, #606266);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  user-select: none;
+// 每个选项卡片的栅格槽位（4 列，含 3 个 14px 间距 → 每格 25% - 10.5px）
+.mode-option-slot {
+  flex: 0 0 calc(25% - 10.5px);
+}
 
-  &:hover {
-    color: var(--el-color-primary, #409eff);
-    border-color: var(--el-color-primary-light-7, #c6e2ff);
+@media (max-width: 768px) {
+  .mode-option-slot {
+    flex: 0 0 calc(50% - 7px);
   }
+}
 
-  &.active {
-    color: #fff;
-    background: var(--el-color-primary, #409eff);
-    border-color: var(--el-color-primary, #409eff);
-    box-shadow: 0 2px 8px rgba(64, 158, 255, 0.3);
-  }
-
-  .mode-option-label {
-    line-height: 1.2;
-    text-align: center;
-    font-size: 13px;
-    font-weight: 500;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 100%;
-  }
+// hover 聚焦：悬停某卡片时，其余卡片背景变暗（对应 demo 的
+// .card-grid:hover > .card:not(:hover) .card__background 效果）
+.mode-options:hover .mode-option-slot:not(:hover) :deep(.mode-option-card__bg) {
+  filter: brightness(0.5) saturate(0.6) contrast(1.1);
 }
 </style>
