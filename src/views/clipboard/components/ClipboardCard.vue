@@ -20,35 +20,31 @@
           {{ formatTime(item.create_time) }}
         </span>
         <span class="meta-sep">·</span>
-        <span class="card-len">{{ countChars(item.text) }} 字</span>
+        <span class="card-len">{{ item.image ? '图片' : countChars(item.text) + ' 字' }}</span>
+        <template v-if="(item.use_count || 0) > 1">
+          <span class="meta-sep">·</span>
+          <span class="card-count">用过 {{ item.use_count }} 次</span>
+        </template>
       </div>
 
       <div class="card-actions">
-        <button
-          type="button"
-          class="icon-btn"
-          :class="{ 'is-done': copied }"
-          :title="copied ? '已复制' : '复制'"
-          @click.stop="onCopy"
-        >
-          <LucideIcon :name="copied ? 'Check' : 'Copy'" :size="14" />
-        </button>
+        <ClipboardCopyButton :has-text="!!item.text" @copy="onCopy" />
         <button type="button" class="icon-btn is-danger" title="删除" @click.stop="$emit('delete', item)">
           <LucideIcon name="Trash2" :size="14" />
         </button>
       </div>
     </header>
 
-    <ClipboardCardContent :text="item.text" :keyword="keyword" />
+    <ClipboardCardContent :text="item.text" :image="item.image" :keyword="keyword" />
   </article>
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, ref } from 'vue'
 import LucideIcon from '@/components/LucideIcon.vue'
 import ClipboardCardContent from './ClipboardCardContent.vue'
+import ClipboardCopyButton from './ClipboardCopyButton.vue'
 import { countChars, formatFullTime, formatTime } from '../utils/clipboardFormat'
-import type { ClipboardItem } from '../types'
+import type { ClipboardCopyMode, ClipboardCopyPayload, ClipboardItem } from '../types'
 
 const props = defineProps<{
   item: ClipboardItem
@@ -58,28 +54,15 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  (e: 'copy', text: string): void
+  (e: 'copy', payload: ClipboardCopyPayload): void
   (e: 'delete', item: ClipboardItem): void
   (e: 'toggle-select', id?: number): void
 }>()
 
-// 复制成功后的短时反馈（图标切换为对勾），1.2s 后自动复位
-const copied = ref(false)
-let resetTimer: ReturnType<typeof setTimeout> | null = null
-
-function onCopy() {
-  emit('copy', props.item.text)
-  copied.value = true
-  if (resetTimer) clearTimeout(resetTimer)
-  resetTimer = setTimeout(() => {
-    copied.value = false
-    resetTimer = null
-  }, 1200)
+// 复制动作：由复制按钮组给出模式（原样 / 纯文本），连同条目一并上抛
+function onCopy(mode: ClipboardCopyMode) {
+  emit('copy', { item: props.item, mode })
 }
-
-onBeforeUnmount(() => {
-  if (resetTimer) clearTimeout(resetTimer)
-})
 </script>
 
 <style scoped lang="scss">

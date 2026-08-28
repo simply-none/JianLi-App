@@ -46,7 +46,7 @@
 <script setup lang="ts">
 import LucideIcon from '@/components/LucideIcon.vue'
 import ClipboardCard from './ClipboardCard.vue'
-import type { ClipboardItem } from '../types'
+import type { ClipboardCopyPayload, ClipboardItem } from '../types'
 
 defineProps<{
   items: ClipboardItem[]
@@ -59,7 +59,7 @@ defineProps<{
 
 const emit = defineEmits<{
   (e: 'load-more'): void
-  (e: 'copy', text: string): void
+  (e: 'copy', payload: ClipboardCopyPayload): void
   (e: 'delete', item: ClipboardItem): void
   (e: 'toggle-select', id?: number): void
   (e: 'delete-selected'): void

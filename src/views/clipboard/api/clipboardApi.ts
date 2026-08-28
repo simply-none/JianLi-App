@@ -1,6 +1,6 @@
 // 功能化数据访问层：封装 clipboard:* IPC（后端基于 newSql.ts）。
 // 渲染端统一经此模块访问数据库，不再使用旧的 query-data / delete-data 透传。
-import type { ClipboardItem, ClipboardQueryParams } from '../types'
+import type { ClipboardCopyMode, ClipboardItem, ClipboardQueryParams } from '../types'
 
 interface IpcResult<T = unknown> {
   success: boolean
@@ -37,5 +37,13 @@ export const clipboardApi = {
   // 去重删除：相同 text 仅保留一条
   dedup(): Promise<IpcResult> {
     return invoke('clipboard:dedup', {})
+  },
+  // 写回系统剪贴板并累加使用次数（raw 保留原格式 / text 纯文本）
+  write(id: number, mode: ClipboardCopyMode = 'raw'): Promise<IpcResult> {
+    return invoke('clipboard:write', { id, mode })
+  },
+  // 模拟 Ctrl+V 粘贴到当前前台应用（快速面板用，仅 Windows 有效）
+  simulatePaste(): Promise<IpcResult> {
+    return invoke('clipboard:simulate-paste', {})
   },
 }

@@ -12,6 +12,15 @@
       />
     </div>
 
+    <!-- 内容类型筛选：切换即时重查（由 useClipboard 内部 watch 触发） -->
+    <el-select
+      class="kind-select"
+      :model-value="kind"
+      @update:model-value="$emit('update:kind', $event)"
+    >
+      <el-option v-for="opt in KIND_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" />
+    </el-select>
+
     <div class="toolbar-actions">
       <el-button type="primary" @click="$emit('search')">查询</el-button>
       <el-button @click="$emit('reset')">重置</el-button>
@@ -29,14 +38,25 @@
 
 <script setup lang="ts">
 import LucideIcon from '@/components/LucideIcon.vue'
+import type { ClipboardKind } from '../types'
+
+// 类型筛选项：与 useClipboard 的 kind、主进程 buildWhere 的分支保持一致
+const KIND_OPTIONS: { label: string; value: ClipboardKind }[] = [
+  { label: '全部', value: 'all' },
+  { label: '文本', value: 'text' },
+  { label: '图片', value: 'image' },
+  { label: '链接', value: 'link' },
+]
 
 defineProps<{
   keyword: string
+  kind: ClipboardKind
   advancedOpen: boolean
 }>()
 
 defineEmits<{
   (e: 'update:keyword', v: string): void
+  (e: 'update:kind', v: ClipboardKind): void
   (e: 'search'): void
   (e: 'reset'): void
   (e: 'toggle-advanced'): void
@@ -85,6 +105,11 @@ defineEmits<{
         box-shadow: 0 0 0 1px var(--color-primary) inset;
       }
     }
+  }
+
+  .kind-select {
+    width: 104px;
+    flex-shrink: 0;
   }
 
   .toolbar-actions {

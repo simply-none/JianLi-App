@@ -7,7 +7,12 @@
       :class="{ 'is-clamped': clamped && needCollapse }"
       :style="{ '--clamp-lines': maxLines }"
     >
-      <span v-if="isEmpty" class="content-empty">（无文本内容）</span>
+      <!-- 图片条目：直接渲染缩略图，不参与文本折叠与高亮 -->
+      <div v-if="imageSrc" class="content-image">
+        <img :src="imageSrc" alt="剪贴板图片" />
+      </div>
+
+      <span v-else-if="isEmpty" class="content-empty">（无文本内容）</span>
       <template v-else>
         <span v-for="(seg, idx) in segments" :key="idx" :class="{ 'is-hit': seg.hit }">{{
           seg.text
@@ -31,6 +36,8 @@ const props = withDefaults(
   defineProps<{
     /** 剪贴板纯文本内容 */
     text?: string
+    /** 图片条目的 dataURL，存在时渲染缩略图 */
+    image?: string
     /** 当前搜索关键词，用于高亮命中片段 */
     keyword?: string
     /** 折叠时最多显示的行数 */
@@ -45,13 +52,19 @@ const clamped = ref(true)
 // 内容是否真的超出折叠行数（不超出时不显示展开按钮）
 const needCollapse = ref(false)
 
+const imageSrc = computed(() => (props.image ?? '').trim())
 const segments = computed(() => splitByKeyword(props.text ?? '', props.keyword))
-const isEmpty = computed(() => !(props.text ?? '').trim())
+const isEmpty = computed(() => !imageSrc.value && !(props.text ?? '').trim())
 
 // 测量是否溢出：折叠用 max-height 裁剪，scrollHeight 始终为完整内容高度，故展开状态下测量也准确
 function measure() {
   const el = bodyRef.value
   if (!el) return
+  // 图片条目按缩略图高度展示，无需折叠
+  if (imageSrc.value) {
+    needCollapse.value = false
+    return
+  }
   const lineHeight = parseFloat(getComputedStyle(el).lineHeight) || 22
   needCollapse.value = el.scrollHeight > lineHeight * props.maxLines + 2
 }
@@ -75,7 +88,7 @@ onBeforeUnmount(() => {
 
 // 内容被替换（如刷新列表）时回到折叠态并重新测量
 watch(
-  () => props.text,
+  () => [props.text, props.image],
   () => {
     clamped.value = true
     requestAnimationFrame(measure)
@@ -111,6 +124,17 @@ watch(
     .content-empty {
       color: var(--text-muted);
       font-style: italic;
+    }
+
+    // 图片缩略图：限高展示，点击区域由卡片统一处理
+    .content-image img {
+      display: block;
+      max-width: 100%;
+      max-height: 180px;
+      object-fit: contain;
+      background: var(--bg-base);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-btn);
     }
   }
 

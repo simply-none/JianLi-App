@@ -257,6 +257,13 @@ const originShortcuts = ref([
     key: 'pomodoroWindowShortcut',
     shortcut: ['', '', ''],
   },
+  {
+    type: 'open_clipboard_window',
+    url: '',
+    name: '剪贴板快速粘贴',
+    key: 'clipboardWindowShortcut',
+    shortcut: ['', '', ''],
+  },
 ])
 
 // 路由功能：基于 layoutRouters 动态生成，所有布局内路由均可注册快捷键。

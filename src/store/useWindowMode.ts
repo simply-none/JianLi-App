@@ -108,6 +108,32 @@ export default defineStore("window-mode", () => {
     }
   });
 
+  const showClipboardWindow = ref();
+  const showClipboardWindowC = computed(() => showClipboardWindow.value);
+  function setShowClipboardWindow(value: boolean) {
+    showClipboardWindow.value = value;
+    setStore("showClipboardWindow", value);
+  }
+
+  const clipboardWindowConfig = ref({
+    position: 'bottom-right',
+    width: 520,
+    height: 560,
+    gap: 30,
+    x: 0,
+    y: 0,
+    skin: 'white',
+    layout: 'list',
+  });
+
+  watch(showClipboardWindow, (newValue) => {
+    if (newValue == true) {
+      send("open-new-window", "clipboardMiniWindow", clipboardWindowConfig.value);
+    } else {
+      send("close-new-window", "clipboardMiniWindow");
+    }
+  });
+
   const showThemeConversationMiniWindow = ref();
   const showThemeConversationMiniWindowC = computed(() => showThemeConversationMiniWindow.value);
   function setShowThemeConversationMiniWindow(value: boolean) {
@@ -336,6 +362,20 @@ export default defineStore("window-mode", () => {
         map: todoWindowConfig,
       },
       {
+        field: "window-mode:clipboardMiniWindow",
+        default: {
+          position: 'bottom-right',
+          width: 520,
+          height: 560,
+          gap: 30,
+          x: 0,
+          y: 0,
+          skin: 'white',
+          layout: 'list',
+        },
+        map: clipboardWindowConfig,
+      },
+      {
         field: "window-mode:themeConversationMini",
         default: {
           position: 'bottom-right',
@@ -420,6 +460,14 @@ export default defineStore("window-mode", () => {
           stockMiniWindowConfig.value = { ...currentConfig, ...newConfig };
         }
       }
+      // 剪贴板面板被拖动后，主进程会广播新坐标，这里同步到设置页
+      if (arg?.clipboardWindowConfig) {
+        const newConfig = arg.clipboardWindowConfig;
+        const currentConfig = clipboardWindowConfig.value;
+        if (JSON.stringify(newConfig) !== JSON.stringify(currentConfig)) {
+          clipboardWindowConfig.value = { ...currentConfig, ...newConfig };
+        }
+      }
     });
   }
 
@@ -448,6 +496,10 @@ export default defineStore("window-mode", () => {
     showTodoWindowC,
     setShowTodoWindow,
     todoWindowConfig,
+    showClipboardWindow,
+    showClipboardWindowC,
+    setShowClipboardWindow,
+    clipboardWindowConfig,
     showThemeConversationMiniWindow,
     showThemeConversationMiniWindowC,
     setShowThemeConversationMiniWindow,

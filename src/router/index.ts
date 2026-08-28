@@ -41,6 +41,7 @@ export const RouteNames = {
   QUICK_NOTE: "quickNote",
   TODO_LIST: "todoList",
   TODO_MINI_WINDOW: "todoMiniWindow",
+  CLIPBOARD_MINI_WINDOW: "clipboardMiniWindow",
   ACCOUNTING: "accounting",
   ACCOUNTING_MINI: "accountingMini",
   TTS_TEST: "ttsTest",
@@ -344,6 +345,11 @@ const routers: RouteRecordRaw[] = [
     path: "/todoMiniWindow",
     name: RouteNames.TODO_MINI_WINDOW,
     component: () => import("@/views/todoMiniWindow/index.vue"),
+  },
+  {
+    path: "/clipboardMiniWindow",
+    name: RouteNames.CLIPBOARD_MINI_WINDOW,
+    component: () => import("@/views/clipboardMiniWindow/index.vue"),
   },
   {
     path: "/accountingMini",

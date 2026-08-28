@@ -9,7 +9,7 @@ import {
   preload,
   VITE_DEV_SERVER_URL,
 } from "../variables.ts";
-import { queryByConditions } from "../utils/sql.ts";
+import { queryByConditions, upsertData } from "../utils/sql.ts";
 import { objectArrayToObject } from "../utils/common.ts";
 
 let childWindow: Record<string, BrowserWindow | null> = {};
@@ -97,6 +97,56 @@ function calculatePosition(ops?: PositionOps) {
   return { x, y };
 }
 
+// 需要记住拖拽位置的窗口：拖动结束后把坐标回写到配置，下次打开仍在原处。
+// 当前为空：剪贴板小窗等不再把位置回写数据库（与 quickNote 一致，避免拖拽触发 SQL 写入）。
+// 如某小窗需要记忆位置，把其 arg 加回此数组即可。
+const POSITION_MEMORY_WINDOWS: string[] = [];
+const positionSaveTimers: Record<string, ReturnType<typeof setTimeout> | null> = {};
+
+/** 把窗口当前坐标写入 window-mode:{arg}，并把定位方式切换为 custom */
+function saveWindowPosition(arg: string) {
+  const win = childWindow[arg];
+  if (!win || win.isDestroyed()) return;
+  const [x, y] = win.getPosition();
+  const field = `window-mode:${arg}`;
+  queryByConditions({
+    db: myDb.db,
+    tableName: "basic_info",
+    conditions: { whereStr: `key = '${field}'` },
+    callback: (err, data) => {
+      let config: Record<string, any> = {};
+      if (!err && Array.isArray(data) && data.length > 0) {
+        try {
+          config = JSON.parse(data[0].value);
+        } catch (e) {
+          config = {};
+        }
+      }
+      config.position = "custom";
+      config.x = x;
+      config.y = y;
+      upsertData({
+        db: myDb.db,
+        tableName: "basic_info",
+        data: { key: field, value: JSON.stringify(config) },
+        config: { primaryKey: "key" },
+        callback: (saveErr) => {
+          if (saveErr) {
+            console.error("save window position error:", saveErr);
+            return;
+          }
+          // 同步给设置页，避免设置项与实际位置不一致
+          BrowserWindow.getAllWindows().forEach((w) => {
+            if (!w.isDestroyed()) {
+              w.webContents.send("sync-data-to-other-window", { clipboardWindowConfig: config });
+            }
+          });
+        },
+      });
+    },
+  });
+}
+
 function getScreenInfo() {
   // 获取屏幕宽高
   const primaryDisplay = screen.getPrimaryDisplay();
@@ -160,6 +210,14 @@ export function createOtherWindow(arg: string, ops?: ObjectType, recreate = fals
   }
   // 不在任务栏显示
   childWindow[arg]?.setSkipTaskbar(true);
+
+  // 位置记忆：拖动结束后防抖回写坐标
+  if (POSITION_MEMORY_WINDOWS.includes(arg)) {
+    childWindow[arg]?.on("move", () => {
+      if (positionSaveTimers[arg]) clearTimeout(positionSaveTimers[arg]!);
+      positionSaveTimers[arg] = setTimeout(() => saveWindowPosition(arg), 400);
+    });
+  }
 
   childWindow[arg]?.on("close", (e) => {
     e.preventDefault(); //先阻止一下默认行为，不然直接关了，提示框只会闪一下
@@ -278,6 +336,32 @@ export function initNewWindow() {
     if (typeof arg !== "string") return;
     if (childWindow[arg]) {
       childWindow[arg]?.setIgnoreMouseEvents(true, { forward: true });
+    }
+  });
+
+  // 剪贴板小窗：透明窗口下 -webkit-app-region:drag 不可靠，改用 JS 拖拽。
+  // 渲染端在 mousedown 时读取窗口当前坐标，mousemove 时下发新坐标，本进程用 setBounds 移动。
+  ipcMain.on("get-window-bounds", (e, arg) => {
+    const win = childWindow[arg];
+    if (win && !win.isDestroyed()) {
+      const b = win.getBounds();
+      e.returnValue = { x: b.x, y: b.y, width: b.width, height: b.height };
+    } else {
+      e.returnValue = null;
+    }
+  });
+  // 拖拽移动窗口：必须原样回传 width/height，否则 Windows 透明无边框窗口在
+  // DPI 缩放下会被系统按内容尺寸重新评估，导致拖动过程中窗口尺寸抖动/变化。
+  ipcMain.on("set-window-bounds", (_, arg, bounds) => {
+    const win = childWindow[arg];
+    if (win && !win.isDestroyed() && bounds) {
+      const cur = win.getBounds();
+      win.setBounds({
+        x: Math.round(bounds.x),
+        y: Math.round(bounds.y),
+        width: Math.round(bounds.width ?? cur.width),
+        height: Math.round(bounds.height ?? cur.height),
+      });
     }
   });
 }

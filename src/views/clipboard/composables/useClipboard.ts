@@ -1,9 +1,9 @@
 // 剪切板组合式逻辑：普通查询 / 分页加载 / 单删 / 批量删 / 清空 / 高级查询(时间范围) / 去重 / 复制。
 // 所有数据库操作经 clipboardApi（newSql 后端），UI 组件只消费本模块暴露的状态与方法。
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { clipboardApi } from '../api/clipboardApi'
-import type { ClipboardItem } from '../types'
+import type { ClipboardCopyMode, ClipboardItem, ClipboardKind } from '../types'
 
 const PAGE_SIZE = 50
 
@@ -19,6 +19,12 @@ export function useClipboard() {
   const endTime = ref('')
   const advancedOpen = ref(false)
 
+  // 内容类型筛选（全部/文本/图片/链接），切换即时重查
+  const kind = ref<ClipboardKind>('all')
+  watch(kind, () => {
+    fetch(true)
+  })
+
   // 批量选择
   const selectedIds = ref<number[]>([])
 
@@ -27,6 +33,7 @@ export function useClipboard() {
       keyword: keyword.value || undefined,
       startTime: startTime.value || undefined,
       endTime: endTime.value || undefined,
+      kind: kind.value,
       limit: PAGE_SIZE,
       offset,
     }
@@ -62,7 +69,7 @@ export function useClipboard() {
     fetch(true)
   }
 
-  // 重置：清空关键词与高级条件
+  // 重置：清空关键词与时间条件（保留类型筛选，它更像视图切换而非查询条件）
   function reset() {
     keyword.value = ''
     startTime.value = ''
@@ -74,10 +81,25 @@ export function useClipboard() {
     fetch(false)
   }
 
-  // 复制
-  function copy(text: string) {
-    ;(window as any).ipcRenderer.clipboard.writeText(text)
-    ElMessage.success('已复制到剪贴板')
+  /**
+   * 复制指定条目到系统剪贴板，并累加使用次数。
+   * mode='text' 只写纯文本（去格式）；mode='raw' 保留富文本或图片原格式。
+   */
+  async function copyItem(item: ClipboardItem, mode: ClipboardCopyMode = 'raw') {
+    if (item.id == null) return
+    try {
+      const res = await clipboardApi.write(item.id, mode)
+      if (!res.success) {
+        ElMessage.error('复制失败')
+        return
+      }
+      ElMessage.success(mode === 'text' ? '已复制为纯文本' : '已复制到剪贴板')
+      // 本地累加，避免为了刷新计数而重查整表
+      const target = items.value.find((i) => i.id === item.id)
+      if (target) target.use_count = (target.use_count || 0) + 1
+    } catch {
+      ElMessage.error('复制失败')
+    }
   }
 
   // 单条删除
@@ -214,6 +236,7 @@ export function useClipboard() {
     loading,
     hasMore,
     keyword,
+    kind,
     startTime,
     endTime,
     advancedOpen,
@@ -221,7 +244,7 @@ export function useClipboard() {
     search,
     reset,
     loadMore,
-    copy,
+    copyItem,
     deleteItem,
     deleteSelected,
     clearAll,

@@ -133,6 +133,58 @@ function togglePomodoroWindow() {
   }
 }
 
+function toggleClipboardWindow() {
+  const clipboardWin = getClipboardWindow();
+  if (clipboardWin && clipboardWin.isVisible()) {
+    hideOtherWindow("clipboardMiniWindow");
+  } else {
+    queryByConditions({
+      db: myDb.db,
+      tableName: "basic_info",
+      conditions: {
+        whereStr: "key = 'window-mode:clipboardMiniWindow'",
+      },
+      callback: (err, data) => {
+        if (err) {
+          console.log(err, "err");
+          createOtherWindow("clipboardMiniWindow", { mouseEvents: true });
+          return;
+        }
+        // 无历史配置时用面板默认尺寸兜底（createOtherWindow 的兜底尺寸只有 108x81，面板放不下）
+        let config = {
+          position: 'bottom-right',
+          width: 520,
+          height: 560,
+          gap: 30,
+          x: 0,
+          y: 0,
+          skin: 'white',
+          layout: 'list',
+        };
+        if (data && data.length > 0) {
+          try {
+            config = { ...config, ...JSON.parse(data[0].value) };
+          } catch (e) {
+            console.log(e, "parse error");
+          }
+        }
+        // 拖拽不再记忆位置（与 quickNote 一致、避免写库）：忽略历史 custom 坐标，
+        // 始终回到默认位置（bottom-right），下次唤出不会复用旧坐标。
+        config.position = "bottom-right";
+        createOtherWindow("clipboardMiniWindow", { ...config, mouseEvents: true });
+      },
+    });
+  }
+}
+
+function getClipboardWindow() {
+  const allWindows = BrowserWindow.getAllWindows();
+  return allWindows.find((w) => {
+    const url = w.webContents.getURL();
+    return url.includes("clipboardMiniWindow") && url.includes("isSecondWindow=true");
+  });
+}
+
 function getPomodoroWindow() {
   const allWindows = BrowserWindow.getAllWindows();
   return allWindows.find((w) => {
@@ -193,6 +245,9 @@ function globalShortcutFn(item) {
     }
     else if (item.type == 'open_pomodoro_window') {
       togglePomodoroWindow();
+    }
+    else if (item.type == 'open_clipboard_window') {
+      toggleClipboardWindow();
     }
     console.log("Electron loves global shortcuts!");
   });

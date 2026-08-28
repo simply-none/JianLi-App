@@ -10,6 +10,7 @@
     <!-- 顶部普通查询区 -->
     <ClipboardToolbar
       v-model:keyword="keyword"
+      v-model:kind="kind"
       :advanced-open="advancedOpen"
       @search="search"
       @reset="reset"
@@ -36,7 +37,7 @@
       :selected-ids="selectedIds"
       :keyword="keyword"
       @load-more="loadMore"
-      @copy="copy"
+      @copy="({ item, mode }) => copyItem(item, mode)"
       @delete="deleteItem"
       @toggle-select="toggleSelect"
       @delete-selected="deleteSelected"
@@ -58,6 +59,7 @@ const {
   loading,
   hasMore,
   keyword,
+  kind,
   startTime,
   endTime,
   advancedOpen,
@@ -65,7 +67,7 @@ const {
   search,
   reset,
   loadMore,
-  copy,
+  copyItem,
   deleteItem,
   deleteSelected,
   clearAll,

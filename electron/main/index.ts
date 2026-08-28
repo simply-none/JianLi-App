@@ -76,8 +76,8 @@ async function createWindow() {
   initApiTest();
   // 新窗口相关
   initNewWindow();
-  // 剪贴板
-  initClipboard();
+  // 剪贴板（异步：需先补齐新增列，失败不应阻塞启动）
+  initClipboard().catch((err) => console.error("initClipboard error:", err));
   // 快捷键注册
   initRegisterShortcut();
   // 系统相关
