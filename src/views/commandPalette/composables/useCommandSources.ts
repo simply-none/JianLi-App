@@ -3,16 +3,17 @@ import { routeSource } from '../sources/routeSource'
 import { actionSource } from '../sources/actionSource'
 import { noteSource } from '../sources/noteSource'
 import { todoSource } from '../sources/todoSource'
+import { habitSource } from '../sources/habitSource'
 import { MAX_TOTAL, SCOPE_PREFIX_MAP } from '../config/paletteConfig'
 
 /**
  * 数据源注册表。
  * 新增一个可搜索的模块：写好 source 后在这里加一行即可，面板本体不用改。
  */
-const REGISTRY: CommandSource[] = [routeSource, actionSource, noteSource, todoSource]
+const REGISTRY: CommandSource[] = [routeSource, actionSource, noteSource, todoSource, habitSource]
 
 export type SearchOptions = {
-  /** 作用域前缀（'@' / '#' / '/'），为空表示搜索全部数据源 */
+  /** 作用域前缀（'@' / '#' / '/' / '!'），为空表示搜索全部数据源 */
   scope?: string
   /** 请求序号，用于丢弃过期结果（异步返回顺序不保证） */
   token?: number

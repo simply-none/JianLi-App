@@ -9,6 +9,8 @@ import useTheme from '@/store/useTheme';
 import { layoutRouters, RouteNames } from '@/router';
 import { ElMessageBox } from 'element-plus';
 import { sysNotify, appNotify } from '@/utils/notify';
+import useWindowMode from '@/store/useWindowMode';
+import { isHabitReminderId } from '@/store/useHabit';
 
 const router = useRouter()
 const route = useRoute()
@@ -43,8 +45,16 @@ if (!isSecondWindow) {
   window.ipcRenderer.on('tips-trigger', (event, reminder: any) => {
     const title = reminder?.title || '提醒';
     const content = reminder?.content || `${title}提醒到了`;
-    sysNotify(title, content, '');
-    appNotify(title, content, 5000);
+
+    // 习惯提醒（id 形如 habit:<key>#<序号>）：到点唤起打卡小窗，点通知也能再唤出
+    const isHabit = isHabitReminderId(reminder?.id);
+    const openHabitWindow = isHabit
+      ? () => useWindowMode().openHabitWindow()
+      : undefined;
+    sysNotify(title, content, '', 3, openHabitWindow);
+    appNotify(title, content, 5000, openHabitWindow);
+    if (isHabit) openHabitWindow?.();
+
     if (reminder?.recordAfter) {
       router.push({
         name: RouteNames.THEME_CONVERSATION,

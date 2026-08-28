@@ -26,6 +26,7 @@ export function useWindowModeSetting() {
     stock: refs.stockMiniWindowConfig,
     clipboard: refs.clipboardWindowConfig,
     commandPalette: refs.commandPaletteWindowConfig,
+    habit: refs.habitWindowConfig,
   }
 
   const showSetterMap: Record<WindowKey, (val: boolean) => void> = {
@@ -38,6 +39,7 @@ export function useWindowModeSetting() {
     stock: store.setShowStockMiniWindow,
     clipboard: store.setShowClipboardWindow,
     commandPalette: store.setShowCommandPaletteWindow,
+    habit: store.setShowHabitWindow,
   }
 
   const storeVisibleMap: Record<WindowKey, Ref<any>> = {
@@ -50,6 +52,7 @@ export function useWindowModeSetting() {
     stock: refs.showStockMiniWindowC,
     clipboard: refs.showClipboardWindowC,
     commandPalette: refs.showCommandPaletteWindowC,
+    habit: refs.showHabitWindowC,
   }
 
   // —— 页面侧本地副本：store 变化时同步，避免直接改 store 引起连锁更新 ——

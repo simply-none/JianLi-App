@@ -13,6 +13,7 @@ export type WindowKey =
   | 'stock'
   | 'clipboard'
   | 'commandPalette'
+  | 'habit'
 
 /** 通用可选项（皮肤、排版等） */
 export interface NamedOption {
@@ -140,6 +141,12 @@ const COMMAND_PALETTE_SIZE_OPTIONS: SizeOption[] = [
   { label: '720×540', width: 720, height: 540 },
 ]
 
+const HABIT_SIZE_OPTIONS: SizeOption[] = [
+  { label: '360×440', width: 360, height: 440 },
+  { label: '420×520', width: 420, height: 520 },
+  { label: '480×620', width: 480, height: 620 },
+]
+
 // —— 各小窗的排版预设 ——
 const POMODORO_LAYOUT_OPTIONS: NamedOption[] = [
   { label: '默认', value: 'default' },
@@ -246,6 +253,15 @@ export const WINDOW_SECTIONS: WindowSection[] = [
     storeKey: 'commandPaletteMiniWindow',
     fields: { position: true, size: true, gap: true, skin: true, layout: false },
     sizeOptions: COMMAND_PALETTE_SIZE_OPTIONS,
+    skinOptions: SKIN_OPTIONS,
+  },
+  {
+    key: 'habit',
+    title: '习惯打卡小窗口',
+    icon: 'AlarmClockCheck',
+    storeKey: 'habitMiniWindow',
+    fields: { position: true, size: true, gap: true, skin: true, layout: false },
+    sizeOptions: HABIT_SIZE_OPTIONS,
     skinOptions: SKIN_OPTIONS,
   },
 ]

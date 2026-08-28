@@ -3,8 +3,8 @@ import type { CommandContext, CommandItem } from '../types'
 import { useCommandSources } from './useCommandSources'
 import { DEBOUNCE_MS } from '../config/paletteConfig'
 
-/** 解析输入：以 @ / # / / 开头时进入对应作用域，剩余部分才是真正关键词 */
-const SCOPE_PATTERN = /^([@#/])([\s\S]*)$/
+/** 解析输入：以 @ / # / / ! 开头时进入对应作用域，剩余部分才是真正关键词 */
+const SCOPE_PATTERN = /^([@#/!])([\s\S]*)$/
 
 /**
  * 命令面板的状态机：关键词 → 作用域 → 结果列表 → 选中项 → 执行。

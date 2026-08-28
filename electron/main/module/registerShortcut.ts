@@ -19,6 +19,16 @@ const DEFAULT_COMMAND_PALETTE_CONFIG = {
   skin: "white",
 };
 
+const DEFAULT_HABIT_CONFIG = {
+  position: "bottom-right",
+  width: 420,
+  height: 520,
+  gap: 30,
+  x: 0,
+  y: 0,
+  skin: "white",
+};
+
 function openMatchPage(url: string) {
   win.show();
   win.webContents.send("open-match-page", url);
@@ -236,6 +246,46 @@ function getCommandPaletteWindow() {
   });
 }
 
+function toggleHabitWindow() {
+  const habitWin = getHabitWindow();
+  if (habitWin && habitWin.isVisible()) {
+    hideOtherWindow("habitMiniWindow");
+  } else {
+    queryByConditions({
+      db: myDb.db,
+      tableName: "basic_info",
+      conditions: {
+        whereStr: "key = 'window-mode:habitMiniWindow'",
+      },
+      callback: (err, data) => {
+        if (err) {
+          console.log(err, "err");
+          createOtherWindow("habitMiniWindow", { ...DEFAULT_HABIT_CONFIG, mouseEvents: true });
+          return;
+        }
+        // 无历史配置时用面板默认尺寸兜底（createOtherWindow 的兜底尺寸只有 108x81，放不下）
+        let config = { ...DEFAULT_HABIT_CONFIG };
+        if (data && data.length > 0) {
+          try {
+            config = { ...config, ...JSON.parse(data[0].value) };
+          } catch (e) {
+            console.log(e, "parse error");
+          }
+        }
+        createOtherWindow("habitMiniWindow", { ...config, mouseEvents: true });
+      },
+    });
+  }
+}
+
+function getHabitWindow() {
+  const allWindows = BrowserWindow.getAllWindows();
+  return allWindows.find((w) => {
+    const url = w.webContents.getURL();
+    return url.includes("habitMiniWindow") && url.includes("isSecondWindow=true");
+  });
+}
+
 function getPomodoroWindow() {
   const allWindows = BrowserWindow.getAllWindows();
   return allWindows.find((w) => {
@@ -302,6 +352,9 @@ function globalShortcutFn(item) {
     }
     else if (item.type == 'open_command_palette') {
       toggleCommandPaletteWindow();
+    }
+    else if (item.type == 'open_habit_window') {
+      toggleHabitWindow();
     }
     console.log("Electron loves global shortcuts!");
   });

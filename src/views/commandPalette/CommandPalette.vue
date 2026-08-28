@@ -18,7 +18,7 @@
       ref="inputRef"
       :model-value="keyword"
       :scope="scope"
-      placeholder="搜索功能、笔记、待办…"
+      placeholder="搜索功能、笔记、待办… 用 ! 直接打卡习惯"
       @update:model-value="onInput"
       @clear="onClear"
     />

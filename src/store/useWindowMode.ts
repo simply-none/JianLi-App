@@ -134,6 +134,51 @@ export default defineStore("window-mode", () => {
     }
   });
 
+  // ============ 习惯打卡小窗 ============
+  const showHabitWindow = ref();
+  const showHabitWindowC = computed(() => showHabitWindow.value);
+  function setShowHabitWindow(value: boolean) {
+    showHabitWindow.value = value;
+    setStore("showHabitWindow", value);
+  }
+
+  /**
+   * 打开打卡小窗（供提醒触发 / 通知点击复用）。
+   * 已开启时上面的 watch 不会触发（值未变化），这里直接下发一次
+   * open-new-window —— createOtherWindow 命中已存在窗口时会直接 show/focus。
+   */
+  function openHabitWindow() {
+    if (showHabitWindow.value === true) {
+      send("open-new-window", "habitMiniWindow", habitWindowConfig.value);
+      return;
+    }
+    showHabitWindow.value = true;
+    setStore("showHabitWindow", true);
+  }
+
+  const habitWindowConfig = ref({
+    position: 'bottom-right',
+    width: 420,
+    height: 520,
+    gap: 30,
+    x: 0,
+    y: 0,
+    skin: 'white',
+    // 关键：createOtherWindow 在 !ops.mouseEvents 时会 setIgnoreMouseEvents(true,{forward:true})
+    // 进入鼠标穿透态，那样面板既点不动也拖不动（穿透只转发 mousemove，不转发 mousedown）。
+    // 打卡面板是常驻捕获态，不开穿透，所以必须显式带上。
+    mouseEvents: true,
+  });
+
+  watch(showHabitWindow, (newValue) => {
+    if (newValue == true) {
+      send("open-new-window", "habitMiniWindow", habitWindowConfig.value);
+    } else {
+      // 用 hide 而不是 close：窗口留着复用，下次唤出直接 show，不用重建
+      send("hide-new-window", "habitMiniWindow");
+    }
+  });
+
   // ============ 命令面板小窗 ============
   const showCommandPaletteWindow = ref();
   const showCommandPaletteWindowC = computed(() => showCommandPaletteWindow.value);
@@ -413,6 +458,21 @@ export default defineStore("window-mode", () => {
         map: clipboardWindowConfig,
       },
       {
+        field: "window-mode:habitMiniWindow",
+        default: {
+          position: 'bottom-right',
+          width: 420,
+          height: 520,
+          gap: 30,
+          x: 0,
+          y: 0,
+          skin: 'white',
+          // 见上方说明：必须显式开启鼠标事件，否则窗口进入穿透态
+          mouseEvents: true,
+        },
+        map: habitWindowConfig,
+      },
+      {
         field: "window-mode:themeConversationMini",
         default: {
           position: 'bottom-right',
@@ -557,6 +617,11 @@ export default defineStore("window-mode", () => {
     showClipboardWindowC,
     setShowClipboardWindow,
     clipboardWindowConfig,
+    showHabitWindow,
+    showHabitWindowC,
+    setShowHabitWindow,
+    openHabitWindow,
+    habitWindowConfig,
     showThemeConversationMiniWindow,
     showThemeConversationMiniWindowC,
     setShowThemeConversationMiniWindow,

@@ -27,16 +27,18 @@ export const TYPE_META: Record<CommandType, { label: string; color: string }> = 
   action: { label: '动作', color: 'var(--color-primary)' },
   note: { label: '笔记', color: 'var(--color-success)' },
   todo: { label: '待办', color: 'var(--color-warning)' },
+  habit: { label: '习惯', color: 'var(--color-error)' },
 }
 
 /**
  * 作用域前缀：输入以这些字符开头时，只检索指定数据源。
- * 例：`@会议` 只搜笔记，`#买菜` 只搜待办，`/记账` 只搜功能与动作。
+ * 例：`@会议` 只搜笔记，`#买菜` 只搜待办，`/记账` 只搜功能与动作，`!读书` 只搜习惯。
  */
 export const SCOPE_PREFIX_MAP: Record<string, string[]> = {
   '@': ['note'],
   '#': ['todo'],
   '/': ['route', 'action'],
+  '!': ['habit'],
 }
 
 /** 作用域前缀的展示文案，渲染在输入框右侧 */
@@ -44,6 +46,7 @@ export const SCOPE_LABEL: Record<string, string> = {
   '@': '笔记',
   '#': '待办',
   '/': '功能',
+  '!': '习惯',
 }
 
 /** 从上到下：默认展示顺序（route 分组内部按此顺序排序） */

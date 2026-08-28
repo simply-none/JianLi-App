@@ -9,6 +9,7 @@ declare module "vue-router" {
 export const RouteNames = {
   SETTING: "setting",
   NEW_TIPS: "newTips",
+  HABIT: "habit",
   SYSTEM_INFO: "systemInfo",
   HOME_MODE: "homeMode",
   WINDOW_MODE: "windowMode",
@@ -42,6 +43,7 @@ export const RouteNames = {
   TODO_LIST: "todoList",
   TODO_MINI_WINDOW: "todoMiniWindow",
   CLIPBOARD_MINI_WINDOW: "clipboardMiniWindow",
+  HABIT_MINI_WINDOW: "habitMiniWindow",
   // 命令面板小窗：路由名必须与主进程 createOtherWindow 的 arg 一致，
   // 因为 createOtherWindow 直接用 arg 拼 hash 路由（#${arg}?isSecondWindow=true）
   COMMAND_PALETTE: "commandPaletteMiniWindow",
@@ -91,6 +93,14 @@ export const layoutRouters: RouteRecordRaw[] = [
     component: () => import("@/views/newTips/index.vue"),
     meta: {
       title: "提醒",
+    },
+  },
+  {
+    path: "/habit",
+    name: RouteNames.HABIT,
+    component: () => import("@/views/habit/index.vue"),
+    meta: {
+      title: "习惯打卡",
     },
   },
   {
@@ -353,6 +363,12 @@ const routers: RouteRecordRaw[] = [
     path: "/clipboardMiniWindow",
     name: RouteNames.CLIPBOARD_MINI_WINDOW,
     component: () => import("@/views/clipboardMiniWindow/index.vue"),
+  },
+  {
+    // 习惯打卡小窗：路径必须与 open-new-window 传入的 arg（habitMiniWindow）一致
+    path: "/habitMiniWindow",
+    name: RouteNames.HABIT_MINI_WINDOW,
+    component: () => import("@/views/habitMiniWindow/index.vue"),
   },
   {
     // 命令面板小窗：路径必须与主进程 createOtherWindow 的 arg 一致

@@ -271,6 +271,13 @@ const originShortcuts = ref([
     key: 'commandPaletteShortcut',
     shortcut: ['', '', ''],
   },
+  {
+    type: 'open_habit_window',
+    url: '',
+    name: '习惯打卡小窗口',
+    key: 'habitWindowShortcut',
+    shortcut: ['', '', ''],
+  },
 ])
 
 // 路由功能：基于 layoutRouters 动态生成，所有布局内路由均可注册快捷键。
