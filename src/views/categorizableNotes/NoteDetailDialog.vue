@@ -27,14 +27,11 @@
     </template>
 
     <div class="dialog-content">
-      <MdEditor
+      <RichTextEditor
         ref="editorRef"
         v-model="mdText"
         :theme="editorTheme"
-        :previewTheme="previewTheme"
-        :preview="false"
         :read-only="!isEdit"
-        :toolbars="isEdit ? toolbars : []"
         @on-save="handleSave"
         class="md-editor-wrapper"
       />
@@ -52,14 +49,14 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue';
-import { MdEditor } from 'md-editor-v3';
-import 'md-editor-v3/lib/style.css';
+import RichTextEditor from '@/smallComponents/RichTextEditor.vue';
 import { ElMessage, ElDialog } from 'element-plus';
 import { v4 as uuidv4 } from 'uuid';
 import moment from 'moment';
 import { storeToRefs } from 'pinia';
 import useTheme from '@/store/useTheme';
 import TagSelector from './TagSelector.vue';
+import { stripHtml } from '@/utils/noteContent';
 
 const props = defineProps({
   modelValue: {
@@ -103,43 +100,7 @@ const editorTheme = computed(() => {
   return darkThemes.includes(currentTheme.value) ? 'dark' : 'light';
 });
 
-const previewTheme = ref('default');
-
 const editorRef = ref();
-
-const toolbars = [
-  'bold',
-  'underline',
-  'italic',
-  '-',
-  'title',
-  'strikeThrough',
-  'sub',
-  'sup',
-  'quote',
-  'unorderedList',
-  'orderedList',
-  'task',
-  '-',
-  'codeRow',
-  'code',
-  'link',
-  'image',
-  'table',
-  'mermaid',
-  'katex',
-  '-',
-  'revoke',
-  'next',
-  'save',
-  '=',
-  'pageFullscreen',
-  'fullscreen',
-  'preview',
-  'previewOnly',
-  'htmlPreview',
-  'catalog',
-];
 
 const viewTags = computed(() => {
   if (!currentNote.value.tags) return [];
@@ -155,7 +116,7 @@ const viewTags = computed(() => {
 watch(() => props.note, (newNote) => {
   if (newNote && newNote.key) {
     currentNote.value = { ...newNote };
-    mdText.value = newNote.mdText || '';
+    mdText.value = newNote.content || newNote.mdText || '';
     isEdit.value = false;
     let tagKeys = [];
     try {
@@ -197,9 +158,10 @@ async function handleSave(v, h) {
     const noteData = {
       ...currentNote.value,
       key: currentNote.value.key || uuidv4(),
-      excerpt: (v || '').substring(0, 30) + '...',
-      mdText: v,
+      excerpt: (stripHtml(v) || '').substring(0, 30) + '...',
+      content: v,
       html: html,
+      mdText: v,
       tags: JSON.stringify(selectedTags.value),
       createTime: currentNote.value.createTime || moment().format('YYYY-MM-DD HH:mm:ss'),
       updateTime: moment().format('YYYY-MM-DD HH:mm:ss'),

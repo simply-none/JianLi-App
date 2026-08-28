@@ -31,12 +31,10 @@
     </div>
 
     <div class="editor-wrapper">
-      <MdEditor
+      <RichTextEditor
         v-model="localText"
         :theme="editorTheme"
-        :previewTheme="previewTheme"
-        :preview="false"
-        :toolbars="toolbars"
+        :editable="true"
         @on-change="handleChange"
         @on-save="handleSave"
       />
@@ -73,8 +71,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, PropType } from 'vue';
-import { MdEditor, Themes, ToolbarNames } from 'md-editor-v3';
-import 'md-editor-v3/lib/style.css';
+import RichTextEditor from '@/smallComponents/RichTextEditor.vue';
 import LucideIcon from '@/components/LucideIcon.vue';
 
 const props = defineProps({
@@ -126,31 +123,7 @@ const emit = defineEmits([
 ]);
 
 const showNoteList = ref(false);
-const editorTheme = ref<Themes>(props.skin === 'dark' ? 'dark' : 'light');
-const previewTheme = ref('default');
-
-const toolbars: ToolbarNames[] = [
-  'bold',
-  'underline',
-  'italic',
-  '-',
-  'title',
-  'strikeThrough',
-  'sub',
-  'sup',
-  'quote',
-  'unorderedList',
-  'orderedList',
-  '-',
-  'code',
-  'codeRow',
-  'link',
-  'image',
-  'table',
-  '-',
-  'revoke',
-  'next'
-];
+const editorTheme = ref<'light' | 'dark'>(props.skin === 'dark' ? 'dark' : 'light');
 
 const localText = computed({
   get: () => props.modelValue,
@@ -310,17 +283,7 @@ watch(() => props.skin, (newSkin) => {
   }
 }
 
-:deep(.md-editor) {
+:deep(.ql-editor) {
   height: 100%;
-}
-
-:deep(.md-editor-dark) {
-  --md-color: var(--skin-text-primary);
-  --md-bk-color: transparent;
-}
-
-:deep(.md-editor-light) {
-  --md-color: var(--skin-text-primary);
-  --md-bk-color: transparent;
 }
 </style>

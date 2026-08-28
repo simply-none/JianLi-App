@@ -78,14 +78,12 @@
     </div>
 
     <div class="editor-area">
-      <MdEditor
+      <RichTextEditor
         ref="editorRef"
         v-model="localText"
         :theme="editorTheme"
-        :previewTheme="previewTheme"
-        :preview="false"
-        :toolbars="[] as ToolbarNames[]"
-        :toolbarsExclude="[]"
+        :editable="true"
+        :toolbar="false"
         @on-change="handleChange"
         @on-save="handleSave"
       />
@@ -135,8 +133,8 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, PropType } from 'vue';
-import { MdEditor, Themes, ToolbarNames } from 'md-editor-v3';
-import 'md-editor-v3/lib/style.css';
+import RichTextEditor from '@/smallComponents/RichTextEditor.vue';
+import { notePlainText } from '@/utils/noteContent';
 import LucideIcon from '@/components/LucideIcon.vue';
 
 const props = defineProps({
@@ -192,8 +190,7 @@ const showNoteList = ref(false);
 const searchKeyword = ref('');
 const showToast = ref(false);
 const toastText = ref('已保存');
-const editorTheme = ref<Themes>(props.skin === 'dark' ? 'dark' : 'light');
-const previewTheme = ref('default');
+const editorTheme = ref<'light' | 'dark'>(props.skin === 'dark' ? 'dark' : 'light');
 
 const localText = computed({
   get: () => props.modelValue,
@@ -205,29 +202,41 @@ const filteredNotes = computed(() => {
   const keyword = searchKeyword.value.toLowerCase();
   return props.noteList.filter((note: any) =>
     note.excerpt?.toLowerCase().includes(keyword) ||
-    note.mdText?.toLowerCase().includes(keyword)
+    notePlainText(note).toLowerCase().includes(keyword)
   );
 });
 
+/** 自定义工具栏命令：映射到 Quill 富文本格式（不再插入 Markdown 源码） */
 function execCmd(cmd: string) {
-  const editorIns = editorRef.value?.editorRef;
-  if (!editorIns) return;
-  
+  const quill = editorRef.value?.getQuill?.();
+  if (!quill) return;
+
+  const fmt = quill.getFormat();
+  const commandMap: Record<string, () => void> = {
+    bold: () => quill.format('bold', !fmt.bold),
+    italic: () => quill.format('italic', !fmt.italic),
+    underline: () => quill.format('underline', !fmt.underline),
+    title: () => quill.format('header', fmt.header === 1 ? false : 1),
+    quote: () => quill.format('blockquote', !fmt.blockquote),
+    unorderedList: () => quill.format('list', fmt.list === 'bullet' ? false : 'bullet'),
+    orderedList: () => quill.format('list', fmt.list === 'ordered' ? false : 'ordered'),
+    code: () => quill.format('code', !fmt.code),
+    codeBlock: () => quill.format('code-block', !fmt['code-block']),
+    link: () => {
+      const url = prompt('请输入链接地址', 'https://');
+      if (url) quill.format('link', url);
+    },
+    table: () => {
+      const html =
+        '<table><tbody><tr><td>列1</td><td>列2</td><td>列3</td></tr>' +
+        '<tr><td>内容</td><td>内容</td><td>内容</td></tr></tbody></table><p><br></p>';
+      const index = quill.getLength();
+      quill.clipboard.dangerouslyPasteHTML(index, html);
+      quill.setSelection(index + html.length, 0);
+    },
+  };
+
   try {
-    const commandMap: Record<string, () => void> = {
-      'bold': () => editorIns.insert((selected: string) => `**${selected}**`, { selected: '粗体文本' }),
-      'italic': () => editorIns.insert((selected: string) => `*${selected}*`, { selected: '斜体文本' }),
-      'underline': () => editorIns.insert((selected: string) => `<u>${selected}</u>`, { selected: '下划线文本' }),
-      'title': () => editorIns.insert((selected: string) => `# ${selected}`, { selected: '一级标题' }),
-      'quote': () => editorIns.insert((selected: string) => `> ${selected}`, { selected: '引用文本' }),
-      'unorderedList': () => editorIns.insert((selected: string) => `- ${selected}`, { selected: '列表项' }),
-      'orderedList': () => editorIns.insert((selected: string) => `1. ${selected}`, { selected: '列表项' }),
-      'code': () => editorIns.insert((selected: string) => `\`${selected}\``, { selected: 'code' }),
-      'codeBlock': () => editorIns.insert(() => '```\n\n```', { isBlock: true }),
-      'link': () => editorIns.insert((selected: string) => `[${selected}](url)`, { selected: '链接文本' }),
-      'table': () => editorIns.insert(() => '| 列1 | 列2 | 列3 |\n| --- | --- | --- |\n| 内容 | 内容 | 内容 |', { isBlock: true }),
-    };
-    
     commandMap[cmd]?.();
   } catch (e) {
     console.log('cmd error:', e);
@@ -471,17 +480,7 @@ watch(() => props.saveStatus, (status) => {
   }
 }
 
-:deep(.md-editor) {
+:deep(.ql-editor) {
   height: 100%;
-}
-
-:deep(.md-editor-dark) {
-  --md-color: var(--skin-text-primary);
-  --md-bk-color: transparent;
-}
-
-:deep(.md-editor-light) {
-  --md-color: var(--skin-text-primary);
-  --md-bk-color: transparent;
 }
 </style>

@@ -40,6 +40,7 @@ import LayoutGlass from './layouts/LayoutGlass.vue';
 import LayoutSidebar from './layouts/LayoutSidebar.vue';
 import LayoutClassic from './layouts/LayoutClassic.vue';
 import { formatDate } from '@/utils/time';
+import { stripHtml } from '@/utils/noteContent';
 
 const layouts = ['minimal', 'glass', 'sidebar', 'classic']
 
@@ -69,7 +70,8 @@ const saveStatus = ref('saved')
 const dragEnabled = ref(true)
 
 const wordCount = computed(() => {
-  return text.value ? text.value.replace(/\s/g, '').length : 0
+  const plain = stripHtml(text.value)
+  return plain ? plain.replace(/\s/g, '').length : 0
 })
 
 loadCurrentNote();
@@ -188,7 +190,7 @@ async function loadNoteList() {
 function loadNote(row: any) {
   console.log('加载笔记:', row)
   curNote.value = row
-  text.value = row.mdText || ''
+  text.value = row.content || row.mdText || ''
 }
 
 function newNote() {
@@ -201,12 +203,13 @@ async function loadCurrentNote() {
   const currentNoteStr = localStorage.getItem('quickNote:currentNote')
   if (currentNoteStr) {
     curNote.value = JSON.parse(currentNoteStr)
-    text.value = curNote.value.mdText || ''
+    text.value = curNote.value.content || curNote.value.mdText || ''
   }
 }
 
 async function saveCurrentNote(newText: string) { 
   let data = {
+    content: newText,
     mdText: newText,
     createTime: curNote.value.createTime || moment().format('YYYY-MM-DD HH:mm:ss'),
     updateTime: moment().format('YYYY-MM-DD HH:mm:ss'),
@@ -227,9 +230,10 @@ async function saveNote() {
     data: {
       ...curNote.value,
       key: curNote.value.key || uuidv4(),
-      excerpt: (text.value || '').substring(0, 20) + '...',
-      mdText: text.value,
+      excerpt: (stripHtml(text.value) || '').substring(0, 20) + '...',
+      content: text.value,
       html: text.value,
+      mdText: text.value,
       createTime: curNote.value.createTime || moment().format('YYYY-MM-DD HH:mm:ss'),
       updateTime: moment().format('YYYY-MM-DD HH:mm:ss'),
     },

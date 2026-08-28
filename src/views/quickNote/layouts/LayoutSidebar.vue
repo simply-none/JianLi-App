@@ -69,12 +69,10 @@
       </div>
 
       <div class="editor-body">
-        <MdEditor
+        <RichTextEditor
           v-model="localText"
           :theme="editorTheme"
-          :previewTheme="previewTheme"
-          :preview="false"
-          :toolbars="toolbars"
+          :editable="true"
           @on-change="handleChange"
           @on-save="handleSave"
         />
@@ -96,9 +94,9 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, PropType } from 'vue';
-import { MdEditor, Themes, ToolbarNames } from 'md-editor-v3';
-import 'md-editor-v3/lib/style.css';
+import RichTextEditor from '@/smallComponents/RichTextEditor.vue';
 import LucideIcon from '@/components/LucideIcon.vue';
+import { notePlainText } from '@/utils/noteContent';
 import moment from 'moment';
 
 const props = defineProps({
@@ -152,16 +150,7 @@ const emit = defineEmits([
 const searchKeyword = ref('');
 const sidebarWidth = ref(200);
 const isResizing = ref(false);
-const editorTheme = ref<Themes>(props.skin === 'dark' ? 'dark' : 'light');
-const previewTheme = ref('default');
-
-const toolbars: ToolbarNames[] = [
-  'bold', 'underline', 'italic', 'strikeThrough',
-  '-', 'title', 'sub', 'sup', 'quote',
-  '-', 'unorderedList', 'orderedList',
-  '-', 'code', 'codeRow', 'link', 'image', 'table',
-  '-', 'revoke', 'next'
-];
+const editorTheme = ref<'light' | 'dark'>(props.skin === 'dark' ? 'dark' : 'light');
 
 const localText = computed({
   get: () => props.modelValue,
@@ -173,7 +162,7 @@ const filteredNotes = computed(() => {
   const keyword = searchKeyword.value.toLowerCase();
   return props.noteList.filter((note: any) =>
     note.excerpt?.toLowerCase().includes(keyword) ||
-    note.mdText?.toLowerCase().includes(keyword)
+    notePlainText(note).toLowerCase().includes(keyword)
   );
 });
 
@@ -467,17 +456,7 @@ watch(() => props.skin, (newSkin) => {
   50% { opacity: 0.4; }
 }
 
-:deep(.md-editor) {
+:deep(.ql-editor) {
   height: 100%;
-}
-
-:deep(.md-editor-dark) {
-  --md-color: var(--skin-text-primary);
-  --md-bk-color: transparent;
-}
-
-:deep(.md-editor-light) {
-  --md-color: var(--skin-text-primary);
-  --md-bk-color: transparent;
 }
 </style>

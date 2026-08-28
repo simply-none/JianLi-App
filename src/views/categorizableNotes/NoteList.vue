@@ -56,6 +56,7 @@ import { ref, computed, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import LucideIcon from '@/components/LucideIcon.vue';
 import moment from 'moment';
+import { noteTitle } from '@/utils/noteContent';
 
 const scrollbarRef = ref(null);
 
@@ -101,10 +102,7 @@ function handleScroll() {
 }
 
 function getTitle(note) {
-  if (!note.mdText) return '无标题';
-  const lines = note.mdText.split('\n').filter(l => l.trim());
-  const firstLine = lines[0] || '';
-  return firstLine.replace(/^#+\s*/, '').substring(0, 50);
+  return noteTitle(note);
 }
 
 function getNoteTags(note) {

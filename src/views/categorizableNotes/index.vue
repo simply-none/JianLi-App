@@ -139,12 +139,11 @@
               保存
             </el-button>
           </div>
-          <MdEditor
+          <RichTextEditor
             ref="editorRef"
             v-model="editorMdText"
-            :preview="false"
+            :editable="true"
             :theme="editorTheme"
-            :previewTheme="previewTheme"
             @on-save="handleEditorSave"
             class="md-editor-main"
           />
@@ -165,13 +164,13 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
 import { storeToRefs } from 'pinia';
-import { MdEditor } from 'md-editor-v3';
-import 'md-editor-v3/lib/style.css';
+import RichTextEditor from '@/smallComponents/RichTextEditor.vue';
 import { ElMessage } from 'element-plus';
 import LucideIcon from '@/components/LucideIcon.vue';
 import { v4 as uuidv4 } from 'uuid';
 import moment from 'moment';
 import { getStore } from '@/utils/common';
+import { notePlainText, stripHtml } from '@/utils/noteContent';
 import useTheme from '@/store/useTheme';
 import NoteList from './NoteList.vue';
 import TagSelector from './TagSelector.vue';
@@ -205,15 +204,13 @@ const editorTheme = computed(() => {
   return darkThemes.includes(currentTheme.value) ? 'dark' : 'light';
 });
 
-const previewTheme = ref('default');
-
 const filteredNotes = computed(() => {
   let result = [...allNotes.value];
 
   if (searchKeyword.value.trim()) {
     const keyword = searchKeyword.value.toLowerCase();
     result = result.filter(note => {
-      const content = (note.mdText || '') + (note.excerpt || '');
+      const content = notePlainText(note) + (note.excerpt || '');
       return content.toLowerCase().includes(keyword);
     });
   }
@@ -259,7 +256,7 @@ async function fetchNotes(isLoadMore = false) {
   let sql = 'SELECT * FROM note_book';
 
   if (searchKeyword.value.trim()) {
-    sql += ` WHERE mdText LIKE '%${searchKeyword.value}%' OR excerpt LIKE '%${searchKeyword.value}%'`;
+    sql += ` WHERE (mdText LIKE '%${searchKeyword.value}%' OR content LIKE '%${searchKeyword.value}%' OR html LIKE '%${searchKeyword.value}%' OR excerpt LIKE '%${searchKeyword.value}%')`;
   }
 
   if (selectedFilterTags.value.length > 0) {
@@ -387,9 +384,10 @@ async function handleEditorSave(v, h) {
   const noteData = {
     ...currentEditorNote.value,
     key: currentEditorNote.value.key || uuidv4(),
-    excerpt: (v || '').substring(0, 30) + '...',
-    mdText: v,
+    excerpt: (stripHtml(v) || '').substring(0, 30) + '...',
+    content: v,
     html: html,
+    mdText: v,
     tags: JSON.stringify(editorTags.value),
     createTime: currentEditorNote.value.createTime || moment().format('YYYY-MM-DD HH:mm:ss'),
     updateTime: moment().format('YYYY-MM-DD HH:mm:ss'),

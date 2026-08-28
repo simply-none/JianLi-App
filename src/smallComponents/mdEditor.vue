@@ -1,24 +1,16 @@
 <template>
   <draggableContainer v-bind="computedPosition" @update="updateFn">
     <div class="my-editor" @contextmenu.stop="contextmenuFn" :class="['me-' + theme]">
-      <div class="my-editor-ops">
-        <div class="meo-item" data-el="1" :style="{
-          ...(props.data[1] || {}),
-        }">
-          <div class="meo-item-title" @click="showMornFn">主题</div>
-          <el-select class="meo-item-content"  v-show="showMore" v-model="theme" placeholder="请选择主题" @change="changeTheme">
-            <el-option v-for="item in themeOps" :key="item" :label="item" :value="item" />
-          </el-select>
-        </div>
-        <div class="meo-item"  v-show="showMore" data-el="1" :style="{
-          ...(props.data[1] || {}),
-        }">
-          <div class="meo-item-title">代码主题</div>
-          <el-select class="meo-item-content" v-model="previewTheme" placeholder="请选择主题">
-            <el-option v-for="item in previewThemeOps" :key="item" :label="item" :value="item" />
-          </el-select>
-        </div>
-        <div class="meo-item meo-item-right" data-el="1" :style="{
+        <div class="my-editor-ops">
+          <div class="meo-item" data-el="1" :style="{
+            ...(props.data[1] || {}),
+          }">
+            <div class="meo-item-title" @click="showMornFn">主题</div>
+            <el-select class="meo-item-content"  v-show="showMore" v-model="theme" placeholder="请选择主题" @change="changeTheme">
+              <el-option v-for="item in themeOps" :key="item" :label="item" :value="item" />
+            </el-select>
+          </div>
+          <div class="meo-item meo-item-right" data-el="1" :style="{
           ...(props.data[1] || {}),
         }">
           <el-popover placement="right" :width="800" trigger="click" ref="meoNoteRef" @show="getNoteBookData"
@@ -46,8 +38,8 @@
               <el-table-column label="操作" width="150" fixed="right">
 
                 <template #default="scope">
-                  <el-button type="primary" size="small" v-if="scope.row.mdText"
-                    @click="showContent(scope.row)">加载</el-button>
+                <el-button type="primary" size="small" v-if="scope.row.mdText || scope.row.content"
+                  @click="showContent(scope.row)">加载</el-button>
                 </template>
               </el-table-column>
             </el-table>
@@ -58,7 +50,7 @@
       <div data-el="2" class="my-editor-split" :style="{
         ...(props.data[2] || {}),
       }">
-        <MdEditor ref="editorRef" v-model="text" :theme="theme" :previewTheme="previewTheme" :preview="false" @on-save="onSave" />
+        <RichTextEditor ref="editorRef" v-model="text" :theme="theme" :editable="true" @on-save="onSave" />
       </div>
     </div>
   </draggableContainer>
@@ -72,9 +64,9 @@ import useGlobalSetting from '@/store/useGlobalSetting';
 import useWorkOrRestStore from '@/store/usePomodoroDisplay';
 import moment from 'moment';
 import { v4 as uuidv4 } from 'uuid';
-import { MdEditor } from 'md-editor-v3';
-import 'md-editor-v3/lib/style.css';
+import RichTextEditor from '@/smallComponents/RichTextEditor.vue';
 import { ElMessage } from 'element-plus';
+import { stripHtml } from '@/utils/noteContent';
 import { formatDate, getMonthRange, groupByDate } from '@/utils/time';
 
 import draggableContainer from '@/components/draggableContainer.vue';
@@ -146,18 +138,6 @@ const showMornFn = () => {
   showMore.value = !showMore.value
 }
 
-const previewTheme = ref('default')
-
-// 'default' | 'github' | 'vuepress' | 'mk-cute' | 'smart-blue' | 'cyanosis'
-const previewThemeOps = [
-  'default',
-  'github',
-  'vuepress',
-  'mk-cute',
-  'smart-blue',
-  'cyanosis',
-]
-
 const theme = ref(localStorage.getItem('editor-theme') || 'light')
 
 const themeOps = ['light', 'dark']
@@ -167,9 +147,9 @@ function changeTheme (val) {
 }
 
 const curNote = ref({})
-const text = ref(curNote.value.mdText || '')
+const text = ref(curNote.value.content || curNote.value.mdText || '')
 watch(() => curNote.value, (val) => {
-  text.value = val.mdText || ''
+  text.value = val.content || val.mdText || ''
 }, {
   deep: true,
 })
@@ -243,9 +223,10 @@ const onSave = (v, h) => {
       data: {
         ...curNote.value,
         key: curNote.value.key || uuidv4(),
-        excerpt: (v || '').substring(0, 20) + '...',
-        mdText: v,
+        excerpt: (stripHtml(v) || '').substring(0, 20) + '...',
+        content: v,
         html: html,
+        mdText: v,
         createTime: curNote.value.createTime || moment().format('YYYY-MM-DD HH:mm:ss'),
         updateTime: moment().format('YYYY-MM-DD HH:mm:ss'),
       },
@@ -356,18 +337,12 @@ async function saveNoteBook(v, h) {
     box-shadow: 0 0 0 1px #5c5c5c inset;
   }
 
-  :deep(.md-editor-preview) {
-    color: #6e6e6e;
+  :deep(.ql-editor) {
+    color: #e0e0e0;
   }
 }
 
-.md-editor {
+.rich-text-editor {
   height: 100%;
-}
-
-.md-editor-dark,
-.md-editor-modal-container {
-  --md-color: #909090;
-  --md-bk-color: #1c1c1c1c;;
 }
 </style>  

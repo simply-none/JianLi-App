@@ -53,28 +53,23 @@
         v-show="viewMode === 'edit' || viewMode === 'split'"
         :style="{ width: viewMode === 'split' ? '50%' : '100%' }"
       >
-        <MdEditor
+        <RichTextEditor
           v-model="localText"
           :theme="editorTheme"
-          :previewTheme="previewTheme"
-          :preview="false"
-          :toolbars="toolbars"
+          :editable="true"
           @on-change="handleChange"
           @on-save="handleSave"
         />
       </div>
-      
-      <div 
+
+      <div
         class="preview-pane"
         v-show="viewMode === 'preview' || viewMode === 'split'"
         :style="{ width: viewMode === 'split' ? '50%' : '100%' }"
       >
-        <MdEditor
+        <RichTextEditor
           :modelValue="localText"
           :theme="editorTheme"
-          :previewTheme="previewTheme"
-          :preview="true"
-          :toolbars="[] as ToolbarNames[]"
           :editable="false"
         />
       </div>
@@ -84,7 +79,7 @@
       <div class="status-left">
         <span class="status-item">
           <LucideIcon name="Gauge" :size="12" />
-          <span>Markdown</span>
+          <span>富文本</span>
         </span>
         <span class="status-item">
           <span>UTF-8</span>
@@ -108,8 +103,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { MdEditor, Themes, ToolbarNames } from 'md-editor-v3';
-import 'md-editor-v3/lib/style.css';
+import RichTextEditor from '@/smallComponents/RichTextEditor.vue';
 import LucideIcon from '@/components/LucideIcon.vue';
 
 const props = defineProps({
@@ -161,19 +155,9 @@ const emit = defineEmits([
 ]);
 
 const viewMode = ref<'edit' | 'split' | 'preview'>('edit');
-const editorTheme = computed<Themes>(() => props.skin === 'dark' ? 'dark' : 'light');
-const previewTheme = ref('default');
+const editorTheme = computed<'light' | 'dark'>(() => props.skin === 'dark' ? 'dark' : 'light');
 const cursorLine = ref(1);
 const cursorCol = ref(1);
-
-const toolbars: ToolbarNames[] = [
-  'bold', 'underline', 'italic', 'strikeThrough', 'sub', 'sup',
-  '-', 'title', 'quote', 'unorderedList', 'orderedList', 'task',
-  '-', 'codeRow', 'code', 'link', 'image', 'table', 'mermaid', 'katex',
-  '-', 'revoke', 'next', 'save',
-  '=', 'pageFullscreen', 'fullscreen', 'preview', 'htmlPreview',
-  '-', 'catalog', 'github'
-];
 
 const fileName = computed(() => {
   if (props.currentNote?.excerpt) {
@@ -371,17 +355,7 @@ watch(() => props.modelValue, (val) => {
   }
 }
 
-:deep(.md-editor) {
+:deep(.ql-editor) {
   height: 100%;
-}
-
-:deep(.md-editor-dark) {
-  --md-color: #d4d4d4;
-  --md-bk-color: #1e1e1e;
-}
-
-:deep(.md-editor-light) {
-  --md-color: var(--skin-text-primary, #333);
-  --md-bk-color: var(--skin-bg, #fafafa);
 }
 </style>
