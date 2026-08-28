@@ -58,8 +58,14 @@ export default defineStore("global-setting", () => {
   const reminderStoreIdle = useNewReminder();
   const { remindersC: idleRemindersC } = storeToRefs(reminderStoreIdle);
   const isIdleNow = computed(() => {
-    const p: any = idleRemindersC.value.find((r: any) => r.id === "pomodoro");
-    return isInIdlePeriod(p?.idleTime, new Date(idleNow.value));
+    // 空闲（免打扰）判定：任意「已启用的多状态提醒」处于其配置的 idleTime 时段内，即视为免打扰。
+    // 由单一番茄钟判定泛化为多提醒聚合，避免某条提醒的免打扰时段被忽略。
+    return idleRemindersC.value.some(
+      (r: any) =>
+        r.mode === "stateful" &&
+        r.enabled &&
+        isInIdlePeriod(r?.idleTime, new Date(idleNow.value))
+    );
   });
   startIdleClock();
   function setCurStatus(status?: Status, record = true, startTime?: number) {

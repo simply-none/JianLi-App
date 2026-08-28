@@ -65,7 +65,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import LucideIcon from "@/components/LucideIcon.vue";
-import useTipsRuntime from "@/store/useTipsRuntime";
+import { useRuntime } from "@/store/useTipsRuntime";
 import { isInIdlePeriod } from "@/utils/idleTime";
 import type { TipsReminder } from "../types";
 
@@ -76,19 +76,19 @@ const emit = defineEmits<{
   toggle: [id: string, enabled: number];
 }>();
 
-const runtime = useTipsRuntime();
-
-// 当前多状态运行时（匹配到指定提醒 id）
+// 当前多状态运行时（按提醒 id 取各自独立 store 实例）
 function runtimeByItem(id: string) {
-  if (id !== runtime.activeId) return null;
+  const rt = useRuntime(id);
+  // 尚未进入任何状态（未运行 / 尚未补偿到）时返回 null，避免误显示空状态
+  if (!rt.currentStateKey || rt.stopped) return null;
   return {
-    stateLabel: runtime.stateLabel,
-    nextStateLabel: runtime.nextStateLabel,
-    nextTime: runtime.nextStateTime,
-    stateStartTime: runtime.stateStartTime,
-    injected: !!runtime.injected,
-    stopped: !!runtime.stopped,
-    idle: !!runtime.idle,
+    stateLabel: rt.stateLabel,
+    nextStateLabel: rt.nextStateLabel,
+    nextTime: rt.nextStateTime,
+    stateStartTime: rt.stateStartTime,
+    injected: !!rt.injected,
+    stopped: !!rt.stopped,
+    idle: !!rt.idle,
   };
 }
 
