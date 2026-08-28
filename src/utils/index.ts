@@ -49,31 +49,39 @@ export function isArray(obj: any) {
   return Object.prototype.toString.call(obj) === "[object Array]";
 }
 
-// 比较新旧两个对象（数组或对象），如果旧对象中有新对象中没有的字段，则添加到新对象中
+// 比较新旧两个对象，非破坏性合并：以 newObj(store) 为准，oldObj(default) 仅补齐缺失的内置 key。
+// 例如后加的 idle 状态若 store 中缺失，则用 default.idle 兜底，避免落成 undefined 或被整体覆盖。
 export function getCompositeObj(oldObj: any, newObj: any) {
   const isObjectType = isObject(oldObj);
-  // 如果是对象类型
+  // 旧值非对象：直接采用新值（保持原行为）
   if (!isObjectType) {
     return {
       obj: newObj,
       isSame: true,
     };
   }
-  const isSame = isSameKey(oldObj, newObj);
-  // 如果新旧对象的字段相同，则返回新对象
-  if (isSame) {
+  // 新值非对象（如历史 null/undefined 残留）：整体回退 default，避免写回 undefined 抹掉旧配置
+  if (!isObject(newObj)) {
     return {
-      obj: newObj,
-      isSame: true,
+      obj: oldObj,
+      isSame: false,
     };
   }
-  // 否则，将旧对象中的字段添加到新对象中
+  // store 优先：newObj 覆盖 oldObj 同名 key；oldObj 中独有的 key（如后加的内置状态）用 default 补齐
+  const merged = {
+    ...oldObj,
+    ...newObj,
+  };
+  // 双向 key 集合一致才算完全同构；否则标记需写回，杜绝「缺键即被覆盖 / 多键被丢弃」
+  const oldKeys = Object.keys(oldObj);
+  const newKeys = Object.keys(newObj);
+  const isSame =
+    oldKeys.length === newKeys.length &&
+    oldKeys.every((k) => k in newObj) &&
+    newKeys.every((k) => k in oldObj);
   return {
-    obj: {
-      ...oldObj,
-      ...newObj,
-    },
-    isSame: false,
+    obj: merged,
+    isSame,
   };
 }
 

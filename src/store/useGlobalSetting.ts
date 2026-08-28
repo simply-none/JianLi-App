@@ -216,7 +216,12 @@ export default defineStore("global-setting", () => {
     rest: {},
     screen: {},
     lock: {},
+    idle: {}, // 与内置状态集合对齐：避免副本缺 idle 导致写入丢失、重启回落默认第一项
   });
+  // homeMode 是否已从库载入真实数据（含已配 mode）。
+  // 用于守卫 alignHomeModeKeys 的写库：启动早期（init 尚未完成）禁止写库，
+  // 避免空壳覆盖 store 清空番茄钟状态主页模式的小组件配置。见 2026-08-28 修复。
+  const homeModeLoaded = ref(false);
   const homeModeOps = ref<ObjectType[]>([]);
   const homeModeC = computed(() => homeMode.value);
   const homeModeOpsC = computed(() => homeModeOps.value);
@@ -243,6 +248,13 @@ export default defineStore("global-setting", () => {
    * 这是「homeMode 动态取番茄钟对应 status」的核心：番茄钟 states 变动时调用本函数，
    * homeMode 的 key 自动跟随，且永不缺键。
    */
+  // 取番茄钟（多状态提醒）当前 states 的 key 集合，用于对齐 homeMode 的自定义状态 key
+  function getPomodoroStateKeys(): string[] {
+    const p: any = reminderStoreIdle.reminders.find(
+      (r: any) => r.id === "pomodoro" && r.mode === "stateful"
+    );
+    return Array.isArray(p?.states) ? p.states.map((s: any) => s.key).filter(Boolean) : [];
+  }
   function alignHomeModeKeys(statusKeys: string[] = []) {
     const keys = Array.isArray(statusKeys) ? statusKeys : [];
     const defaultEntry = homeModeOps.value[0] || {};
@@ -265,7 +277,11 @@ export default defineStore("global-setting", () => {
       if (!(k in next)) next[k] = homeMode.value[k];
     }
     homeMode.value = next;
-    setStore("homeMode", next);
+    // 守卫：仅在 homeMode 已从库载入真实数据后才写库，避免应用启动早期空壳覆盖 store，
+    // 清空已持久化的 mode（番茄钟状态主页模式小组件）。见 2026-08-28 修复。
+    if (homeModeLoaded.value) {
+      setStore("homeMode", next);
+    }
   }
 
   // pinia状态初始化
@@ -444,11 +460,13 @@ export default defineStore("global-setting", () => {
       ...objectVars,
     ];
 
-    // 默认值赋值
+    // 默认值赋值（从库载入 homeMode 真实数据，含已配 mode）
     initPiniaStatus(allVars);
-    // 初始化后对齐 homeMode 的 key 集合（保证内置状态 key 齐全），
-    // 番茄钟 states 加载/变化时会再次调用以纳入自定义状态。
-    alignHomeModeKeys();
+    // 标记 homeMode 已从库载入，此后 alignHomeModeKeys 方可安全写库
+    homeModeLoaded.value = true;
+    // 初始化后对齐 homeMode 的 key 集合（内置 + 番茄钟自定义状态），
+    // 此时写库安全（基于已载入数据）。states 变化仍由 usePomodoroDisplay 的 watch 再次对齐。
+    alignHomeModeKeys(getPomodoroStateKeys());
   }
 
   // 当天时间判断，初始化
