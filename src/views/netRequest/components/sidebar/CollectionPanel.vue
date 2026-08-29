@@ -1,10 +1,14 @@
 <template>
   <div class="collection-panel">
-    <!-- 工具条：新建根文件夹 / 导入 -->
+    <!-- 工具条：新建根文件夹 / 全部展开收起 / 导入 -->
     <div class="col-toolbar">
       <el-button size="small" text type="primary" @click="emit('createFolder', 0)">
         <LucideIcon name="FolderPlus" :size="14" />
         新建文件夹
+      </el-button>
+      <el-button size="small" text type="primary" @click="toggleExpandAll">
+        <LucideIcon :name="allExpanded ? 'ListChevronsDownUp' : 'ListChevronsUpDown'" :size="14" />
+        {{ allExpanded ? '全部收起' : '全部展开' }}
       </el-button>
       <el-button size="small" text type="primary" @click="emit('import')">
         <LucideIcon name="Upload" :size="14" />
@@ -18,6 +22,8 @@
         v-for="node in tree"
         :key="node.id"
         :node="node"
+        :expand-all="allExpanded"
+        :expand-signal="expandSignal"
         @load="(cfg, id, name) => emit('load', cfg, id, name)"
         @create-folder="(pid) => emit('createFolder', pid)"
         @rename="(id, name) => emit('rename', id, name)"
@@ -32,8 +38,10 @@
 
 <script setup lang="ts">
 /**
- * 集合面板：根级新建文件夹 / 导入入口 / 集合树展示
+ * 集合面板：根级新建文件夹 / 全部展开收起 / 导入入口 / 集合树展示
+ * 树节点为集合（文件夹）与请求的混合树，支持多级嵌套（二级及更深集合）
  */
+import { ref } from 'vue'
 import CollectionTree from './CollectionTree.vue'
 import type { CollectionNode, RequestConfig } from '../../types'
 
@@ -51,6 +59,19 @@ const emit = defineEmits<{
   (e: 'delete', id: number): void
   (e: 'import'): void
 }>()
+
+/** 当前是否全部展开（用于按钮文案/图标切换） */
+const allExpanded = ref(true)
+/** 展开收起信号（每次切换自增，通知各递归节点同步状态） */
+const expandSignal = ref(0)
+
+/**
+ * 切换全部展开 / 收起
+ */
+function toggleExpandAll(): void {
+  allExpanded.value = !allExpanded.value
+  expandSignal.value++
+}
 </script>
 
 <style scoped lang="scss">
@@ -64,6 +85,7 @@ const emit = defineEmits<{
   display: flex;
   gap: 4px;
   margin-bottom: 6px;
+  flex-wrap: wrap;
 }
 
 .col-tree {

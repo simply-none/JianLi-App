@@ -28,9 +28,10 @@ export async function refreshCollection(): Promise<void> {
  * 新建文件夹
  * @param parentId 父节点 id（0 = 根级）
  * @param name 文件夹名称
+ * @returns 新文件夹节点 id（供保存弹窗自动选中）
  */
-export async function createFolder(parentId: number, name: string): Promise<void> {
-  await insertCollectionNode({
+export async function createFolder(parentId: number, name: string): Promise<number> {
+  const id = await insertCollectionNode({
     parentId,
     nodeType: 'folder',
     name,
@@ -40,6 +41,7 @@ export async function createFolder(parentId: number, name: string): Promise<void
     sort: 0,
   })
   await refreshCollection()
+  return id
 }
 
 /**

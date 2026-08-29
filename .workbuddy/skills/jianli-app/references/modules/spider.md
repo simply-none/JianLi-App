@@ -34,7 +34,8 @@ Postman 风格的 HTTP / WebSocket 调试工作台。支持：请求方法/URL/�
 
 ## 复用 / 集成点
 - 环境变量替换用 `{{变量名}}` 占位，URL/头/参数/Body 均生效。
-- 集合树 `CollectionTree.vue` 是递归组件，depth 默认 0（withDefaults）。
+- 集合树 `CollectionTree.vue` 是递归组件，depth 默认 0（withDefaults）；支持任意层级嵌套集合，节点行点击切换展开、菜单「新建子文件夹」创建二级/多级集合；`CollectionPanel.vue` 通过 `expandAll`+`expandSignal`（信号自增 + watch）实现全部展开/收起。
+- 保存弹窗 `SaveRequestDialog.vue`：目标集合为 el-tree-select（根目录 value=0 内置节点 + DB 文件夹树）；「新建」按钮内联创建集合于当前选中集合下，`createFolder` 返回新 id（`insertCollectionNode` → lastID）经 `onDone` 回调自动选中；名称默认取 URL 末段，UUID/超长哈希/长数字段自动回退（`deriveName`）。
 - 命令面板 REGISTRY 可跳转本页。
 
 ## 代码片段导入（5 个子页签，2026-08 新增）

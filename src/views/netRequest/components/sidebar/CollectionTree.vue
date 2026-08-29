@@ -72,6 +72,8 @@
         :node="child"
         :depth="depth + 1"
         :active-id="activeId"
+        :expand-all="expandAll"
+        :expand-signal="expandSignal"
         @load="(cfg, id, name) => emit('load', cfg, id, name)"
         @create-folder="(pid) => emit('createFolder', pid)"
         @rename="(id, name) => emit('rename', id, name)"
@@ -84,11 +86,12 @@
 <script setup lang="ts">
 /**
  * 集合树节点（递归组件）
- * - 文件夹可折叠展开，双击层级内新建子文件夹由菜单触发
+ * - 文件夹可折叠展开（点击行或箭头），支持全局展开/收起信号
+ * - 菜单「新建子文件夹」支持在任意层级创建二级/多级集合
  * - 请求节点点击后向父级冒泡 load 事件（回填请求配置）
  * - 行内重命名（Enter 确认 / Esc 取消）
  */
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { CollectionNode, RequestConfig } from '../../types'
 
@@ -101,8 +104,12 @@ const props = withDefaults(
     depth?: number;
     /** 当前激活（已加载）的请求节点 id */
     activeId?: number;
+    /** 全局展开/收起目标状态（配合 expandSignal 生效） */
+    expandAll?: boolean;
+    /** 全局展开/收起信号（每次切换自增） */
+    expandSignal?: number;
   }>(),
-  { depth: 0, activeId: undefined }
+  { depth: 0, activeId: undefined, expandAll: true, expandSignal: 0 }
 )
 
 /** 事件：加载 / 新建子文件夹 / 重命名 / 删除 */
@@ -115,6 +122,14 @@ const emit = defineEmits<{
 
 /** 文件夹是否展开 */
 const expanded = ref(true)
+
+// 监听全局展开/收起信号，同步本节点展开状态
+watch(
+  () => props.expandSignal,
+  () => {
+    expanded.value = props.expandAll
+  }
+)
 
 /** 是否处于重命名状态 */
 const renaming = ref(false)

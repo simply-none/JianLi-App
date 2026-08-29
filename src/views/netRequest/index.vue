@@ -84,6 +84,7 @@
       :editing-id="editingNodeId"
       :editing-name="editingName"
       @save="onSaveToCollection"
+      @create-folder="onCreateFolderInDialog"
     />
 
     <!-- 导入弹窗 -->
@@ -248,6 +249,21 @@ function onCreateFolder(parentId: number): void {
       }
     })
     .catch(() => {})
+}
+
+/**
+ * 弹窗内新建集合（保存弹窗「新建」入口）
+ * @param parentId 父集合 id（0 = 根目录）
+ * @param name 集合名称
+ * @param onDone 创建成功回调（携带新集合 id，供弹窗自动选中）
+ */
+function onCreateFolderInDialog(parentId: number, name: string, onDone: (id: number) => void): void {
+  createFolder(parentId, name)
+    .then((id) => {
+      onDone(id)
+      ElMessage.success('已创建集合「' + name + '」')
+    })
+    .catch((err) => ElMessage.error('新建集合失败：' + err.message))
 }
 
 /**
