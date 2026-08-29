@@ -13,12 +13,14 @@
         v-if="shouldMount"
         ref="webviewRef"
         :src="initialUrl"
+        :useragent="initialUserAgent"
         class="webview-frame"
         partition="persist:browser"
         allowpopups
         webpreferences="nodeIntegration=no,contextIsolation=yes"
         @did-start-loading="onStartLoading"
         @did-stop-loading="onStopLoading"
+        @dom-ready="onDomReady"
         @did-navigate="onDidNavigate"
         @did-navigate-in-page="onDidNavigateInPage"
         @did-fail-load="onFailLoad"
@@ -60,7 +62,8 @@ import LucideIcon from "@/components/LucideIcon.vue";
 import NewTabPage from "./NewTabPage.vue";
 import type { Tab } from "@/store/useBrowser";
 import useBrowser from "@/store/useBrowser";
-import { setWebview, removeWebview, refreshNavState, recordHistory, emitFoundInPage } from "../composables/useWebviewBridge";
+import { setWebview, removeWebview, refreshNavState, recordHistory, emitFoundInPage, applyTabUserAgent, uaStringFor } from "../composables/useWebviewBridge";
+import { applyNightMode, useNightMode } from "../composables/useNightMode";
 
 /** 组件入参 */
 const props = defineProps<{
@@ -84,6 +87,25 @@ const webviewRef = ref<any>(null);
 const shouldMount = ref(false);
 /** 挂载时的初始地址（不再响应式跟随 tab.url） */
 const initialUrl = ref("");
+/** 挂载时的初始 UA（按标签 uaMode 决定；default 为空串不覆盖） */
+const initialUserAgent = computed(() => uaStringFor(props.tab.uaMode));
+
+// 夜间模式状态（单例）：模式变化时对本标签重新注入
+const { nightOn } = useNightMode();
+watch(nightOn, () => {
+  if (shouldMount.value) applyNightMode(props.tab.id);
+});
+
+// UA 模式变化：立即应用到已挂载的 webview 并重载（UA 仅对新请求生效）
+watch(
+  () => props.tab.uaMode,
+  () => {
+    if (!shouldMount.value) return;
+    if (applyTabUserAgent(props.tab.id)) {
+      webviewRef.value?.reload();
+    }
+  }
+);
 
 // 激活时懒挂载
 watch(
@@ -117,6 +139,13 @@ watch(webviewRef, (el) => {
 });
 
 // ==================== webview 事件处理 ====================
+
+/**
+ * DOM 就绪：应用夜间模式样式注入（夜间模式开关）
+ */
+function onDomReady() {
+  applyNightMode(props.tab.id);
+}
 
 /** 开始加载：置 loading、清错误 */
 function onStartLoading() {

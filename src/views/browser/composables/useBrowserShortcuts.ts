@@ -2,7 +2,7 @@
  * 内置浏览器 - 键盘快捷键（仅在浏览器页面挂载期生效）
  * ------------------------------------------------------------------
  * 对齐主流浏览器常用快捷键：
- * - Ctrl+T 新标签页 / Ctrl+W 关闭标签 / Ctrl+Shift+T 无（不做会话栈）
+ * - Ctrl+T 新标签页 / Ctrl+W 关闭标签 / Ctrl+Shift+T 恢复关闭的标签
  * - Ctrl+Tab / Ctrl+Shift+Tab 循环切换标签 / Ctrl+1~8 定位第 N 个 / Ctrl+9 最后一个
  * - Ctrl+L 或 Alt+D 聚焦地址栏 / Ctrl+F 页内查找 / Ctrl+D 收藏切换
  * - Ctrl+R 或 F5 刷新 / Alt+Left / Alt+Right 后退前进
@@ -85,6 +85,13 @@ export function useBrowserShortcuts() {
     if (mod && e.key.toLowerCase() === "w") {
       e.preventDefault();
       store.closeTab(store.activeTabId);
+      return;
+    }
+    if (mod && e.shiftKey && e.key.toLowerCase() === "t") {
+      e.preventDefault();
+      if (!store.restoreClosedTab()) {
+        console.log("[browser] 没有可恢复的标签");
+      }
       return;
     }
     if (e.key === "F5" || (mod && e.key.toLowerCase() === "r")) {

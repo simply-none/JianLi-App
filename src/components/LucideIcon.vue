@@ -86,6 +86,14 @@ import { AlarmClock, AlarmClockCheck, AlarmClockMinus, AlarmClockPlus, ArrowDown
   SquareArrowOutUpRight,
   MonitorStop,
   Earth,
+  MonitorPlay,
+  Film,
+  Music,
+  Image,
+  Video,
+  MoonStar,
+  ShieldBan,
+  MonitorSmartphone,
  } from '@lucide/vue';
 import { ref } from 'vue';
 import { getLightColor } from '@/utils';
@@ -362,6 +370,14 @@ let nameMap = ref<Record<any, any>>({
   SquareArrowOutUpRight,
   MonitorStop,
   Earth,
+  MonitorPlay,
+  Film,
+  Music,
+  Image,
+  Video,
+  MoonStar,
+  ShieldBan,
+  MonitorSmartphone,
 })
 
 function getPadding(padding: string | number): string {

@@ -265,6 +265,84 @@ export function emitFoundInPage(tabId: string, result: any) {
   foundHandlers.forEach((fn) => fn(payload));
 }
 
+// ==================== UA 切换 ====================
+
+/** 各 UA 模式对应的 User-Agent（mobile 为 iPhone Safari；desktop 为固定 Chrome 桌面 UA） */
+export const UA_STRINGS: Record<string, string> = {
+  mobile:
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+  desktop:
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+};
+
+/**
+ * 获取标签 UA 模式对应的 User-Agent（default 返回空串表示不覆盖）
+ * @param mode 必填，UA 模式
+ * @returns UA 字符串；default 返回空串
+ */
+export function uaStringFor(mode: string): string {
+  return UA_STRINGS[mode] || "";
+}
+
+/**
+ * 对指定标签应用其 UA 模式（default 恢复默认 UA）
+ * @param tabId 必填，标签 ID
+ * @returns 是否成功应用
+ */
+export function applyTabUserAgent(tabId: string): boolean {
+  const store = useBrowser();
+  const tab = store.tabs.find((t) => t.id === tabId);
+  const wv = getWebview(tabId);
+  if (!tab || !wv) return false;
+  try {
+    const ua = uaStringFor(tab.uaMode);
+    wv.setUserAgent(ua);
+    return true;
+  } catch (e) {
+    console.error("[browser] 设置 UA 失败:", e);
+    return false;
+  }
+}
+
+// ==================== 页面内容读取 ====================
+
+/**
+ * 读取指定标签页面中用户选中的文本（供「保存到笔记」等功能用）
+ * @param tabId 必填，标签 ID
+ * @returns 选中文本；无选中或失败返回空串
+ */
+export async function getPageSelection(tabId: string): Promise<string> {
+  const wv = getWebview(tabId);
+  if (!wv) return "";
+  try {
+    const text = await wv.executeJavaScript("window.getSelection().toString()");
+    return typeof text === "string" ? text : "";
+  } catch {
+    return "";
+  }
+}
+
+// ==================== 资源下载（嗅探面板用） ====================
+
+/**
+ * 让指定标签的 webview 触发资源下载（经主进程 browserDownload 管线落盘）
+ * @param tabId 可选，标签 ID，默认激活标签
+ * @param url 必填，资源地址
+ * @returns 是否成功触发
+ */
+export function downloadResource(tabId: string | undefined, url: string): boolean {
+  const store = useBrowser();
+  const wv = getWebview(tabId || store.activeTabId);
+  if (!wv || !url) return false;
+  try {
+    wv.downloadURL(url);
+    return true;
+  } catch (e) {
+    console.error("[browser] 触发下载失败:", e);
+    return false;
+  }
+}
+
 // ==================== 历史记录（供 WebViewPane 事件回调） ====================
 
 /**

@@ -28,6 +28,8 @@ import { initEbook } from "./module/ebook.ts";
 import { initScreenshot } from "./module/screenshot.ts";
 import { initStock } from "./module/stock.ts";
 import { initBrowserDownload } from "./module/browserDownload.ts";
+import { initBrowserSniffer } from "./module/browserSniffer.ts";
+import { initBrowserPermission, setPermissionWindowGetter } from "./module/browserPermission.ts";
 
 registerJlocalProtocolBefore()
 
@@ -104,6 +106,11 @@ async function createWindow() {
   initStock();
   // 内置浏览器下载管理（拦截 webview 会话的 will-download）
   initBrowserDownload();
+  // 内置浏览器资源嗅探（webRequest 挂钩 persist:browser 会话）
+  initBrowserSniffer();
+  // 内置浏览器站点权限管理（persist:browser 会话权限请求拦截）
+  setPermissionWindowGetter(() => win);
+  initBrowserPermission();
 }
 
 app.whenReady().then(async () => {

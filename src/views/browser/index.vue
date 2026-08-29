@@ -8,11 +8,17 @@
         </div>
         <NavBar
           :tab="activeTab"
+          :bookmark-bar-visible="showBookmarkBar"
           @open-history="showHistory = true"
           @open-bookmarks="onOpenBookmarks"
           @open-downloads="showDownloads = true"
           @open-find="showFind = true"
+          @open-sniffer="showSniffer = true"
+          @save-to-note="showSaveNote = true"
+          @toggle-bookmark-bar="onToggleBookmarkBar"
         />
+        <!-- 书签栏（常显，可在菜单开关） -->
+        <BookmarksBar v-if="showBookmarkBar" @manage="onOpenBookmarks" />
 
         <!-- 内容区域：每标签一个独立容器（v-show 切换，状态不丢失） -->
         <div class="browser-content">
@@ -30,6 +36,8 @@
         <HistoryDrawer v-model:visible="showHistory" />
         <BookmarkPanel v-model:visible="showBookmarks" />
         <DownloadDrawer v-model:visible="showDownloads" />
+        <SnifferDrawer v-model:visible="showSniffer" />
+        <SaveToNoteDialog v-model:visible="showSaveNote" />
         <ContextMenu
           v-model:visible="ctxVisible"
           :items="ctxItems"
@@ -52,7 +60,7 @@
  * - 下载由主进程拦截（electron/main/module/browserDownload.ts），前端 useDownloads 订阅推送
  * 本组件负责：面板组装、抽屉显隐、右键菜单项构造与动作分发、全局监听。
  */
-import { onMounted, onUnmounted, ref } from "vue";
+import { onMounted, onUnmounted, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { ElMessage } from "element-plus";
 import LayoutVue from "@/components/layout.vue";
@@ -62,12 +70,18 @@ import WebViewPane from "./components/WebViewPane.vue";
 import HistoryDrawer from "./components/HistoryDrawer.vue";
 import BookmarkPanel from "./components/BookmarkPanel.vue";
 import DownloadDrawer from "./components/DownloadDrawer.vue";
+import SnifferDrawer from "./components/SnifferDrawer.vue";
+import SaveToNoteDialog from "./components/SaveToNoteDialog.vue";
+import BookmarksBar from "./components/BookmarksBar.vue";
 import FindInPage from "./components/FindInPage.vue";
 import ContextMenu from "./components/ContextMenu.vue";
 import useBrowser from "@/store/useBrowser";
 import { loadBookmarks, toggleBookmark } from "./composables/useBookmarks";
 import { useBrowserShortcuts, EVENT_TOGGLE_FIND } from "./composables/useBrowserShortcuts";
 import { goBack, goForward, reload, toggleDevTools } from "./composables/useWebviewBridge";
+import { startSniffing, stopSniffing } from "./composables/useSniffer";
+import { useNightMode } from "./composables/useNightMode";
+import { getStore, setStore } from "@/utils/common";
 
 const browserStore = useBrowser();
 const { tabs, activeTabId, activeTab } = storeToRefs(browserStore);
@@ -77,6 +91,37 @@ const showHistory = ref(false);
 const showBookmarks = ref(false);
 const showDownloads = ref(false);
 const showFind = ref(false);
+const showSniffer = ref(false);
+const showSaveNote = ref(false);
+
+// ==================== 书签栏与夜间模式 ====================
+/** 书签栏显隐（持久化，默认开） */
+const showBookmarkBar = ref(getStore("browser-bookmarks-bar") !== false);
+
+/** 切换书签栏显隐并持久化 */
+function onToggleBookmarkBar() {
+  showBookmarkBar.value = !showBookmarkBar.value;
+  setStore("browser-bookmarks-bar", showBookmarkBar.value);
+}
+
+// 初始化夜间模式（单例：读取持久化 + 跟随主题订阅）
+useNightMode();
+
+/**
+ * 资源嗅探抽屉开关联动：打开即嗅探当前标签，关闭即停止；
+ * 抽屉打开期间切换标签则自动切到新标签继续嗅探。
+ * 启动失败（webview 未就绪 / 主进程未注册如未重启应用）仅在「刚打开抽屉」时提示一次
+ */
+watch([showSniffer, activeTabId], async ([visible], [prevVisible]) => {
+  if (!visible) {
+    if (prevVisible) await stopSniffing();
+    return;
+  }
+  const ok = await startSniffing(activeTabId.value);
+  if (!ok && !prevVisible) {
+    ElMessage.warning("资源嗅探启动失败：请重启应用（主进程有更新）后重试");
+  }
+});
 
 // ==================== 右键菜单 ====================
 /** 菜单项结构（与 ContextMenu 组件约定一致） */

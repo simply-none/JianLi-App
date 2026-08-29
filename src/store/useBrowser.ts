@@ -31,6 +31,9 @@ export interface TabError {
   url: string;
 }
 
+/** 标签页 UA 模式 */
+export type UaMode = "default" | "mobile" | "desktop";
+
 /** 标签页数据（含运行时状态） */
 export interface Tab {
   /** 唯一 ID，形如 tab-{时间戳}-{随机串} */
@@ -41,6 +44,10 @@ export interface Tab {
   url: string;
   /** 是否新标签页 */
   isNewTab: boolean;
+  /** 是否固定标签（固定后不关闭、排最前） */
+  pinned: boolean;
+  /** UA 模式：默认 / 移动端 / 电脑 */
+  uaMode: UaMode;
   /** 页面图标地址（运行时，不持久化） */
   favicon: string;
   /** 是否加载中（运行时） */
@@ -81,14 +88,17 @@ export function buildSearchUrl(query: string, engineValue: string = "baidu"): st
  * 生成新标签页对象（含运行时状态默认值）
  * @param url 可选，初始地址，默认 'newtab'
  * @param title 可选，初始标题，默认 '新标签页'
+ * @param extra 可选，附加初始字段（如 pinned/uaMode，会话恢复时用）
  * @returns 完整 Tab 对象
  */
-function makeTab(url: string = "newtab", title: string = "新标签页"): Tab {
+function makeTab(url: string = "newtab", title: string = "新标签页", extra?: Partial<Pick<Tab, "pinned" | "uaMode">>): Tab {
   return {
     id: `tab-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     title,
     url,
     isNewTab: url === "newtab",
+    pinned: extra?.pinned ?? false,
+    uaMode: extra?.uaMode ?? "default",
     favicon: "",
     loading: false,
     error: null,
@@ -103,6 +113,8 @@ interface StoredTab {
   id: string;
   title: string;
   url: string;
+  pinned: boolean;
+  uaMode: UaMode;
 }
 
 export default defineStore("browser", () => {
@@ -113,6 +125,8 @@ export default defineStore("browser", () => {
   const activeTabId = ref("");
   /** 默认搜索引擎标识 */
   const defaultEngine = ref("baidu");
+  /** 已关闭标签栈（供 Ctrl+Shift+T 恢复，最多 20 条） */
+  const closedStack = ref<{ url: string; title: string }[]>([]);
 
   /** 当前激活的标签页（找不到时回退第一个标签） */
   const activeTab = computed<Tab>(() => {
@@ -140,10 +154,22 @@ export default defineStore("browser", () => {
   /**
    * 关闭标签页；关闭最后一个标签时自动补一个空白新标签页（对齐主流浏览器行为）
    * @param tabId 必填，要关闭的标签 ID
+   * @param force 可选，是否强制关闭（忽略固定状态），默认 false
    */
-  function closeTab(tabId: string) {
+  function closeTab(tabId: string, force: boolean = false) {
     const index = tabs.value.findIndex((tab) => tab.id === tabId);
     if (index === -1) return;
+    const tab = tabs.value[index];
+    // 固定标签不可关闭（除非显式强制）
+    if (tab.pinned && !force) return;
+
+    // 记入关闭栈，供恢复（新标签页/内部地址不记）
+    if (!tab.isNewTab && /^https?:\/\//i.test(tab.url)) {
+      closedStack.value.push({ url: tab.url, title: tab.title });
+      if (closedStack.value.length > 20) {
+        closedStack.value.shift();
+      }
+    }
 
     // 关闭最后一个：直接替换为空白新标签页
     if (tabs.value.length === 1) {
@@ -159,6 +185,77 @@ export default defineStore("browser", () => {
     if (activeTabId.value === tabId) {
       const newIndex = Math.min(index, tabs.value.length - 1);
       activeTabId.value = tabs.value[newIndex].id;
+    }
+    saveToStore();
+  }
+
+  /**
+   * 恢复最近关闭的标签（弹出关闭栈栈顶并重新打开）
+   * @returns 是否成功恢复（栈空返回 false）
+   */
+  function restoreClosedTab(): boolean {
+    const item = closedStack.value.pop();
+    if (!item) return false;
+    createTab(item.url, item.title || "恢复的标签");
+    return true;
+  }
+
+  /**
+   * 切换标签固定状态；固定后排到固定区（列表最前），取消固定排到固定区之后
+   * @param tabId 必填，标签 ID
+   */
+  function togglePin(tabId: string) {
+    const tab = tabs.value.find((t) => t.id === tabId);
+    if (!tab) return;
+    tab.pinned = !tab.pinned;
+    // 从当前位置移除，重插到目标位置（固定区在前）
+    const idx = tabs.value.findIndex((t) => t.id === tabId);
+    tabs.value.splice(idx, 1);
+    if (tab.pinned) {
+      tabs.value.unshift(tab);
+    } else {
+      const firstUnpinned = tabs.value.findIndex((t) => !t.pinned);
+      tabs.value.splice(firstUnpinned === -1 ? tabs.value.length : firstUnpinned, 0, tab);
+    }
+    saveToStore();
+  }
+
+  /**
+   * 关闭除指定标签外的全部标签（固定标签受保护不关闭）
+   * @param tabId 必填，保留的标签 ID
+   */
+  function closeOtherTabs(tabId: string) {
+    const closed = tabs.value.filter((t) => t.id !== tabId && !t.pinned && /^https?:\/\//i.test(t.url));
+    closed.forEach((t) => {
+      closedStack.value.push({ url: t.url, title: t.title });
+    });
+    if (closedStack.value.length > 20) {
+      closedStack.value = closedStack.value.slice(-20);
+    }
+    tabs.value = tabs.value.filter((t) => t.id === tabId || t.pinned);
+    if (!tabs.value.some((t) => t.id === activeTabId.value)) {
+      activeTabId.value = tabs.value[0].id;
+    }
+    saveToStore();
+  }
+
+  /**
+   * 关闭指定标签右侧的全部标签（固定标签受保护不关闭）
+   * @param tabId 必填，基准标签 ID
+   */
+  function closeRightTabs(tabId: string) {
+    const idx = tabs.value.findIndex((t) => t.id === tabId);
+    if (idx === -1) return;
+    const toClose = tabs.value.slice(idx + 1).filter((t) => !t.pinned && /^https?:\/\//i.test(t.url));
+    toClose.forEach((t) => {
+      closedStack.value.push({ url: t.url, title: t.title });
+    });
+    if (closedStack.value.length > 20) {
+      closedStack.value = closedStack.value.slice(-20);
+    }
+    tabs.value = tabs.value.filter((t, i) => i <= idx || t.pinned);
+    if (!tabs.value.some((t) => t.id === activeTabId.value)) {
+      activeTabId.value = tabs.value[tabs.value.length - 1].id;
     }
     saveToStore();
   }
@@ -220,7 +317,7 @@ export default defineStore("browser", () => {
   // ==================== 持久化 ====================
   /** 保存标签会话（仅精简字段）与激活标签 ID */
   function saveToStore() {
-    const stored: StoredTab[] = tabs.value.map((t) => ({ id: t.id, title: t.title, url: t.url }));
+    const stored: StoredTab[] = tabs.value.map((t) => ({ id: t.id, title: t.title, url: t.url, pinned: t.pinned, uaMode: t.uaMode }));
     setStore("browser-tabs", stored);
     setStore("browser-active-tab-id", activeTabId.value);
   }
@@ -248,7 +345,12 @@ export default defineStore("browser", () => {
     if (Array.isArray(raw) && raw.length > 0) {
       tabs.value = raw
         .filter((t: any) => t && typeof t.url === "string")
-        .map((t: any) => makeTab(t.url, typeof t.title === "string" && t.title ? t.title : "新标签页"));
+        .map((t: any) =>
+          makeTab(t.url, typeof t.title === "string" && t.title ? t.title : "新标签页", {
+            pinned: !!t.pinned,
+            uaMode: t.uaMode === "mobile" || t.uaMode === "desktop" ? t.uaMode : "default",
+          })
+        );
       // 恢复 id 与激活态（id 冲突时重新生成）
       const usedIds = new Set<string>();
       tabs.value = tabs.value.map((t) => {
@@ -281,9 +383,14 @@ export default defineStore("browser", () => {
     activeTabId,
     defaultEngine,
     activeTab,
+    closedStack,
     searchEngineList,
     createTab,
     closeTab,
+    restoreClosedTab,
+    togglePin,
+    closeOtherTabs,
+    closeRightTabs,
     setActiveTab,
     updateTab,
     updateTabUrl,

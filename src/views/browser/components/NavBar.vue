@@ -60,11 +60,33 @@
             <el-dropdown-item command="downloads">
               <span class="menu-item"><LucideIcon name="Download" :size="14" />下载内容</span>
             </el-dropdown-item>
+            <el-dropdown-item v-if="!tab.isNewTab" command="sniffer">
+              <span class="menu-item"><LucideIcon name="MonitorPlay" :size="14" />资源嗅探</span>
+            </el-dropdown-item>
+            <el-dropdown-item v-if="!tab.isNewTab" command="save-note">
+              <span class="menu-item"><LucideIcon name="NotebookPen" :size="14" />保存到笔记</span>
+            </el-dropdown-item>
             <el-dropdown-item v-if="!tab.isNewTab" command="find" divided>
               <span class="menu-item"><LucideIcon name="Search" :size="14" />页内查找 (Ctrl+F)</span>
             </el-dropdown-item>
             <el-dropdown-item v-if="!tab.isNewTab" command="devtools">
               <span class="menu-item"><LucideIcon name="Code" :size="14" />开发者工具</span>
+            </el-dropdown-item>
+            <el-dropdown-item command="bookmark-bar" divided>
+              <span class="menu-item">
+                <LucideIcon name="BookMarked" :size="14" />
+                书签栏
+                <span class="menu-check">{{ bookmarkBarVisible ? "✓" : "" }}</span>
+              </span>
+            </el-dropdown-item>
+            <el-dropdown-item command="night-mode">
+              <span class="menu-item">
+                <LucideIcon :name="nightModeLabel === '关闭' ? 'Moon' : 'MoonStar'" :size="14" />
+                网页夜间模式：{{ nightModeLabel }}
+              </span>
+            </el-dropdown-item>
+            <el-dropdown-item command="clear-permission">
+              <span class="menu-item"><LucideIcon name="ShieldBan" :size="14" />清除站点权限记忆</span>
             </el-dropdown-item>
             <el-dropdown-item command="clear-history" divided>
               <span class="menu-item is-danger"><LucideIcon name="Trash2" :size="14" />清空浏览历史</span>
@@ -83,17 +105,20 @@
  * 全部动作经 useWebviewBridge 作用到当前激活标签的 webview。
  */
 import { computed } from "vue";
-import { ElMessageBox } from "element-plus";
+import { ElMessage, ElMessageBox } from "element-plus";
 import LucideIcon from "@/components/LucideIcon.vue";
 import AddressBar from "./AddressBar.vue";
 import type { Tab } from "@/store/useBrowser";
 import { goBack, goForward, reload, stopLoad, goHome, applyZoom, zoomToPercent, toggleDevTools } from "../composables/useWebviewBridge";
 import { clearHistory } from "../api/browserApi";
+import { cycleNightMode, useNightMode } from "../composables/useNightMode";
 
 /** 组件入参 */
 const props = defineProps<{
   /** 必填，当前激活标签 */
   tab: Tab;
+  /** 必填，书签栏是否显示（菜单勾选态展示用） */
+  bookmarkBarVisible?: boolean;
 }>();
 
 /** 组件事件 */
@@ -106,7 +131,22 @@ const emit = defineEmits<{
   (e: "open-downloads"): void;
   /** 打开页内查找条 */
   (e: "open-find"): void;
+  /** 打开资源嗅探抽屉 */
+  (e: "open-sniffer"): void;
+  /** 保存当前页到笔记 */
+  (e: "save-to-note"): void;
+  /** 切换书签栏显隐 */
+  (e: "toggle-bookmark-bar"): void;
 }>();
+
+/** 夜间模式状态（模块级单例，见 useNightMode） */
+const { mode: nightModeState } = useNightMode();
+
+/** 夜间模式中文标签（跟随主题/开/关） */
+const nightModeLabel = computed(() => {
+  const map: Record<string, string> = { off: "关闭", on: "开启", auto: "跟随主题" };
+  return map[nightModeState.value] ?? "跟随主题";
+});
 
 /** 缩放百分比显示值 */
 const zoomPercent = computed(() => zoomToPercent(props.tab.zoomLevel));
@@ -146,8 +186,40 @@ async function onMenuCommand(command: string) {
     case "downloads":
       emit("open-downloads");
       break;
+    case "sniffer":
+      emit("open-sniffer");
+      break;
     case "find":
       emit("open-find");
+      break;
+    case "save-note":
+      emit("save-to-note");
+      break;
+    case "bookmark-bar":
+      emit("toggle-bookmark-bar");
+      break;
+    case "night-mode": {
+      const next = cycleNightMode();
+      const map: Record<string, string> = { off: "关闭", on: "开启", auto: "跟随主题" };
+      ElMessage.success(`网页夜间模式：${map[next]}`);
+      break;
+    }
+    case "clear-permission":
+      try {
+        await ElMessageBox.confirm("将清除全部「允许/拒绝并记住」的站点权限记忆，下次请求会重新询问。", "清除站点权限记忆", {
+          confirmButtonText: "清除",
+          cancelButtonText: "取消",
+          type: "warning",
+        });
+        const res = await (window as any).ipcRenderer.invoke("browser-permission:clear");
+        if (res?.success) {
+          ElMessage.success("站点权限记忆已清除");
+        } else {
+          ElMessage.error("清除失败，请重试");
+        }
+      } catch {
+        // 用户取消
+      }
       break;
     case "devtools":
       toggleDevTools(props.tab.id);
@@ -219,6 +291,11 @@ async function onMenuCommand(command: string) {
   align-items: center;
   gap: 8px;
   font-size: 13px;
+
+  .menu-check {
+    margin-left: auto;
+    color: var(--color-primary-solid);
+  }
 
   &.is-danger {
     color: var(--color-danger, #f56c6c);

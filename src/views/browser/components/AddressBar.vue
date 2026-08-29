@@ -2,14 +2,27 @@
   <!-- 地址栏：URL/关键词智能识别 + 历史/书签下拉建议 + 安全标识 -->
   <div class="address-bar" ref="rootRef">
     <div class="address-input-wrap" :class="{ 'is-focused': focused }">
-      <!-- 安全标识：https 锁形 / http 警示 / 新标签页搜索图标 -->
-      <span class="address-prefix">
-        <LucideIcon
-          :name="prefixIcon"
-          :size="14"
-          :color="prefixColor"
-        />
-      </span>
+      <!-- 前缀：搜索引擎选择器（点击切换默认搜索引擎） -->
+      <el-dropdown trigger="click" @command="onEngineCommand">
+        <span class="address-prefix is-clickable" :title="`默认搜索引擎：${currentEngine?.label ?? '百度'}（点击切换）`">
+          <span class="engine-badge">{{ currentEngine?.label ?? "百度" }}</span>
+          <LucideIcon name="ChevronDown" :size="10" :color="'var(--text-muted)'" />
+        </span>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item
+              v-for="engine in browserStore.searchEngineList"
+              :key="engine.value"
+              :command="engine.value"
+            >
+              <span class="engine-item">
+                {{ engine.label }}
+                <span v-if="engine.value === browserStore.defaultEngine" class="engine-check">✓</span>
+              </span>
+            </el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
       <input
         ref="inputRef"
         v-model="inputValue"
@@ -24,7 +37,10 @@
         @keydown.up.prevent="moveSuggestion(-1)"
         @input="onInput"
       />
-      <!-- 收藏星标（仅非新标签页展示） -->
+      <!-- 安全标识（仅非新标签页展示） + 收藏星标 -->
+      <span v-if="!tab.isNewTab && tab.url" class="address-security" :title="securityTitle">
+        <LucideIcon :name="prefixIcon" :size="13" :color="prefixColor" />
+      </span>
       <span
         v-if="!tab.isNewTab && tab.url"
         class="address-star"
@@ -67,6 +83,7 @@
  * - 星标按钮切换当前页收藏。
  */
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { ElMessage } from "element-plus";
 import LucideIcon from "@/components/LucideIcon.vue";
 import type { Tab } from "@/store/useBrowser";
 import useBrowser, { buildSearchUrl } from "@/store/useBrowser";
@@ -122,6 +139,25 @@ const prefixColor = computed(() => {
   if (/^http:/i.test(props.tab.url)) return "var(--color-warning, #e6a23c)";
   return "var(--text-muted)";
 });
+
+/** 当前默认搜索引擎对象 */
+const currentEngine = computed(() => browserStore.searchEngineList.find((e) => e.value === browserStore.defaultEngine));
+
+/** 安全提示文案 */
+const securityTitle = computed(() => {
+  if (/^https:/i.test(props.tab.url)) return "安全连接 (HTTPS)";
+  if (/^http:/i.test(props.tab.url)) return "不安全连接 (HTTP)";
+  return "页面信息";
+});
+
+/**
+ * 切换默认搜索引擎（持久化到 store）
+ * @param engineValue 必填，引擎标识
+ */
+function onEngineCommand(engineValue: string) {
+  browserStore.setDefaultEngine(engineValue);
+  ElMessage.success(`默认搜索引擎已切换为 ${currentEngine.value?.label ?? engineValue}`);
+}
 
 /** 同步展示当前标签地址（未聚焦时跟随 tab.url 变化） */
 watch(
@@ -340,8 +376,44 @@ const EVENT_NAME = "browser:focus-address";
   .address-prefix {
     display: flex;
     align-items: center;
+    gap: 2px;
     color: var(--text-muted);
     flex-shrink: 0;
+
+    &.is-clickable {
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 10px;
+
+      &:hover {
+        background: var(--bg-hover);
+      }
+    }
+
+    .engine-badge {
+      font-size: 12px;
+      color: var(--color-primary-solid);
+      white-space: nowrap;
+      line-height: 1;
+    }
+  }
+
+  .address-security {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .engine-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+
+    .engine-check {
+      color: var(--color-primary-solid);
+    }
   }
 
   .address-input {
