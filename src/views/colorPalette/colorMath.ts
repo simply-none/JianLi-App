@@ -415,3 +415,165 @@ export function toJson(colors: string[], name = 'palette'): string {
   }
   return JSON.stringify(obj, null, 2)
 }
+
+// ============ OkLab / OkLCH（感知均匀色彩空间） ============
+// 与 HSL/HSV 不同，Oklab 在视觉上近似均匀：在 Oklab 中做明度插值或颜色混合，
+// 中间色不会像 HSL/HSV 那样发灰、发暗，是专业配色引擎（色阶、渐变、混合）的标配。
+// 公式采用 Björn Ottosson 公布的官方矩阵。
+
+/** OkLab 颜色：L 亮度 ~0-1，a/b 为对抗色轴（无界，通常 -0.4~0.4） */
+export interface OKLab {
+  L: number
+  a: number
+  b: number
+}
+
+/** OkLCH 颜色：L 亮度，C 彩度（>=0），H 色相角（度，0-360） */
+export interface OKLCH {
+  L: number
+  C: number
+  H: number
+}
+
+/** sRGB 单通道（0-1）线性化（gamma 解码） */
+function srgbChannelToLinear(c: number): number {
+  return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
+}
+
+/** 线性 RGB 单通道（0-1）→ sRGB（0-1，gamma 编码），不做钳制（供色域检测） */
+function linearToSrgbChannelUnclamped(c: number): number {
+  return c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055
+}
+
+/** RGB(0-255) → OkLab */
+export function rgbToOklab({ r, g, b }: RGB): OKLab {
+  const rL = srgbChannelToLinear(r / 255)
+  const gL = srgbChannelToLinear(g / 255)
+  const bL = srgbChannelToLinear(b / 255)
+  const l = 0.4122214708 * rL + 0.5363325363 * gL + 0.0514459929 * bL
+  const m = 0.2119034982 * rL + 0.6806995451 * gL + 0.1073969566 * bL
+  const s = 0.0883024619 * rL + 0.2817188376 * gL + 0.6299787005 * bL
+  const l_ = Math.cbrt(l)
+  const m_ = Math.cbrt(m)
+  const s_ = Math.cbrt(s)
+  return {
+    L: 0.2104542553 * l_ + 0.793617785 * m_ - 0.0040720468 * s_,
+    a: 1.9779984951 * l_ - 2.428592205 * m_ + 0.4505937099 * s_,
+    b: 0.0259040371 * l_ + 0.7827717662 * m_ - 0.808675766 * s_,
+  }
+}
+
+/** OkLab → RGB(0-255) */
+export function oklabToRgb({ L, a, b }: OKLab): RGB {
+  const l_ = L + 0.3963377774 * a + 0.2158037573 * b
+  const m_ = L - 0.1055613458 * a - 0.0638541728 * b
+  const s_ = L - 0.0894841775 * a - 1.291485548 * b
+  const l = l_ * l_ * l_
+  const m = m_ * m_ * m_
+  const s = s_ * s_ * s_
+  const rL = 4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s
+  const gL = -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s
+  const bL = -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s
+  return {
+    r: clamp(Math.round(linearToSrgbChannelUnclamped(rL) * 255), 0, 255),
+    g: clamp(Math.round(linearToSrgbChannelUnclamped(gL) * 255), 0, 255),
+    b: clamp(Math.round(linearToSrgbChannelUnclamped(bL) * 255), 0, 255),
+  }
+}
+
+/** OkLab → OkLCH */
+export function oklabToOklch({ L, a, b }: OKLab): OKLCH {
+  const C = Math.sqrt(a * a + b * b)
+  let H = (Math.atan2(b, a) * 180) / Math.PI
+  if (H < 0) H += 360
+  return { L, C, H }
+}
+
+/** OkLCH → OkLab */
+export function oklchToOklab({ L, C, H }: OKLCH): OKLab {
+  const hr = (H * Math.PI) / 180
+  return { L, a: C * Math.cos(hr), b: C * Math.sin(hr) }
+}
+
+/** HEX → OkLCH（忽略 alpha 通道，按 RGB 计算） */
+export function hexToOklch(hex: string): OKLCH {
+  return oklabToOklch(rgbToOklab(hexToRgb(hex)))
+}
+
+/** OkLCH → HEX（6 位，色阶/导出均不透明） */
+export function oklchToHex({ L, C, H }: OKLCH): string {
+  return rgbToHex(oklabToRgb(oklchToOklab({ L, C, H })))
+}
+
+/**
+ * 将 OkLCH 颜色钳制进 sRGB 色域：保持 L/H 不变，从 C 起逐步衰减彩度，
+ * 直到 r/g/b 都在 [0,1] 范围内。避免高彩度浅/深色溢出导致色彩失真。
+ */
+export function gamutClipOklch({ L, C, H }: OKLCH): OKLCH {
+  const toRaw = (cc: number) => {
+    const { a, b } = oklchToOklab({ L, C: cc, H })
+    const l_ = L + 0.3963377774 * a + 0.2158037573 * b
+    const m_ = L - 0.1055613458 * a - 0.0638541728 * b
+    const s_ = L - 0.0894841775 * a - 1.291485548 * b
+    const l = l_ * l_ * l_
+    const m = m_ * m_ * m_
+    const s = s_ * s_ * s_
+    const rL = 4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s
+    const gL = -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s
+    const bL = -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s
+    return { r: linearToSrgbChannelUnclamped(rL), g: linearToSrgbChannelUnclamped(gL), b: linearToSrgbChannelUnclamped(bL) }
+  }
+  let cc = C
+  let raw = toRaw(cc)
+  let guard = 0
+  while ((raw.r < 0 || raw.r > 1 || raw.g < 0 || raw.g > 1 || raw.b < 0 || raw.b > 1) && cc > 0.0002 && guard < 40) {
+    cc *= 0.9
+    raw = toRaw(cc)
+    guard++
+  }
+  return { L, C: cc, H }
+}
+
+/**
+ * 基于基准色生成 Tailwind 风格色阶（50–950 共 11 档）。
+ * 固定基色的色相 H 与彩度 C，沿 OKLCH 亮度 L 轴取 Tailwind 实测感知亮度曲线扫出各档；
+ * 浅/深档按光照明度自适应收敛彩度并做色域钳制，保证每档都是合法 HEX 且观感均匀。
+ */
+export function generateScale(baseHex: string): { step: number; hex: string }[] {
+  const base = hexToOklch(baseHex)
+  // 各档目标亮度（OKLCH L），取自 Tailwind 调色板实测感知明度
+  const ramp: [number, number][] = [
+    [50, 0.975],
+    [100, 0.925],
+    [200, 0.855],
+    [300, 0.785],
+    [400, 0.705],
+    [500, 0.625],
+    [600, 0.525],
+    [700, 0.435],
+    [800, 0.345],
+    [900, 0.255],
+    [950, 0.185],
+  ]
+  // 彩度随亮度收敛系数：极浅/极深档彩度需压低，否则易溢出 sRGB 色域
+  const chromaFactor = (L: number): number => {
+    if (L >= 0.95) return 0.2
+    if (L >= 0.88) return 0.4
+    if (L <= 0.2) return 0.3
+    if (L <= 0.3) return 0.55
+    return 1
+  }
+  return ramp.map(([step, L]) => {
+    const clipped = gamutClipOklch({ L, C: base.C * chromaFactor(L), H: base.H })
+    return { step, hex: oklchToHex(clipped) }
+  })
+}
+
+/** 在 OkLab 空间对两个颜色做线性插值（t: 0-1），用于感知均匀的渐变/混合 */
+export function mixOklab(c1: OKLab, c2: OKLab, t: number): OKLab {
+  return {
+    L: c1.L + (c2.L - c1.L) * t,
+    a: c1.a + (c2.a - c1.a) * t,
+    b: c1.b + (c2.b - c1.b) * t,
+  }
+}
