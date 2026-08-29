@@ -8,20 +8,29 @@
     <div class="import-dialog">
       <!-- 格式选择 -->
       <el-radio-group v-model="format" size="small" class="format-group">
-        <el-radio-button value="curl">cURL 命令</el-radio-button>
+        <el-radio-button value="code">代码片段</el-radio-button>
         <el-radio-button value="postman">Postman Collection</el-radio-button>
         <el-radio-button value="postman-env">Postman Environment</el-radio-button>
         <el-radio-button value="openapi">OpenAPI / Swagger</el-radio-button>
+      </el-radio-group>
+
+      <!-- 代码片段子页签（5 种格式） -->
+      <el-radio-group v-if="format === 'code'" v-model="codeKind" size="small" class="code-kind-group">
+        <el-radio-button value="curl-cmd">cURL (cmd)</el-radio-button>
+        <el-radio-button value="curl-bash">cURL (bash)</el-radio-button>
+        <el-radio-button value="fetch">fetch</el-radio-button>
+        <el-radio-button value="fetch-node">fetch (Node.js)</el-radio-button>
+        <el-radio-button value="powershell">PowerShell</el-radio-button>
       </el-radio-group>
 
       <!-- 输入区 -->
       <div class="input-area">
         <div class="input-toolbar">
           <span class="input-tip">
-            {{ format === 'curl' ? '粘贴 cURL 命令文本' : '粘贴导出的 JSON，或选择文件读取' }}
+            {{ format === 'code' ? '粘贴代码片段文本，解析后回填到请求编辑区' : '粘贴导出的 JSON，或选择文件读取' }}
           </span>
           <el-button
-            v-if="format !== 'curl'"
+            v-if="format !== 'code'"
             size="small"
             text
             type="primary"
@@ -63,20 +72,25 @@
 
 <script setup lang="ts">
 /**
- * 导入弹窗：cURL / Postman Collection / Postman Environment / OpenAPI(Swagger)
+ * 导入弹窗：代码片段（cURL cmd/bash、fetch、fetch Node.js、PowerShell）/
+ * Postman Collection / Postman Environment / OpenAPI(Swagger)
  * - 解析后先预览再确认写入
- * - cURL → 回填当前请求编辑区；其余 → 写入集合/环境
+ * - 代码片段 → 回填当前请求编辑区；其余 → 写入集合/环境
  */
 import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { parseCurl, parseOpenApi, parsePostman } from '../../composables/useImport'
+import { parseCodeSnippet, parseOpenApi, parsePostman } from '../../composables/useImport'
+import type { CodeSnippetKind } from '../../composables/useImport'
 import type { CollectionNode, Environment, RequestConfig } from '../../types'
 
 /** 弹窗可见性（v-model） */
 const visible = defineModel<boolean>({ default: false })
 
-/** 导入格式 */
-const format = ref<'curl' | 'postman' | 'postman-env' | 'openapi'>('curl')
+/** 导入格式（code 为代码片段大类） */
+const format = ref<'code' | 'postman' | 'postman-env' | 'openapi'>('code')
+
+/** 代码片段子类型（5 个子页签） */
+const codeKind = ref<CodeSnippetKind>('curl-bash')
 
 /** 输入内容 */
 const content = ref('')
@@ -89,9 +103,18 @@ let parsedCurl: RequestConfig | null = null
 let parsedNodes: CollectionNode[] = []
 let parsedEnv: Environment | null = null
 
+/** 代码片段各子类型的输入占位提示 */
+const codePlaceholders: Record<CodeSnippetKind, string> = {
+  'curl-cmd': 'curl -X GET "https://api.example.com/users" -H "Authorization: Bearer xxx"',
+  'curl-bash': "curl -X GET 'https://api.example.com/users' -H 'Authorization: Bearer xxx'",
+  fetch: `fetch("https://api.example.com/users", {\n  "headers": { "content-type": "application/json" },\n  "body": "{\\"name\\":\\"a\\"}",\n  "method": "POST"\n})`,
+  'fetch-node': `const res = await fetch('https://api.example.com/users', {\n  method: 'POST',\n  headers: { 'content-type': 'application/json' },\n  body: JSON.stringify({ name: 'a' })\n})`,
+  powershell: `$headers = @{ 'Authorization' = 'Bearer xxx' }\nInvoke-RestMethod -Uri 'https://api.example.com/users' -Method Post -Headers $headers -ContentType 'application/json' -Body '{"name":"a"}'`,
+}
+
 /** 输入占位提示（按格式区分） */
 const placeholder = computed(() => {
-  if (format.value === 'curl') return "curl -X GET 'https://api.example.com/users' -H 'Authorization: Bearer xxx'"
+  if (format.value === 'code') return codePlaceholders[codeKind.value]
   if (format.value === 'openapi') return '{ "openapi": "3.0.0", "info": {...}, "paths": {...} }'
   if (format.value === 'postman') return '{ "info": { "name": "..." }, "item": [...] }'
   return '{ "name": "环境名", "values": [{ "key": "", "value": "", "enabled": true }] }'
@@ -104,8 +127,8 @@ const previewLines = computed(() => {
   parsedEnv = null
   if (!content.value.trim()) return []
   try {
-    if (format.value === 'curl') {
-      parsedCurl = parseCurl(content.value)
+    if (format.value === 'code') {
+      parsedCurl = parseCodeSnippet(codeKind.value, content.value)
       return [`${parsedCurl.method} ${parsedCurl.url}`]
     }
     if (format.value === 'postman') {
@@ -175,7 +198,7 @@ async function pickAndReadFile(): Promise<void> {
   }
 }
 
-/** 导入完成事件：curl 携带回填配置，集合/环境由父组件各自刷新 */
+/** 导入完成事件：代码片段携带回填配置，集合/环境由父组件各自刷新 */
 const emit = defineEmits<{
   (e: 'curl', config: RequestConfig): void
   (e: 'done'): void
@@ -189,10 +212,10 @@ async function doImport(): Promise<void> {
   try {
     const { importNodes, refreshCollection } = await import('../../composables/useCollection')
     const { saveEnvironment, refreshEnvs } = await import('../../composables/useEnvironment')
-    if (format.value === 'curl') {
+    if (format.value === 'code') {
       if (!parsedCurl) return
       emit('curl', parsedCurl)
-      ElMessage.success('cURL 已回填到请求编辑区')
+      ElMessage.success('代码片段已回填到请求编辑区')
     } else if (format.value === 'postman' || format.value === 'openapi') {
       if (!parsedNodes.length) {
         ElMessage.warning('未解析出可导入的接口')
@@ -234,6 +257,15 @@ watch(visible, (val) => {
 
 .format-group {
   align-self: flex-start;
+}
+
+/* 代码片段子页签组 */
+.code-kind-group {
+  align-self: flex-start;
+
+  :deep(.el-radio-button__inner) {
+    padding: 5px 10px;
+  }
 }
 
 .input-toolbar {

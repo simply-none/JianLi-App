@@ -2,10 +2,12 @@
  * 网络请求工作台 - 导入解析
  * ------------------------------------------------------------------
  * 支持将外部格式解析为可导入的集合节点 / 请求配置：
- * 1. cURL 命令文本          → 单个 RequestConfig
- * 2. Postman Collection v2.1 JSON → 集合节点树（含文件夹层级）
- * 3. Postman Environment JSON    → 环境变量对象
- * 4. OpenAPI 3.0 / Swagger 2.0 JSON → 集合节点树（按路径分组）
+ * 1. cURL 命令文本（bash / cmd 两种风格） → 单个 RequestConfig
+ * 2. fetch 代码（浏览器 / Node.js）       → 单个 RequestConfig
+ * 3. PowerShell（Invoke-RestMethod 等）   → 单个 RequestConfig
+ * 4. Postman Collection v2.1 JSON → 集合节点树（含文件夹层级）
+ * 5. Postman Environment JSON    → 环境变量对象
+ * 6. OpenAPI 3.0 / Swagger 2.0 JSON → 集合节点树（按路径分组）
  *
  * YAML 格式不支持（需先在 Postman/编辑器中导出为 JSON）。
  */
@@ -15,28 +17,34 @@ import { createEmptyConfig } from './useRequest'
 import { createKv, uid } from './useEnvironment'
 
 /* ------------------------------------------------------------------ */
-/* cURL 解析                                                           */
+/* 代码片段解析（cURL / fetch / PowerShell）                            */
 /* ------------------------------------------------------------------ */
 
 /**
- * 按 shell 规则粗略分词（尊重单双引号，支持引号内空格）
- * @param input cURL 命令文本
+ * 按 shell 规则分词（尊重引号，支持引号内空格与转义引号）
+ * @param input 命令文本（续行符需先合并为空格）
+ * @param opts.singleQuote 是否将单引号视为引用符（bash 为 true，cmd 为 false）
  * @returns token 数组（引号已剥离）
  */
-function tokenize(input: string): string[] {
+function tokenize(input: string, opts: { singleQuote: boolean }): string[] {
   const tokens: string[] = []
   let cur = ''
   let quote: string | null = null
-  for (const ch of input) {
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i]
     if (quote) {
-      if (ch === quote) {
+      // 引号内转义：\" 或 \'（与当前引号相同时视为字面引号）
+      if (ch === '\\' && input[i + 1] === quote) {
+        cur += quote
+        i++
+      } else if (ch === quote) {
         quote = null
       } else {
         cur += ch
       }
-    } else if (ch === '"' || ch === "'") {
+    } else if (ch === '"' || (ch === "'" && opts.singleQuote)) {
       quote = ch
-    } else if (ch === ' ' || ch === '\t' || ch === '\n') {
+    } else if (ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r') {
       if (cur) {
         tokens.push(cur)
         cur = ''
@@ -50,16 +58,15 @@ function tokenize(input: string): string[] {
 }
 
 /**
- * 解析 cURL 命令为请求配置
+ * cURL token 流解析核心（bash / cmd 两种风格共用）
  * 支持：-X/--request、-H/--header、-d/--data/--data-raw/--data-binary、
  *       -F/--form（含 @file）、--url、-u/--user（Basic 认证）
- * @param text cURL 命令文本
+ * @param tokens 分词后的 token 数组
  * @returns 解析后的请求配置
  * @throws {Error} 无法识别出 URL 时抛出中文错误
  */
-export function parseCurl(text: string): RequestConfig {
+function parseCurlTokens(tokens: string[]): RequestConfig {
   const config = createEmptyConfig()
-  const tokens = tokenize(text.trim())
   const flagsWithArg = new Set([
     '-X', '--request', '-H', '--header', '-d', '--data', '--data-raw',
     '--data-ascii', '--data-binary', '--data-urlencode', '-F', '--form',
@@ -163,6 +170,343 @@ export function parseCurl(text: string): RequestConfig {
     config.auth.password = idx >= 0 ? basicAuth.slice(idx + 1) : ''
   }
   return config
+}
+
+/**
+ * 解析 bash 风格 cURL（\ 续行，单/双引号，Chrome/Postman「Copy as cURL (bash)」）
+ * @param text cURL 命令文本
+ * @returns 解析后的请求配置
+ * @throws {Error} 无法识别出 URL 时抛出中文错误
+ */
+export function parseCurl(text: string): RequestConfig {
+  // 合并 \ 续行后再分词
+  const flat = text.replace(/\\\s*\r?\n/g, ' ')
+  return parseCurlTokens(tokenize(flat.trim(), { singleQuote: true }))
+}
+
+/**
+ * 解析 Windows cmd 风格 cURL（^ 续行，仅双引号，\" 转义，「Copy as cURL (cmd)」）
+ * @param text cURL 命令文本
+ * @returns 解析后的请求配置
+ * @throws {Error} 无法识别出 URL 时抛出中文错误
+ */
+export function parseCurlCmd(text: string): RequestConfig {
+  // 合并 ^ 续行后再分词；cmd 不把单引号当引用符
+  const flat = text.replace(/\^\s*\r?\n/g, ' ')
+  return parseCurlTokens(tokenize(flat.trim(), { singleQuote: false }))
+}
+
+/**
+ * 读取 JS 字符串字面量（处理 \" \\ \n \t 等常见转义）
+ * @param src 源文本
+ * @param start 起始引号下标
+ * @returns { value, end } 解出的字符串内容与结束引号后的下标
+ */
+function readJsString(src: string, start: number): { value: string; end: number } {
+  const quote = src[start]
+  let i = start + 1
+  let out = ''
+  while (i < src.length) {
+    const ch = src[i]
+    if (ch === '\\') {
+      const next = src[i + 1] || ''
+      if (next === quote) out += quote
+      else if (next === 'n') out += '\n'
+      else if (next === 't') out += '\t'
+      else if (next === 'r') out += '\r'
+      else out += next
+      i += 2
+      continue
+    }
+    if (ch === quote) return { value: out, end: i + 1 }
+    out += ch
+    i++
+  }
+  return { value: out, end: i }
+}
+
+/**
+ * 从 start 处的左括号开始提取配平的括号/圆括号块
+ * @param src 源文本
+ * @param start 左括号下标
+ * @param open 左括号字符（默认 {）
+ * @param close 右括号字符（默认 }）
+ * @returns 配平的文本块（含首尾括号），未配平返回 null
+ */
+function extractBalanced(src: string, start: number, open = '{', close = '}'): string | null {
+  let depth = 0
+  for (let i = start; i < src.length; i++) {
+    const ch = src[i]
+    if (ch === open) depth++
+    else if (ch === close) {
+      depth--
+      if (depth === 0) return src.slice(start, i + 1)
+    }
+  }
+  return null
+}
+
+/**
+ * 解析 fetch 代码为请求配置（浏览器 fetch 与 Node.js fetch 语法一致，共用核心）
+ * 支持：fetch('url', { method, headers, body })；body 兼容字符串字面量与 JSON.stringify(...)
+ * @param text fetch 代码文本
+ * @returns 解析后的请求配置
+ * @throws {Error} 无法识别出 URL 时抛出中文错误
+ */
+function parseFetchCode(text: string): RequestConfig {
+  const config = createEmptyConfig()
+  const src = text.trim()
+
+  // 1. 定位 fetch( 调用并取第一个参数（URL 字符串字面量）
+  const parenIdx = src.search(/\bfetch\s*\(/)
+  if (parenIdx < 0) throw new Error('未找到 fetch(...) 调用')
+  let i = src.indexOf('(', parenIdx) + 1
+  while (i < src.length && /\s/.test(src[i])) i++
+  if (src[i] !== '"' && src[i] !== "'" && src[i] !== '`') {
+    throw new Error('fetch 第一参数需为 URL 字符串字面量（暂不支持变量）')
+  }
+  const urlRead = readJsString(src, i)
+  config.url = urlRead.value.trim()
+  if (!config.url) throw new Error('未能从 fetch 代码中识别出 URL')
+
+  // 2. 第二参数 options 对象（存在才解析）
+  let j = urlRead.end
+  while (j < src.length && /[\s,]/.test(src[j])) j++
+  if (src[j] !== '{') return config
+  const objStr = extractBalanced(src, j)
+  if (!objStr) return config
+
+  // 3. body（先摘除，避免其内容干扰 method/headers 识别）
+  let probe = objStr
+  const bMatch = objStr.match(/["']?body["']?\s*:\s*/)
+  if (bMatch) {
+    const bStart = (bMatch.index || 0) + bMatch[0].length
+    let rawBody = ''
+    if (objStr.startsWith('JSON.stringify', bStart)) {
+      // JSON.stringify({...}) / JSON.stringify("...")：提取括号内参数再尝试格式化
+      const parenStart = objStr.indexOf('(', bStart)
+      const argStr = parenStart >= 0 ? extractBalanced(objStr, parenStart, '(', ')') : null
+      rawBody = argStr ? argStr.slice(1, -1) : ''
+      try {
+        rawBody = JSON.stringify(JSON.parse(rawBody), null, 2)
+      } catch {
+        /* 非 JSON 保持原文 */
+      }
+    } else if (src[bStart] === '"' || src[bStart] === "'" || src[bStart] === '`') {
+      rawBody = readJsString(objStr, bStart).value
+    }
+    if (rawBody) {
+      config.bodyType = 'raw'
+      const ct = config.headers.find((h) => h.key.toLowerCase() === 'content-type')
+      let isJson = false
+      try {
+        JSON.parse(rawBody)
+        isJson = true
+      } catch {
+        /* 非 JSON */
+      }
+      config.rawType = ct && /xml/i.test(ct.value) ? 'xml' : isJson ? 'json' : 'text'
+      config.rawBody = rawBody
+      // 有请求体时默认 POST
+      if (config.method === 'GET') config.method = 'POST'
+    }
+    // 将 body 片段替换为空格，防止其内容被误识别为 method/headers
+    probe = objStr.slice(0, bMatch.index) + ' '.repeat(rawBody.length + 8) + objStr.slice(bStart)
+  }
+
+  // 4. method
+  const mMatch = probe.match(/["']?method["']?\s*:\s*["']([A-Za-z]+)["']/)
+  if (mMatch) config.method = mMatch[1].toUpperCase() as RequestConfig['method']
+
+  // 5. headers 对象块
+  const hMatch = probe.match(/["']?headers["']?\s*:\s*\{/)
+  if (hMatch) {
+    const braceStart = probe.indexOf('{', (hMatch.index || 0) + hMatch[0].length - 1)
+    const headersStr = braceStart >= 0 ? extractBalanced(probe, braceStart) : null
+    if (headersStr) {
+      const pairRe = /["']([^"']+)["']\s*:\s*(["'])([\s\S]*?)\2/g
+      let pm: RegExpExecArray | null
+      while ((pm = pairRe.exec(headersStr))) {
+        config.headers.push(createKv(pm[1], pm[3]))
+      }
+    }
+  }
+  return config
+}
+
+/**
+ * 解析浏览器 fetch 代码（Chrome/Edge DevTools「Copy as fetch」）
+ * @param text fetch 代码文本
+ * @returns 解析后的请求配置
+ * @throws {Error} 无法识别出 URL 时抛出中文错误
+ */
+export function parseFetch(text: string): RequestConfig {
+  return parseFetchCode(text)
+}
+
+/**
+ * 解析 Node.js fetch 代码（node-fetch / undici，含 import/await 前置噪音）
+ * @param text fetch 代码文本
+ * @returns 解析后的请求配置
+ * @throws {Error} 无法识别出 URL 时抛出中文错误
+ */
+export function parseFetchNode(text: string): RequestConfig {
+  return parseFetchCode(text)
+}
+
+/**
+ * 解析 PowerShell 请求代码（Invoke-RestMethod / Invoke-WebRequest）
+ * 支持：-Uri/-Method/-ContentType/-Headers(@{...} 或 $var)/-Body（here-string、引号字符串、$var）
+ * @param text PowerShell 代码文本
+ * @returns 解析后的请求配置
+ * @throws {Error} 无法识别出 Uri 时抛出中文错误
+ */
+export function parsePowerShell(text: string): RequestConfig {
+  const config = createEmptyConfig()
+  const src = text.trim()
+  if (!/Invoke-(RestMethod|WebRequest)/i.test(src)) {
+    throw new Error('未找到 Invoke-RestMethod / Invoke-WebRequest 调用')
+  }
+
+  // 1. URL
+  const uri = src.match(/-Uri\s+(['"])([^'"]+?)\1/i)
+  if (!uri) throw new Error('未能识别 -Uri 参数')
+  config.url = uri[2]
+
+  // 2. 方法
+  const method = src.match(/-Method\s+([A-Za-z]+)/i)
+  if (method) config.method = method[1].toUpperCase() as RequestConfig['method']
+
+  // 3. ContentType → 请求头
+  const ct = src.match(/-ContentType\s+(['"])([^'"]+?)\1/i)
+  if (ct) config.headers.push(createKv('Content-Type', ct[2]))
+
+  /**
+   * 解析 PowerShell 哈希表块中的键值对为请求头行
+   * @param block @{...} 内部文本
+   */
+  const parseHeadersBlock = (block: string): void => {
+    const pairRe = /["']([^"']+)["']\s*=\s*["']([^"']*)["']/g
+    let pm: RegExpExecArray | null
+    while ((pm = pairRe.exec(block))) {
+      config.headers.push(createKv(pm[1], pm[2]))
+    }
+  }
+
+  // 4. Headers：内联 -Headers @{...} 优先，其次 -Headers $var 引用声明
+  const inline = src.match(/-Headers\s+@\{/i)
+  if (inline) {
+    const braceIdx = (inline.index || 0) + inline[0].length - 1
+    const block = extractBalanced(src, braceIdx)
+    if (block) parseHeadersBlock(block.slice(1, -1))
+  } else {
+    const varRef = src.match(/-Headers\s+\$(\w+)/i)
+    if (varRef) {
+      const decl = src.match(new RegExp('\\$' + varRef[1] + '\\s*=\\s*@\\{'))
+      if (decl) {
+        const braceIdx = (decl.index || 0) + decl[0].length - 1
+        const block = extractBalanced(src, braceIdx)
+        if (block) parseHeadersBlock(block.slice(1, -1))
+      }
+    }
+  }
+
+  /**
+   * 从文本中解析 Body 值（here-string / 单双引号字符串 / @{...} 哈希表转 JSON）
+   * @param rest 从 Body 值起始位置开始的文本
+   * @returns 解出的请求体（无法识别返回空串）
+   */
+  const parseBodyValue = (rest: string): string => {
+    // here-string：@'...'@ 与 @"..."@
+    if (rest.startsWith("@'")) {
+      const end = rest.indexOf("'@", 2)
+      return end > 0 ? rest.slice(2, end) : ''
+    }
+    if (rest.startsWith('@"')) {
+      const end = rest.indexOf('"@', 2)
+      return end > 0 ? rest.slice(2, end) : ''
+    }
+    // 单引号字符串（PowerShell 内不转义）
+    if (rest[0] === "'") {
+      const end = rest.indexOf("'", 1)
+      return end > 0 ? rest.slice(1, end) : ''
+    }
+    // 双引号字符串（`` ` `` 转义 / "" 转义）
+    if (rest[0] === '"') {
+      const m = rest.match(/^"((?:[^"`]|`.)*)"/)
+      return m ? m[1].replace(/`(.)/g, '$1').replace(/""/g, '"') : ''
+    }
+    // 哈希表 @{...} → 尝试转 JSON
+    if (rest.startsWith('@{')) {
+      const block = extractBalanced(rest, 0)
+      if (block) {
+        const inner = block.slice(1, -1)
+        const pairRe = /["']?([^"'\s=]+)["']?\s*=\s*["']([^"']*)["']/g
+        const obj: Record<string, string> = {}
+        let pm: RegExpExecArray | null
+        while ((pm = pairRe.exec(inner))) obj[pm[1]] = pm[2]
+        return JSON.stringify(obj, null, 2)
+      }
+    }
+    return ''
+  }
+
+  // 5. Body：-Body 内联值，其次 -Body $var 引用声明
+  let rawBody = ''
+  const bodyMatch = src.match(/-Body\s+/i)
+  if (bodyMatch) {
+    const bIdx = (bodyMatch.index || 0) + bodyMatch[0].length
+    rawBody = parseBodyValue(src.slice(bIdx))
+    if (!rawBody && src[bIdx] === '$') {
+      const varName = src.slice(bIdx).match(/^\$(\w+)/)?.[1] || ''
+      if (varName) {
+        const decl = src.match(new RegExp('\\$' + varName + '\\s*=\\s*([\\s\\S]*?)(?=\\r?\\n\\$|\\r?\\nInvoke|$)'))
+        if (decl) rawBody = parseBodyValue(decl[1].trim())
+      }
+    }
+  }
+
+  // 6. 请求体落配置（有 body 默认 POST，JSON 自动识别）
+  if (rawBody) {
+    config.bodyType = 'raw'
+    const ctHeader = config.headers.find((h) => h.key.toLowerCase() === 'content-type')
+    let isJson = false
+    try {
+      JSON.parse(rawBody)
+      isJson = true
+    } catch {
+      /* 非 JSON */
+    }
+    config.rawType = ctHeader && /xml/i.test(ctHeader.value) ? 'xml' : isJson ? 'json' : 'text'
+    config.rawBody = rawBody
+    if (config.method === 'GET') config.method = 'POST'
+  }
+  return config
+}
+
+/** 代码片段类型（导入弹窗的 5 个子页签） */
+export type CodeSnippetKind = 'curl-cmd' | 'curl-bash' | 'fetch' | 'fetch-node' | 'powershell'
+
+/**
+ * 按代码片段类型分发解析（导入弹窗统一入口）
+ * @param kind 片段类型
+ * @param text 代码文本
+ * @returns 解析后的请求配置
+ * @throws {Error} 解析失败时抛出对应中文错误
+ */
+export function parseCodeSnippet(kind: CodeSnippetKind, text: string): RequestConfig {
+  switch (kind) {
+    case 'curl-cmd':
+      return parseCurlCmd(text)
+    case 'curl-bash':
+      return parseCurl(text)
+    case 'fetch':
+      return parseFetch(text)
+    case 'fetch-node':
+      return parseFetchNode(text)
+    case 'powershell':
+      return parsePowerShell(text)
+  }
 }
 
 /* ------------------------------------------------------------------ */
