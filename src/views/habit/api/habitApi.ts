@@ -12,9 +12,11 @@
  * 而 SELECT * / DELETE / INSERT OR REPLACE 这几种语句它都猜不出列名，会兜底返回
  * ['name','value','created_at']，把这些垃圾列加到业务表上。所以本项目禁止用它跑习惯表的读写。
  *
- * 关于建表：表由第一次 upsert 自动创建（列取 data 的 key）。若首次访问是先 query，
- * 表会以默认的 name/value/created_at 三列先行创建，随后 upsert 再补上真实列 ——
- * 多余的三列是 nullable TEXT，不影响读写，属该数据层的既有行为。
+ * 关于建表与主键：
+ * - 两张表都以 `key`（TEXT）作为业务主键，upsert 走 `ON CONFLICT(key)` 实现幂等覆盖。
+ * - SQLite 不允许通过 ALTER 给既存表追加主键列，底层 newSql 已改为「先加普通列 + 再建唯一索引」
+ *   来等价实现主键唯一约束；且 query() 也支持透传 primaryKey，使首次建表即用正确主键。
+ * - ensureHabitTables() 在加载时幂等地把表结构摆正（补 key 列 + 唯一索引），兼容历史破表。
  */
 
 import type { HabitChainActionConfig, HabitCheckin, HabitDef } from "../types";
@@ -60,6 +62,31 @@ function safeParse<T>(raw: any, fallback: T): T {
   return raw as T;
 }
 
+/**
+ * 确保两张表存在且具备 key 主键列（幂等，重复调用无害）。
+ *
+ * 历史兼容：习惯表若曾被查询以默认的 id 主键先行创建（缺 key 列），
+ * 这里补建 key 列并加唯一索引，等价于主键，供 upsert 的 ON CONFLICT(key) 使用。
+ * 即便不调用本函数，底层 newSql 在 upsert 时也会自动补建，这里只是提前把结构摆正。
+ */
+async function runSql(table: string, sql: string): Promise<void> {
+  try {
+    await invoke("new-sql:query", { tableName: table, SqlStr: sql });
+  } catch (e) {
+    // 重复列 / 索引已存在等可忽略
+    console.warn(`[habit] 执行 ${sql} 失败（可忽略）:`, e);
+  }
+}
+
+export async function ensureHabitTables(): Promise<void> {
+  for (const t of [TABLE_DEF, TABLE_CHECKIN]) {
+    // 1) 先确保表存在（带 key 主键）；2) 补建 key 列；3) 建唯一索引
+    await runSql(t, `SELECT 1 FROM ${t} LIMIT 1`);
+    await runSql(t, `ALTER TABLE ${t} ADD COLUMN ${PK} TEXT`);
+    await runSql(t, `CREATE UNIQUE INDEX IF NOT EXISTS uq_${t}_${PK} ON ${t}(${PK})`);
+  }
+}
+
 /** 数据库行 → HabitDef */
 function toHabitDef(row: any): HabitDef {
   return {
@@ -94,6 +121,7 @@ export async function fetchHabitDefs(): Promise<HabitDef[]> {
   try {
     const res = await invoke("new-sql:query", {
       tableName: TABLE_DEF,
+      primaryKey: PK,
       conditions: { SqlStr: `SELECT * FROM ${TABLE_DEF} ORDER BY createTime ASC` },
     });
     if (!res?.success) {
@@ -112,6 +140,7 @@ export async function fetchCheckins(): Promise<HabitCheckin[]> {
   try {
     const res = await invoke("new-sql:query", {
       tableName: TABLE_CHECKIN,
+      primaryKey: PK,
       conditions: { SqlStr: `SELECT * FROM ${TABLE_CHECKIN} ORDER BY date DESC` },
     });
     if (!res?.success) {

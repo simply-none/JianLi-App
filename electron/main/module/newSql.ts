@@ -52,8 +52,20 @@ interface QueryOptions {
   offset?: number;
   /** 自定义 WHERE 条件字符串 */
   whereStr?: string;
-  /** 完整的 SQL 查询语句 */
+  /**
+   * 完整的 SQL 查询语句。
+   * 可放在顶层（SqlStr），也可放在 conditions.SqlStr —— query() 两者都支持。
+   */
   SqlStr?: string;
+  /**
+   * 首次自动建表时使用的主键字段名（可选）。
+   * 透传给 ensureTableExists：对以 query 作为首次访问的表，
+   * 可借此指定主键（否则使用默认的 id 自增主键）。
+   * 既存表不受影响，纯增量、向后兼容。
+   */
+  primaryKey?: string;
+  /** 首次自动建表时的主键配置（可选），透传给 ensureTableExists */
+  config?: { primaryKeyType?: "INTEGER" | "TEXT" };
 }
 
 /**
@@ -194,13 +206,16 @@ async function initWALMode() {
  * @returns {Promise<any[]>} 查询结果数组
  */
 export async function query(options: QueryOptions): Promise<any[]> {
-  const { tableName, conditions, columns, orderBy, orderByDesc, limit, offset, whereStr, SqlStr } = options;
-  await ensureTableExists(tableName);
+  const { tableName, conditions, columns, orderBy, orderByDesc, limit, offset, whereStr, SqlStr, primaryKey, config } = options;
+  await ensureTableExists(tableName, undefined, primaryKey, config);
   const db = myDb.db;
 
+  // 支持两种传完整 SQL 的方式：顶层 SqlStr，或 conditions.SqlStr（与注释/其它模块约定一致）
+  const rawSql = SqlStr || (conditions && conditions.SqlStr);
+
   return new Promise((resolve, reject) => {
-    if (SqlStr) {
-      db.all(SqlStr, [], (err, rows) => {
+    if (rawSql) {
+      db.all(rawSql, [], (err, rows) => {
         if (err) {
           reject(err);
         } else {
@@ -219,10 +234,11 @@ export async function query(options: QueryOptions): Promise<any[]> {
       sql = `SELECT ${selectColumns} FROM ${tableName} WHERE ${whereStr}`;
     } else {
       const whereClauses: string[] = [];
-      
+
       if (conditions) {
         for (const [key, value] of Object.entries(conditions)) {
-          if (["orderBy", "orderByDesc", "limit", "offset"].includes(key)) {
+          // SqlStr 已在上方作为完整 SQL 处理；orderBy 等属于 options 级参数，非列过滤
+          if (["orderBy", "orderByDesc", "limit", "offset", "SqlStr"].includes(key)) {
             continue;
           }
           whereClauses.push(`${key} = ?`);
@@ -794,22 +810,31 @@ export async function ensureTableExists(
         });
 
         if (!existingColumns.includes(primaryKey) && !hasPrimaryKey) {
-          const alterPromises = [primaryKey].map(
-            (col) =>
-              new Promise<void>((res) => {
-                const colDef = getPrimaryKeyDef(primaryKey, config?.primaryKeyType || (primaryKey === 'id' ? 'INTEGER' : 'TEXT'));
-                db.run(`ALTER TABLE ${tableName} ADD COLUMN ${colDef}`, (alterErr) => {
-                  if (alterErr) {
-                    const errMsg = (alterErr as Error).message;
-                    if (!errMsg.includes("duplicate column name")) {
-                      console.warn(`Failed to add column ${col} to ${tableName}:`, errMsg);
-                    }
-                  }
-                  res();
-                });
-              })
-          );
-          await Promise.all(alterPromises);
+          // SQLite 不支持通过 ALTER 给既存表加主键列，故分两步：
+          // 1) 先加普通列；2) 再建唯一索引，等价于主键的唯一约束。
+          const pkType = config?.primaryKeyType || (primaryKey === 'id' ? 'INTEGER' : 'TEXT');
+          await new Promise<void>((res) => {
+            db.run(`ALTER TABLE ${tableName} ADD COLUMN ${primaryKey} ${pkType}`, (alterErr) => {
+              if (alterErr) {
+                const errMsg = (alterErr as Error).message;
+                if (!errMsg.includes("duplicate column name")) {
+                  console.warn(`Failed to add column ${primaryKey} to ${tableName}:`, errMsg);
+                }
+              }
+              res();
+            });
+          });
+          await new Promise<void>((res) => {
+            db.run(
+              `CREATE UNIQUE INDEX IF NOT EXISTS uq_${tableName}_${primaryKey} ON ${tableName}(${primaryKey})`,
+              (idxErr) => {
+                if (idxErr) {
+                  console.warn(`Failed to create unique index on ${tableName}(${primaryKey}):`, (idxErr as Error).message);
+                }
+                res();
+              }
+            );
+          });
         }
 
         if (columns && columns.length > 0) {
@@ -970,22 +995,30 @@ async function ensureTableColumns(
         });
 
         if (!existingColumns.includes(pk)) {
-          const alterPromises = [pk].map(
-            (col) =>
-              new Promise<void>((res) => {
-                const colDef = getPrimaryKeyDef(pk, pkType);
-                db.run(`ALTER TABLE ${tableName} ADD COLUMN ${colDef}`, (alterErr) => {
-                  if (alterErr) {
-                    const errMsg = (alterErr as Error).message;
-                    if (!errMsg.includes("duplicate column name")) {
-                      console.warn(`Failed to add column ${col} to ${tableName}:`, errMsg);
-                    }
-                  }
-                  res();
-                });
-              })
-          );
-          await Promise.all(alterPromises);
+          // SQLite 不支持通过 ALTER 给既存表加主键列，故分两步：
+          // 1) 先加普通列；2) 再建唯一索引，等价于主键的唯一约束（ON CONFLICT 可用）。
+          await new Promise<void>((res) => {
+            db.run(`ALTER TABLE ${tableName} ADD COLUMN ${pk} ${pkType}`, (alterErr) => {
+              if (alterErr) {
+                const errMsg = (alterErr as Error).message;
+                if (!errMsg.includes("duplicate column name")) {
+                  console.warn(`Failed to add column ${pk} to ${tableName}:`, errMsg);
+                }
+              }
+              res();
+            });
+          });
+          await new Promise<void>((res) => {
+            db.run(
+              `CREATE UNIQUE INDEX IF NOT EXISTS uq_${tableName}_${pk} ON ${tableName}(${pk})`,
+              (idxErr) => {
+                if (idxErr) {
+                  console.warn(`Failed to create unique index on ${tableName}(${pk}):`, (idxErr as Error).message);
+                }
+                res();
+              }
+            );
+          });
         }
       }
 

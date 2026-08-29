@@ -228,6 +228,9 @@ function buildChainActions(): HabitChainActionConfig[] {
       },
     });
   }
+  if (form.actionTypes.includes("themeConversation")) {
+    actions.push({ type: "themeConversation" });
+  }
   return actions;
 }
 </script>

@@ -60,11 +60,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted } from "vue";
 import useHabitStore from "@/store/useHabit";
-import useWindowMode from "@/store/useWindowMode";
 import type { HabitDef } from "@/views/habit/types";
 
 const store = useHabitStore();
-const { setShowHabitWindow } = useWindowMode();
 
 /** 只展示启用的习惯 */
 const enabledHabits = computed(() => store.habits.filter((h) => h.enabled === 1));
@@ -84,8 +82,11 @@ async function onToggleCheck(habit: HabitDef) {
 }
 
 function close() {
-  // hide 而非 close：窗口留着复用
-  setShowHabitWindow(false);
+  // 直接发 IPC 隐藏小窗（与剪贴板小窗一致）：
+  // 小窗是 isSecondWindow 独立渲染进程，有自己的 Pinia 实例，
+  // 走 store 的 setShowHabitWindow → watcher 再发 IPC 在本进程里不可靠；
+  // 直接发 hide-new-window 最稳，且窗口留着复用（hide 而非 destroy）。
+  window.ipcRenderer?.send("hide-new-window", "habitMiniWindow");
 }
 
 /** Esc 关闭：必须挂 document，挂局部元素会在失焦后失效 */

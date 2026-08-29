@@ -158,6 +158,7 @@ export const iconMap: Record<string, string> = {
   screenshot: 'Camera',
   accounting: 'Wallet',
   stock: 'TrendingUp',
+  habit: 'AlarmClockCheck',
 };
 
 export { getLightColor, getDarkColor } from './color';

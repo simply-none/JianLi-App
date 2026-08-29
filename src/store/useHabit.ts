@@ -168,6 +168,8 @@ export default defineStore("habit", () => {
     const needSync = options.sync !== false;
     loading.value = true;
     try {
+      // 先把表结构摆正（补 key 列 + 唯一索引），避免历史破表导致 upsert 失败
+      await habitApi.ensureHabitTables();
       habits.value = await habitApi.fetchHabitDefs();
       await refreshCheckins();
       if (needSync) await syncReminders();

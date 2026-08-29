@@ -24,12 +24,11 @@
     </div>
 
     <div class="habit-stats__heatmap">
-      <div class="habit-stats__heatmap-title">打卡热力图</div>
+      <div class="habit-stats__heatmap-title">打卡热力图（习惯 × 日期）</div>
       <HabitHeatmap
-        :cells="heatmap.cells"
-        :max="heatmap.max"
-        :start="heatmap.start"
-        :end="heatmap.end"
+        :habits="habits"
+        :checkins="checkins"
+        :weeks="weeks"
       />
     </div>
   </section>
@@ -38,7 +37,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { HabitCheckin, HabitDef } from "../types";
-import { buildHeatmap, computeOverview, countByDateOf } from "../utils/stats";
+import { computeOverview } from "../utils/stats";
 import HabitHeatmap from "./HabitHeatmap.vue";
 
 const props = defineProps<{
@@ -50,11 +49,6 @@ const props = defineProps<{
 
 /** 总览指标 */
 const overview = computed(() => computeOverview(props.checkins, props.habits));
-
-/** 热力网格 */
-const heatmap = computed(() =>
-  buildHeatmap(countByDateOf(props.checkins), props.weeks ?? 12)
-);
 
 /** 近 30 天活跃占比，按百分比展示 */
 const last30Text = computed(() => `${Math.round(overview.value.last30Rate * 100)}%`);

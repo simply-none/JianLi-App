@@ -12,9 +12,10 @@ import type { ChainActionResult } from "./types";
 import { getHabitChainAction, registerHabitChainAction } from "./registry";
 import todoAction from "./actions/todoAction";
 import noteAction from "./actions/noteAction";
+import themeConversationAction from "./actions/themeConversationAction";
 
 /** 已实现的串接动作清单 */
-const ACTIONS = [todoAction, noteAction];
+const ACTIONS = [todoAction, noteAction, themeConversationAction];
 
 ACTIONS.forEach((action) => registerHabitChainAction(action));
 

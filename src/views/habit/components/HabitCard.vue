@@ -103,12 +103,13 @@ function onToggle(val: boolean | string | number) {
     border-color: var(--color-primary);
   }
 
-  /* 今日已完成：主色描边 + 左侧强调条点亮 */
+  /* 今日已完成：整体置灰降透明度，左侧强调条改成功色作"已完成"标识，仍保留撤销能力 */
   &.is-done {
-    border-color: var(--color-primary);
+    opacity: 0.6;
+    border-color: var(--border-subtle);
   }
   &.is-done .habit-card__bar {
-    background: var(--color-primary);
+    background: var(--color-success);
     opacity: 1;
   }
 
