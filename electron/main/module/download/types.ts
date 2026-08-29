@@ -85,12 +85,40 @@ export const CONFIG_STORE_KEY = "downloader:config";
 
 /** 分类 → 扩展名映射（小写、无点，用于自动识别分类） */
 export const CATEGORY_EXT_MAP: Record<TaskCategory, string[]> = {
-  video: ["mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "m4v", "ts", "mpg", "rmvb", "3gp"],
-  audio: ["mp3", "flac", "wav", "aac", "ogg", "m4a", "wma", "ape", "opus"],
-  document: ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "epub", "mobi", "md", "csv"],
-  archive: ["zip", "rar", "7z", "tar", "gz", "bz2", "xz", "iso"],
-  software: ["exe", "msi", "dmg", "apk", "appimage", "deb", "rpm"],
-  image: ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "ico", "tiff"],
+  // 视频：常见封装 + 摄像机/流媒体切片格式
+  video: [
+    "mp4", "m4v", "mkv", "webm", "avi", "mov", "wmv", "flv", "f4v", "mpg", "mpeg", "mpe",
+    "m1v", "m2v", "m2ts", "mts", "ts", "vob", "ogv", "rm", "rmvb", "divx", "asf", "3gp", "3g2", "qt",
+  ],
+  // 音频：无损 + 有损 + 语音/乐器格式
+  audio: [
+    "mp3", "flac", "wav", "aac", "ogg", "oga", "m4a", "m4b", "wma", "ape", "opus", "amr",
+    "aiff", "aif", "aifc", "caf", "dsf", "dff", "wv", "tta", "mka", "mid", "midi", "ra", "cda",
+  ],
+  // 文档：Office/WPS/电子书/文本/标记/数据交换格式
+  document: [
+    "pdf", "doc", "docx", "docm", "dot", "dotx", "xls", "xlsx", "xlsb", "xlsm", "xltx",
+    "ppt", "pptx", "pptm", "odt", "ods", "odp", "rtf", "pages", "numbers", "key",
+    "txt", "text", "epub", "mobi", "azw", "azw3", "md", "markdown", "csv", "tsv",
+    "html", "htm", "mhtml", "mht", "xml", "json", "yaml", "yml", "tex", "djvu", "djv", "xps", "ps",
+  ],
+  // 压缩包：常见 + Linux/Unix 专用打包格式
+  archive: [
+    "zip", "zipx", "rar", "7z", "tar", "gz", "tgz", "bz2", "tbz", "tbz2", "xz", "txz",
+    "lz", "lzma", "lzh", "lha", "zst", "zstd", "cab", "arj", "cpio", "ar", "z", "wim", "iso", "dmg", "jar",
+  ],
+  // 软件：Windows/macOS/Linux/移动端安装包及浏览器扩展
+  software: [
+    "exe", "msi", "msp", "mst", "msix", "msixbundle", "appx", "appxbundle", "com", "scr",
+    "dmg", "pkg", "app", "deb", "rpm", "appimage", "snap", "flatpak", "bin",
+    "apk", "xapk", "apkm", "ipa", "crx",
+  ],
+  // 图片：常规 + Apple/新世代 + RAW 相机原始格式
+  image: [
+    "jpg", "jpeg", "jfif", "jpe", "jp2", "j2k", "jpx", "jxl", "png", "apng", "gif", "webp",
+    "bmp", "dib", "svg", "ico", "tif", "tiff", "heic", "heif", "avif", "tga", "dds", "xcf",
+    "psd", "ai", "eps", "raw", "cr2", "crw", "cr3", "nef", "arw", "dng", "orf", "raf", "rw2", "mrw", "pef", "srw",
+  ],
   other: [],
 };
 

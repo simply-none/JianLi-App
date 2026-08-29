@@ -109,10 +109,16 @@ app.on("web-contents-created", (_event, contents) => {
 
     session.on("will-download", (_e2: any, item: DownloadItem) => {
       // 下载引擎接管开关开启：转交给系统级下载器（多线程分段），本管线不处理
+      // 注意：cancel() 会立即销毁 DownloadItem，必须在 cancel 前取齐 url/filename/session
       if (shouldTakeOverDownload()) {
         _e2.preventDefault();
+        const snapshot = {
+          url: item.getURL(),
+          filename: item.getFilename(),
+          session: (item as any).getSession?.() || null,
+        };
         item.cancel();
-        takeOverBrowserDownload(item);
+        takeOverBrowserDownload(snapshot);
         return;
       }
       const id = makeId();

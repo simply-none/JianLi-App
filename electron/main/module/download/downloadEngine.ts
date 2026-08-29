@@ -20,6 +20,7 @@ import {
   DEFAULT_DOWNLOADER_CONFIG,
   CONFIG_STORE_KEY,
   detectCategory,
+  sanitizeFilename,
   type DownloaderConfig,
   type DownloadTaskInfo,
 } from "./types.ts";
@@ -110,7 +111,9 @@ class DownloadEngine {
     // 探测：大小 / Range 支持 / 默认文件名
     const probe = await DownloadTask.probe(url, opts.headers || {});
     const saveDir = opts.saveDir || this.config.saveDir;
-    const savePath = uniqueSavePath(saveDir, probe.filename);
+    // 文件名优先级：外部指定（浏览器接管传入 DownloadItem 的正确文件名）> 探测结果
+    const finalFilename = sanitizeFilename(opts.filename || probe.filename);
+    const savePath = uniqueSavePath(saveDir, finalFilename);
     const id = `jdl-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     // 连接数优先级：用户指定 > 服务器支持且文件较大时按配置 > 其他情况单线程
     const autoConnections =
@@ -119,13 +122,13 @@ class DownloadEngine {
     const info: DownloadTaskInfo = {
       id,
       url: probe.finalUrl,
-      filename: opts.filename ? probe.filename : path.basename(savePath),
+      filename: path.basename(savePath),
       savePath,
       saveDir,
       status: "waiting",
       totalSize: probe.totalSize,
       receivedSize: 0,
-      category: detectCategory(probe.filename),
+      category: detectCategory(finalFilename),
       speed: 0,
       acceptRanges: probe.acceptRanges,
       connections,

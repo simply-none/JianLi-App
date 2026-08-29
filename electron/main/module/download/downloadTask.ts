@@ -406,8 +406,60 @@ interface ProbeResult {
   acceptRanges: boolean;
 }
 
+/** 常见 MIME 类型 → 扩展名映射（仅收录下载场景常见类型，用于 URL 无扩展名时兜底） */
+const MIME_EXT_MAP: Record<string, string> = {
+  "video/mp4": "mp4",
+  "video/x-matroska": "mkv",
+  "video/webm": "webm",
+  "video/quicktime": "mov",
+  "video/x-msvideo": "avi",
+  "video/x-flv": "flv",
+  "video/mpeg": "mpeg",
+  "audio/mpeg": "mp3",
+  "audio/flac": "flac",
+  "audio/wav": "wav",
+  "audio/x-wav": "wav",
+  "audio/aac": "aac",
+  "audio/ogg": "ogg",
+  "audio/mp4": "m4a",
+  "application/zip": "zip",
+  "application/x-rar-compressed": "rar",
+  "application/x-7z-compressed": "7z",
+  "application/gzip": "gz",
+  "application/x-tar": "tar",
+  "application/pdf": "pdf",
+  "application/epub+zip": "epub",
+  "application/msword": "doc",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
+  "application/vnd.android.package-archive": "apk",
+  "application/x-msdownload": "exe",
+  "application/x-apple-diskimage": "dmg",
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/gif": "gif",
+  "image/webp": "webp",
+  "image/bmp": "bmp",
+  "image/svg+xml": "svg",
+  "text/plain": "txt",
+  "text/csv": "csv",
+  "text/markdown": "md",
+};
+
+/**
+ * 按响应 Content-Type 推断扩展名（application/octet-stream 等通用类型无法推断，返回空）
+ * @param res 必填，探测响应
+ * @returns 推断出的扩展名（无点小写），无法识别返回空字符串
+ */
+function extFromContentType(res: Response): string {
+  const mime = (res.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+  return MIME_EXT_MAP[mime] || "";
+}
+
 /**
  * 从响应中提取文件名与大小并构造探测结果（probeOnce / probePlain 共用）
+ * 文件名优先级：Content-Disposition > URL 路径 > Content-Type 推断扩展名兜底 > 时间戳
  * @param res 必填，探测响应
  * @param url 必填，原始地址（res.url 缺失时兜底）
  * @returns 探测结果
@@ -426,11 +478,21 @@ async function buildProbeResult(res: Response, url: string): Promise<ProbeResult
     const len = res.headers.get("content-length");
     if (len) totalSize = Number(len);
   }
-  // 文件名优先级：Content-Disposition > URL > 时间戳兜底
-  const filename =
+  // 文件名优先级：Content-Disposition > URL > Content-Type 推断 > 时间戳兜底
+  let filename =
     sanitizeFilename(filenameFromDisposition(res.headers)) ||
-    sanitizeFilename(filenameFromUrl(res.url || url)) ||
-    `download_${Date.now()}.bin`;
+    sanitizeFilename(filenameFromUrl(res.url || url));
+  // URL 名没有扩展名时（如 /file?id=123），按 Content-Type 补扩展名
+  if (filename && !/\.[a-zA-Z0-9]+$/.test(filename)) {
+    const ext = extFromContentType(res);
+    if (ext) filename = `${filename}.${ext}`;
+  }
+  filename =
+    filename ||
+    (() => {
+      const ext = extFromContentType(res);
+      return ext ? `download_${Date.now()}.${ext}` : `download_${Date.now()}.bin`;
+    })();
   // 释放连接（探测不消费响应体）
   try { await res.body?.cancel(); } catch { /* 忽略 */ }
   return { finalUrl: res.url || url, filename, totalSize, acceptRanges };

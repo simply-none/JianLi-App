@@ -109,6 +109,15 @@ export function selectFolder(): string {
 }
 
 /**
+ * 查询「接管浏览器下载」开关是否开启
+ * @returns Promise，开启返回 true（此时浏览器触发的下载会转交下载器，进度不在浏览器下载抽屉里）
+ */
+export async function isTakeOverEnabled(): Promise<boolean> {
+  const config = await fetchConfig();
+  return !!config?.takeOverBrowser;
+}
+
+/**
  * 暂停任务
  * @param id 必填，任务 ID
  */

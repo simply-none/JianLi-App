@@ -8,7 +8,8 @@
  * - startClipboardMonitor：轮询系统剪贴板，发现「http 直链 + 可识别扩展名」时
  *   向主窗口发送 download:clipboard-detected，由下载器页面弹出新建确认。
  */
-import { clipboard, DownloadItem, session } from "electron";
+import { clipboard } from "electron";
+import type { Session } from "electron";
 import { win } from "../mainWindow.ts";
 import { downloadEngine } from "./downloadEngine.ts";
 import { CATEGORY_EXT_MAP } from "./types.ts";
@@ -25,30 +26,41 @@ export function shouldTakeOverDownload(): boolean {
 }
 
 /**
- * 接管一个原生下载项：收集会话 Cookie / User-Agent 后创建引擎任务
- * @param item 必填，will-download 里的 DownloadItem（已被 preventDefault + cancel）
+ * 接管下载项快照（在 will-download 里、item.cancel() 之前取齐，
+ * 因为 cancel 后 DownloadItem 会被销毁，再访问其任何方法都会抛错）
+ */
+export interface DownloadSnapshot {
+  /** 资源地址 */
+  url: string;
+  /** 建议文件名 */
+  filename: string;
+  /** 下载项所属会话（cancel 后 Session 对象仍有效，可继续读 Cookie/UA） */
+  session: Electron.Session | null;
+}
+
+/**
+ * 接管一个原生下载项：从快照收集会话 Cookie / User-Agent 后创建引擎任务
+ * @param snapshot 必填，cancel 前取好的下载项信息（见 DownloadSnapshot）
  * @returns Promise，创建任务完成（失败仅打日志，不影响浏览器侧）
  */
-export async function takeOverBrowserDownload(item: DownloadItem): Promise<void> {
+export async function takeOverBrowserDownload(snapshot: DownloadSnapshot): Promise<void> {
   try {
-    const url = item.getURL();
+    const { url, filename, session } = snapshot;
     if (!/^https?:\/\//i.test(url)) return;
-    // 从下载项所属会话取 Cookie（支持登录后下载），拼成 Cookie 请求头
+    // 从会话取 Cookie（支持登录后下载），拼成 Cookie 请求头
     let cookieHeader = "";
     try {
-      // 当前 Electron 版本的 DownloadItem 类型声明未含 getSession，运行时存在，做兜底取会话
-      const itemSession = (item as any).getSession?.() || session.defaultSession;
-      const cookies = await itemSession.cookies.get({ url });
-      cookieHeader = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+      const cookies = await session?.cookies.get({ url });
+      cookieHeader = (cookies || []).map((c) => `${c.name}=${c.value}`).join("; ");
     } catch (e) {
       console.warn("[downloader] 读取会话 Cookie 失败:", e);
     }
     const headers: Record<string, string> = {
-      "User-Agent": (item as any).getSession?.()?.getUserAgent?.() || "Mozilla/5.0 jianli-downloader",
+      "User-Agent": session?.getUserAgent?.() || "Mozilla/5.0 jianli-downloader",
     };
     if (cookieHeader) headers.Cookie = cookieHeader;
     await downloadEngine.createTask(url, {
-      filename: item.getFilename(),
+      filename,
       headers,
     });
   } catch (e) {

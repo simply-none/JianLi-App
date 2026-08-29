@@ -12,8 +12,9 @@
         <el-tag :type="statusMeta.tag as any" size="small" effect="light">{{ statusMeta.label }}</el-tag>
       </div>
 
+      <!-- 进度条仅在任务进行中/等待/暂停时展示；完成与失败只保留状态标签 -->
       <el-progress
-        v-if="task.status !== 'failed'"
+        v-if="task.status === 'downloading' || task.status === 'waiting' || task.status === 'paused'"
         :percentage="progressPercent"
         :stroke-width="6"
         :show-text="false"
@@ -100,12 +101,8 @@ const progressPercent = computed(() => {
   return Math.min(100, Math.round((receivedSize / totalSize) * 100));
 });
 
-/** 进度条状态（完成绿色 / 失败红色 / 其余默认） */
-const progressStatus = computed(() => {
-  if (props.task.status === "completed") return "success" as const;
-  if (props.task.status === "failed") return "exception" as const;
-  return undefined;
-});
+/** 进度条状态（下载中/等待/暂停均为默认样式；完成与失败不展示进度条） */
+const progressStatus = computed(() => undefined);
 
 /**
  * 删除确认：未完成任务会连带删除分片；已完成任务询问是否连文件一起删

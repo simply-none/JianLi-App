@@ -162,6 +162,7 @@ import LucideIcon from "@/components/LucideIcon.vue";
 import useBrowser from "@/store/useBrowser";
 import { useSniffer, clearSniffItems, exportSniffItems, type SniffItem } from "../composables/useSniffer";
 import { downloadResource } from "../composables/useWebviewBridge";
+import { isTakeOverEnabled } from "../../downloader/api/downloaderApi";
 import { checkYtDlp, installYtDlp, pauseEngineDownload, resumeEngineDownload, useYtDlpProgress } from "../composables/useYtDlp";
 import YtDlpDialog from "./YtDlpDialog.vue";
 
@@ -314,12 +315,22 @@ function formatBytes(bytes: number): string {
 // ==================== 单项动作 ====================
 
 /**
- * 下载资源（经现有下载管理管线，进度见「下载内容」抽屉）
- * @param item 必填，资源条目
+ * 下载资源（经现有下载管理管线）
+ * 若下载器接管开关开启，实际进度在系统级下载器页面，提示语相应区分
+ * @param item 必填，嗅探到的资源条目
+ * @returns void
  */
-function onDownload(item: SniffItem) {
+async function onDownload(item: SniffItem) {
   const ok = downloadResource(browserStore.activeTabId, item.url);
-  ElMessage[ok ? "success" : "error"](ok ? "已加入下载" : "下载失败：网页尚未加载完成");
+  if (!ok) {
+    ElMessage.error("下载失败：网页尚未加载完成");
+    return;
+  }
+  if (await isTakeOverEnabled()) {
+    ElMessage.success("已转交系统级下载器，请到下载器页面查看进度");
+  } else {
+    ElMessage.success("已加入下载");
+  }
 }
 
 /**
@@ -346,6 +357,8 @@ const BATCH_GAP = 150;
 
 /**
  * 批量下载所选项：逐个触发下载（流媒体自动跳过并提示）
+ * 接管开关开启时进度在系统级下载器页面，提示语相应区分
+ * @returns Promise，逐个间隔触发完成
  */
 async function onBatchDownload() {
   const targets = selectedItems.value.filter((it) => !it.stream);
@@ -354,7 +367,12 @@ async function onBatchDownload() {
     ElMessage.warning("所选资源均为流媒体，请使用「复制链接」配合专门下载工具");
     return;
   }
-  ElMessage.info(`开始下载 ${targets.length} 个资源，进度见「下载内容」`);
+  const takenOver = await isTakeOverEnabled();
+  ElMessage.info(
+    takenOver
+      ? `已转交系统级下载器 ${targets.length} 个资源，请到下载器页面查看进度`
+      : `开始下载 ${targets.length} 个资源，进度见「下载内容」`
+  );
   for (const it of targets) {
     downloadResource(browserStore.activeTabId, it.url);
     // 间隔触发，防瞬时并发
