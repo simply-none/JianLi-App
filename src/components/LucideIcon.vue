@@ -96,6 +96,16 @@ import { AlarmClock, AlarmClockCheck, AlarmClockMinus, AlarmClockPlus, ArrowDown
   MonitorSmartphone,
   // —— 网络请求工作台用图标（已在 @lucide/vue 中验证存在） ——
   Braces,
+  // —— 备份与恢复页面用图标（已在 @lucide/vue 中验证存在） ——
+  DatabaseBackup,
+  HardDriveDownload,
+  ArchiveRestore,
+  DatabaseZap,
+  FileArchive,
+  FolderSync,
+  CalendarClock,
+  FileDown,
+  SaveAll,
  } from '@lucide/vue';
 import { ref } from 'vue';
 import { getLightColor } from '@/utils';
@@ -214,6 +224,16 @@ let nameMap = ref<Record<any, any>>({
   MaximizeIcon,
   MinimizeIcon,
   Database,
+  // —— 备份与恢复页面用图标 ——
+  DatabaseBackup,
+  HardDriveDownload,
+  ArchiveRestore,
+  DatabaseZap,
+  FileArchive,
+  FolderSync,
+  CalendarClock,
+  FileDown,
+  SaveAll,
   WebcamOff,
   Share2,
   Wrench,

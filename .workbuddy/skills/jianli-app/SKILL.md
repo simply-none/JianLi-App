@@ -38,7 +38,7 @@ agent_created: true
 - 逐模块文档（`references/modules/`，处理具体模块前先读对应文件）：
   - **效率 / 提醒类**：`habit` `reminder` `todo` `pomodoro` `command-palette` `theme-conversation` `window-mode` `shortcut` `home-mode` `route-setting` `settings` `quick-note` `sticker`
   - **内容 / 数据类**：`clipboard` `notebook` `categorizable-notes` `ebook-reader` `accounting` `stock` `flow` `function` `color-palette`
-  - **系统 / 工具类**：`system-info` `weather` `crawler` `spider` `sql-test` `high-perf-sql` `file-rela` `resource-manage` `screenshot` `browser` `downloader` `about` `safety-protection` `app-cache` `tts` `small-window` `home`
+  - **系统 / 工具类**：`system-info` `weather` `crawler` `spider` `sql-test` `high-perf-sql` `file-rela` `resource-manage` `screenshot` `browser` `downloader` `about` `safety-protection` `app-cache` `backup` `tts` `small-window` `home`
 
 ## 使用方式
 1. 接到本项目任务，先判断属于「架构 / 数据 / IPC / 小窗 / 复用模式」哪一类，读对应核心参考。

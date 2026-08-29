@@ -1,9 +1,11 @@
 import { app, BrowserWindow, crashReporter } from "electron";
 import os from "node:os";
 import { initJob } from "./module/job.ts";
+import { initRecurrence } from "./module/recurrence.ts";
 import { initFile } from "./module/dialog.ts";
 import { initCrypto } from "./module/crypto.ts";
 import { initStore } from "./module/store.ts";
+import { initBackup } from "./module/backup.ts";
 import { initTray } from "./module/tray.ts";
 import { initPoetData } from "./module/poetData.ts";
 import { initMainWindow, win } from "./module/mainWindow.ts";
@@ -71,8 +73,12 @@ async function createWindow() {
   initPoetData();
   // 定时任务（番茄钟）
   initJob();
+  // 重复任务引擎（启动扫描 + 每日 00:00 生成实例）
+  initRecurrence();
   // 数据缓存
   initStore();
+  // 备份与恢复 + 数据导出中心（依赖 newSql 连接池，须在其后初始化）
+  initBackup();
   // 文件相关
   initFile();
   // 数据加密解密

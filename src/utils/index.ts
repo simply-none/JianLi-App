@@ -136,6 +136,7 @@ export const iconMap: Record<string, string> = {
   windowMode: 'Monitor',
   pomodoroRecord: 'Timer',
   appCache: 'FolderOpen',
+  backup: 'HardDriveDownload',
   fileRela: 'Plug2',
   resourceManage: 'Files',
   clipboard: 'FileText',

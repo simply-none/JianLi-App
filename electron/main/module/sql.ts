@@ -25,6 +25,41 @@ export async function initSqlite() {
   initSqliteFn('shiciDb')
 }
 
+/**
+ * 重新打开数据库连接（供备份恢复流程调用）
+ *
+ * 仅重建连接，不重复注册 IPC handler（避免 handle 重复注册报错）；
+ * 重连后幂等兜底创建 basic_info / clipboard_history 基础表，
+ * 防止恢复旧备份时缺表导致启动异常。
+ *
+ * @returns {Promise<void>} 重连完成时 resolve；单库关闭失败不中断整体流程
+ */
+export async function reopenSqlite() {
+  for (const dbName of Object.keys(myDb)) {
+    const conn = myDb[dbName];
+    if (!conn) continue;
+    try {
+      await new Promise<void>((resolve) => conn.close(() => resolve()));
+    } catch (err) {
+      console.error('reopenSqlite 关闭连接失败:', dbName, err);
+    }
+  }
+  await createDBFile();
+  // 防御性兜底：确保基础表存在（幂等创建）
+  createTable({
+    db: myDb.db,
+    tableName: basicInfoTableName,
+    config: { primaryKey: 'key' },
+    callback: () => {},
+  });
+  createTable({
+    db: myDb.db,
+    tableName: clipboardTableName,
+    config: {},
+    callback: () => {},
+  });
+}
+
 async function createDBFile() {
   // dbPath 为public文件下的db.sqlite
   // electron获取用户目录

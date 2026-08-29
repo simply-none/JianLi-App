@@ -1,6 +1,6 @@
 import { ipcMain } from "electron";
 import { CronJob } from "cron";
-import momemt from "moment";
+import moment from "moment";
 import { win, hideApp, focusAppToTop } from "./mainWindow.ts";
 import { createOtherWindow } from "./newWindow.ts";
 import { upsertData } from "../utils/sql.ts";
@@ -33,7 +33,7 @@ export function createJob({
   const currentSecondTime = new Date().getSeconds();
   const currentMinuteTime = new Date().getMinutes();
   console.log(currentSecondTime, jobTime);
-  const nextRunTime = momemt().add(jobTime, "milliseconds").toDate();
+  const nextRunTime = moment().add(jobTime, "milliseconds").toDate();
 
   try {
     job[type] = new CronJob(
@@ -114,7 +114,7 @@ function scheduleTodoReminder(todo: any) {
   if (isDone) return;
   if (Number(todo.deadlineReminder) !== 1) return;
 
-  const due = momemt(todo.dueDate, 'YYYY-MM-DD HH:mm:ss').toDate().getTime();
+  const due = moment(todo.dueDate, 'YYYY-MM-DD HH:mm:ss').toDate().getTime();
   const now = Date.now();
   if (isNaN(due) || due <= now) return; // 已过期不排程
 
@@ -149,7 +149,7 @@ function clearTodoReminderJobs() {
 }
 
 // 全量应用待办截止提醒（先清空再按当前数据排程）
-async function applyTodoReminders() {
+export async function applyTodoReminders() {
   clearTodoReminderJobs();
   const todos = await getAllTodos();
   (todos || []).forEach(todo => scheduleTodoReminder(todo));

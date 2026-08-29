@@ -15,6 +15,7 @@ export const RouteNames = {
   WINDOW_MODE: "windowMode",
   POMODORO_RECORD: "pomodoroRecord",
   APP_CACHE: "appCache",
+  BACKUP: "backup",
   FILE_RELA: "fileRela",
   RESOURCE_MANAGE: "resourceManage",
   CLIPBOARD: "clipboard",
@@ -135,6 +136,14 @@ export const layoutRouters: RouteRecordRaw[] = [
     component: () => import("@/views/appCache/index.vue"),
     meta: {
       title: "应用缓存",
+    },
+  },
+  {
+    path: "/backup",
+    name: RouteNames.BACKUP,
+    component: () => import("@/views/backup/index.vue"),
+    meta: {
+      title: "备份与恢复",
     },
   },
   {

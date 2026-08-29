@@ -119,14 +119,38 @@ interface TransactionOptions {
 
 /**
  * 初始化 SQLite 数据库
- * 
+ *
  * 执行流程：
  * 1. 创建数据库文件（如果不存在）
  * 2. 初始化 WAL 模式以提升并发性能
- * 
+ *
  * @returns {Promise<void>}
  */
 export async function initNewSqlite() {
+  await createDBFile();
+  await initWALMode();
+}
+
+/**
+ * 重新打开数据库连接并恢复 WAL 模式（供备份恢复流程调用）
+ *
+ * 执行流程：
+ * 1. 逐个关闭现有数据库连接（close 回调式，容忍单个失败）
+ * 2. 重新执行 createDBFile 建立连接
+ * 3. 重新初始化 WAL 模式
+ *
+ * @returns {Promise<void>} 重连完成时 resolve；单库关闭失败不中断整体流程
+ */
+export async function reopenNewSqlite() {
+  for (const dbName of Object.keys(myDb)) {
+    const conn = myDb[dbName];
+    if (!conn) continue;
+    try {
+      await new Promise<void>((resolve) => conn.close(() => resolve()));
+    } catch (err) {
+      console.error("reopenNewSqlite 关闭连接失败:", dbName, err);
+    }
+  }
   await createDBFile();
   await initWALMode();
 }

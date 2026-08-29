@@ -31,6 +31,7 @@
 | `get-window-bounds` / `set-window-bounds` | 双向 | JS 拖拽移动坐标 |
 
 ## 功能类（主进程模块）
+- **备份与恢复**：`backup:get-info` / `backup:create` / `backup:list` / `backup:restore` / `backup:delete` / `backup:open-dir` / `backup:get-auto-config` / `backup:set-auto-config`；导出：`export:get-modules` / `export:select-dir` / `export:run`（见 `modules/backup.md`）
 - **快捷键**：`register-shortcut`（`globalShortcutFn` 分发 `open_habit_window` / `open_todo_window` / `open_pomodoro_window` / `open_clipboard_window` / `open_command_palette` / `open_quick_note` / `show_app` / `open_match_page`）
 - **待办 / 番茄**：`update-todo-reminders` / `start-job` / `stop-job`（→主）；`job-start-tip` / `job-end-tip`（主→渲染）
 - **天气 / 定位 / Bing**：`get-weather` / `get-weather-broadcast` / `get-current-position` / `get-bing-image`

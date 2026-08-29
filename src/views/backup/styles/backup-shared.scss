@@ -1,0 +1,73 @@
+/**
+ * 备份页面共享卡片样式
+ *
+ * 各子组件通过 @use 引入，统一卡片外观（与 appCache 页面卡片风格一致），
+ * 配合 Element Plus 主题变量自动适配明暗主题。
+ */
+
+.backup-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card, 10px);
+  margin-bottom: 16px;
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-card);
+  }
+
+  .backup-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-subtle);
+
+    .header-extra {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+  }
+
+  .backup-card-body {
+    padding: 20px;
+  }
+}
+
+.backup-hint {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 0;
+}
+
+/* 键值信息行 */
+.info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+
+  &:nth-child(odd) {
+    background: var(--bg-hover);
+  }
+
+  .info-label {
+    color: var(--text-secondary);
+  }
+
+  .info-value {
+    color: var(--text-primary);
+    font-family: monospace;
+    word-break: break-all;
+    text-align: right;
+  }
+}
