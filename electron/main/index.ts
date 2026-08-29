@@ -31,6 +31,7 @@ import { initBrowserDownload } from "./module/browserDownload.ts";
 import { initBrowserSniffer } from "./module/browserSniffer.ts";
 import { initBrowserYtDlp } from "./module/browserYtDlp.ts";
 import { initBrowserPermission, setPermissionWindowGetter } from "./module/browserPermission.ts";
+import { initDownloader } from "./module/download/index.ts";
 
 registerJlocalProtocolBefore()
 
@@ -114,6 +115,8 @@ async function createWindow() {
   // 内置浏览器站点权限管理（persist:browser 会话权限请求拦截）
   setPermissionWindowGetter(() => win);
   initBrowserPermission();
+  // 系统级下载器（多线程分段引擎，接管浏览器下载 + 剪贴板监视）
+  await initDownloader();
 }
 
 app.whenReady().then(async () => {

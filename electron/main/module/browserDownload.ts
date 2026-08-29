@@ -20,6 +20,7 @@ import { app, DownloadItem, ipcMain, shell } from "electron";
 import path from "node:path";
 import fs from "node:fs";
 import { win } from "./mainWindow.ts";
+import { shouldTakeOverDownload, takeOverBrowserDownload } from "./download/downloadInterceptor.ts";
 
 /** 下载状态 */
 type DownloadState = "progressing" | "completed" | "cancelled" | "interrupted";
@@ -107,6 +108,13 @@ app.on("web-contents-created", (_event, contents) => {
     session.__browserDownloadHooked = true;
 
     session.on("will-download", (_e2: any, item: DownloadItem) => {
+      // 下载引擎接管开关开启：转交给系统级下载器（多线程分段），本管线不处理
+      if (shouldTakeOverDownload()) {
+        _e2.preventDefault();
+        item.cancel();
+        takeOverBrowserDownload(item);
+        return;
+      }
       const id = makeId();
       const savePath = uniqueSavePath(app.getPath("downloads"), item.getFilename());
       // 免弹保存框，直接落到「下载」文件夹

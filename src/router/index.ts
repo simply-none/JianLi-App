@@ -56,6 +56,7 @@ export const RouteNames = {
   STICKER: "sticker",
   STOCK: "stock",
   STOCK_MINI: "stockMini",
+  DOWNLOADER: "downloader",
 } as const;
 
 export type RouteNameType = typeof RouteNames[keyof typeof RouteNames];
@@ -309,6 +310,14 @@ export const layoutRouters: RouteRecordRaw[] = [
     component: () => import("@/views/screenshot/index.vue"),
     meta: {
       title: "截图工具",
+    },
+  },
+  {
+    path: "/downloader",
+    name: RouteNames.DOWNLOADER,
+    component: () => import("@/views/downloader/index.vue"),
+    meta: {
+      title: "下载器",
     },
   },
 ];
