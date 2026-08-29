@@ -70,7 +70,7 @@ function parseCurlTokens(tokens: string[]): RequestConfig {
   const flagsWithArg = new Set([
     '-X', '--request', '-H', '--header', '-d', '--data', '--data-raw',
     '--data-ascii', '--data-binary', '--data-urlencode', '-F', '--form',
-    '--url', '-u', '--user',
+    '--url', '-u', '--user', '-b', '--cookie',
   ])
   let bodyList: string[] = []
   let formList: string[] = []
@@ -113,6 +113,11 @@ function parseCurlTokens(tokens: string[]): RequestConfig {
             config.url = value
             hasUrl = true
           }
+          break
+        case '-b':
+        case '--cookie':
+          // Chromium「Copy as cURL」用 -b 传递 Cookie
+          if (value) config.headers.push(createKv('Cookie', value))
           break
         case '-u':
         case '--user':
@@ -185,15 +190,85 @@ export function parseCurl(text: string): RequestConfig {
 }
 
 /**
- * 解析 Windows cmd 风格 cURL（^ 续行，仅双引号，\" 转义，「Copy as cURL (cmd)」）
+ * 解析 Windows cmd 风格 cURL（Chrome/Edge「Copy as cURL (cmd)」）
+ * Chromium 的 cmd 转义规则（escapeStringWin）：
+ * - 参数用 ^" 包裹；\ → \\、" → \"；白名单外字符（{ } [ ] % \( 等）加 ^ 前缀
+ * - % 后跟字母数字时编码为 %^；正文换行编码为 ^\n\n；行尾 ^ 为续行
+ * 解码管线：正文换行 → 续行合并 → ^X 反转义 → 引号/CRT 参数反转义 → 清理杂质
  * @param text cURL 命令文本
  * @returns 解析后的请求配置
  * @throws {Error} 无法识别出 URL 时抛出中文错误
  */
 export function parseCurlCmd(text: string): RequestConfig {
-  // 合并 ^ 续行后再分词；cmd 不把单引号当引用符
-  const flat = text.replace(/\^\s*\r?\n/g, ' ')
-  return parseCurlTokens(tokenize(flat.trim(), { singleQuote: false }))
+  // 1. 正文换行（编码为 ^ + 两个换行）需先于续行处理，避免被误当续行吞掉
+  // 2. 行尾 ^ 为 cmd 续行符，合并为单行
+  // 3. ^X 为 cmd 转义（^" ^{ ^} ^% ^` 等），还原为字面字符
+  const flat = text
+    .replace(/\^[ \t]*\r?\n\r?\n/g, '\n')
+    .replace(/\^[ \t]*\r?\n/g, '')
+    .replace(/\^([\s\S])/g, '$1')
+  const tokens = tokenizeCmdDecoded(flat).map(cleanCmdToken)
+  return parseCurlTokens(tokens)
+}
+
+/**
+ * 对已做 cmd 反转义的文本做 CRT 级分词
+ * Chromium 的 ^" 包裹在 cmd 层是字面引号，由 MS Crt 参数解析器再次分组：
+ * - 引号切换「引内」状态，不写入 token
+ * - 引内 \" 为转义引号（写入字面 "）、\\ 为转义反斜杠（写入字面 \）
+ * - 引外空白分隔参数
+ * @param input 已还原 ^X 转义后的命令文本
+ * @returns token 数组
+ */
+function tokenizeCmdDecoded(input: string): string[] {
+  const tokens: string[] = []
+  let cur = ''
+  let inQuote = false
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i]
+    // 杂质序列：引内 \`" —— URL 闭合反引号前的转义反斜杠 + 内容引号
+    // （复制链路在 \" 转义引号内插入反引号标记所致），视为字面引号
+    // 注意 for 循环 continue 后仍会执行 i++，故此处只前进 2
+    if (inQuote && ch === '\\' && input[i + 1] === '`' && input[i + 2] === '"') {
+      cur += '"'
+      i += 2
+      continue
+    }
+    // Crt 转义：\" → "、\\ → \（不改变引内状态）
+    if (ch === '\\' && (input[i + 1] === '"' || input[i + 1] === '\\')) {
+      cur += input[i + 1]
+      i++
+      continue
+    }
+    if (ch === '"') {
+      inQuote = !inQuote
+      continue
+    }
+    if (!inQuote && /\s/.test(ch)) {
+      if (cur) {
+        tokens.push(cur)
+        cur = ''
+      }
+      continue
+    }
+    cur += ch
+  }
+  if (cur) tokens.push(cur)
+  return tokens
+}
+
+/**
+ * 清理 cmd 格式解码后的杂质
+ * - 新版 Chromium 会对 URL 中的 [ ] { } 额外加 \ 前缀，需去除
+ * - 剥离成对包裹 URL 的反引号（复制链路/站点标记引入，非真实 URL 内容），
+ *   以及闭合反引号前残留的转义反斜杠
+ * @param str 解码后的 token
+ * @returns 清理后的 token
+ */
+function cleanCmdToken(str: string): string {
+  return str
+    .replace(/\\([[\]{}])/g, '$1')
+    .replace(/`(https?:\/\/[^`\s"']*?)\\?`/g, '$1')
 }
 
 /**
