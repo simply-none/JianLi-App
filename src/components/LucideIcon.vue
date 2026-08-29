@@ -94,6 +94,8 @@ import { AlarmClock, AlarmClockCheck, AlarmClockMinus, AlarmClockPlus, ArrowDown
   MoonStar,
   ShieldBan,
   MonitorSmartphone,
+  // —— 网络请求工作台用图标（已在 @lucide/vue 中验证存在） ——
+  Braces,
  } from '@lucide/vue';
 import { ref } from 'vue';
 import { getLightColor } from '@/utils';
@@ -378,6 +380,8 @@ let nameMap = ref<Record<any, any>>({
   MoonStar,
   ShieldBan,
   MonitorSmartphone,
+  // —— 网络请求工作台用图标 ——
+  Braces,
 })
 
 function getPadding(padding: string | number): string {

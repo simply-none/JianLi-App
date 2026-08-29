@@ -6,7 +6,7 @@
 ## 关键文件
 - `src/views/systemInfo/index.vue`（`system-info`/`system-info-static` 的 send 与 on 监听，行 491–549）
 - `src/views/systemInfo/systemInfo.vue`、`form.vue`（展示/配置子组件）
-- 主进程：`electron/main/module/apiTest.ts`（`ipcMain.on('system-info'…)` 行 266、`system-info-static` 行 314；`new Worker(systemInfoWorkerPath)` 行 285/333）
+- 主进程：`electron/main/module/systemInfo.ts`（原 `apiTest.ts` 重构拆分而来，`initSystemInfo()`；`ipcMain.on('system-info'…)`、`system-info-static`；`new Worker(systemInfoWorkerPath)`）
 - worker 脚本路径：`electron/main/variables.ts` 的 `systemInfoWorkerPath`（dev：`public/worker/systemInfo.cjs`，打包：`dist/worker/systemInfo.cjs`）
 
 ## 路由

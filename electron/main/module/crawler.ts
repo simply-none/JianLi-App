@@ -5,7 +5,7 @@ import path from "path";
 
 /**
  * 【新爬虫】通用网页爬取工具
- * 与旧的 spider-test 步骤引擎（apiTest.ts）完全解耦，供天气等模块复用。
+ * 与旧的 spider-test 步骤引擎（已随 api-test 一并移除）完全解耦，供天气等模块复用。
  *
  * 核心能力（等待策略参考 Puppeteer 官方文档）：
  * 1. 浏览器实例跨爬取复用（省去每次 1~3 秒冷启动），断连自动重建

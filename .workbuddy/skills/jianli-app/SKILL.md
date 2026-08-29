@@ -7,7 +7,7 @@ agent_created: true
 # 渐离App 项目开发技能（jianli-app）
 
 ## 这是什么
-封装「渐离App」整个桌面应用的架构、约定、IPC 契约、复用模式与逐模块知识，让 WorkBuddy 在本项目里能按既定模式开发、维护、扩展功能，并避开已知雷区。它不是运行时功能，而是「开发该应用的知识库」——把散落在代码与记忆里的工程约定固化下来，供后续会话按需加载。
+封装「渐离App」整个桌面应用的架构、约定、IPC 契约、复用模式与逐模块知识，让 AGENTS 在本项目里能按既定模式开发、维护、扩展功能，并避开已知雷区。它不是运行时功能，而是「开发该应用的知识库」——把散落在代码与记忆里的工程约定固化下来，供后续会话按需加载。
 
 ## 何时使用
 - 任务涉及本项目任意模块（习惯打卡 / 番茄钟 / 待办 / 剪贴板 / 笔记 / 电子书 / 股票 / 截图 / 小窗 / 提醒 / 命令面板 / 数据层 …）。
@@ -17,7 +17,7 @@ agent_created: true
 ## 全局红线（先读，违反必踩雷）
 1. 渲染端**禁止 `import electron/*`（含类型）**；一切系统 / 磁盘 / 库操作走 IPC。
 2. 改主进程（`electron/**`）**必须重启 Electron**；改渲染端（`src/**`）热重载即可。
-3. 业务数据走 newSql 的 `query`/`upsert`/`delete`；❌ **严禁裸 `new-sql:execute`**。
+3. 业务数据走 newSql 的 `query`/`upsert`/`delete`；❌ **严禁裸 `new-sql:execute`**（确需用 SQL 时先读 `references/db-pitfalls.md`，execute 有自动建表劫持结构、PRAGMA 拿不到结果、SELECT 结果在 data.rows 三个必避的坑）。
 4. SQLite 补主键 = `ADD COLUMN key TEXT` + `CREATE UNIQUE INDEX`（不能 `ALTER` 加 PK）。
 5. 常驻小窗必须 `mouseEvents:true`，否则鼠标穿透点不动 / 拖不动。
 6. 小窗路由 path 名**必须**与主进程 `createOtherWindow` 的 `arg` 一致。
@@ -29,6 +29,7 @@ agent_created: true
 ## 参考文档导航
 - 架构总览：`references/architecture.md`
 - 数据层约定：`references/data-layer.md`
+- 数据库踩坑指南（写库前必读）：`references/db-pitfalls.md`
 - IPC 通道契约：`references/ipc-channels.md`
 - 小窗机制与四件套：`references/mini-window.md`
 - 通用复用模式：`references/patterns.md`
@@ -36,7 +37,7 @@ agent_created: true
 - 逐模块文档（`references/modules/`，处理具体模块前先读对应文件）：
   - **效率 / 提醒类**：`habit` `reminder` `todo` `pomodoro` `command-palette` `theme-conversation` `window-mode` `shortcut` `home-mode` `route-setting` `settings` `quick-note` `sticker`
   - **内容 / 数据类**：`clipboard` `notebook` `categorizable-notes` `ebook-reader` `accounting` `stock` `flow` `function`
-  - **系统 / 工具类**：`system-info` `weather` `spider` `sql-test` `high-perf-sql` `file-rela` `resource-manage` `screenshot` `browser` `about` `safety-protection` `app-cache` `tts` `small-window` `home`
+  - **系统 / 工具类**：`system-info` `weather` `crawler` `spider` `sql-test` `high-perf-sql` `file-rela` `resource-manage` `screenshot` `browser` `downloader` `about` `safety-protection` `app-cache` `tts` `small-window` `home`
 
 ## 使用方式
 1. 接到本项目任务，先判断属于「架构 / 数据 / IPC / 小窗 / 复用模式」哪一类，读对应核心参考。

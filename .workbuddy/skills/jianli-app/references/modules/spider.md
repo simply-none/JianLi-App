@@ -1,30 +1,43 @@
-# 网络请求 / 爬虫测试 (netRequest / spider)
+# 网络请求工作台 (netRequest)
 
 ## 职责
-「网络请求」页提供两种能力：① 纯接口测试（`api-test`，axios 发请求）；② 浏览器自动化爬虫（`spider-test`，puppeteer 连本地已开浏览器或启动新浏览器按步骤操作）。两者结果都经主进程回推渲染端。
+Postman 风格的 HTTP / WebSocket 调试工作台。支持：请求方法/URL/参数/头/四种 Body、认证、请求设置、前置/后置脚本断言、环境变量 `{{var}}` 替换、请求历史、集合（文件夹树）、cURL/Postman/OpenAPI 导入。旧的 `api-test`（axios 接口测试）与 `spider-test`（puppeteer 爬虫步骤）已于 2026-08 重构时移除，HTTP 请求统一走 `net-request:send`（主进程 axios），浏览器爬取能力由 `crawler.ts` 模块承接。
 
 ## 关键文件
-- `src/views/netRequest/index.vue`（入口，`api-test` 行 83/92）
-- `src/views/netRequest/browser.vue`（爬虫面板，`spider-test` 行 155，结果监听 161–185，`browser:req-steps` 存取 149/185）
-- `src/views/netRequest/stepSelector.vue`（`api-test`/`spider-test` 行 93/103，`get-file-list` 行 67，`query-data` 渲染端监听）
-- `src/views/netRequest/columns.vue`、`stepSelector.vue`（步骤配置）
-- 主进程：`electron/main/module/apiTest.ts`（`api-test` 行 14、`spider-test` 行 57，puppeteer 逻辑）
+- `src/views/netRequest/index.vue`（页面入口：模式切换 HTTP/WS、环境栏、侧边栏、工作区、保存/导入弹窗）
+- `src/views/netRequest/types/index.ts`（全部 TS 类型，RequestConfig 是落库核心 JSON）
+- `src/views/netRequest/db.ts`（SQLite 三表建表校验 + CRUD：`net_request_history` / `net_request_collection` / `net_request_env`）
+- `src/views/netRequest/composables/`：
+  - `useRequest.ts`（发送流水线：前置脚本 → 组装载荷 → IPC → 后置断言 → 写历史；`copyAsCurl`）
+  - `useHistory.ts` `useCollection.ts` `useEnvironment.ts` `useImport.ts` `useWebSocket.ts`
+- 组件（细粒度拆分）：
+  - `components/request/`：`UrlBar` `RequestTabs` `ParamsTab` `HeadersTab` `BodyTab`（+`body/FormDataTable`）`AuthTab` `ScriptTab` `KeyValueTable` `SaveRequestDialog`
+  - `components/response/`：`ResponsePanel` `ResponseStatusBar` `HeadersTable` `JsonViewer`（+`JsonNode`）`ResponseActions`
+  - `components/sidebar/`：`index` `HistoryPanel` `CollectionPanel` `CollectionTree`（递归树）
+  - `components/env/`：`EnvBar` `EnvDialog`
+  - `components/import/ImportDialog.vue`、`components/ws/WsPanel.vue`（+`WsMessageList`）
+- 主进程：`electron/main/module/netRequest.ts`（`initNetRequest()`）
 
 ## 路由
 - `RouteNames.NET_REQUEST` → path `/netRequest`
 
-## 用到的 IPC 通道
-- `api-test`（渲染→主，`send`，请求参数）→ 主进程 axios 后 `webContents.send('api-test', data)` 回推（渲染端 `on('api-test')` 收）
-- `spider-test`（渲染→主，`send`，`{steps, commonParams}`）→ puppeteer 执行，回推 `spider-test`/`spider-test:request`/`spider-test:response`/`spider-test:getData`
-- `get-file-list`（渲染→主，`sendSync`，`'select-dir'`）→ 目录选择（`dialog.ts`）
-- `set-store` / `get-store`（`browser:req-steps`）持久化爬虫步骤
-- `query-data`（渲染端 `on`，历史记录回显）
+## 用到的 IPC 通道（handle/promise 风格）
+- `net-request:send`：发 HTTP 请求（主进程 axios，arraybuffer 接收后按 content-type 解码；支持 followRedirects / validateSsl / timeout）
+- `net-request:ws-open` / `ws-send` / `ws-close`：WebSocket 测试（使用 Electron 36 内置 WebSocket，未装 ws 包）
+- `net-request:pick-file`：选择 binary 文件；`net-request:read-file`：读取文件内容
+
+## 持久化（SQLite，经 newSql 的 dbRun/dbQuery）
+- `net_request_history`：method/url/status/time/size/config(JSON)/created_at
+- `net_request_collection`：parent_id/node_type(folder|request)/name/method/url/config(JSON)/sort
+- `net_request_env`：name/vars(JSON)/is_active
+- 注意 `db.ts` 有 `ensureTables()` 幂等建表 + `pragma_table_info` 缺列补齐（遵守 db-pitfalls：PRAGMA 用 SELECT 形式）
 
 ## 复用 / 集成点
-- 复用 `dialog.ts` 的 `get-file-list` 选目录；步骤持久化复用 `set-store`/`get-store` 约定。
-- 命令面板 REGISTRY 可跳转。
+- 环境变量替换用 `{{变量名}}` 占位，URL/头/参数/Body 均生效。
+- 集合树 `CollectionTree.vue` 是递归组件，depth 默认 0（withDefaults）。
+- 命令面板 REGISTRY 可跳转本页。
 
 ## 特有坑 / 注意
-- `spider-test` 需要本地浏览器开启远程调试（`--remote-debugging-port=10853`，见 `apiTest.ts` 注释）；不配 `executablePath` 时默认连当前浏览器，连不上会失败。
-- 本模块多处**直接** `window.ipcRenderer.send(...)` 而非走 `src/utils/common.ts` 的 `send()` 封装，新代码建议统一用 `send()`。
-- `spider-test` 回推通道是 `webContents.send` 到主窗口，若主窗口关闭/路由切换会丢结果，需自行处理订阅生命周期。
+- 渲染端禁止 import electron/*；文件选择/读取必须走 IPC。
+- 保存集合时区分「新建」与「更新」：从集合加载请求后 index.vue 会记录 `editingNodeId`，再保存即更新原节点。
+- 主进程 `netRequest.ts` 改动需重启 Electron；渲染端热重载即可。

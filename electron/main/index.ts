@@ -8,7 +8,8 @@ import { initTray } from "./module/tray.ts";
 import { initPoetData } from "./module/poetData.ts";
 import { initMainWindow, win } from "./module/mainWindow.ts";
 import { initNewWindow } from "./module/newWindow.ts";
-import { initApiTest } from "./module/apiTest.ts";
+import { initSystemInfo } from "./module/systemInfo.ts";
+import { initNetRequest } from "./module/netRequest.ts";
 import { initClipboard } from "./module/clipboard.ts";
 import { registerJlocalProtocol, registerJlocalProtocolBefore } from "./module/protocol.ts";
 import { initSqlite } from "./module/sql.ts";
@@ -78,8 +79,10 @@ async function createWindow() {
   initCrypto();
   // 托盘图标
   initTray();
-  // 测试接口
-  initApiTest();
+  // 系统信息监控
+  initSystemInfo();
+  // 网络请求工作台（Postman 风格）
+  initNetRequest();
   // 新窗口相关
   initNewWindow();
   // 剪贴板（异步：需先补齐新增列，失败不应阻塞启动）
