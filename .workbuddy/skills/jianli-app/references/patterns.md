@@ -3,6 +3,7 @@
 ## 全局组件
 - **AppDialog**（`src/components/AppDialog.vue`）：统一 `el-dialog` 自带全屏 + 关闭；传 `#header` 不注入按钮。批量替换警惕自递归误改内部真实 `el-dialog`。各模块编辑弹窗继承它。
 - **VirtualList**（`src/components/VirtualList.vue`）：长列表优先。`item-height>0` 定高快路径否则 `ResizeObserver`；下标读 `el.dataset.index`；`items.push`=加载更多，换引用=新查询回顶。已接 `ClipboardList`(50/页)。
+- **TopTabs**（`src/components/TopTabs.vue`）：通用顶部 Tab 切换组件，`tabs: TopTabItem[]`（`{ key, label, icon?, color? }`）+ `v-model`。**单行不换行**，溢出时鼠标滚轮转横向滚动；**滚动条默认隐藏，仅「内容横向溢出（`is-overflow` 类）且 mouse hover」时显示**（`ResizeObserver` 监听宽度变化算溢出，避免无内容悬停出灰条）。`color` 字段指定该 Tab 的图标色与激活态强调色，缺省回退主题主色（`--tab-accent` / `--tab-icon` CSS 变量 + `color-mix` 浅底，主色与自定义色都兼容）。多 Tab 页（homeMode / windowMode）用它替代自写 tab 栏，避免重复样式与滚轮逻辑；`emit` 为 `string | number`，消费方在 `@update:modelValue` 处 `as` 回严格联合类型；滚轮横滚位移经 `WHEEL_FACTOR=4` 放大并按 `deltaMode` 归一（行模式≈16px/行、页模式≈整屏宽），避免部分鼠标/触控板一次滚动距离过小。
 
 ## 注册表模式（仿命令面板）
 - **命令面板**：`src/views/commandPalette/composables/useCommandSources.ts` 的 `REGISTRY: CommandSource[]`（routeSource / actionSource / noteSource / todoSource / habitSource）。新模块实现 `CommandSource` 接口（`types.ts`）并 push 进 `REGISTRY`；作用域前缀在 `paletteConfig.ts` 的 `SCOPE_PREFIX_MAP`（如 `!`→habit、`@`→note、`#`→todo、`/`→route+action）。同时可能要改 `types.ts` 的 `CommandType`、`paletteConfig` 的 `SCOPE_LABEL`/`TYPE_META`、`useCommandPalette` 的 `SCOPE_PATTERN` 正则。

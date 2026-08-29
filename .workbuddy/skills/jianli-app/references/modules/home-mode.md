@@ -4,7 +4,8 @@
 配置「主页模式」下各状态模式（日常/锁定/屏保/强制锁屏/空闲）的选项与展示，属于全局设置的一部分，数据落在 `useGlobalSetting` 的 `homeMode` 结构中。
 
 ## 关键文件
-- 页面：`src/views/homeMode/index.vue`（Tab 切换 + 选项卡片，逻辑全在此文件）
+- 页面：`src/views/homeMode/index.vue`（顶部 Tab 用通用 `TopTabs` 组件 + 选项卡片，逻辑全在此文件）
+- 顶部 Tab 组件：`src/components/TopTabs.vue`（通用，单行不换行 + 滚轮横滚 + 滚动条仅 hover 显示）
 - 原子组件：`src/views/homeMode/components/ModeOptionCard.vue`
 - 状态源：`src/store/useGlobalSetting.ts`（`homeMode` / `homeModeOps` / `setHomeMode()`，`index.vue:63`）
 
@@ -23,4 +24,5 @@
 ## 特有坑 / 注意
 - **深拷贝绕响应式**：`index.vue:66-67` 用 `JSON.parse(JSON.stringify(homeModeC.value))` 建本地副本再改，避免直接改 store 引发连锁更新；回写时务必 `setHomeMode(homeModeCc.value)` 整树提交。
 - **`mode` 嵌套结构易错**：`changeHomeMode():111` 要维护 `homeModeCc[key].mode[value]` 嵌套对象，并 `delete ...mode.undefined` 清理脏键，漏删会写脏数据。
-- **Tab key 与 StatusMode 对齐**：`modeTabs:81` 的 `key` 必须等于 `homeMode` 的 `StatusMode` 取值，否则 `homeModeCc[activeTab]` 取不到。
+- **顶部 Tab 已抽离为通用 `TopTabs`**：`modeTabs`（`TopTabItem[]`）的 `key` 仍须等于 `homeMode` 的 `StatusMode` 取值，否则 `homeModeCc[activeTab]` 取不到；`color` 字段指定各模式专属图标色（日常 `#409eff` 等）。消费处用 `:model-value` + `@update:modelValue="(k) => activeTab = k as StatusMode"`，因为 `TopTabs` emit 为 `string | number`。
+- **内容面板不要包 `<transition mode="out-in">`**：曾用 `out-in` 过渡导致切换 Tab 后新面板卡在 `opacity:0` 显示空白，现改为直接 `v-if`/`:key` 渲染当前面板。

@@ -7,47 +7,33 @@
       </h3>
     </div>
 
-    <!-- 顶部模式切换 Tab：同一时刻只展示一个模式的选项，避免逐卡堆叠导致长滚动 -->
-    <div class="mode-tabs" role="tablist">
-      <button
-        v-for="tab in modeTabs"
-        :key="tab.key"
-        class="mode-tab"
-        :class="[`tab-${tab.key}`, { 'is-active': activeTab === tab.key }]"
-        type="button"
-        role="tab"
-        :aria-selected="activeTab === tab.key"
-        @click="activeTab = tab.key"
-      >
-        <span class="mode-tab-icon">
-          <LucideIcon :name="tab.icon" :size="18" />
-        </span>
-        <span class="mode-tab-label">{{ tab.label }}</span>
-      </button>
-    </div>
+    <!-- 顶部模式切换 Tab（通用组件：单行不换行 + 滚轮横滚 + 滚动条仅 hover 显示） -->
+    <TopTabs
+      :tabs="modeTabs"
+      :model-value="activeTab"
+      @update:modelValue="(k: string | number) => (activeTab = k as StatusMode)"
+    />
 
-    <!-- 当前选中模式的选项面板 -->
-    <transition name="tab-fade" mode="out-in">
-      <div class="mode-card" :class="`${activeTab}-card`" :key="activeTab">
-        <div class="mode-card-header">
-          <div class="mode-card-icon">
-            <LucideIcon :name="currentTab.icon" :size="22" />
-          </div>
-          <div class="mode-card-title">{{ currentTab.label }}</div>
+    <!-- 当前选中模式的选项面板（直接渲染当前选中项，避免 out-in 过渡卡在 opacity:0 导致空白） -->
+    <div class="mode-card" :class="`${activeTab}-card`" :key="activeTab">
+      <div class="mode-card-header">
+        <div class="mode-card-icon">
+          <LucideIcon :name="currentTab.icon" :size="22" />
         </div>
-        <div class="mode-options">
-          <ModeOptionCard
-            v-for="(item, index) in homeModeOpsCc"
-            :key="item.value"
-            class="mode-option-slot"
-            :label="item.label"
-            :active="homeModeCc[activeTab].value === item.value"
-            :gradient="gradientPalette[index % gradientPalette.length]"
-            @select="selectMode(activeTab, item.value)"
-          />
-        </div>
+        <div class="mode-card-title">{{ currentTab.label }}</div>
       </div>
-    </transition>
+      <div class="mode-options">
+        <ModeOptionCard
+          v-for="(item, index) in homeModeOpsCc"
+          :key="item.value"
+          class="mode-option-slot"
+          :label="item.label"
+          :active="homeModeCc[activeTab].value === item.value"
+          :gradient="gradientPalette[index % gradientPalette.length]"
+          @select="selectMode(activeTab, item.value)"
+        />
+      </div>
+    </div>
   </div>
 </template>
 
@@ -55,6 +41,7 @@
 import { ref, computed, watch, toRaw } from 'vue';
 import { storeToRefs } from 'pinia';
 import LucideIcon from '@/components/LucideIcon.vue';
+import TopTabs, { type TopTabItem } from '@/components/TopTabs.vue';
 import useGlobalSetting from '@/store/useGlobalSetting';
 import type { StatusMode } from '@/store/useGlobalSetting';
 // 原子组件：单个模式选项卡片（渐变背景 + 固定首行"选项" + 模式名）
@@ -78,13 +65,14 @@ watch(() => homeModeC.value, (n) => {
 }, { deep: true });
 
 // 顶部 Tab 配置：顺序即展示顺序，key 与 homeMode 的 StatusMode 对齐
-const modeTabs = [
-  { key: 'work', label: '日常模式', icon: 'Sun' },
-  { key: 'rest', label: '锁定模式', icon: 'Lock' },
-  { key: 'screen', label: '屏保模式', icon: 'Monitor' },
-  { key: 'lock', label: '强制锁屏模式', icon: 'Key' },
-  { key: 'idle', label: '空闲模式', icon: 'Moon' },
-] as const;
+// color 沿用原卡片专属色，便于直观区分各模式
+const modeTabs: TopTabItem[] = [
+  { key: 'work', label: '日常模式', icon: 'Sun', color: '#409eff' },
+  { key: 'rest', label: '锁定模式', icon: 'Lock', color: '#764ba2' },
+  { key: 'screen', label: '屏保模式', icon: 'Monitor', color: '#67c23a' },
+  { key: 'lock', label: '强制锁屏模式', icon: 'Key', color: '#e6a23c' },
+  { key: 'idle', label: '空闲模式', icon: 'Moon', color: '#909399' },
+];
 
 // 当前选中的模式（Tab 切换的本地状态）
 const activeTab = ref<StatusMode>('work');
@@ -150,79 +138,7 @@ function changeHomeMode(key: StatusMode) {
   }
 }
 
-// 顶部模式切换 Tab
-.mode-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 18px;
-}
-
-.mode-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 16px;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-btn, 10px);
-  background: var(--bg-card);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  user-select: none;
-  transition: all 0.18s ease;
-
-  &:hover {
-    border-color: var(--color-primary);
-  }
-
-  &.is-active {
-    border-color: var(--color-primary);
-    background: var(--color-primary-light, rgba(99, 102, 241, 0.12));
-    box-shadow: var(--shadow-card);
-  }
-
-  .mode-tab-icon {
-    display: inline-flex;
-  }
-
-  .mode-tab-label {
-    color: var(--text-secondary);
-    transition: color 0.18s ease;
-  }
-
-  &:hover .mode-tab-label {
-    color: var(--text-primary);
-  }
-
-  &.is-active .mode-tab-label {
-    color: var(--color-primary);
-  }
-}
-
-// 每个模式 Tab 图标沿用卡片专属色，便于区分
-.tab-work .mode-tab-icon { color: #409eff; }
-.tab-rest .mode-tab-icon { color: #764ba2; }
-.tab-screen .mode-tab-icon { color: #67c23a; }
-.tab-lock .mode-tab-icon { color: #e6a23c; }
-.tab-idle .mode-tab-icon { color: #909399; }
-
-// Tab 切换过渡
-.tab-fade-enter-active,
-.tab-fade-leave-active {
-  transition: opacity 0.18s ease, transform 0.18s ease;
-}
-
-.tab-fade-enter-from {
-  opacity: 0;
-  transform: translateY(6px);
-}
-
-.tab-fade-leave-to {
-  opacity: 0;
-  transform: translateY(-6px);
-}
-
+// 卡片专属图标底/文字色（内容面板用，区别于顶部 Tab 强调色）
 .mode-card {
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);

@@ -2,21 +2,29 @@
   <!--
     小窗设置页（页面壳）：按配置清单渲染各小窗区块，交互逻辑全部在 useWindowModeSetting。
     新增小窗只需在 config/windowSections.ts 追加一条记录。
+    顶部 Tab 按小窗切换，同一时刻只展示一个区块，避免逐区块堆叠导致长滚动。
   -->
   <layout-vue>
     <template #main>
       <div class="setting-page">
+        <!-- 顶部小窗切换 Tab（通用组件：单行不换行 + 滚轮横滚 + 滚动条仅 hover 显示） -->
+        <TopTabs
+          :tabs="sectionTabs"
+          :model-value="activeTab"
+          @update:modelValue="(k: string | number) => (activeTab = k as WindowKey)"
+        />
+
+        <!-- 当前选中小窗的设置区块（直接渲染当前选中项，避免 out-in 过渡卡在 opacity:0 导致空白） -->
         <WindowModeSection
-          v-for="section in WINDOW_SECTIONS"
-          :key="section.key"
-          :section="section"
-          :config="configOf(section.key)"
-          :visible="shownOf(section.key)"
-          :custom="customDisplay[section.key]"
-          @toggle="(val: boolean) => setVisible(section.key, val)"
-          @apply="applyWindow(section.key)"
-          @select="({ field, value }: SelectPayload) => onSelect(section.key, field, value)"
-          @custom="(type: CustomFieldType) => openCustomModal(section.key, type)"
+          :key="activeSection.key"
+          :section="activeSection"
+          :config="configOf(activeSection.key)"
+          :visible="shownOf(activeSection.key)"
+          :custom="customDisplay[activeSection.key]"
+          @toggle="(val: boolean) => setVisible(activeSection.key, val)"
+          @apply="applyWindow(activeSection.key)"
+          @select="({ field, value }: SelectPayload) => onSelect(activeSection.key, field, value)"
+          @custom="(type: CustomFieldType) => openCustomModal(activeSection.key, type)"
         />
 
         <WindowModeCustomDialog
@@ -32,8 +40,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import LayoutVue from '@/components/layout.vue'
+import TopTabs, { type TopTabItem } from '@/components/TopTabs.vue'
 import WindowModeSection from './components/WindowModeSection.vue'
 import WindowModeCustomDialog from './components/WindowModeCustomDialog.vue'
 import { useWindowModeSetting, type CustomFieldType } from './composables/useWindowModeSetting'
@@ -64,6 +73,17 @@ const {
   openCustomModal,
   submitCustom,
 } = useWindowModeSetting()
+
+// 当前选中的小窗（Tab 切换的本地状态）
+const activeTab = ref<WindowKey>(WINDOW_SECTIONS[0].key)
+const activeSection = computed(() => WINDOW_SECTIONS.find((s) => s.key === activeTab.value)!)
+
+// 顶部 Tab 数据源：复用 WINDOW_SECTIONS 的 key/title/icon（不指定 color，回退主题主色）
+const sectionTabs: TopTabItem[] = WINDOW_SECTIONS.map((s) => ({
+  key: s.key,
+  label: s.title,
+  icon: s.icon,
+}))
 
 // 模板中 Record 内的 Ref 不会自动解包，统一经方法取值（同时建立响应式依赖）
 function configOf(key: WindowKey) {

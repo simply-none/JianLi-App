@@ -55,7 +55,7 @@ defineEmits<{ (e: 'select'): void }>();
   // 竖版卡片比例（对应 demo 的 padding-bottom:150% → 高:宽 = 1.5）
   width: 100%;
   aspect-ratio: 2 / 3;
-  min-height: 150px;
+  height: 200px;
   border-radius: 18px;
   overflow: hidden;
   cursor: pointer;
