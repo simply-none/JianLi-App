@@ -1,6 +1,6 @@
 ---
 name: jianli-app
-description: 本技能用于开发、维护、扩展「渐离App」(jianli-app) —— 一个 Electron + Vue3 + TypeScript + Vite 桌面效率应用。当任务涉及该项目的任意模块（习惯打卡、番茄钟、待办、剪贴板、笔记、电子书、股票、截图、小窗、提醒引擎、命令面板、数据层等）、需要理解架构/进程边界/IPC 通道/小窗四件套/复用模式，或要新增功能、排查已知雷区时，使用本技能。
+description: 本技能用于开发、维护、扩展「渐离App」(jianli-app) —— 一个 Electron + Vue3 + TypeScript + Vite 桌面效率应用。当任务涉及该项目的任意模块（习惯打卡、番茄钟、待办、剪贴板、笔记、电子书、股票、截图、小窗、提醒引擎、命令面板、调色板、数据层等）、需要理解架构/进程边界/IPC 通道/小窗四件套/复用模式，或要新增功能、排查已知雷区时，使用本技能。
 agent_created: true
 ---
 
@@ -10,9 +10,9 @@ agent_created: true
 封装「渐离App」整个桌面应用的架构、约定、IPC 契约、复用模式与逐模块知识，让 AGENTS 在本项目里能按既定模式开发、维护、扩展功能，并避开已知雷区。它不是运行时功能，而是「开发该应用的知识库」——把散落在代码与记忆里的工程约定固化下来，供后续会话按需加载。
 
 ## 何时使用
-- 任务涉及本项目任意模块（习惯打卡 / 番茄钟 / 待办 / 剪贴板 / 笔记 / 电子书 / 股票 / 截图 / 小窗 / 提醒 / 命令面板 / 数据层 …）。
+- 任务涉及本项目任意模块（习惯打卡 / 番茄钟 / 待办 / 剪贴板 / 笔记 / 电子书 / 股票 / 截图 / 小窗 / 提醒 / 命令面板 / 调色板 / 数据层 …）。
 - 需要理解：进程边界、改主进程要不要重启、IPC 通道怎么对接、小窗怎么加、某个注册表怎么扩。
-- 要新增功能、排查「发了 IPC 没反应」、避免 newSql / 穿透 / 破表等历史坑。
+- 要新增功能、重构功能、排查问题、排查「发了 IPC 没反应」、避免 newSql / 穿透 / 破表等历史坑。
 
 ## 全局红线（先读，违反必踩雷）
 1. 渲染端**禁止 `import electron/*`（含类型）**；一切系统 / 磁盘 / 库操作走 IPC。
@@ -25,6 +25,7 @@ agent_created: true
 8. 新需求开发落地清单（接入菜单与小窗）：
    - **必备**：① 在侧边栏 `src/layout/index.vue` 添加菜单入口；② 在路由配置页 `src/views/routeSetting/index.vue` 添加该菜单的「可见开关」，让用户在设置里可隐藏 / 显示该菜单。
    - **可选**：若需常驻浮动交互，再按小窗四件套加一个小窗（见 `references/mini-window.md` / `references/modules/small-window.md`），且必须 `mouseEvents:true` 并遵循路径一致性红线（第 6 条）。
+9. 每次修改都必须同步更新对应模块的文档 `references/modules/<模块>.md`
 
 ## 参考文档导航
 - 架构总览：`references/architecture.md`
@@ -36,7 +37,7 @@ agent_created: true
 - 已知差异与风险：`references/risks.md`
 - 逐模块文档（`references/modules/`，处理具体模块前先读对应文件）：
   - **效率 / 提醒类**：`habit` `reminder` `todo` `pomodoro` `command-palette` `theme-conversation` `window-mode` `shortcut` `home-mode` `route-setting` `settings` `quick-note` `sticker`
-  - **内容 / 数据类**：`clipboard` `notebook` `categorizable-notes` `ebook-reader` `accounting` `stock` `flow` `function`
+  - **内容 / 数据类**：`clipboard` `notebook` `categorizable-notes` `ebook-reader` `accounting` `stock` `flow` `function` `color-palette`
   - **系统 / 工具类**：`system-info` `weather` `crawler` `spider` `sql-test` `high-perf-sql` `file-rela` `resource-manage` `screenshot` `browser` `downloader` `about` `safety-protection` `app-cache` `tts` `small-window` `home`
 
 ## 使用方式

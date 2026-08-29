@@ -1,0 +1,276 @@
+/**
+ * 调色板工具 - 颜色算法（纯函数，无副作用）
+ *
+ * 涵盖：HEX / RGB / HSL / HSV 互转、配色方案生成、
+ * WCAG 对比度计算、色盲模拟。全部为纯函数，便于单测与复用。
+ */
+
+import type { ColorBlindType, HarmonyType, HSL, HSV, RGB } from './types'
+
+const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v))
+
+// ============ HEX <-> RGB ============
+
+/** 规范化各种 HEX 写法（#abc / abc / #aabbcc / aabbcc），非法返回 null */
+export function parseHex(input: string): string | null {
+  let h = input.trim().replace(/^#/, '')
+  if (/^[0-9a-fA-F]{3}$/.test(h)) {
+    h = h
+      .split('')
+      .map((c) => c + c)
+      .join('')
+  }
+  if (/^[0-9a-fA-F]{6}$/.test(h)) return '#' + h.toLowerCase()
+  return null
+}
+
+export function hexToRgb(hex: string): RGB {
+  const norm = parseHex(hex) || '#000000'
+  const n = parseInt(norm.slice(1), 16)
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 }
+}
+
+export function rgbToHex({ r, g, b }: RGB): string {
+  const p = (v: number) => clamp(Math.round(v), 0, 255).toString(16).padStart(2, '0')
+  return `#${p(r)}${p(g)}${p(b)}`
+}
+
+// ============ RGB <-> HSV（UI 区间：h 0-360, s/v 0-100） ============
+
+export function rgbToHsv({ r, g, b }: RGB): HSV {
+  const rr = r / 255
+  const gg = g / 255
+  const bb = b / 255
+  const max = Math.max(rr, gg, bb)
+  const min = Math.min(rr, gg, bb)
+  const d = max - min
+  let h = 0
+  if (d !== 0) {
+    if (max === rr) h = ((gg - bb) / d) % 6
+    else if (max === gg) h = (bb - rr) / d + 2
+    else h = (rr - gg) / d + 4
+    h *= 60
+    if (h < 0) h += 360
+  }
+  const s = max === 0 ? 0 : d / max
+  return { h, s: s * 100, v: max * 100 }
+}
+
+export function hsvToRgb({ h, s, v }: HSV): RGB {
+  const ss = s / 100
+  const vv = v / 100
+  const c = vv * ss
+  const hp = h / 60
+  const x = c * (1 - Math.abs((hp % 2) - 1))
+  const m = vv - c
+  let r1 = 0
+  let g1 = 0
+  let b1 = 0
+  if (hp < 1) [r1, g1, b1] = [c, x, 0]
+  else if (hp < 2) [r1, g1, b1] = [x, c, 0]
+  else if (hp < 3) [r1, g1, b1] = [0, c, x]
+  else if (hp < 4) [r1, g1, b1] = [0, x, c]
+  else if (hp < 5) [r1, g1, b1] = [x, 0, c]
+  else [r1, g1, b1] = [c, 0, x]
+  return {
+    r: Math.round((r1 + m) * 255),
+    g: Math.round((g1 + m) * 255),
+    b: Math.round((b1 + m) * 255),
+  }
+}
+
+// ============ RGB <-> HSL（h 0-360, s/l 0-100） ============
+
+export function rgbToHsl({ r, g, b }: RGB): HSL {
+  const rr = r / 255
+  const gg = g / 255
+  const bb = b / 255
+  const max = Math.max(rr, gg, bb)
+  const min = Math.min(rr, gg, bb)
+  const d = max - min
+  let h = 0
+  if (d !== 0) {
+    if (max === rr) h = ((gg - bb) / d) % 6
+    else if (max === gg) h = (bb - rr) / d + 2
+    else h = (rr - gg) / d + 4
+    h *= 60
+    if (h < 0) h += 360
+  }
+  const l = (max + min) / 2
+  const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1))
+  return { h, s: s * 100, l: l * 100 }
+}
+
+export function hslToRgb({ h, s, l }: HSL): RGB {
+  const ss = s / 100
+  const ll = l / 100
+  const c = (1 - Math.abs(2 * ll - 1)) * ss
+  const hp = h / 60
+  const x = c * (1 - Math.abs((hp % 2) - 1))
+  const m = ll - c / 2
+  let r1 = 0
+  let g1 = 0
+  let b1 = 0
+  if (hp < 1) [r1, g1, b1] = [c, x, 0]
+  else if (hp < 2) [r1, g1, b1] = [x, c, 0]
+  else if (hp < 3) [r1, g1, b1] = [0, c, x]
+  else if (hp < 4) [r1, g1, b1] = [0, x, c]
+  else if (hp < 5) [r1, g1, b1] = [x, 0, c]
+  else [r1, g1, b1] = [c, 0, x]
+  return {
+    r: Math.round((r1 + m) * 255),
+    g: Math.round((g1 + m) * 255),
+    b: Math.round((b1 + m) * 255),
+  }
+}
+
+// ============ 便捷封装 ============
+
+export function hexToHsv(hex: string): HSV {
+  return rgbToHsv(hexToRgb(hex))
+}
+
+export function hsvToHex(hsv: HSV): string {
+  return rgbToHex(hsvToRgb(hsv))
+}
+
+export function hexToHsl(hex: string): HSL {
+  return rgbToHsl(hexToRgb(hex))
+}
+
+export function hslToHex(hsl: HSL): string {
+  return rgbToHex(hslToRgb(hsl))
+}
+
+/** 旋转色相（保持 s/v 不变），结果归一化到 0-360 */
+export function rotateHue(hsv: HSV, deg: number): HSV {
+  return { ...hsv, h: (hsv.h + deg + 360) % 360 }
+}
+
+// ============ 配色方案生成 ============
+
+/**
+ * 基于基准色生成配色方案。
+ * 返回 HSV 数组（含基准色本身），由调用方负责转 HEX。
+ */
+export function generateHarmony(base: HSV, type: HarmonyType): HSV[] {
+  switch (type) {
+    case 'complementary':
+      return [base, rotateHue(base, 180)]
+    case 'analogous':
+      return [rotateHue(base, -30), base, rotateHue(base, 30)]
+    case 'triadic':
+      return [base, rotateHue(base, 120), rotateHue(base, 240)]
+    case 'splitComplementary':
+      return [base, rotateHue(base, 150), rotateHue(base, 210)]
+    case 'tetradic':
+      return [base, rotateHue(base, 90), rotateHue(base, 180), rotateHue(base, 270)]
+    case 'monochromatic': {
+      // 同色相，按明度/饱和度生成 5 个梯度
+      const out: HSV[] = []
+      const steps = [0.35, 0.55, 0.75, 0.9, 1]
+      for (const f of steps) {
+        out.push({
+          h: base.h,
+          s: clamp(base.s * (0.6 + f * 0.5), 0, 100),
+          v: clamp(base.v * f + (1 - f) * 30, 0, 100),
+        })
+      }
+      return out
+    }
+    default:
+      return [base]
+  }
+}
+
+// ============ WCAG 对比度 ============
+
+const srgbToLinear = (c: number) => {
+  const cs = c / 255
+  return cs <= 0.03928 ? cs / 12.92 : Math.pow((cs + 0.055) / 1.055, 2.4)
+}
+
+/** 相对亮度（0-1） */
+export function relativeLuminance({ r, g, b }: RGB): number {
+  return 0.2126 * srgbToLinear(r) + 0.7152 * srgbToLinear(g) + 0.0722 * srgbToLinear(b)
+}
+
+/** 两个颜色之间的对比度比值（1-21） */
+export function contrastRatio(rgb1: RGB, rgb2: RGB): number {
+  const l1 = relativeLuminance(rgb1)
+  const l2 = relativeLuminance(rgb2)
+  const a = Math.max(l1, l2)
+  const b = Math.min(l1, l2)
+  return (a + 0.05) / (b + 0.05)
+}
+
+export interface WcagResult {
+  /** 普通文本 AA（>=4.5） */
+  AA: boolean
+  /** 大号文本 AA（>=3） */
+  AALarge: boolean
+  /** 普通文本 AAA（>=7） */
+  AAA: boolean
+  /** 大号文本 AAA（>=4.5） */
+  AAALarge: boolean
+  ratio: number
+}
+
+export function wcag(level: number): WcagResult {
+  return {
+    ratio: level,
+    AA: level >= 4.5,
+    AALarge: level >= 3,
+    AAA: level >= 7,
+    AAALarge: level >= 4.5,
+  }
+}
+
+// ============ 色盲模拟（Brettel/Viénot 近似矩阵，作用于线性 RGB） ============
+
+const CB_MATRIX: Record<ColorBlindType, [number, number, number, number, number, number, number, number, number]> = {
+  // [r_out, g_out, b_out] = M · [r_lin, g_lin, b_lin]
+  protanopia: [0.567, 0.433, 0, 0.558, 0.442, 0, 0, 0.242, 0.758],
+  deuteranopia: [0.625, 0.375, 0, 0.7, 0.3, 0, 0, 0.3, 0.7],
+  tritanopia: [0.95, 0.05, 0, 0, 0.433, 0.567, 0, 0.475, 0.525],
+}
+
+const linearToSrgb = (c: number) => {
+  const v = clamp(c, 0, 1)
+  return (v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055) * 255
+}
+
+/** 将 RGB 按指定色盲类型模拟后的近似颜色 */
+export function simulateColorBlind(rgb: RGB, type: ColorBlindType): RGB {
+  const r = srgbToLinear(rgb.r)
+  const g = srgbToLinear(rgb.g)
+  const b = srgbToLinear(rgb.b)
+  const m = CB_MATRIX[type]
+  return {
+    r: Math.round(linearToSrgb(m[0] * r + m[1] * g + m[2] * b)),
+    g: Math.round(linearToSrgb(m[3] * r + m[4] * g + m[5] * b)),
+    b: Math.round(linearToSrgb(m[6] * r + m[7] * g + m[8] * b)),
+  }
+}
+
+// ============ 导出文本生成 ============
+
+/** 生成 CSS 变量（:root { --color-1: #xxx }） */
+export function toCssVariables(colors: string[], prefix = 'color'): string {
+  const lines = colors.map((c, i) => `  --${prefix}-${i + 1}: ${c};`)
+  return `:root {\n${lines.join('\n')}\n}`
+}
+
+/** 生成 SCSS 变量 */
+export function toScss(colors: string[], prefix = 'color'): string {
+  return colors.map((c, i) => `$${prefix}-${i + 1}: ${c};`).join('\n')
+}
+
+/** 生成 JSON（与主题皮肤兼容） */
+export function toJson(colors: string[], name = 'palette'): string {
+  const obj = {
+    name,
+    colors: colors.map((c, i) => ({ id: i + 1, hex: c })),
+  }
+  return JSON.stringify(obj, null, 2)
+}
