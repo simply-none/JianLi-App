@@ -21,6 +21,8 @@ skill-build
 .trae/documents
 .trae/documents/
 .trae/documents/*
+.trae/skills/*
+cache-data/*
 .vscode/.debug.env
 .idea
 .DS_Store

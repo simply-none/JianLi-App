@@ -20,6 +20,7 @@ import { initSys } from "./module/sys.ts";
 import { initLog } from "./module/log.ts";
 import { initAutoUpdate } from "./module/autoUpdate.ts";
 import { initWeather } from "./module/weather.ts";
+import { initCrawler } from "./module/crawler.ts";
 import { initLocation } from "./module/location.ts";
 import { initBing } from "./module/bing.ts";
 import { initTTS } from "./module/tts.ts";
@@ -86,6 +87,8 @@ async function createWindow() {
   initAutoUpdate();
   // 天气模块
   initWeather();
+  // 新爬虫工具（通用网页爬取）
+  initCrawler();
   // 定位模块
   initLocation();
   // Bing 图片模块
