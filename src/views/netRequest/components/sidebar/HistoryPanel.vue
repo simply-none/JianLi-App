@@ -139,6 +139,7 @@ function formatTs(ts: number): string {
   padding: 6px 8px;
   border-radius: 6px;
   cursor: pointer;
+  transition: background 0.12s;
 
   &:hover {
     background: var(--el-fill-color-light);
@@ -149,25 +150,42 @@ function formatTs(ts: number): string {
   }
 }
 
+// 方法徽标：等宽 + 按方法着色
 .item-method {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
+  letter-spacing: 0.4px;
+  width: 42px;
+  text-align: center;
+  padding: 1px 0;
+  border-radius: 4px;
+  background: var(--el-fill-color-light);
   flex-shrink: 0;
 
   &.m-get {
     color: var(--el-color-success);
+    background: var(--el-color-success-light-9);
   }
   &.m-post {
     color: var(--el-color-warning);
+    background: var(--el-color-warning-light-9);
   }
   &.m-put {
     color: var(--el-color-primary);
+    background: var(--el-color-primary-light-9);
   }
   &.m-delete {
     color: var(--el-color-danger);
+    background: var(--el-color-danger-light-9);
   }
   &.m-patch {
     color: var(--el-color-primary-light-3);
+    background: var(--el-color-primary-light-9);
+  }
+  &.m-head,
+  &.m-options {
+    color: var(--el-color-info);
+    background: var(--el-color-info-light-9);
   }
 }
 
@@ -178,6 +196,7 @@ function formatTs(ts: number): string {
 
 .item-url {
   font-size: 12px;
+  font-family: Consolas, Monaco, monospace;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

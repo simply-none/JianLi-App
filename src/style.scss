@@ -64,6 +64,10 @@ input {
   color: var(--text-primary);
 }
 
+.el-button.is-text {
+  color: var(--color-primary);
+}
+
 .el-button+.el-button {
   margin-left: 0px;
 }

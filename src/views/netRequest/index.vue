@@ -68,7 +68,7 @@
             @update:settings="config.settings = $event"
             @update:scripts="config.scripts = $event"
           />
-          <ResponsePanel :record="response" />
+          <ResponsePanel class="response-holder" :record="response" />
         </template>
 
         <!-- WebSocket 模式 -->
@@ -333,20 +333,34 @@ function onCurlImport(cfg: RequestConfig): void {
 </script>
 
 <style scoped lang="scss">
+@use './styles/shared' as *;
+
 .net-request-page {
   height: 100%;
-  padding: 12px;
+  padding: 12px 14px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 10px;
   overflow: hidden;
+  // 页面底色：使用主题页底变量，随主题切换（各主题文件均定义了 --el-bg-color-page）
+  background: var(--el-bg-color-page);
 }
 
 .page-header {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-shrink: 0;
+
+  // 模式切换按钮：图标与文字间距
+  :deep(.el-radio-button) {
+    .lucide-icon-box {
+      display: inline-flex;
+      margin-right: 2px;
+      vertical-align: middle;
+    }
+  }
 
   .header-spacer {
     flex: 1;
@@ -356,17 +370,16 @@ function onCurlImport(cfg: RequestConfig): void {
 .page-body {
   flex: 1;
   display: flex;
-  gap: 12px;
+  gap: 10px;
   min-height: 0;
 }
 
 .sidebar-box {
-  width: 280px;
+  width: 272px;
   flex-shrink: 0;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 8px;
-  padding: 10px;
+  padding: 10px 8px;
   overflow: hidden;
+  @include nr-panel;
 }
 
 .main-box {
@@ -374,7 +387,13 @@ function onCurlImport(cfg: RequestConfig): void {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   overflow: hidden;
+}
+
+// 响应区占满剩余高度（min-height:0 保证内部滚动生效）
+.response-holder {
+  flex: 1;
+  min-height: 0;
 }
 </style>

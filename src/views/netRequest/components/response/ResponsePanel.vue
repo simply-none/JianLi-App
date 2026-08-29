@@ -88,10 +88,14 @@ function formatTime(ts: number): string {
 </script>
 
 <style scoped lang="scss">
+@use '../../styles/shared' as *;
+
 .response-tabs-wrap {
   height: 100%;
   display: flex;
   flex-direction: column;
+  padding: 0 12px 8px;
+  @include nr-panel;
 }
 
 .response-head {
@@ -99,11 +103,25 @@ function formatTime(ts: number): string {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex-shrink: 0;
 }
 
 .response-tabs {
   flex: 1;
   overflow: hidden;
+  min-height: 0;
+
+  // 页签头部精简
+  :deep(.el-tabs__header) {
+    margin-bottom: 8px;
+  }
+  :deep(.el-tabs__nav-wrap::after) {
+    height: 1px;
+  }
+  :deep(.el-tabs__item) {
+    height: 36px;
+    font-size: 13px;
+  }
 
   :deep(.el-tabs__content) {
     height: calc(100% - 40px);
@@ -123,9 +141,12 @@ function formatTime(ts: number): string {
 .body-raw {
   white-space: pre-wrap;
   word-break: break-all;
-  font-family: Consolas, Monaco, monospace;
-  font-size: 13px;
+  font-family: $nr-mono;
+  font-size: 12.5px;
   line-height: 1.6;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--el-fill-color-lighter);
 }
 
 .request-info {
@@ -135,8 +156,13 @@ function formatTime(ts: number): string {
 .info-row {
   display: flex;
   gap: 12px;
-  padding: 4px 0;
+  padding: 5px 0;
   font-size: 13px;
+  border-bottom: 1px dashed var(--el-border-color-lighter);
+
+  &:last-child {
+    border-bottom: none;
+  }
 }
 
 .info-label {
@@ -147,7 +173,8 @@ function formatTime(ts: number): string {
 
 .info-value {
   word-break: break-all;
-  font-family: Consolas, Monaco, monospace;
+  font-family: $nr-mono;
+  font-size: 12.5px;
 }
 
 .response-empty {

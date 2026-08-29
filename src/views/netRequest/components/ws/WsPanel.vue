@@ -109,11 +109,15 @@ async function onSend(): Promise<void> {
 </script>
 
 <style scoped lang="scss">
+@use '../../styles/shared' as *;
+
 .ws-panel {
   height: 100%;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  padding: 10px 12px;
+  @include nr-panel;
 }
 
 .ws-connect-bar {

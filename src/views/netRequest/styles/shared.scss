@@ -1,0 +1,53 @@
+/**
+ * 网络请求工作台 - 共享样式片段
+ * ------------------------------------------------------------------
+ * 统一各区块的视觉语言：面板卡片、圆角、间距、HTTP 方法配色。
+ * 仅提供 mixin / 变量，不产生全局 CSS 输出，各组件 @use 后按需引入。
+ */
+
+/** 面板圆角 */
+$nr-radius: 10px;
+
+/** 面板内边距 */
+$nr-pad: 10px;
+
+/** 代码/等宽字体栈 */
+$nr-mono: Consolas, Monaco, 'Courier New', monospace;
+
+/**
+ * 区块面板卡片（URL 栏 / 请求编辑区 / 响应区 / 侧边栏 统一观感）
+ */
+@mixin nr-panel {
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: $nr-radius;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
+}
+
+/**
+ * HTTP 方法文字配色（Postman 风格）
+ * @param $prefix class 前缀（如 .m 或 .method-，调用时含连字符）
+ */
+@mixin nr-method-colors($prefix) {
+  #{$prefix}get {
+    color: var(--el-color-success);
+  }
+  #{$prefix}post {
+    color: var(--el-color-warning);
+  }
+  #{$prefix}put {
+    color: var(--el-color-primary);
+  }
+  #{$prefix}delete {
+    color: var(--el-color-danger);
+  }
+  #{$prefix}patch {
+    color: var(--el-color-primary-light-3);
+  }
+  #{$prefix}head {
+    color: var(--el-color-info);
+  }
+  #{$prefix}options {
+    color: var(--el-text-color-secondary);
+  }
+}

@@ -188,6 +188,8 @@ function toggleBatch(): void {
 </script>
 
 <style scoped lang="scss">
+@use '../../styles/shared' as *;
+
 .kv-table {
   width: 100%;
 }
@@ -207,13 +209,40 @@ function toggleBatch(): void {
 .kv-rows {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
+// 行悬停高亮，弱化输入框边框让表格更整洁
 .kv-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  padding: 1px 4px;
+  border-radius: 6px;
+  transition: background 0.12s;
+
+  &:hover {
+    background: var(--el-fill-color-lighter);
+  }
+
+  :deep(.el-input__wrapper) {
+    box-shadow: 0 0 0 1px transparent inset;
+
+    &:hover {
+      box-shadow: 0 0 0 1px var(--el-border-color-lighter) inset;
+    }
+
+    &.is-focus {
+      box-shadow: 0 0 0 1px var(--el-color-primary) inset;
+    }
+  }
+
+  :deep(.el-input__inner) {
+    font-family: $nr-mono;
+    font-size: 12.5px;
+    height: 26px;
+    line-height: 26px;
+  }
 }
 
 .kv-check {
@@ -223,6 +252,7 @@ function toggleBatch(): void {
 
 .kv-input {
   flex: 1;
+  min-width: 0;
 }
 
 .kv-var-icon {
@@ -232,6 +262,12 @@ function toggleBatch(): void {
 
 .kv-delete {
   padding: 4px;
+  opacity: 0;
+  transition: opacity 0.12s;
+
+  .kv-row:hover & {
+    opacity: 1;
+  }
 }
 
 .kv-add {

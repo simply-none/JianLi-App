@@ -71,18 +71,30 @@ const emit = defineEmits<{
 </script>
 
 <style scoped lang="scss">
+@use '../../styles/shared' as *;
+
 .url-bar {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 8px 10px;
+  flex-shrink: 0;
+  @include nr-panel;
+
+  :deep(.el-input__wrapper),
+  :deep(.el-select__wrapper) {
+    box-shadow: 0 0 0 1px var(--el-border-color-lighter) inset;
+  }
 }
 
 .method-select {
-  width: 118px;
+  width: 112px;
+  flex-shrink: 0;
 
   // 各方法的彩色标识（Postman 风格）
   :deep(.el-input__inner) {
-    font-weight: 600;
+    font-weight: 700;
+    letter-spacing: 0.4px;
   }
   &.method-get :deep(.el-input__inner) {
     color: var(--el-color-success);
@@ -99,9 +111,26 @@ const emit = defineEmits<{
   &.method-patch :deep(.el-input__inner) {
     color: var(--el-color-primary-light-3);
   }
+  &.method-head :deep(.el-input__inner) {
+    color: var(--el-color-info);
+  }
+  &.method-options :deep(.el-input__inner) {
+    color: var(--el-text-color-secondary);
+  }
 }
 
 .url-input {
   flex: 1;
+
+  :deep(.el-input__inner) {
+    font-family: $nr-mono;
+    font-size: 13px;
+  }
+}
+
+// 发送按钮：主操作突出
+.url-bar > .el-button--primary {
+  min-width: 78px;
+  font-weight: 600;
 }
 </style>

@@ -121,12 +121,30 @@ function enabledCount(items: KeyValueItem[]): number {
 </script>
 
 <style scoped lang="scss">
+@use '../../styles/shared' as *;
+
 .request-tabs {
   width: 100%;
+  flex-shrink: 0;
+  padding: 0 10px;
+  @include nr-panel;
+
+  // 页签头部精简
+  :deep(.el-tabs__header) {
+    margin-bottom: 8px;
+  }
+  :deep(.el-tabs__nav-wrap::after) {
+    height: 1px;
+  }
+  :deep(.el-tabs__item) {
+    height: 38px;
+    font-size: 13px;
+  }
 
   :deep(.el-tabs__content) {
     overflow: auto;
     max-height: 34vh;
+    padding: 2px 2px 8px;
   }
 }
 
@@ -142,7 +160,7 @@ function enabledCount(items: KeyValueItem[]): number {
   line-height: 16px;
   padding: 0 4px;
   border-radius: 8px;
-  background: var(--el-color-info-light-7);
+  background: var(--el-fill-color);
   color: var(--el-text-color-secondary);
   font-size: 11px;
   text-align: center;
@@ -150,6 +168,7 @@ function enabledCount(items: KeyValueItem[]): number {
   &-active {
     background: var(--el-color-primary-light-8);
     color: var(--el-color-primary);
+    font-weight: 600;
   }
 }
 </style>

@@ -84,10 +84,14 @@ const emit = defineEmits<{
   flex-direction: column;
 }
 
+// 页签：胶囊分段容器
 .sidebar-tabs {
   display: flex;
-  gap: 4px;
+  gap: 2px;
+  padding: 3px;
   margin-bottom: 8px;
+  border-radius: 8px;
+  background: var(--el-fill-color-light);
 }
 
 .sidebar-tab {
@@ -96,20 +100,22 @@ const emit = defineEmits<{
   align-items: center;
   justify-content: center;
   gap: 4px;
-  padding: 6px 0;
+  padding: 5px 0;
   border-radius: 6px;
   font-size: 13px;
   cursor: pointer;
   color: var(--el-text-color-secondary);
+  transition: all 0.15s;
 
   &:hover {
-    background: var(--el-fill-color-light);
+    color: var(--el-text-color-primary);
   }
 
   &.active {
-    background: var(--el-color-primary-light-9);
+    background: var(--el-bg-color);
     color: var(--el-color-primary);
     font-weight: 600;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 6%);
   }
 }
 </style>

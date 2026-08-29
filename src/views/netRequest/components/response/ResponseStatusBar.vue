@@ -71,37 +71,47 @@ function formatSize(size: number): string {
 .status-bar {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  gap: 8px;
+  padding: 8px 0;
   font-size: 13px;
 }
 
+// 状态码徽标：按语义着色（彩色文字 + 同色浅底）
 .status-code {
   font-weight: 700;
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 10px;
 
   &.status-2xx {
     color: var(--el-color-success);
+    background: var(--el-color-success-light-9);
   }
   &.status-3xx {
     color: var(--el-color-warning);
+    background: var(--el-color-warning-light-9);
   }
   &.status-4xx,
   &.status-5xx,
   &.status-error {
     color: var(--el-color-danger);
+    background: var(--el-color-danger-light-9);
   }
 }
 
+// 耗时 / 大小 / 类型：弱化徽标
 .status-item {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--el-fill-color-light);
   color: var(--el-text-color-secondary);
+  font-size: 12px;
 }
 
 .status-ct {
   font-family: Consolas, Monaco, monospace;
-  font-size: 12px;
 }
 </style>
