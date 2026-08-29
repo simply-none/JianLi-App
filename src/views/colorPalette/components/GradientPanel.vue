@@ -13,7 +13,7 @@
     </div>
 
     <!-- 实时预览 -->
-    <div class="preview" :style="{ background: css }" />
+    <div class="preview" :class="{ 'is-transparent': gradientHasAlpha(css) }" :style="{ '--css': css }" />
 
     <!-- 色标编辑 -->
     <div class="stops">
@@ -66,7 +66,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import LucideIcon from '@/components/LucideIcon.vue'
-import { hexToRgba, hsvToHex, rotateHue } from '../colorMath'
+import { gradientHasAlpha, hexToRgba, hsvToHex, rotateHue } from '../colorMath'
 import { copyText } from '../clipboard'
 import useColorPalette from '../useColorPalette'
 
@@ -165,14 +165,13 @@ function copyCss() {
   border-radius: var(--radius-card);
   border: 1px solid var(--border-subtle);
   position: relative;
-  background-image: conic-gradient(#cfcfcf 90deg, #f3f3f3 0 180deg, #cfcfcf 0 270deg, #f3f3f3 0);
-  background-size: 14px 14px;
-  &::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background: v-bind(css);
+  /* 不透明：纯渐变渲染（参照改动前，无棋盘格，无锯齿） */
+  background: var(--css);
+  /* 透明：启用 SVG 棋盘格 + inset box-shadow 预览 */
+  &.is-transparent {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Crect width='8' height='8' fill='%23cfcfcf'/%3E%3Crect x='8' y='8' width='8' height='8' fill='%23cfcfcf'/%3E%3Crect x='8' width='8' height='8' fill='%23f3f3f3'/%3E%3Crect y='8' width='8' height='8' fill='%23f3f3f3'/%3E%3C/svg%3E");
+    background-size: 16px 16px;
+    box-shadow: inset 0 0 0 9999px var(--css);
   }
 }
 .stops {

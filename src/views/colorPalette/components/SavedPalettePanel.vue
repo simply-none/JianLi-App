@@ -20,6 +20,7 @@
               v-for="(c, i) in parsed(p.colors)"
               :key="i"
               class="pdot"
+              :class="{ 'is-transparent': parseAlpha(c) < 1 }"
               :style="{ '--c': c }"
               :title="c"
             />
@@ -50,6 +51,7 @@
           v-for="f in store.favorites"
           :key="f.key"
           class="fav-dot"
+          :class="{ 'is-transparent': parseAlpha(f.hex) < 1 }"
           :style="{ '--c': f.hex }"
           :title="`${f.hex} · 点击复制`"
           @click="copy(f.hex)"
@@ -65,6 +67,7 @@ import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import LucideIcon from '@/components/LucideIcon.vue'
 import { copyText } from '../clipboard'
+import { parseAlpha } from '../colorMath'
 import type { SavedPalette } from '../types'
 import useColorPalette from '../useColorPalette'
 
@@ -195,14 +198,13 @@ function copy(hex: string) {
         height: 16px;
         border-radius: 4px;
         border: 1px solid var(--border-subtle);
-        background-image: conic-gradient(#cfcfcf 90deg, #f3f3f3 0 180deg, #cfcfcf 0 270deg, #f3f3f3 0);
-        background-size: 8px 8px;
-        &::before {
-          content: '';
-          position: absolute;
-          inset: 0;
-          border-radius: inherit;
-          background: var(--c);
+        /* 不透明：纯色渲染（参照改动前，无棋盘格，无锯齿） */
+        background: var(--c);
+        /* 透明：启用 SVG 棋盘格 + inset box-shadow 预览 */
+        &.is-transparent {
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Crect width='8' height='8' fill='%23cfcfcf'/%3E%3Crect x='8' y='8' width='8' height='8' fill='%23cfcfcf'/%3E%3Crect x='8' width='8' height='8' fill='%23f3f3f3'/%3E%3Crect y='8' width='8' height='8' fill='%23f3f3f3'/%3E%3C/svg%3E");
+          background-size: 16px 16px;
+          box-shadow: inset 0 0 0 9999px var(--c);
         }
       }
     }
@@ -274,14 +276,13 @@ function copy(hex: string) {
         border-radius: 6px;
         border: 1px solid var(--border-subtle);
         cursor: pointer;
-        background-image: conic-gradient(#cfcfcf 90deg, #f3f3f3 0 180deg, #cfcfcf 0 270deg, #f3f3f3 0);
-        background-size: 10px 10px;
-        &::before {
-          content: '';
-          position: absolute;
-          inset: 0;
-          border-radius: inherit;
-          background: var(--c);
+        /* 不透明：纯色渲染（参照改动前，无棋盘格，无锯齿） */
+        background: var(--c);
+        /* 透明：启用 SVG 棋盘格 + inset box-shadow 预览 */
+        &.is-transparent {
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Crect width='8' height='8' fill='%23cfcfcf'/%3E%3Crect x='8' y='8' width='8' height='8' fill='%23cfcfcf'/%3E%3Crect x='8' width='8' height='8' fill='%23f3f3f3'/%3E%3Crect y='8' width='8' height='8' fill='%23f3f3f3'/%3E%3C/svg%3E");
+          background-size: 16px 16px;
+          box-shadow: inset 0 0 0 9999px var(--c);
         }
         &:hover {
           transform: scale(1.08);

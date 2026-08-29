@@ -42,6 +42,25 @@ export function parseAlpha(hex: string): number {
   return parseInt(norm.slice(7, 9), 16) / 255
 }
 
+/** 渐变 CSS 字符串是否含透明色标（8 位 HEX alpha<255 或 rgba 的 a<1） */
+export function gradientHasAlpha(css: string): boolean {
+  const hex8 = css.match(/#[0-9a-fA-F]{8}/g)
+  if (hex8) {
+    for (const h of hex8) {
+      if (parseInt(h.slice(7, 9), 16) < 255) return true
+    }
+  }
+  const rgba = css.match(/rgba?\([^)]+\)/g)
+  if (rgba) {
+    for (const r of rgba) {
+      const parts = r.slice(r.indexOf('(') + 1, -1).split(',').map((s) => parseFloat(s.trim()))
+      const a = parts[3]
+      if (a !== undefined && a < 1) return true
+    }
+  }
+  return false
+}
+
 export function hexToRgb(hex: string): RGB {
   const norm = parseHex(hex) || '#000000'
   // 取前 6 位（忽略 alpha 通道）

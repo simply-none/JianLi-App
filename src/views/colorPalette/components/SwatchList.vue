@@ -18,7 +18,7 @@
     <div v-if="!store.swatches.length" class="empty">点击「+」或配色方案的「全部加入」来收集颜色</div>
 
     <div v-else class="grid">
-      <div v-for="(c, i) in store.swatches" :key="i" class="item" :style="{ '--c': c }">
+      <div v-for="(c, i) in store.swatches" :key="i" class="item" :class="{ 'is-transparent': parseAlpha(c) < 1 }" :style="{ '--c': c }">
         <span class="hex">{{ c }}</span>
         <div class="ops">
           <button class="op" title="复制" @click="copy(c)">
@@ -36,6 +36,7 @@
 <script setup lang="ts">
 import LucideIcon from '@/components/LucideIcon.vue'
 import { copyText } from '../clipboard'
+import { parseAlpha } from '../colorMath'
 import useColorPalette from '../useColorPalette'
 
 const store = useColorPalette()
@@ -108,13 +109,13 @@ function copy(c: string) {
   justify-content: center;
   padding-bottom: 6px;
   overflow: hidden;
-  background-image: conic-gradient(#cfcfcf 90deg, #f3f3f3 0 180deg, #cfcfcf 0 270deg, #f3f3f3 0);
-  background-size: 12px 12px;
-  &::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: var(--c);
+  /* 不透明：纯色渲染（参照改动前，无棋盘格，无锯齿） */
+  background: var(--c);
+  /* 透明：启用 SVG 棋盘格 + inset box-shadow 预览 */
+  &.is-transparent {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Crect width='8' height='8' fill='%23cfcfcf'/%3E%3Crect x='8' y='8' width='8' height='8' fill='%23cfcfcf'/%3E%3Crect x='8' width='8' height='8' fill='%23f3f3f3'/%3E%3Crect y='8' width='8' height='8' fill='%23f3f3f3'/%3E%3C/svg%3E");
+    background-size: 16px 16px;
+    box-shadow: inset 0 0 0 9999px var(--c);
   }
   .hex {
     position: relative;

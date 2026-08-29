@@ -9,6 +9,7 @@
             v-for="(c, i) in row.colors"
             :key="i"
             class="cell"
+            :class="{ 'is-transparent': parseAlpha(c) < 1 }"
             :style="{ '--c': c }"
             :title="c"
           />
@@ -20,7 +21,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { hexToRgba, rgbaToHex, simulateColorBlind } from '../colorMath'
+import { hexToRgba, parseAlpha, rgbaToHex, simulateColorBlind } from '../colorMath'
 import { COLOR_BLIND_META, type ColorBlindType } from '../types'
 import useColorPalette from '../useColorPalette'
 
@@ -85,14 +86,13 @@ const rows = computed(() => {
           border-radius: 6px;
           border: 1px solid var(--border-subtle);
           position: relative;
-          background-image: conic-gradient(#cfcfcf 90deg, #f3f3f3 0 180deg, #cfcfcf 0 270deg, #f3f3f3 0);
-          background-size: 12px 12px;
-          &::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            border-radius: inherit;
-            background: var(--c);
+          /* 不透明：纯色渲染（参照改动前，无棋盘格，无锯齿） */
+          background: var(--c);
+          /* 透明：启用 SVG 棋盘格 + inset box-shadow 预览 */
+          &.is-transparent {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Crect width='8' height='8' fill='%23cfcfcf'/%3E%3Crect x='8' y='8' width='8' height='8' fill='%23cfcfcf'/%3E%3Crect x='8' width='8' height='8' fill='%23f3f3f3'/%3E%3Crect y='8' width='8' height='8' fill='%23f3f3f3'/%3E%3C/svg%3E");
+            background-size: 16px 16px;
+            box-shadow: inset 0 0 0 9999px var(--c);
           }
         }
       }
