@@ -7,117 +7,52 @@
       </h3>
     </div>
 
-    <div class="mode-cards">
-      <!-- 日常模式 -->
-      <div class="mode-card work-card">
-        <div class="mode-card-header">
-          <div class="mode-card-icon">
-            <LucideIcon name="Sun" :size="22" />
-          </div>
-          <div class="mode-card-title">日常模式</div>
-        </div>
-        <div class="mode-options">
-          <ModeOptionCard
-            v-for="(item, index) in homeModeOpsCc"
-            :key="item.value"
-            class="mode-option-slot"
-            :label="item.label"
-            :active="homeModeCc.work.value === item.value"
-            :gradient="gradientPalette[index % gradientPalette.length]"
-            @select="selectMode('work', item.value)"
-          />
-        </div>
-      </div>
-
-      <!-- 锁定模式 -->
-      <div class="mode-card rest-card">
-        <div class="mode-card-header">
-          <div class="mode-card-icon">
-            <LucideIcon name="Lock" :size="22" />
-          </div>
-          <div class="mode-card-title">锁定模式</div>
-        </div>
-        <div class="mode-options">
-          <ModeOptionCard
-            v-for="(item, index) in homeModeOpsCc"
-            :key="item.value"
-            class="mode-option-slot"
-            :label="item.label"
-            :active="homeModeCc.rest.value === item.value"
-            :gradient="gradientPalette[index % gradientPalette.length]"
-            @select="selectMode('rest', item.value)"
-          />
-        </div>
-      </div>
-
-      <!-- 屏保模式 -->
-      <div class="mode-card screen-card">
-        <div class="mode-card-header">
-          <div class="mode-card-icon">
-            <LucideIcon name="Monitor" :size="22" />
-          </div>
-          <div class="mode-card-title">屏保模式</div>
-        </div>
-        <div class="mode-options">
-          <ModeOptionCard
-            v-for="(item, index) in homeModeOpsCc"
-            :key="item.value"
-            class="mode-option-slot"
-            :label="item.label"
-            :active="homeModeCc.screen.value === item.value"
-            :gradient="gradientPalette[index % gradientPalette.length]"
-            @select="selectMode('screen', item.value)"
-          />
-        </div>
-      </div>
-
-      <!-- 强制锁屏模式：番茄钟 lock 状态（非序列、强制锁屏）对应的皮肤方案 -->
-      <div class="mode-card lock-card">
-        <div class="mode-card-header">
-          <div class="mode-card-icon">
-            <LucideIcon name="Key" :size="22" />
-          </div>
-          <div class="mode-card-title">强制锁屏模式</div>
-        </div>
-        <div class="mode-options">
-          <ModeOptionCard
-            v-for="(item, index) in homeModeOpsCc"
-            :key="item.value"
-            class="mode-option-slot"
-            :label="item.label"
-            :active="homeModeCc.lock.value === item.value"
-            :gradient="gradientPalette[index % gradientPalette.length]"
-            @select="selectMode('lock', item.value)"
-          />
-        </div>
-      </div>
+    <!-- 顶部模式切换 Tab：同一时刻只展示一个模式的选项，避免逐卡堆叠导致长滚动 -->
+    <div class="mode-tabs" role="tablist">
+      <button
+        v-for="tab in modeTabs"
+        :key="tab.key"
+        class="mode-tab"
+        :class="[`tab-${tab.key}`, { 'is-active': activeTab === tab.key }]"
+        type="button"
+        role="tab"
+        :aria-selected="activeTab === tab.key"
+        @click="activeTab = tab.key"
+      >
+        <span class="mode-tab-icon">
+          <LucideIcon :name="tab.icon" :size="18" />
+        </span>
+        <span class="mode-tab-label">{{ tab.label }}</span>
+      </button>
     </div>
 
-    <!-- 空闲模式：空闲（免打扰）时段对应的皮肤方案 -->
-    <div class="mode-card idle-card">
-      <div class="mode-card-header">
-        <div class="mode-card-icon">
-          <LucideIcon name="Moon" :size="22" />
+    <!-- 当前选中模式的选项面板 -->
+    <transition name="tab-fade" mode="out-in">
+      <div class="mode-card" :class="`${activeTab}-card`" :key="activeTab">
+        <div class="mode-card-header">
+          <div class="mode-card-icon">
+            <LucideIcon :name="currentTab.icon" :size="22" />
+          </div>
+          <div class="mode-card-title">{{ currentTab.label }}</div>
         </div>
-        <div class="mode-card-title">空闲模式</div>
+        <div class="mode-options">
+          <ModeOptionCard
+            v-for="(item, index) in homeModeOpsCc"
+            :key="item.value"
+            class="mode-option-slot"
+            :label="item.label"
+            :active="homeModeCc[activeTab].value === item.value"
+            :gradient="gradientPalette[index % gradientPalette.length]"
+            @select="selectMode(activeTab, item.value)"
+          />
+        </div>
       </div>
-      <div class="mode-options">
-        <ModeOptionCard
-          v-for="(item, index) in homeModeOpsCc"
-          :key="item.value"
-          class="mode-option-slot"
-          :label="item.label"
-          :active="homeModeCc.idle.value === item.value"
-          :gradient="gradientPalette[index % gradientPalette.length]"
-          @select="selectMode('idle', item.value)"
-        />
-      </div>
-    </div>
+    </transition>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, toRaw } from 'vue';
+import { ref, computed, watch, toRaw } from 'vue';
 import { storeToRefs } from 'pinia';
 import LucideIcon from '@/components/LucideIcon.vue';
 import useGlobalSetting from '@/store/useGlobalSetting';
@@ -141,6 +76,19 @@ watch(() => homeModeOpsC.value, (n) => {
 watch(() => homeModeC.value, (n) => {
   homeModeCc.value = JSON.parse(JSON.stringify(n));
 }, { deep: true });
+
+// 顶部 Tab 配置：顺序即展示顺序，key 与 homeMode 的 StatusMode 对齐
+const modeTabs = [
+  { key: 'work', label: '日常模式', icon: 'Sun' },
+  { key: 'rest', label: '锁定模式', icon: 'Lock' },
+  { key: 'screen', label: '屏保模式', icon: 'Monitor' },
+  { key: 'lock', label: '强制锁屏模式', icon: 'Key' },
+  { key: 'idle', label: '空闲模式', icon: 'Moon' },
+] as const;
+
+// 当前选中的模式（Tab 切换的本地状态）
+const activeTab = ref<StatusMode>('work');
+const currentTab = computed(() => modeTabs.find((t) => t.key === activeTab.value)!);
 
 // 选项卡片渐变调色板：引用主题变量（src/styles/themes），随当前主题切换自动契合主题色；
 // 前两项取主色/头部渐变（最强主题关联），其余取主题内置的 icon 渐变，保证各选项颜色区分。
@@ -202,10 +150,77 @@ function changeHomeMode(key: StatusMode) {
   }
 }
 
-.mode-cards {
+// 顶部模式切换 Tab
+.mode-tabs {
   display: flex;
-  flex-direction: column;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.mode-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-btn, 10px);
+  background: var(--bg-card);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.18s ease;
+
+  &:hover {
+    border-color: var(--color-primary);
+  }
+
+  &.is-active {
+    border-color: var(--color-primary);
+    background: var(--color-primary-light, rgba(99, 102, 241, 0.12));
+    box-shadow: var(--shadow-card);
+  }
+
+  .mode-tab-icon {
+    display: inline-flex;
+  }
+
+  .mode-tab-label {
+    color: var(--text-secondary);
+    transition: color 0.18s ease;
+  }
+
+  &:hover .mode-tab-label {
+    color: var(--text-primary);
+  }
+
+  &.is-active .mode-tab-label {
+    color: var(--color-primary);
+  }
+}
+
+// 每个模式 Tab 图标沿用卡片专属色，便于区分
+.tab-work .mode-tab-icon { color: #409eff; }
+.tab-rest .mode-tab-icon { color: #764ba2; }
+.tab-screen .mode-tab-icon { color: #67c23a; }
+.tab-lock .mode-tab-icon { color: #e6a23c; }
+.tab-idle .mode-tab-icon { color: #909399; }
+
+// Tab 切换过渡
+.tab-fade-enter-active,
+.tab-fade-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.tab-fade-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.tab-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 
 .mode-card {
