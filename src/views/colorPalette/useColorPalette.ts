@@ -18,7 +18,7 @@ import {
   type HSV,
   type SavedPalette,
 } from './types'
-import { generateHarmony, hexToHsv, hsvToHex } from './colorMath'
+import { generateHarmony, hexToHsv, hsvToHexa, parseAlpha, toShortHex } from './colorMath'
 
 // 复用项目既有 new-sql IPC 封装（与 useAccounting 一致）
 function ipc<T = any>(channel: string, payload: any): Promise<T> {
@@ -35,17 +35,22 @@ function nowStr(): string {
 export default defineStore('colorPalette', () => {
   // ============ 状态 ============
   const baseHsv = ref<HSV>({ h: 210, s: 80, v: 60 })
+  /** 基准色透明度：0-100（百分比），默认 100 = 完全不透明 */
+  const baseAlpha = ref(100)
   const harmonyType = ref<HarmonyType>('complementary')
-  /** 工作区色块（HEX 字符串数组），可手动增删、用于导出 */
+  /** 工作区色块（HEX 字符串数组，支持 8 位 #RRGGBBAA），可手动增删、用于导出 */
   const swatches = ref<string[]>([])
   const savedPalettes = ref<SavedPalette[]>([])
   const favorites = ref<ColorFavorite[]>([])
   const loading = ref(false)
 
   // ============ 派生 ============
-  const baseHex = computed(() => hsvToHex(baseHsv.value))
+  /** 基准色 HEX：含透明度（8 位），不透明时缩写为 6 位 */
+  const baseHex = computed(() => toShortHex(hsvToHexa(baseHsv.value, baseAlpha.value / 100)))
   const harmonyColors = computed(() =>
-    generateHarmony(baseHsv.value, harmonyType.value).map(hsvToHex),
+    generateHarmony(baseHsv.value, harmonyType.value).map((h) =>
+      toShortHex(hsvToHexa(h, baseAlpha.value / 100)),
+    ),
   )
 
   // ============ 表结构初始化（幂等） ============
@@ -89,6 +94,32 @@ export default defineStore('colorPalette', () => {
   }
   function setBaseFromHex(hex: string) {
     baseHsv.value = hexToHsv(hex)
+    baseAlpha.value = Math.round(parseAlpha(hex) * 100)
+  }
+  /** 设置基准色透明度（0-100） */
+  function setBaseAlpha(a: number) {
+    baseAlpha.value = Math.min(100, Math.max(0, Math.round(a)))
+  }
+
+  /** 随机基准色：随机色相 + 较柔和的饱和度/明度，便于直接得到好看的颜色 */
+  function randomizeBase() {
+    setBaseHsv({
+      h: Math.random() * 360,
+      s: 45 + Math.random() * 45, // 45~90
+      v: 50 + Math.random() * 35, // 50~85
+    })
+  }
+
+  /** 随机填充 N 个柔和色到工作区（默认 5） */
+  function addRandomSwatches(n = 5) {
+    for (let i = 0; i < n; i++) {
+      const hsv = {
+        h: Math.random() * 360,
+        s: 45 + Math.random() * 45,
+        v: 50 + Math.random() * 35,
+      }
+      addSwatch(hsvToHexa(hsv, baseAlpha.value / 100))
+    }
   }
 
   // ============ 工作区色块 ============
@@ -194,6 +225,7 @@ export default defineStore('colorPalette', () => {
   return {
     // 状态
     baseHsv,
+    baseAlpha,
     harmonyType,
     swatches,
     savedPalettes,
@@ -206,6 +238,9 @@ export default defineStore('colorPalette', () => {
     init,
     setBaseHsv,
     setBaseFromHex,
+    setBaseAlpha,
+    randomizeBase,
+    addRandomSwatches,
     addSwatch,
     removeSwatch,
     clearSwatches,

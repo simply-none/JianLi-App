@@ -6,6 +6,9 @@
         <button class="mini" title="加入当前色" @click="store.addSwatch()">
           <LucideIcon name="Plus" :size="13" />
         </button>
+        <button class="mini" title="随机填充 5 色" @click="store.addRandomSwatches(5)">
+          <LucideIcon name="Shuffle" :size="13" />
+        </button>
         <button class="mini" title="清空" :disabled="!store.swatches.length" @click="store.clearSwatches()">
           <LucideIcon name="Trash2" :size="13" />
         </button>
@@ -15,7 +18,7 @@
     <div v-if="!store.swatches.length" class="empty">点击「+」或配色方案的「全部加入」来收集颜色</div>
 
     <div v-else class="grid">
-      <div v-for="(c, i) in store.swatches" :key="i" class="item" :style="{ background: c }">
+      <div v-for="(c, i) in store.swatches" :key="i" class="item" :style="{ '--c': c }">
         <span class="hex">{{ c }}</span>
         <div class="ops">
           <button class="op" title="复制" @click="copy(c)">
@@ -105,7 +108,17 @@ function copy(c: string) {
   justify-content: center;
   padding-bottom: 6px;
   overflow: hidden;
+  background-image: conic-gradient(#cfcfcf 90deg, #f3f3f3 0 180deg, #cfcfcf 0 270deg, #f3f3f3 0);
+  background-size: 12px 12px;
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--c);
+  }
   .hex {
+    position: relative;
+    z-index: 1;
     font-size: 0.66rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -122,6 +135,7 @@ function copy(c: string) {
     gap: 4px;
     opacity: 0;
     transition: opacity 0.15s;
+    z-index: 1;
     .op {
       width: 22px;
       height: 22px;

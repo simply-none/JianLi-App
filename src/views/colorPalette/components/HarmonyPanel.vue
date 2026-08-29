@@ -20,16 +20,22 @@
         v-for="(c, i) in store.harmonyColors"
         :key="i"
         class="swatch"
-        :style="{ background: c }"
+        :style="{ '--c': c }"
         :title="`点击设为基准色 · ${c}`"
         @click="store.setBaseFromHex(c)"
       />
     </div>
 
-    <button class="add-all" @click="addAll">
-      <LucideIcon name="Plus" :size="14" />
-      全部加入工作区
-    </button>
+    <div class="actions">
+      <button class="random" @click="store.randomizeBase()">
+        <LucideIcon name="Shuffle" :size="14" />
+        随机基准色
+      </button>
+      <button class="add-all" @click="addAll">
+        <LucideIcon name="Plus" :size="14" />
+        全部加入工作区
+      </button>
+    </div>
   </div>
 </template>
 
@@ -81,7 +87,7 @@ function addAll() {
   font-size: 0.76rem;
   color: var(--text-muted);
 }
-.swatch-row {
+  .swatch-row {
   display: flex;
   gap: 6px;
   .swatch {
@@ -91,6 +97,16 @@ function addAll() {
     border: 1px solid var(--border-subtle);
     cursor: pointer;
     transition: transform 0.12s;
+    position: relative;
+    background-image: conic-gradient(#cfcfcf 90deg, #f3f3f3 0 180deg, #cfcfcf 0 270deg, #f3f3f3 0);
+    background-size: 12px 12px;
+    &::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: var(--c);
+    }
     &:hover {
       transform: translateY(-2px);
     }
@@ -111,6 +127,27 @@ function addAll() {
   cursor: pointer;
   &:hover {
     background: var(--color-primary-hover);
+  }
+}
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  .random {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-btn);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    cursor: pointer;
+    &:hover {
+      background: var(--bg-hover);
+      color: var(--color-primary);
+    }
   }
 }
 </style>

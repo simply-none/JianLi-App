@@ -5,13 +5,17 @@
  * WCAG 对比度计算、色盲模拟。全部为纯函数，便于单测与复用。
  */
 
-import type { ColorBlindType, HarmonyType, HSL, HSV, RGB } from './types'
+import type { ColorBlindType, HarmonyType, HSL, HSLA, HSV, RGB, RGBA } from './types'
+import { NAMED_COLORS } from './colorNames'
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v))
 
 // ============ HEX <-> RGB ============
 
-/** 规范化各种 HEX 写法（#abc / abc / #aabbcc / aabbcc），非法返回 null */
+/**
+ * 规范化各种 HEX 写法（#abc / #rgba / #aabbcc / #rrggbbaa，可带或不带 #）。
+ * 返回小写且已展开的完整形式：含 alpha 通道时返回 8 位，否则 6 位；非法返回 null。
+ */
 export function parseHex(input: string): string | null {
   let h = input.trim().replace(/^#/, '')
   if (/^[0-9a-fA-F]{3}$/.test(h)) {
@@ -19,20 +23,63 @@ export function parseHex(input: string): string | null {
       .split('')
       .map((c) => c + c)
       .join('')
+  } else if (/^[0-9a-fA-F]{4}$/.test(h)) {
+    // #rgba → #rrggbbaa
+    h = h
+      .split('')
+      .map((c) => c + c)
+      .join('')
   }
   if (/^[0-9a-fA-F]{6}$/.test(h)) return '#' + h.toLowerCase()
+  if (/^[0-9a-fA-F]{8}$/.test(h)) return '#' + h.toLowerCase()
   return null
+}
+
+/** 从 HEX（6 或 8 位）中提取透明度，返回 0-1（无 alpha 通道视为 1） */
+export function parseAlpha(hex: string): number {
+  const norm = parseHex(hex)
+  if (!norm || norm.length < 9) return 1
+  return parseInt(norm.slice(7, 9), 16) / 255
 }
 
 export function hexToRgb(hex: string): RGB {
   const norm = parseHex(hex) || '#000000'
-  const n = parseInt(norm.slice(1), 16)
+  // 取前 6 位（忽略 alpha 通道）
+  const n = parseInt(norm.slice(1, 7), 16)
   return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 }
+}
+
+/** 从 HEX（6 或 8 位）解析为 RGBA，a 为 0-1 */
+export function hexToRgba(hex: string): RGBA {
+  return { ...hexToRgb(hex), a: parseAlpha(hex) }
 }
 
 export function rgbToHex({ r, g, b }: RGB): string {
   const p = (v: number) => clamp(Math.round(v), 0, 255).toString(16).padStart(2, '0')
   return `#${p(r)}${p(g)}${p(b)}`
+}
+
+/** RGB + 透明度（0-1）→ 8 位 HEX（#RRGGBBAA） */
+export function rgbToHexa({ r, g, b }: RGB, a = 1): string {
+  const pa = (v: number) =>
+    clamp(Math.round(v * 255), 0, 255)
+      .toString(16)
+      .padStart(2, '0')
+  return `#${rgbToHex({ r, g, b }).slice(1)}${pa(a)}`
+}
+
+/** RGBA → 8 位 HEX */
+export function rgbaToHex({ r, g, b, a }: RGBA): string {
+  return rgbToHexa({ r, g, b }, a)
+}
+
+/**
+ * 将 8 位 HEX 在 alpha 完全不透明（AA === 'ff'）时缩写为 6 位，便于展示与复制。
+ */
+export function toShortHex(hex: string): string {
+  const norm = parseHex(hex)
+  if (norm && norm.length === 9 && norm.endsWith('ff')) return norm.slice(0, 7)
+  return norm || hex
 }
 
 // ============ RGB <-> HSV（UI 区间：h 0-360, s/v 0-100） ============
@@ -124,6 +171,11 @@ export function hslToRgb({ h, s, l }: HSL): RGB {
   }
 }
 
+/** RGB + 透明度（0-1）→ HSLA */
+export function rgbToHsla({ r, g, b }: RGB, a = 1): HSLA {
+  return { ...rgbToHsl({ r, g, b }), a }
+}
+
 // ============ 便捷封装 ============
 
 export function hexToHsv(hex: string): HSV {
@@ -132,6 +184,11 @@ export function hexToHsv(hex: string): HSV {
 
 export function hsvToHex(hsv: HSV): string {
   return rgbToHex(hsvToRgb(hsv))
+}
+
+/** HSV + 透明度（0-1）→ 8 位 HEX（#RRGGBBAA） */
+export function hsvToHexa(hsv: HSV, a = 1): string {
+  return rgbToHexa(hsvToRgb(hsv), a)
 }
 
 export function hexToHsl(hex: string): HSL {
@@ -165,6 +222,29 @@ export function generateHarmony(base: HSV, type: HarmonyType): HSV[] {
       return [base, rotateHue(base, 150), rotateHue(base, 210)]
     case 'tetradic':
       return [base, rotateHue(base, 90), rotateHue(base, 180), rotateHue(base, 270)]
+    case 'rectangle':
+      // 两组互补色但角度不等（基色 + 互补，再各偏移 30°），4 色
+      return [
+        base,
+        rotateHue(base, 30),
+        rotateHue(base, 180),
+        rotateHue(base, 210),
+      ]
+    case 'doubleSplit':
+      // 基色两侧 ±30° 与互补两侧 ±30°，共 5 色
+      return [
+        base,
+        rotateHue(base, 30),
+        rotateHue(base, -30),
+        rotateHue(base, 150),
+        rotateHue(base, 210),
+      ]
+    case 'accentedAnalogous':
+      // 相邻类色 ±30° + 1 个互补色作强调，共 4 色
+      return [base, rotateHue(base, 30), rotateHue(base, -30), rotateHue(base, 180)]
+    case 'diadic':
+      // 柔和双色：基色与基色 +60°
+      return [base, rotateHue(base, 60)]
     case 'monochromatic': {
       // 同色相，按明度/饱和度生成 5 个梯度
       const out: HSV[] = []
@@ -191,8 +271,42 @@ const srgbToLinear = (c: number) => {
 }
 
 /** 相对亮度（0-1） */
+/**
+ * 颜色命名：在 NAMED_COLORS 中找 RGB 欧氏距离最近的命名色。
+ * @returns 名称、标准色值、偏差（0-441，越小越接近）
+ */
+export function nearestColorName(hex: string): { name: string; hex: string; distance: number } {
+  const t = hexToRgb(hex)
+  let bestName = NAMED_COLORS[0][0]
+  let bestHex = NAMED_COLORS[0][1]
+  let bestD = Infinity
+  for (const [name, c] of NAMED_COLORS) {
+    const rgb = hexToRgb(c)
+    const d = (rgb.r - t.r) ** 2 + (rgb.g - t.g) ** 2 + (rgb.b - t.b) ** 2
+    if (d < bestD) {
+      bestD = d
+      bestName = name
+      bestHex = c
+    }
+  }
+  return { name: bestName, hex: bestHex, distance: Math.sqrt(bestD) }
+}
+
 export function relativeLuminance({ r, g, b }: RGB): number {
   return 0.2126 * srgbToLinear(r) + 0.7152 * srgbToLinear(g) + 0.0722 * srgbToLinear(b)
+}
+
+/**
+ * 将带透明度的前景色按 alpha 合成到不透明背景上，得到实际可见的 RGB。
+ * 用于对比度/色盲等需要「透明叠底」效果的场合。
+ */
+export function compositeAlpha(fg: RGBA, bg: RGB): RGB {
+  const a = clamp(fg.a, 0, 1)
+  return {
+    r: fg.r * a + bg.r * (1 - a),
+    g: fg.g * a + bg.g * (1 - a),
+    b: fg.b * a + bg.b * (1 - a),
+  }
 }
 
 /** 两个颜色之间的对比度比值（1-21） */
@@ -266,11 +380,19 @@ export function toScss(colors: string[], prefix = 'color'): string {
   return colors.map((c, i) => `$${prefix}-${i + 1}: ${c};`).join('\n')
 }
 
-/** 生成 JSON（与主题皮肤兼容） */
+/** 生成 JSON（与主题皮肤兼容，含 alpha / rgba 字段） */
 export function toJson(colors: string[], name = 'palette'): string {
   const obj = {
     name,
-    colors: colors.map((c, i) => ({ id: i + 1, hex: c })),
+    colors: colors.map((c, i) => {
+      const rgba = hexToRgba(c)
+      return {
+        id: i + 1,
+        hex: c,
+        alpha: Math.round(rgba.a * 100) / 100,
+        rgba: `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${rgba.a})`,
+      }
+    }),
   }
   return JSON.stringify(obj, null, 2)
 }

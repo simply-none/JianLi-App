@@ -1,23 +1,26 @@
 # 调色板工具 (color-palette)
 
 ## 职责
-一个面向前端 / UI 设计的调色板工具：HSV 画布取色 + H/S/V/R/G/B 滑块联动、HEX/RGB/HSL 数值显示与一键复制、6 种配色方案（互补/类比/三角/分裂互补/四角/单色）生成、WCAG 对比度检查（AA/AAA 徽章）、红/绿/蓝色盲模拟预览、导出 CSS 变量 / SCSS / JSON 主题皮肤、命名色板与单色收藏持久化（存数据库，重启不丢）。纯渲染端实现，颜色计算全为纯函数，不依赖主进程。
+一个面向前端 / UI 设计的调色板工具：HSV 画布取色 + H/S/V/R/G/B + **A（透明度，0-100）** 滑块联动、HEX(8位#RRGGBBAA，不透明时缩 6 位)/RGBA/HSLA 数值显示与一键复制、10 种配色方案（互补 / 类比 / 三角 / 分裂互补 / 四角 / 单色 / 矩形双互补 / 双分裂互补 / 类比+互补 / 二色邻近）生成（生成色携带当前透明度）、渐变生成器（线性/径向、多色标**各带 alpha**、生成并复制 `rgba(...)` 的 CSS）、颜色智能命名（148 个 CSS 命名色就近匹配）、随机基准色 / 随机填充工作区、WCAG 对比度检查（前/背景**均带 alpha**，按「叠白底」合成计算，AA/AAA 徽章）、红/绿/蓝色盲模拟预览（保留 alpha）、导出 CSS 变量 / SCSS / JSON 主题皮肤（JSON 增 `alpha`/`rgba` 字段）、命名色板与单色收藏持久化（存数据库，色值为 8 位 HEX，重启不丢；旧 6 位数据向后兼容）。纯渲染端实现，颜色计算全为纯函数，不依赖主进程。
 
 ## 关键文件
 - 页面壳：`src/views/colorPalette/index.vue`（响应式卡片栅格组装所有面板）
-- 颜色算法：`src/views/colorPalette/colorMath.ts`（HEX/RGB/HSL/HSV 互转、配色方案生成、WCAG 相对亮度与对比度、色盲模拟矩阵——纯函数，可单测）
-- 状态 + 数据层：`src/views/colorPalette/useColorPalette.ts`（Pinia store；`ensureSchema()` 显式 `CREATE TABLE`）
+- 颜色算法：`src/views/colorPalette/colorMath.ts`（HEX/RGB/HSL/HSV 互转、**含 alpha**：`parseHex`/`parseAlpha`/`hexToRgba`/`rgbaToHex`/`hsvToHexa`/`rgbToHsla`/`toShortHex`/`compositeAlpha`；配色方案生成、WCAG 相对亮度与对比度、色盲模拟矩阵、就近命名 `nearestColorName`——纯函数，可单测）
+- 颜色命名库：`src/views/colorPalette/colorNames.ts`（CSS 规范 148 个命名色 `[名, #hex]`，供 `nearestColorName` 全量遍历取最近）
+- 状态 + 数据层：`src/views/colorPalette/useColorPalette.ts`（Pinia store；`ensureSchema()` 显式 `CREATE TABLE`；随机生成 `randomizeBase()` / `addRandomSwatches(n)`）
 - 类型：`src/views/colorPalette/types.ts`（`HarmonyType` / `SavedPalette` / `ColorFavorite`）
 - 复制工具：`src/views/colorPalette/clipboard.ts`（复制 + toast 反馈，统一封装 `clipboard:write` 习惯）
 - 组件（`src/views/colorPalette/components/`）：
   - `ColorCanvas.vue` —— HSV 二维饱和度/明度画布取色 + 色相条，鼠标拖拽/缩放
-  - `ColorSliders.vue` —— H/S/V + R/G/B 滑块联动
-  - `ColorValueInputs.vue` —— HEX 可编辑、RGB/HSL 显示复制、大预览块
-  - `HarmonyPanel.vue` —— 方案选择 + 生成色块 + 一键加入工作区
-  - `SwatchList.vue` —— 工作区色块增/删/复制/清空
-  - `ContrastChecker.vue` —— 双色 WCAG 对比度
-  - `ColorBlindSim.vue` —— 红/绿/蓝色盲模拟预览
-  - `ExportPanel.vue` —— 导出 CSS 变量 / SCSS / JSON
+  - `ColorSliders.vue` —— H/S/V + R/G/B + **A（透明度）** 滑块联动（绑 `store.baseAlpha` / `setBaseAlpha`）
+  - `ColorValueInputs.vue` —— HEX(8位) 可编辑、RGBA/HSLA 显示复制、大预览块（带透明棋盘格）
+  - `HarmonyPanel.vue` —— 方案选择 + 生成色块（携带当前透明度）+ 一键加入工作区 + 「随机基准色」按钮（调 `store.randomizeBase()`）
+  - `GradientPanel.vue` —— 渐变生成器（线性/径向、角度、多色标**各带 alpha 滑块**、实时预览、复制 `rgba(...)` 的 CSS）
+  - `ColorNamePanel.vue` —— 当前基准色的最近命名色 + 偏差 + 复制名称（调 `nearestColorName`，忽略 alpha）
+  - `SwatchList.vue` —— 工作区色块增/删/复制/清空（色块带透明棋盘格，色值 8 位）
+  - `ContrastChecker.vue` —— 双色 WCAG 对比度（前/背景各带 alpha 滑块，按叠白底合成计算）
+  - `ColorBlindSim.vue` —— 红/绿/蓝色盲模拟预览（保留 alpha）
+  - `ExportPanel.vue` —— 导出 CSS 变量 / SCSS / JSON（JSON 含 `alpha`/`rgba`）
   - `SavedPalettePanel.vue` —— 命名保存色板到库、加载/删除、快速收藏单色
 - 接入：
   - 路由：`src/router/index.ts` 增加 `RouteNames.COLOR_PALETTE` → `/colorPalette`
@@ -50,3 +53,4 @@
 - **表结构显式建**：不要靠 `new-sql:execute` 自动建表（有结构劫持坑），改为 store 内 `CREATE TABLE` 控制列。
 - 命令面板 `!` 作用域快速取色、frameless 悬浮小窗**尚未实现**（设计时曾提议，未落地）；如需可复用 `registerShortcut` 四件套与命令面板 REGISTRY。
 - **取色锁定（ColorCanvas 关键交互）**：SV 画布与色相条的拖拽标志 `draggingSv`/`draggingHue` 必须在 `pointerup`/`pointercancel` 复位并 `releasePointerCapture`。若只置位不复位，首次按下后标志恒为 `true`，鼠标此后 hover（pointermove）颜色就一直跟着跑、松手也锁不住——表现为「固定不了色彩」。正确行为：按下取色、拖拽预览、松开左键即固定。
+- **透明度模型（alpha）**：基准色透明度是独立 `store.baseAlpha`（0-100，默认 100=不透明），`baseHex` 为 8 位 HEX（`#RRGGBBAA`，不透明时 `toShortHex` 缩为 6 位）；工作区/收藏/色板色值统一为 8 位字符串，旧 6 位数据 `parseHex`/`hexToRgb` 自动忽略 alpha 向后兼容。`<input type="color">` 原生只支持 6 位，故渐变/对比度的 alpha 用独立滑块控制；透明色块统一用 `conic-gradient` 棋盘格（`::before` 承载 `--c`）显示，便于辨识。

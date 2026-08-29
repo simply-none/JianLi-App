@@ -19,11 +19,21 @@ export interface RGB {
   b: number
 }
 
+/** RGBA 颜色：rgb 各分量 0-255，a 透明度 0-1（1 为完全不透明） */
+export interface RGBA extends RGB {
+  a: number
+}
+
 /** HSL 颜色：色相 0-360，饱和度 0-100，亮度 0-100 */
 export interface HSL {
   h: number
   s: number
   l: number
+}
+
+/** HSLA 颜色：HSL + 透明度 a（0-1） */
+export interface HSLA extends HSL {
+  a: number
 }
 
 /** 配色方案类型 */
@@ -32,8 +42,12 @@ export type HarmonyType =
   | 'analogous' // 类比
   | 'triadic' // 三角
   | 'splitComplementary' // 分裂互补
-  | 'tetradic' // 矩形/四角
+  | 'tetradic' // 四角（正方形布局，严格 90°）
   | 'monochromatic' // 单色
+  | 'rectangle' // 矩形双互补（两组互补色角度不等）
+  | 'doubleSplit' // 双分裂互补（基色与互补色两侧各取一色）
+  | 'accentedAnalogous' // 类比 + 互补强调
+  | 'diadic' // 二色邻近
 
 /** 色盲模拟类型 */
 export type ColorBlindType = 'protanopia' | 'deuteranopia' | 'tritanopia'
@@ -66,8 +80,12 @@ export const HARMONY_META: Record<HarmonyType, { label: string; desc: string }> 
   analogous: { label: '类比色', desc: '相邻 30°，和谐自然' },
   triadic: { label: '三角色', desc: '等分 120°，平衡活泼' },
   splitComplementary: { label: '分裂互补', desc: '互补两侧各 30°，对比柔和' },
-  tetradic: { label: '四角色', desc: '两组互补 90°，丰富但不易驾驭' },
+  tetradic: { label: '四角色', desc: '两组互补 90°（正方形），丰富但不易驾驭' },
   monochromatic: { label: '单色', desc: '同色相不同明度/饱和度' },
+  rectangle: { label: '矩形双互补', desc: '两组互补色角度不等，4 色，比四角更灵活' },
+  doubleSplit: { label: '双分裂互补', desc: '基色与互补色两侧各取一色，共 5 色' },
+  accentedAnalogous: { label: '类比+互补', desc: '相邻类色 + 1 个互补作强调，共 4 色' },
+  diadic: { label: '二色邻近', desc: '相邻 60°，柔和双色' },
 }
 
 /** 色盲类型元信息 */

@@ -9,7 +9,7 @@
             v-for="(c, i) in row.colors"
             :key="i"
             class="cell"
-            :style="{ background: c }"
+            :style="{ '--c': c }"
             :title="c"
           />
         </div>
@@ -20,7 +20,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { hexToRgb, rgbToHex, simulateColorBlind } from '../colorMath'
+import { hexToRgba, rgbaToHex, simulateColorBlind } from '../colorMath'
 import { COLOR_BLIND_META, type ColorBlindType } from '../types'
 import useColorPalette from '../useColorPalette'
 
@@ -31,8 +31,10 @@ const source = computed(() =>
   store.swatches.length ? store.swatches : store.harmonyColors,
 )
 
+/** 色盲模拟仅作用于 RGB，透明度原样保留 */
 function sim(hex: string, type: ColorBlindType): string {
-  return rgbToHex(simulateColorBlind(hexToRgb(hex), type))
+  const rgba = hexToRgba(hex)
+  return rgbaToHex({ ...simulateColorBlind(rgba, type), a: rgba.a })
 }
 
 const rows = computed(() => {
@@ -73,16 +75,26 @@ const rows = computed(() => {
     font-size: 0.72rem;
     color: var(--text-secondary);
   }
-  .cells {
-    flex: 1;
-    display: flex;
-    gap: 4px;
-    .cell {
-      flex: 1;
-      height: 32px;
-      border-radius: 6px;
-      border: 1px solid var(--border-subtle);
-    }
-  }
+      .cells {
+        flex: 1;
+        display: flex;
+        gap: 4px;
+        .cell {
+          flex: 1;
+          height: 32px;
+          border-radius: 6px;
+          border: 1px solid var(--border-subtle);
+          position: relative;
+          background-image: conic-gradient(#cfcfcf 90deg, #f3f3f3 0 180deg, #cfcfcf 0 270deg, #f3f3f3 0);
+          background-size: 12px 12px;
+          &::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            background: var(--c);
+          }
+        }
+      }
 }
 </style>

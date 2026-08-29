@@ -20,7 +20,7 @@
               v-for="(c, i) in parsed(p.colors)"
               :key="i"
               class="pdot"
-              :style="{ background: c }"
+              :style="{ '--c': c }"
               :title="c"
             />
           </div>
@@ -50,7 +50,7 @@
           v-for="f in store.favorites"
           :key="f.key"
           class="fav-dot"
-          :style="{ background: f.hex }"
+          :style="{ '--c': f.hex }"
           :title="`${f.hex} · 点击复制`"
           @click="copy(f.hex)"
           @contextmenu.prevent="store.removeFavorite(f.key)"
@@ -190,10 +190,20 @@ function copy(hex: string) {
       display: flex;
       gap: 3px;
       .pdot {
+        position: relative;
         width: 16px;
         height: 16px;
         border-radius: 4px;
         border: 1px solid var(--border-subtle);
+        background-image: conic-gradient(#cfcfcf 90deg, #f3f3f3 0 180deg, #cfcfcf 0 270deg, #f3f3f3 0);
+        background-size: 8px 8px;
+        &::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          background: var(--c);
+        }
       }
     }
   }
@@ -253,20 +263,30 @@ function copy(hex: string) {
       }
     }
   }
-  .fav-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(26px, 1fr));
-    gap: 6px;
-    .fav-dot {
-      width: 26px;
-      height: 26px;
-      border-radius: 6px;
-      border: 1px solid var(--border-subtle);
-      cursor: pointer;
-      &:hover {
-        transform: scale(1.08);
+    .fav-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(26px, 1fr));
+      gap: 6px;
+      .fav-dot {
+        position: relative;
+        width: 26px;
+        height: 26px;
+        border-radius: 6px;
+        border: 1px solid var(--border-subtle);
+        cursor: pointer;
+        background-image: conic-gradient(#cfcfcf 90deg, #f3f3f3 0 180deg, #cfcfcf 0 270deg, #f3f3f3 0);
+        background-size: 10px 10px;
+        &::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          background: var(--c);
+        }
+        &:hover {
+          transform: scale(1.08);
+        }
       }
     }
-  }
 }
 </style>

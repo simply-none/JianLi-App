@@ -6,7 +6,7 @@
         <LucideIcon name="Palette" :size="22" class="title-icon" />
         <div>
           <h1 class="title">调色板工具</h1>
-          <p class="subtitle">取色 · 配色方案 · 对比度 · 色盲模拟 · 导出与保存</p>
+          <p class="subtitle">取色 · 配色方案 · 渐变 · 智能命名 · 对比度 · 色盲模拟 · 导出与保存</p>
         </div>
       </div>
     </header>
@@ -25,6 +25,18 @@
       <section class="panel">
         <h2 class="panel-title">配色方案</h2>
         <HarmonyPanel />
+      </section>
+
+      <!-- 渐变生成器 -->
+      <section class="panel">
+        <h2 class="panel-title">渐变生成器</h2>
+        <GradientPanel />
+      </section>
+
+      <!-- 颜色命名 -->
+      <section class="panel">
+        <h2 class="panel-title">颜色命名</h2>
+        <ColorNamePanel />
       </section>
 
       <!-- 工作区 -->
@@ -67,6 +79,8 @@ import ColorCanvas from './components/ColorCanvas.vue'
 import ColorSliders from './components/ColorSliders.vue'
 import ColorValueInputs from './components/ColorValueInputs.vue'
 import HarmonyPanel from './components/HarmonyPanel.vue'
+import GradientPanel from './components/GradientPanel.vue'
+import ColorNamePanel from './components/ColorNamePanel.vue'
 import SwatchList from './components/SwatchList.vue'
 import ContrastChecker from './components/ContrastChecker.vue'
 import ColorBlindSim from './components/ColorBlindSim.vue'

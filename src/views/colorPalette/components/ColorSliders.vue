@@ -83,6 +83,23 @@
       />
       <span class="sl-val">{{ rgb.b }}</span>
     </div>
+
+    <div class="divider" />
+
+    <!-- 透明度 A -->
+    <div class="slider-row">
+      <span class="sl-label">A</span>
+      <input
+        class="sl-input"
+        type="range"
+        min="0"
+        max="100"
+        step="1"
+        :value="store.baseAlpha"
+        @input="onA($event)"
+      />
+      <span class="sl-val">{{ store.baseAlpha }}%</span>
+    </div>
   </div>
 </template>
 
@@ -112,6 +129,9 @@ function onG(e: Event) {
 }
 function onB(e: Event) {
   store.setBaseHsv(rgbToHsv({ ...rgb.value, b: Number((e.target as HTMLInputElement).value) }))
+}
+function onA(e: Event) {
+  store.setBaseAlpha(Number((e.target as HTMLInputElement).value))
 }
 </script>
 
