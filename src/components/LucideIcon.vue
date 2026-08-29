@@ -76,6 +76,16 @@ import { AlarmClock, AlarmClockCheck, AlarmClockMinus, AlarmClockPlus, ArrowDown
   Dumbbell,
   Flower2,
   Sparkles,
+  // —— 内置浏览器用图标（已在 @lucide/vue 中验证存在） ——
+  Star,
+  ChevronUp,
+  RotateCw,
+  ZoomIn,
+  ZoomOut,
+  TriangleAlert,
+  SquareArrowOutUpRight,
+  MonitorStop,
+  Earth,
  } from '@lucide/vue';
 import { ref } from 'vue';
 import { getLightColor } from '@/utils';
@@ -342,6 +352,16 @@ let nameMap = ref<Record<any, any>>({
   Dumbbell,
   Flower2,
   Sparkles,
+  // —— 内置浏览器用图标 ——
+  Star,
+  ChevronUp,
+  RotateCw,
+  ZoomIn,
+  ZoomOut,
+  TriangleAlert,
+  SquareArrowOutUpRight,
+  MonitorStop,
+  Earth,
 })
 
 function getPadding(padding: string | number): string {

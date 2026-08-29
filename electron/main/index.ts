@@ -27,6 +27,7 @@ import { initTTS } from "./module/tts.ts";
 import { initEbook } from "./module/ebook.ts";
 import { initScreenshot } from "./module/screenshot.ts";
 import { initStock } from "./module/stock.ts";
+import { initBrowserDownload } from "./module/browserDownload.ts";
 
 registerJlocalProtocolBefore()
 
@@ -101,6 +102,8 @@ async function createWindow() {
   initScreenshot();
   // 股票查询模块（TickFlow，主进程查询，依赖数据库基础表）
   initStock();
+  // 内置浏览器下载管理（拦截 webview 会话的 will-download）
+  initBrowserDownload();
 }
 
 app.whenReady().then(async () => {
