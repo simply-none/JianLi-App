@@ -43,8 +43,24 @@ export interface SniffItem {
   size: number;
   /** 是否流媒体（m3u8/mpd 等索引清单，仅可复制链接） */
   stream: boolean;
+  /** 是否疑似视频（大响应启发式识别，可能存在误报） */
+  suspect?: boolean;
   /** 首次发现时间戳（ms） */
   foundAt: number;
+}
+
+/**
+ * 页面 Hook 上报的事件结构（渲染端 MSE/fetch/XHR hook 收集后转发）
+ */
+export interface PageSniffEvent {
+  /** 事件种类：media=媒体响应；scan=从 JSON/文本中提取到的直链 */
+  kind: "media" | "scan";
+  /** 资源地址 */
+  url: string;
+  /** MIME 类型（可空） */
+  mime?: string;
+  /** 内容长度（可空） */
+  size?: number;
 }
 
 /** 媒体资源缓冲：webContentsId -> items（常驻录制，与是否嗅探无关） */
@@ -66,6 +82,25 @@ const AUDIO_EXT = /\.(mp3|aac|wav|ogg|m4a|flac|opus)(\?|#|$)/i;
 const IMAGE_EXT = /\.(jpe?g|png|gif|webp|bmp|svg|avif)(\?|#|$)/i;
 /** 流媒体清单扩展名 */
 const STREAM_EXT = /\.(m3u8|mpd)(\?|#|$)/i;
+
+/** 大响应启发式阈值：XHR/fetch 拉取超过该字节数且无明确类型时标记为疑似视频（1MB） */
+const SUSPECT_SIZE = 1024 * 1024;
+/** .ts 分片仅在大于该字节数时才识别为视频（避免误报普通文件） */
+const TS_MIN_SIZE = 500 * 1024;
+
+/**
+ * 已知视频 CDN URL 模式（无扩展名直链识别，覆盖主流视频站）
+ * - googlevideo.com/videoplayback：YouTube 视频流
+ * - .m4s：B 站等 DASH 音视频分段
+ * - douyinvod/bytecdn/aweme：抖音系 CDN
+ * - kuaishou/gifshow：快手系 CDN
+ */
+const VIDEO_CDN_PATTERNS: RegExp[] = [
+  /googlevideo\.com\/videoplayback/i,
+  /\.m4s(\?|#|$)/i,
+  /douyinvod|bytecdn|aweme\.snssdk|douyinpic/i,
+  /kuaishou|gifshow|ks-cdn/i,
+];
 
 /** 诊断日志去重：缺失 webContentsId 的提示只打一次 */
 let warnedNoWebContentsId = false;
@@ -105,23 +140,49 @@ function pickHeaders(headers: Record<string, string[]> | undefined): { mime: str
 }
 
 /**
- * 识别资源类型（content-type 优先，扩展名兜底）
+ * 识别资源类型（content-type 优先，扩展名/CDN 模式兜底，大响应启发式补充）
  * @param url 必填，请求地址
  * @param mime 必填，content-type（可为空）
- * @returns { type, stream }；不属于目标类型时 type 为 null
+ * @param resourceType 可选，Chromium 请求资源类型（xhr/fetch/media 等）
+ * @param size 可选，content-length 字节数
+ * @returns { type, stream, suspect }；不属于目标类型时 type 为 null
  */
-function detectResourceType(url: string, mime: string): { type: SniffType | null; stream: boolean } {
+function detectResourceType(
+  url: string,
+  mime: string,
+  resourceType?: string,
+  size?: number
+): { type: SniffType | null; stream: boolean; suspect: boolean } {
   const clean = url.split("#")[0];
   // 1) content-type 优先
-  if (mimeIs(mime, "video")) return { type: "video", stream: STREAM_EXT.test(clean) };
-  if (mimeIs(mime, "audio")) return { type: "audio", stream: false };
-  if (mimeIs(mime, "image")) return { type: "image", stream: false };
+  if (mimeIs(mime, "video")) return { type: "video", stream: STREAM_EXT.test(clean), suspect: false };
+  if (mimeIs(mime, "audio")) return { type: "audio", stream: false, suspect: false };
+  if (mimeIs(mime, "image")) return { type: "image", stream: false, suspect: false };
   // 2) 扩展名兜底（m3u8 的响应常是 application/octet-stream / mpegurl）
-  if (STREAM_EXT.test(clean)) return { type: "video", stream: true };
-  if (VIDEO_EXT.test(clean)) return { type: "video", stream: false };
-  if (AUDIO_EXT.test(clean)) return { type: "audio", stream: false };
-  if (IMAGE_EXT.test(clean)) return { type: "image", stream: false };
-  return { type: null, stream: false };
+  if (STREAM_EXT.test(clean)) return { type: "video", stream: true, suspect: false };
+  if (VIDEO_EXT.test(clean)) return { type: "video", stream: false, suspect: false };
+  if (AUDIO_EXT.test(clean)) return { type: "audio", stream: false, suspect: false };
+  if (IMAGE_EXT.test(clean)) return { type: "image", stream: false, suspect: false };
+  // 3) 已知视频 CDN 模式（无扩展名直链：YouTube videoplayback、B 站 m4s、抖音/快手 CDN）
+  for (const re of VIDEO_CDN_PATTERNS) {
+    if (re.test(clean)) {
+      // .m4s / .ts 类分段按流媒体处理，便于引导用户用 yt-dlp 下载
+      return { type: "video", stream: /\.m4s(\?|#|$)/i.test(clean), suspect: false };
+    }
+  }
+  // 4) .ts 分片：仅大响应识别（GitHub 等站的 .ts 文件是小文件，避免误报）
+  if (/\.ts(\?|#|$)/i.test(clean) && (size || 0) > TS_MIN_SIZE) {
+    return { type: "video", stream: true, suspect: false };
+  }
+  // 5) Chromium 已识别为媒体元素（<video>/<audio> src）但无类型头
+  if (resourceType === "media") {
+    return { type: "video", stream: false, suspect: false };
+  }
+  // 6) 大响应启发式：XHR/fetch 拉取大块二进制（MSE 分段特征），标记疑似视频
+  if ((resourceType === "xhr" || resourceType === "fetch") && (size || 0) > SUSPECT_SIZE) {
+    return { type: "video", stream: true, suspect: true };
+  }
+  return { type: null, stream: false, suspect: false };
 }
 
 /**
@@ -134,7 +195,7 @@ function handleResponse(details: any) {
   if (!/^https?:\/\//i.test(url)) return;
 
   const { mime, size } = pickHeaders(details?.responseHeaders);
-  const { type, stream } = detectResourceType(url, mime);
+  const { type, stream, suspect } = detectResourceType(url, mime, details?.resourceType, size);
   if (!type) return;
 
   const webContentsId: number | undefined = details.webContentsId;
@@ -159,11 +220,43 @@ function handleResponse(details: any) {
   if (items.length >= MAX_ITEMS) {
     items.shift();
   }
-  const item: SniffItem = { url, type, mime, size, stream, foundAt: Date.now() };
+  const item: SniffItem = { url, type, mime, size, stream, suspect, foundAt: Date.now() };
   items.push(item);
 
   // 仅对正在嗅探的标签推送（小列表全量）
   if (sniffingTargets.has(webContentsId)) {
+    pushUpdate(sniffingTargets.get(webContentsId)!, items);
+  }
+}
+
+/**
+ * 处理页面 Hook 上报的事件：识别类型后并入常驻缓冲（去重逻辑同网络捕获）
+ * @param webContentsId 必填，来源标签的 webContentsId
+ * @param events 必填，页面 hook 收集的事件批次
+ */
+function handlePageEvents(webContentsId: number, events: PageSniffEvent[]) {
+  if (!Array.isArray(events) || events.length === 0) return;
+  let items = mediaBuffers.get(webContentsId);
+  if (!items) {
+    items = [];
+    mediaBuffers.set(webContentsId, items);
+  }
+  let changed = false;
+  for (const ev of events) {
+    const url: string = ev?.url || "";
+    if (!/^https?:\/\//i.test(url)) continue;
+    const mime: string = ev?.mime || "";
+    const size: number = Number(ev?.size) || 0;
+    const { type, stream, suspect } = detectResourceType(url, mime, "fetch", size);
+    if (!type) continue;
+    const key = dedupeKey(type, url);
+    if (items.some((it) => dedupeKey(it.type, it.url) === key)) continue;
+    if (items.length >= MAX_ITEMS) items.shift();
+    items.push({ url, type, mime, size, stream, suspect, foundAt: Date.now() });
+    changed = true;
+  }
+  // 批次处理完统一推送一次
+  if (changed && sniffingTargets.has(webContentsId)) {
     pushUpdate(sniffingTargets.get(webContentsId)!, items);
   }
 }
@@ -232,6 +325,17 @@ export function initBrowserSniffer() {
     }
     return { success: true, data: [] };
   });
+
+  // 页面 Hook 事件上报（渲染端 MSE/fetch/XHR hook 收集的媒体直链与 JSON 提取结果）
+  ipcMain.handle(
+    "browser-sniffer:page-events",
+    (_e, args: { tabId?: string; webContentsId?: number; events?: PageSniffEvent[] }) => {
+      const { webContentsId, events } = args || {};
+      if (webContentsId === undefined) return { success: false, error: "参数缺失" };
+      handlePageEvents(webContentsId, events || []);
+      return { success: true };
+    }
+  );
 
   // 导出资源链接清单（TXT，一行一个 URL，写入系统「下载」文件夹）
   ipcMain.handle("browser-sniffer:export", (_e, args: { items?: SniffItem[] }) => {

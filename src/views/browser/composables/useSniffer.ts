@@ -8,6 +8,7 @@
  */
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { getWebview } from "./useWebviewBridge";
+import { drainSnifferEvents } from "./useSnifferHook";
 
 /** 嗅探资源条目（与主进程 SniffItem 字段一致） */
 export interface SniffItem {
@@ -21,6 +22,8 @@ export interface SniffItem {
   size: number;
   /** 是否流媒体（m3u8/mpd，仅可复制链接） */
   stream: boolean;
+  /** 是否疑似视频（大响应启发式识别，可能误报） */
+  suspect?: boolean;
   /** 首次发现时间戳（ms） */
   foundAt: number;
 }
@@ -36,6 +39,53 @@ const items = ref<SniffItem[]>([]);
 
 /** 是否嗅探中 */
 const isSniffing = computed(() => !!sniffingTabId.value);
+
+/** 页面 Hook 事件排水轮询间隔（ms） */
+const DRAIN_INTERVAL = 1500;
+/** 排水轮询定时器（模块级，仅嗅探中运行） */
+let drainTimer: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * 排水一轮：取走页面 Hook 缓冲的事件并转发主进程合并（主进程去重后推送回来）
+ */
+async function drainOnce(): Promise<void> {
+  const tabId = sniffingTabId.value;
+  if (!tabId) return;
+  const wv = getWebview(tabId);
+  let webContentsId: number | undefined;
+  try {
+    webContentsId = wv?.getWebContentsId?.();
+  } catch {
+    webContentsId = undefined;
+  }
+  if (!webContentsId) return;
+  try {
+    const events = await drainSnifferEvents(tabId);
+    if (events.length > 0) {
+      await invoke("browser-sniffer:page-events", { tabId, webContentsId, events });
+    }
+  } catch {
+    // 排水失败静默（页面导航中 executeJavaScript 会抛错）
+  }
+}
+
+/**
+ * 启动排水轮询（嗅探开启期间持续把页面 Hook 捕获的事件搬回主进程）
+ */
+function startDrainLoop(): void {
+  stopDrainLoop();
+  drainTimer = setInterval(drainOnce, DRAIN_INTERVAL);
+}
+
+/**
+ * 停止排水轮询
+ */
+function stopDrainLoop(): void {
+  if (drainTimer) {
+    clearInterval(drainTimer);
+    drainTimer = null;
+  }
+}
 
 /**
  * 统一 IPC 调用
@@ -68,6 +118,9 @@ export async function startSniffing(tabId: string): Promise<boolean> {
     if (res?.success) {
       sniffingTabId.value = tabId;
       items.value = Array.isArray(res.data) ? res.data : [];
+      // 立即排水一次（回填页面 Hook 已捕获的历史事件），并启动持续排水
+      await drainOnce();
+      startDrainLoop();
       return true;
     }
     return false;
@@ -83,6 +136,7 @@ export async function startSniffing(tabId: string): Promise<boolean> {
  */
 export async function stopSniffing(): Promise<void> {
   const tabId = sniffingTabId.value;
+  stopDrainLoop();
   if (tabId) {
     await invoke("browser-sniffer:stop", { tabId }).catch(() => {});
   }
@@ -135,6 +189,7 @@ export function useSniffer() {
     (window as any).ipcRenderer.off(UPDATED_CHANNEL, onUpdate);
     // 组件卸载兜底停止嗅探
     if (sniffingTabId.value) {
+      stopDrainLoop();
       invoke("browser-sniffer:stop", { tabId: sniffingTabId.value }).catch(() => {});
       sniffingTabId.value = "";
       items.value = [];

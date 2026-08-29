@@ -29,6 +29,7 @@ import { initScreenshot } from "./module/screenshot.ts";
 import { initStock } from "./module/stock.ts";
 import { initBrowserDownload } from "./module/browserDownload.ts";
 import { initBrowserSniffer } from "./module/browserSniffer.ts";
+import { initBrowserYtDlp } from "./module/browserYtDlp.ts";
 import { initBrowserPermission, setPermissionWindowGetter } from "./module/browserPermission.ts";
 
 registerJlocalProtocolBefore()
@@ -108,6 +109,8 @@ async function createWindow() {
   initBrowserDownload();
   // 内置浏览器资源嗅探（webRequest 挂钩 persist:browser 会话）
   initBrowserSniffer();
+  // 内置浏览器 yt-dlp 视频解析/下载引擎
+  initBrowserYtDlp();
   // 内置浏览器站点权限管理（persist:browser 会话权限请求拦截）
   setPermissionWindowGetter(() => win);
   initBrowserPermission();

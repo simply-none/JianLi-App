@@ -76,11 +76,20 @@
               <span class="item-meta">
                 {{ typeLabel(item.type) }}
                 <template v-if="item.stream"> · 流媒体</template>
+                <template v-if="item.suspect"> · 疑似视频</template>
                 <template v-if="item.size > 0"> · {{ formatBytes(item.size) }}</template>
                 <template v-if="item.size === 0"> · 大小未知</template>
               </span>
             </span>
             <span class="item-actions">
+              <span
+                v-if="item.type === 'video'"
+                class="action-btn"
+                title="视频解析（yt-dlp）：解析清晰度并下载"
+                @click="onYtDlpParse(item)"
+              >
+                <LucideIcon name="Wand" :size="14" />
+              </span>
               <span v-if="!item.stream" class="action-btn" title="下载（进入下载管理）" @click="onDownload(item)">
                 <LucideIcon name="Download" :size="14" />
               </span>
@@ -96,17 +105,40 @@
         <div v-else class="sniffer-empty">
           <LucideIcon name="MonitorPlay" :size="36" color="var(--text-muted)" />
           <p>{{ isSniffing ? "暂未捕获资源，滚动页面或播放视频试试" : "未嗅探：页面加载过的媒体/图片会自动补录" }}</p>
-          <p class="empty-sub">提示：流媒体（m3u8）仅支持复制链接，供外部下载工具使用</p>
+          <p class="empty-sub">提示：视频站（B站/YouTube/抖音等）请播放视频后点条目上的「魔法棒」用 yt-dlp 解析下载</p>
         </div>
       </div>
 
       <!-- 底部操作 -->
-      <div v-if="items.length > 0" class="sniffer-footer">
+      <div v-if="items.length > 0 || !ytdlpState.installed" class="sniffer-footer">
         <el-button size="small" plain @click="onClear">
           <LucideIcon name="Trash2" :size="13" />
           <span style="margin-left: 4px">清空列表</span>
         </el-button>
+        <!-- yt-dlp 引擎状态（未安装时提供一键安装，下载中支持暂停/继续；视频解析/合并依赖它） -->
+        <div class="ytdlp-box">
+          <template v-if="!ytdlpState.installed">
+            <el-button v-if="!installing" size="small" type="primary" plain @click="onInstallYtDlp">
+              <LucideIcon name="Download" :size="13" />
+              <span style="margin-left: 4px">安装视频解析引擎</span>
+            </el-button>
+            <template v-else>
+              <span class="ytdlp-hint">{{ installMessage || "正在安装 yt-dlp…" }}</span>
+              <el-progress :percentage="installPercent" :stroke-width="6" class="ytdlp-progress" />
+              <!-- 暂停/继续：暂停保留断点，继续时断点续传 -->
+              <el-button v-if="!enginePaused" link size="small" type="warning" @click="onPauseEngine">暂停</el-button>
+              <el-button v-else link size="small" type="primary" @click="onResumeEngine">继续</el-button>
+            </template>
+          </template>
+          <span v-else class="ytdlp-ready">
+            <LucideIcon name="CircleCheckBig" :size="13" />
+            yt-dlp 就绪{{ ytdlpState.ffmpegInstalled ? "" : "（ffmpeg 将按需获取）" }}
+          </span>
+        </div>
       </div>
+
+      <!-- yt-dlp 解析对话框 -->
+      <YtDlpDialog v-model:visible="showYtDlpDialog" :url="ytDlpUrl" />
     </div>
   </el-drawer>
 </template>
@@ -115,20 +147,23 @@
 /**
  * 内置浏览器 - 资源嗅探抽屉
  * ------------------------------------------------------------------
- * 职责：展示当前标签嗅探到的媒体/图片资源（主进程 webRequest 捕获并回填），
+ * 职责：展示当前标签嗅探到的媒体/图片资源（主进程 webRequest + 页面 Hook 捕获并回填），
  * 提供：
  * - 类型筛选（全部/视频/音频/图片）与最小文件大小筛选（未知大小始终显示）；
  * - 图片资源直接以自身 URL 作缩略图（懒加载 + no-referrer 绕防盗链 + 失败回退图标）；
  * - 勾选批量操作：批量下载（逐个触发下载管理管线，流媒体自动跳过）、
- *   导出 TXT 链接清单（落系统「下载」文件夹）、复制所选链接。
+ *   导出 TXT 链接清单（落系统「下载」文件夹）、复制所选链接；
+ * - 视频条目支持 yt-dlp 解析（清晰度选择 + DASH 合成下载），引擎未安装可一键安装。
  * 打开抽屉即开始嗅探当前标签，关闭即停止。
  */
-import { computed, ref, watch } from "vue";
-import { ElMessage } from "element-plus";
+import { computed, onMounted, ref, watch } from "vue";
+import { ElMessage, ElMessageBox } from "element-plus";
 import LucideIcon from "@/components/LucideIcon.vue";
 import useBrowser from "@/store/useBrowser";
 import { useSniffer, clearSniffItems, exportSniffItems, type SniffItem } from "../composables/useSniffer";
 import { downloadResource } from "../composables/useWebviewBridge";
+import { checkYtDlp, installYtDlp, pauseEngineDownload, resumeEngineDownload, useYtDlpProgress } from "../composables/useYtDlp";
+import YtDlpDialog from "./YtDlpDialog.vue";
 
 /** 抽屉显隐（v-model:visible；开/关由父级驱动嗅探启停） */
 const visible = defineModel<boolean>("visible", { default: false });
@@ -358,6 +393,125 @@ async function onClear() {
   }
   selected.value = new Set();
 }
+
+// ==================== yt-dlp 视频解析 ====================
+/** yt-dlp 安装状态 */
+const ytdlpState = ref({ installed: false, ffmpegInstalled: false, installing: false, ffmpegInstalling: false });
+/** 安装中 */
+const installing = ref(false);
+/** 安装进度百分比 */
+const installPercent = ref(0);
+/** 安装提示文本 */
+const installMessage = ref("");
+/** 引擎下载是否已暂停（暂停保留断点，继续时断点续传） */
+const enginePaused = ref(false);
+/** 解析对话框显隐 */
+const showYtDlpDialog = ref(false);
+/** 解析目标地址 */
+const ytDlpUrl = ref("");
+
+/**
+ * 组件挂载：查询 yt-dlp 安装状态
+ */
+onMounted(async () => {
+  ytdlpState.value = await checkYtDlp();
+});
+
+/**
+ * 订阅 yt-dlp 进度推送（安装阶段刷新进度条，处理暂停/完成/失败）
+ */
+useYtDlpProgress((p) => {
+  if (p.stage === "install") {
+    installing.value = true;
+    enginePaused.value = false;
+    installPercent.value = p.percent || 0;
+    installMessage.value = p.message || "";
+  } else if (p.stage === "install-paused") {
+    enginePaused.value = true;
+    installMessage.value = p.message || "已暂停";
+  } else if (p.stage === "install-done") {
+    installing.value = false;
+    enginePaused.value = false;
+    installPercent.value = 100;
+    checkYtDlp().then((s) => (ytdlpState.value = s));
+    ElMessage.success(p.message || "安装完成");
+  } else if (p.stage === "error") {
+    installing.value = false;
+    enginePaused.value = false;
+    ElMessage.error(p.message || "安装失败");
+  }
+});
+
+/**
+ * 一键安装 yt-dlp 引擎（主进程自动从 GitHub 下载，支持暂停/续传）
+ */
+async function onInstallYtDlp() {
+  installing.value = true;
+  installPercent.value = 0;
+  enginePaused.value = false;
+  installMessage.value = "正在下载 yt-dlp 引擎…";
+  const ok = await installYtDlp();
+  ytdlpState.value = await checkYtDlp();
+  // 暂停场景：主进程正常返回但未完成安装，保持进度条展示并提示
+  if (enginePaused.value) {
+    ElMessage.info("引擎下载已暂停，可点击「继续」完成剩余部分");
+  } else {
+    installing.value = false;
+    if (!ok) {
+      ElMessage.error("安装失败，请检查网络（GitHub 访问可能需要代理）后重试");
+    }
+  }
+}
+
+/**
+ * 暂停引擎下载（保留断点文件）
+ */
+async function onPauseEngine() {
+  await pauseEngineDownload();
+}
+
+/**
+ * 继续引擎下载（断点续传剩余字节）
+ */
+async function onResumeEngine() {
+  enginePaused.value = false;
+  installing.value = true;
+  await resumeEngineDownload();
+}
+
+/**
+ * 打开 yt-dlp 解析对话框
+ * 前置检查：引擎未安装时弹窗让用户确认是否立即下载，下载成功后再进入解析；
+ * 解析目标选择：
+ * - 疑似视频（MSE 分段）：分段本身不可独立播放，解析当前页面地址；
+ * - 其它（直链 mp4/m3u8 等）：直接解析资源地址（yt-dlp 支持）。
+ * @param item 必填，嗅探条目
+ */
+async function onYtDlpParse(item: SniffItem) {
+  // 前置检查：实时查询引擎安装状态（不依赖缓存）
+  const state = await checkYtDlp();
+  ytdlpState.value = state;
+  if (!state.installed) {
+    try {
+      await ElMessageBox.confirm(
+        "视频解析需要 yt-dlp 引擎（将从 GitHub 下载，约 17MB），是否立即下载？",
+        "未检测到 yt-dlp 引擎",
+        { confirmButtonText: "立即下载", cancelButtonText: "取消", type: "warning" }
+      );
+    } catch {
+      return; // 用户取消
+    }
+    // 下载（进度展示在抽屉底部状态条）
+    await onInstallYtDlp();
+    // 下载后复查：失败则不进入解析（错误已在 onInstallYtDlp 中提示）
+    const after = await checkYtDlp();
+    ytdlpState.value = after;
+    if (!after.installed) return;
+  }
+  const activeUrl = browserStore.tabs.find((t) => t.id === browserStore.activeTabId)?.url || "";
+  ytDlpUrl.value = item.suspect && /^https?:/.test(activeUrl) ? activeUrl : item.url;
+  showYtDlpDialog.value = true;
+}
 </script>
 
 <style scoped lang="scss">
@@ -563,6 +717,38 @@ async function onClear() {
   border-top: 1px solid var(--border-subtle);
   padding-top: 10px;
   display: flex;
+  align-items: center;
   justify-content: center;
+  gap: 12px;
+
+  .ytdlp-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+
+    .ytdlp-hint {
+      font-size: 12px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .ytdlp-progress {
+      width: 120px;
+      flex-shrink: 0;
+    }
+
+    .ytdlp-ready {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      color: var(--color-success, #67c23a);
+      white-space: nowrap;
+    }
+  }
 }
 </style>

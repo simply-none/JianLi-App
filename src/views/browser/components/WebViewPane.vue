@@ -64,6 +64,7 @@ import type { Tab } from "@/store/useBrowser";
 import useBrowser from "@/store/useBrowser";
 import { setWebview, removeWebview, refreshNavState, recordHistory, emitFoundInPage, applyTabUserAgent, uaStringFor } from "../composables/useWebviewBridge";
 import { applyNightMode, useNightMode } from "../composables/useNightMode";
+import { injectSnifferHook } from "../composables/useSnifferHook";
 
 /** 组件入参 */
 const props = defineProps<{
@@ -141,10 +142,11 @@ watch(webviewRef, (el) => {
 // ==================== webview 事件处理 ====================
 
 /**
- * DOM 就绪：应用夜间模式样式注入（夜间模式开关）
+ * DOM 就绪：应用夜间模式样式注入（夜间模式开关）；注入视频嗅探页面 Hook
  */
 function onDomReady() {
   applyNightMode(props.tab.id);
+  injectSnifferHook(props.tab.id);
 }
 
 /** 开始加载：置 loading、清错误 */
