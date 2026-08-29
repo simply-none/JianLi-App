@@ -13,7 +13,9 @@ dist-ssr
 dist-electron
 release
 *.local
-.workbuddy
+!.workbuddy/skills/*
+.workbuddy/memory
+skill-build
 
 # Editor directories and files
 .trae/documents
