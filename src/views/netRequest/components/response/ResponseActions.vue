@@ -10,17 +10,25 @@
       <LucideIcon name="Copy" :size="13" />
       复制响应
     </el-button>
-    <!-- 导出响应为 JSON 文件（下载） -->
-    <el-button size="small" text type="primary" @click="exportBody">
+    <!-- 保存响应到本地（二进制走 base64，文本直接写文件） -->
+    <el-button size="small" text type="primary" @click="saveResponse">
       <LucideIcon name="Download" :size="13" />
-      导出响应
+      保存响应
+    </el-button>
+    <!-- 存入笔记 -->
+    <el-button size="small" text type="primary" @click="emit('saveNote')">
+      <LucideIcon name="NotebookPen" :size="13" />
+      存入笔记
     </el-button>
   </div>
 </template>
 
 <script setup lang="ts">
 /**
- * 响应操作条：复制 cURL / 复制响应体 / 导出响应体为文件
+ * 响应操作条：复制 cURL / 复制响应体 / 保存响应到本地 / 存入笔记
+ * 保存响应走主进程 net-request:save-file（系统保存对话框）：
+ * - 文本类响应（json/text/xml/html 等）直接写文本；
+ * - 二进制响应（图片/文件等）走主进程返回的 base64 还原写入。
  */
 import { ElMessage } from 'element-plus'
 import type { ResponseRecord } from '../../types'
@@ -30,6 +38,11 @@ import { copyAsCurl } from '../../composables/useRequest'
 const props = defineProps<{
   /** 响应记录 */
   record: ResponseRecord | null;
+}>()
+
+/** 事件：存入笔记（由父组件打开笔记对话框） */
+const emit = defineEmits<{
+  (e: 'saveNote'): void
 }>()
 
 /**
@@ -59,21 +72,65 @@ function copyBody(): void {
 }
 
 /**
- * 导出响应体为本地 JSON/TXT 文件（浏览器下载）
+ * 根据 content-type 推断保存的文件扩展名
+ * @param contentType 响应 content-type
+ * @param isTextish 是否为文本类响应
+ * @returns 扩展名（不含点）
  */
-function exportBody(): void {
+function extFromContentType(contentType: string, isTextish: boolean): string {
+  const ct = contentType.toLowerCase()
+  if (ct.includes('json')) return 'json'
+  if (ct.includes('html')) return 'html'
+  if (ct.includes('xml')) return 'xml'
+  if (ct.includes('csv')) return 'csv'
+  if (ct.includes('javascript')) return 'js'
+  if (ct.includes('image/png')) return 'png'
+  if (ct.includes('image/jpeg')) return 'jpg'
+  if (ct.includes('image/gif')) return 'gif'
+  if (ct.includes('image/webp')) return 'webp'
+  if (ct.includes('image/svg')) return 'svg'
+  if (ct.includes('image/')) return 'img'
+  if (ct.includes('pdf')) return 'pdf'
+  if (ct.includes('zip')) return 'zip'
+  if (ct.includes('gzip')) return 'gz'
+  if (ct.includes('audio/')) return 'audio'
+  if (ct.includes('video/')) return 'video'
+  if (ct.includes('octet-stream')) return 'bin'
+  return isTextish ? 'txt' : 'bin'
+}
+
+/**
+ * 保存响应体到本地文件
+ * @throws 无 base64 的二进制响应提示不支持
+ */
+async function saveResponse(): Promise<void> {
   if (!props.record) return
-  const isObj = typeof props.record.body === 'object'
-  const text = isObj
-    ? JSON.stringify(props.record.body, null, 2)
-    : String(props.record.body ?? '')
-  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `response_${Date.now()}.${isObj ? 'json' : 'txt'}`
-  a.click()
-  URL.revokeObjectURL(url)
+  const record = props.record
+  const isTextish = /json|text|xml|html|javascript|csv|urlencoded/i.test(record.contentType)
+  if (!isTextish && !record.base64) {
+    ElMessage.warning('该响应无法保存为文件')
+    return
+  }
+  const ext = extFromContentType(record.contentType, isTextish)
+  const args: Record<string, any> = {
+    title: '保存响应',
+    defaultName: `response_${Date.now()}.${ext}`,
+  }
+  if (isTextish) {
+    args.text =
+      typeof record.body === 'object'
+        ? JSON.stringify(record.body, null, 2)
+        : String(record.body ?? '')
+  } else {
+    args.base64 = record.base64
+  }
+  const res = await window.ipcRenderer.handlePromise('net-request:save-file', args)
+  if (res && res.success) {
+    if (res.path) ElMessage.success('已保存：' + res.path)
+    // 用户取消保存对话框时不提示
+  } else {
+    ElMessage.error('保存失败：' + ((res && res.message) || '未知错误'))
+  }
 }
 </script>
 

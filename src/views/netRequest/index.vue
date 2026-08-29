@@ -17,6 +17,10 @@
       <EnvBar v-if="mode === 'http'" :envs="envs" @select="onSelectEnv" />
 
       <div class="header-spacer"></div>
+      <el-button size="small" @click="exportVisible = true">
+        <LucideIcon name="Download" :size="13" />
+        导出
+      </el-button>
       <el-button size="small" @click="importVisible = true">
         <LucideIcon name="Upload" :size="13" />
         导入接口
@@ -38,6 +42,9 @@
           @rename-node="onRenameNode"
           @delete-node="onDeleteNode"
           @import="importVisible = true"
+          @copy-history-curl="onCopyConfigCurl"
+          @copy-node-curl="onCopyNodeCurl"
+          @move-node="onMoveNode"
         />
       </aside>
 
@@ -89,6 +96,9 @@
 
     <!-- 导入弹窗 -->
     <ImportDialog v-model="importVisible" @curl="onCurlImport" />
+
+    <!-- 导出弹窗 -->
+    <ExportDialog v-model="exportVisible" :tree="collectionTree" :envs="envs" />
   </div>
 </template>
 
@@ -109,15 +119,18 @@ import SaveRequestDialog from './components/request/SaveRequestDialog.vue'
 import ResponsePanel from './components/response/ResponsePanel.vue'
 import EnvBar from './components/env/EnvBar.vue'
 import ImportDialog from './components/import/ImportDialog.vue'
+import ExportDialog from './components/export/ExportDialog.vue'
 import WsPanel from './components/ws/WsPanel.vue'
-import type { RequestConfig } from './types'
+import type { CollectionNode, RequestConfig } from './types'
 import {
   createEmptyConfig,
+  copyAsCurl,
   sendRequest,
   useRequestState,
 } from './composables/useRequest'
 import {
   createFolder,
+  moveCollectionNode,
   refreshCollection,
   removeCollectionNode,
   renameCollectionNode,
@@ -161,6 +174,8 @@ const envs = useEnvList()
 const saveVisible = ref(false)
 /** 导入弹窗可见性 */
 const importVisible = ref(false)
+/** 导出弹窗可见性 */
+const exportVisible = ref(false)
 /** 编辑中的集合请求节点 id（0 = 新建保存） */
 const editingNodeId = ref(0)
 /** 编辑中的集合请求名称 */
@@ -264,6 +279,45 @@ function onCreateFolderInDialog(parentId: number, name: string, onDone: (id: num
       ElMessage.success('已创建集合「' + name + '」')
     })
     .catch((err) => ElMessage.error('新建集合失败：' + err.message))
+}
+
+/**
+ * 复制历史请求的 cURL 到剪贴板
+ * @param config 历史项中的请求配置
+ */
+function onCopyConfigCurl(config: RequestConfig): void {
+  const curl = copyAsCurl(config)
+  if (!curl) {
+    ElMessage.warning('该请求缺少配置，无法生成 cURL')
+    return
+  }
+  window.ipcRenderer.clipboard.writeText(curl)
+  ElMessage.success('已复制 cURL 命令')
+}
+
+/**
+ * 复制集合请求节点的 cURL 到剪贴板
+ * @param node 集合节点（请求类型）
+ */
+function onCopyNodeCurl(node: CollectionNode): void {
+  if (!node.config) {
+    ElMessage.warning('该节点缺少请求配置，无法生成 cURL')
+    return
+  }
+  const curl = copyAsCurl(node.config)
+  window.ipcRenderer.clipboard.writeText(curl)
+  ElMessage.success('已复制 cURL 命令')
+}
+
+/**
+ * 拖拽移动集合节点
+ * @param dragId 被拖拽节点 id
+ * @param targetParentId 目标父文件夹 id（0 = 根目录）
+ */
+function onMoveNode(dragId: number, targetParentId: number): void {
+  moveCollectionNode(dragId, targetParentId)
+    .then(() => ElMessage.success('已移动'))
+    .catch((err) => ElMessage.warning(err.message || '移动失败'))
 }
 
 /**

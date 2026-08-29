@@ -3,7 +3,7 @@
     <!-- 状态条 + 操作 -->
     <div class="response-head">
       <ResponseStatusBar :record="record" />
-      <ResponseActions :record="record" />
+      <ResponseActions :record="record" @save-note="noteVisible = true" />
     </div>
     <!-- 响应页签 -->
     <el-tabs v-model="activeTab" class="response-tabs">
@@ -43,6 +43,9 @@
     <LucideIcon name="Globe" :size="36" />
     <div class="empty-text">输入 URL 并点击「发送」查看响应</div>
   </div>
+
+  <!-- 保存响应到笔记 -->
+  <SaveResponseToNoteDialog v-model="noteVisible" :record="record" :preset-content="noteMarkdown" />
 </template>
 
 <script setup lang="ts">
@@ -55,7 +58,9 @@ import ResponseStatusBar from './ResponseStatusBar.vue'
 import ResponseActions from './ResponseActions.vue'
 import HeadersTable from './HeadersTable.vue'
 import JsonViewer from './JsonViewer.vue'
+import SaveResponseToNoteDialog from './SaveResponseToNoteDialog.vue'
 import type { ResponseRecord } from '../../types'
+import { copyAsCurl } from '../../composables/useRequest'
 import moment from 'moment'
 
 /** 组件 props 定义 */
@@ -69,6 +74,39 @@ const activeTab = ref('body')
 
 /** Body 展示模式：tree=JSON 树，raw=原始文本 */
 const bodyMode = ref<'tree' | 'raw'>('tree')
+
+/** 笔记对话框显隐 */
+const noteVisible = ref(false)
+
+/** 存入笔记的预填 Markdown（请求摘要 + cURL + 响应体） */
+const noteMarkdown = computed(() => {
+  const r = props.record
+  if (!r) return ''
+  const sizeText = r.size >= 1024 ? (r.size / 1024).toFixed(1) + ' KB' : r.size + ' B'
+  const bodyText = typeof r.body === 'object' ? JSON.stringify(r.body, null, 2) : String(r.body ?? '')
+  const lang = r.isJson ? 'json' : 'text'
+  return [
+    `## ${r.requestUrl}`,
+    '',
+    `- 状态：${r.status} ${r.statusText || ''}`.trimEnd(),
+    `- 耗时：${r.time} ms`,
+    `- 大小：${sizeText}`,
+    `- 时间：${moment(r.createdAt).format('YYYY-MM-DD HH:mm:ss')}`,
+    '',
+    '### cURL',
+    '',
+    '```bash',
+    copyAsCurl(),
+    '```',
+    '',
+    '### 响应体',
+    '',
+    '```' + lang,
+    bodyText.length > 20000 ? bodyText.slice(0, 20000) + '\n...(过长已截断)' : bodyText,
+    '```',
+    '',
+  ].join('\n')
+})
 
 /** 原始响应文本（JSON 格式化后展示） */
 const rawBodyText = computed(() => {

@@ -216,6 +216,7 @@ export async function sendRequest(
         error: '',
         requestUrl: request.url,
         createdAt: Date.now(),
+        base64: res.data.base64 || '',
       }
     } else {
       record = makeErrorResponse(

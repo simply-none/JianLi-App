@@ -127,6 +127,8 @@ export interface ResponseRecord {
   requestUrl: string;
   /** 响应时间戳 */
   createdAt: number;
+  /** 原始响应 base64（主进程返回，供保存二进制响应到磁盘） */
+  base64?: string;
 }
 
 /** 断言/测试结果项 */

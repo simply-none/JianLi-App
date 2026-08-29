@@ -187,6 +187,8 @@ ipcMain.handle("net-request:send", async (event, payload: NetRequestPayload) => 
         headers,
         body: decoded.body,
         contentType,
+        // 原始响应的 base64（供渲染端保存二进制响应到磁盘；文本体较小可接受）
+        base64: buffer.toString("base64"),
       },
     };
   } catch (err: any) {
@@ -325,6 +327,38 @@ ipcMain.handle("net-request:read-file", async (event, args: { path: string }) =>
     return { success: false, message: err?.message || String(err) };
   }
 });
+
+/**
+ * 保存内容到本地文件（net-request:save-file）
+ * 通用出口：响应体保存（base64 二进制 / 文本）与导出 JSON 共用
+ * @param args { title?: 对话框标题, defaultName?: 建议文件名, base64?: 二进制内容, text?: 文本内容 }
+ * @returns { success, path?: 保存后的绝对路径 } 用户取消时 path 为空
+ */
+ipcMain.handle(
+  "net-request:save-file",
+  async (
+    event,
+    args: { title?: string; defaultName?: string; base64?: string; text?: string }
+  ) => {
+    try {
+      const res = await dialog.showSaveDialog({
+        title: args?.title || "保存文件",
+        defaultPath: args?.defaultName || "download",
+      });
+      if (res.canceled || !res.filePath) {
+        return { success: true, path: "" };
+      }
+      if (args?.base64 !== undefined) {
+        fs.writeFileSync(res.filePath, Buffer.from(args.base64, "base64"));
+      } else {
+        fs.writeFileSync(res.filePath, args?.text ?? "", "utf8");
+      }
+      return { success: true, path: res.filePath };
+    } catch (err: any) {
+      return { success: false, message: err?.message || String(err) };
+    }
+  }
+);
 
 /* ------------------------------------------------------------------ */
 /* 模块初始化                                                          */

@@ -1,11 +1,16 @@
 <template>
   <div class="col-node">
-    <!-- 节点行 -->
+    <!-- 节点行（可拖拽移动；文件夹可作为放置目标） -->
     <div
       class="node-row"
-      :class="{ active: activeId === node.id }"
+      :class="{ active: activeId === node.id, 'drop-target': dropHover }"
       :style="{ paddingLeft: depth * 14 + 'px' }"
+      draggable="true"
       @click="onNodeClick"
+      @dragstart="onDragStart"
+      @dragover="onDragOver"
+      @dragleave="dropHover = false"
+      @drop="onDrop"
     >
       <!-- 文件夹：展开箭头 -->
       <span
@@ -51,6 +56,10 @@
               <LucideIcon name="FolderPlus" :size="13" />
               新建子文件夹
             </el-dropdown-item>
+            <el-dropdown-item v-if="node.nodeType === 'request'" command="curl">
+              <LucideIcon name="Code" :size="13" />
+              复制 cURL
+            </el-dropdown-item>
             <el-dropdown-item command="rename">
               <LucideIcon name="Pencil" :size="13" />
               重命名
@@ -78,6 +87,8 @@
         @create-folder="(pid) => emit('createFolder', pid)"
         @rename="(id, name) => emit('rename', id, name)"
         @delete="(id) => emit('delete', id)"
+        @copy-curl="(n) => emit('copyCurl', n)"
+        @move="(dragId, targetId) => emit('move', dragId, targetId)"
       />
     </template>
   </div>
@@ -112,16 +123,21 @@ const props = withDefaults(
   { depth: 0, activeId: undefined, expandAll: true, expandSignal: 0 }
 )
 
-/** 事件：加载 / 新建子文件夹 / 重命名 / 删除 */
+/** 事件：加载 / 新建子文件夹 / 重命名 / 删除 / 复制 cURL / 拖拽移动 */
 const emit = defineEmits<{
   (e: 'load', config: RequestConfig, nodeId?: number, name?: string): void
   (e: 'createFolder', parentId: number): void
   (e: 'rename', id: number, name: string): void
   (e: 'delete', id: number): void
+  (e: 'copyCurl', node: CollectionNode): void
+  (e: 'move', dragId: number, targetParentId: number): void
 }>()
 
 /** 文件夹是否展开 */
 const expanded = ref(true)
+
+/** 是否处于拖拽悬停高亮状态（仅文件夹作为放置目标时） */
+const dropHover = ref(false)
 
 // 监听全局展开/收起信号，同步本节点展开状态
 watch(
@@ -153,11 +169,13 @@ function onNodeClick(): void {
 
 /**
  * 菜单命令分发
- * @param command 命令名：folder / rename / delete
+ * @param command 命令名：folder / curl / rename / delete
  */
 function onMenuCommand(command: string): void {
   if (command === 'folder') {
     emit('createFolder', props.node.id)
+  } else if (command === 'curl') {
+    emit('copyCurl', props.node)
   } else if (command === 'rename') {
     renameText.value = props.node.name
     renaming.value = true
@@ -172,6 +190,49 @@ function onMenuCommand(command: string): void {
       .then(() => emit('delete', props.node.id))
       .catch(() => {})
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* 拖拽移动                                                            */
+/* ------------------------------------------------------------------ */
+
+/** 自定义拖拽数据类型（隔离与其他页面/系统的拖拽行为） */
+const DRAG_TYPE = 'application/x-nr-node'
+
+/**
+ * 拖拽开始：写入节点 id
+ * @param e 原生拖拽事件
+ */
+function onDragStart(e: DragEvent): void {
+  e.dataTransfer?.setData(DRAG_TYPE, String(props.node.id))
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = 'move'
+  }
+}
+
+/**
+ * 拖拽悬停：仅文件夹节点接受放置
+ * @param e 原生拖拽事件
+ */
+function onDragOver(e: DragEvent): void {
+  if (props.node.nodeType !== 'folder') return
+  e.preventDefault()
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+  dropHover.value = true
+}
+
+/**
+ * 放置：把被拖拽节点移动到本文件夹内
+ * @param e 原生拖拽事件
+ */
+function onDrop(e: DragEvent): void {
+  dropHover.value = false
+  if (props.node.nodeType !== 'folder') return
+  const raw = e.dataTransfer?.getData(DRAG_TYPE)
+  const dragId = Number(raw)
+  if (!raw || Number.isNaN(dragId) || dragId === props.node.id) return
+  e.preventDefault()
+  emit('move', dragId, props.node.id)
 }
 
 /**
@@ -204,6 +265,18 @@ function cancelRename(): void {
     border-radius: 6px;
     cursor: pointer;
     font-size: 13px;
+
+    // 拖拽中的源节点半透明
+    &:active {
+      opacity: 0.6;
+    }
+
+    // 拖拽悬停高亮（作为放置目标的文件夹）
+    &.drop-target {
+      outline: 1.5px dashed var(--el-color-primary);
+      outline-offset: -2px;
+      background: var(--el-color-primary-light-9);
+    }
 
     &:hover {
       background: var(--el-fill-color-light);

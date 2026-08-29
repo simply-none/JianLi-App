@@ -136,6 +136,58 @@ export async function importNodes(
 }
 
 /**
+ * 在树中查找节点
+ * @param nodes 树节点数组
+ * @param id 目标节点 id
+ * @returns 找到的节点（未找到返回 null）
+ */
+function findNode(nodes: CollectionNode[], id: number): CollectionNode | null {
+  for (const n of nodes) {
+    if (n.id === id) return n
+    const hit = findNode(n.children || [], id)
+    if (hit) return hit
+  }
+  return null
+}
+
+/**
+ * 判断 target 是否在 node 的子孙 subtree 中
+ * @param node 祖先候选节点
+ * @param targetId 目标节点 id
+ * @returns true = target 是 node 的子孙（或就是 node）
+ */
+function isDescendant(node: CollectionNode, targetId: number): boolean {
+  if (node.id === targetId) return true
+  return (node.children || []).some((c) => isDescendant(c, targetId))
+}
+
+/**
+ * 拖拽移动节点到目标文件夹（防环：不能移入自身或自己的子孙）
+ * @param dragId 被拖拽节点 id
+ * @param targetParentId 目标父文件夹 id（0 = 根目录）
+ * @throws 目标非法或移动到自身子树时抛错（调用方提示）
+ */
+export async function moveCollectionNode(dragId: number, targetParentId: number): Promise<void> {
+  const dragNode = findNode(collectionTree.value, dragId)
+  if (!dragNode) throw new Error('被移动的节点不存在')
+  if (targetParentId !== 0) {
+    const target = findNode(collectionTree.value, targetParentId)
+    if (!target || target.nodeType !== 'folder') {
+      throw new Error('目标位置必须是文件夹')
+    }
+    if (isDescendant(dragNode, targetParentId)) {
+      throw new Error('不能移动到自身或自己的子文件夹内')
+    }
+  }
+  // 排到目标层级的末尾
+  const siblingCount = targetParentId === 0
+    ? collectionTree.value.length
+    : (findNode(collectionTree.value, targetParentId)?.children?.length || 0)
+  await updateCollectionNode(dragId, { parentId: targetParentId, sort: siblingCount })
+  await refreshCollection()
+}
+
+/**
  * 导出集合树引用（供侧边栏组件使用）
  * @returns 集合树 ref
  */

@@ -22,6 +22,7 @@
       @delete="(id) => emit('deleteHistory', id)"
       @clear="emit('clearHistory')"
       @search="(kw) => emit('searchHistory', kw)"
+      @copy-curl="(cfg) => emit('copyHistoryCurl', cfg)"
     />
 
     <!-- 集合面板 -->
@@ -33,6 +34,8 @@
       @rename="(id, name) => emit('renameNode', id, name)"
       @delete="(id) => emit('deleteNode', id)"
       @import="emit('import')"
+      @copy-curl="(n) => emit('copyNodeCurl', n)"
+      @move="(dragId, targetId) => emit('moveNode', dragId, targetId)"
     />
   </div>
 </template>
@@ -74,6 +77,9 @@ const emit = defineEmits<{
   (e: 'renameNode', id: number, name: string): void
   (e: 'deleteNode', id: number): void
   (e: 'import'): void
+  (e: 'copyHistoryCurl', config: RequestConfig): void
+  (e: 'copyNodeCurl', node: CollectionNode): void
+  (e: 'moveNode', dragId: number, targetParentId: number): void
 }>()
 </script>
 

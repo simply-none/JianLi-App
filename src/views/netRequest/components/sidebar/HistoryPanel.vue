@@ -39,6 +39,17 @@
             <span>{{ formatTs(item.createdAt) }}</span>
           </div>
         </div>
+        <el-tooltip content="复制 cURL" placement="top">
+          <el-button
+            class="item-copy"
+            text
+            size="small"
+            type="primary"
+            @click.stop="emit('copyCurl', item.config)"
+          >
+            <LucideIcon name="Code" :size="13" />
+          </el-button>
+        </el-tooltip>
         <el-button
           class="item-delete"
           text
@@ -70,12 +81,13 @@ defineProps<{
   items: HistoryItem[];
 }>()
 
-/** 事件：加载请求 / 删除单条 / 清空 / 搜索 */
+/** 事件：加载请求 / 删除单条 / 清空 / 搜索 / 复制 cURL */
 const emit = defineEmits<{
   (e: 'load', config: RequestConfig): void
   (e: 'delete', id: number): void
   (e: 'clear'): void
   (e: 'search', keyword: string): void
+  (e: 'copyCurl', config: RequestConfig): void
 }>()
 
 /** 搜索关键字 */
@@ -217,9 +229,19 @@ function formatTs(ts: number): string {
   }
 }
 
+.item-copy {
+  opacity: 0;
+  flex-shrink: 0;
+}
+
 .item-delete {
   opacity: 0;
   flex-shrink: 0;
+}
+
+.history-item:hover .item-copy,
+.history-item:hover .item-delete {
+  opacity: 1;
 }
 
 .history-empty {
