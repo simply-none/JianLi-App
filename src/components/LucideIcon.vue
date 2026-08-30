@@ -105,6 +105,7 @@ import { AlarmClock, AlarmClockCheck, AlarmClockMinus, AlarmClockPlus, ArrowDown
   FolderSync,
   CalendarClock,
   FileDown,
+  FileUp,
   SaveAll,
  } from '@lucide/vue';
 import { ref } from 'vue';
@@ -233,6 +234,7 @@ let nameMap = ref<Record<any, any>>({
   FolderSync,
   CalendarClock,
   FileDown,
+  FileUp,
   SaveAll,
   WebcamOff,
   Share2,

@@ -388,23 +388,35 @@ async function cleanupAutoBackups(keepCount: number): Promise<void> {
 /**
  * 恢复备份
  *
- * 安全流程：校验 zip → 恢复前自动安全备份 → 解压到临时目录 →
- * 关闭全部连接 → 覆盖库文件（并清理 WAL 侧车）→ 重开连接 → 清理临时目录。
- * 恢复完成后建议重启应用（前端据 needRestart 提示）。
+ * 支持两种恢复来源：备份目录内的文件（fileName）或任意位置的 .jlbak 文件（filePath，
+ * 用于恢复其他电脑/手动保存的备份）。安全流程：校验 zip → 恢复前自动安全备份 →
+ * 解压到临时目录 → 关闭全部连接 → 覆盖库文件（并清理 WAL 侧车）→ 重开连接 →
+ * 清理临时目录。恢复完成后建议重启应用（前端据 needRestart 提示）。
  *
- * @param {Object} options - 恢复参数
- * @param {string} options.fileName - 备份文件名（位于备份目录内）
+ * @param {Object} options - 恢复参数（fileName 与 filePath 二选一）
+ * @param {string} [options.fileName] - 备份文件名（位于备份目录内）
+ * @param {string} [options.filePath] - 备份文件绝对路径（任意位置）
  * @returns {Promise<{ ok: boolean; needRestart?: boolean; manifest?: BackupManifest; error?: string }>}
  *          成功返回 needRestart:true 与原备份清单；失败返回 ok:false 与错误信息
  */
-async function restoreBackup(options: { fileName: string }): Promise<{ ok: boolean; needRestart?: boolean; manifest?: BackupManifest; error?: string }> {
-  const { fileName } = options;
+async function restoreBackup(options: { fileName?: string; filePath?: string }): Promise<{ ok: boolean; needRestart?: boolean; manifest?: BackupManifest; error?: string }> {
   try {
-    const backupDir = getBackupDir();
-    const zipPath = path.resolve(backupDir, fileName);
-    // 安全校验：文件必须位于备份目录内，防止路径穿越
-    if (!zipPath.startsWith(backupDir) || !fs.existsSync(zipPath)) {
-      return { ok: false, error: "备份文件不存在" };
+    let zipPath: string;
+    if (options?.filePath) {
+      // 方式二：任意位置的 .jlbak 文件（来自文件选择框，绝对路径）
+      zipPath = path.resolve(options.filePath);
+      if (!fs.existsSync(zipPath) || !zipPath.endsWith(BACKUP_EXT)) {
+        return { ok: false, error: "备份文件不存在或不是 .jlbak 格式" };
+      }
+    } else if (options?.fileName) {
+      // 方式一：备份目录内的文件（防路径穿越校验）
+      const backupDir = getBackupDir();
+      zipPath = path.resolve(backupDir, options.fileName);
+      if (!zipPath.startsWith(backupDir) || !fs.existsSync(zipPath)) {
+        return { ok: false, error: "备份文件不存在" };
+      }
+    } else {
+      return { ok: false, error: "缺少备份文件参数" };
     }
 
     const zip = new AdmZip(zipPath);
@@ -418,13 +430,13 @@ async function restoreBackup(options: { fileName: string }): Promise<{ ok: boole
     }
 
     // 1. 恢复前自动安全备份（尽力而为：当前库已损坏时仍继续恢复）
-    const safety = await createBackup({ type: "safety", note: `恢复 ${fileName} 前的自动安全备份` });
+    const safety = await createBackup({ type: "safety", note: `恢复 ${path.basename(zipPath)} 前的自动安全备份` });
     if (!safety.ok) {
       console.warn("恢复前安全备份失败（继续恢复）:", safety.error);
     }
 
     // 2. 解压到临时目录
-    const tmpDir = path.resolve(backupDir, `_restore_tmp_${Date.now()}`);
+    const tmpDir = path.resolve(getBackupDir(), `_restore_tmp_${Date.now()}`);
     zip.extractAllTo(tmpDir, true);
 
     try {
@@ -470,6 +482,32 @@ async function restoreBackup(options: { fileName: string }): Promise<{ ok: boole
     console.error("恢复备份失败:", err);
     return { ok: false, error: err?.message || String(err) };
   }
+}
+
+/**
+ * 选择外部备份文件（主进程原生文件选择框，仅允许 .jlbak）
+ *
+ * 用于恢复其他电脑 / 手动保存的备份文件；选择后返回文件路径与清单预览，
+ * 由前端展示确认后调用 backup:restore-path 执行恢复。
+ *
+ * @returns {Promise<{ ok: boolean; filePath?: string; manifest?: BackupManifest; error?: string }>}
+ *          成功返回文件路径与清单；取消或文件无效返回 ok:false 与错误信息
+ */
+async function selectBackupFile(): Promise<{ ok: boolean; filePath?: string; manifest?: BackupManifest; error?: string }> {
+  const result = dialog.showOpenDialogSync({
+    title: "选择渐离App备份文件",
+    filters: [{ name: "渐离App备份", extensions: ["jlbak"] }],
+    properties: ["openFile"],
+  });
+  if (!result || result.length === 0) {
+    return { ok: false, error: "未选择文件" };
+  }
+  const filePath = result[0];
+  const manifest = readManifest(filePath);
+  if (!manifest) {
+    return { ok: false, error: "备份文件损坏或不是有效的渐离App备份" };
+  }
+  return { ok: true, filePath, manifest };
 }
 
 /**
@@ -754,8 +792,18 @@ export function initBackup() {
   // 备份列表
   ipcMain.handle("backup:list", async () => listBackups());
 
-  // 恢复备份
-  ipcMain.handle("backup:restore", async (_e, params: { fileName: string }) => restoreBackup(params || { fileName: "" }));
+  // 恢复备份（fileName=备份目录内文件名 / filePath=任意位置 .jlbak 绝对路径，二选一）
+  ipcMain.handle("backup:restore", async (_e, params: { fileName?: string; filePath?: string }) =>
+    restoreBackup(params || {})
+  );
+
+  // 选择外部备份文件（返回路径与清单预览，前端确认后调 backup:restore-path）
+  ipcMain.handle("backup:select-backup-file", async () => selectBackupFile());
+
+  // 按绝对路径恢复（配合 backup:select-backup-file 使用）
+  ipcMain.handle("backup:restore-path", async (_e, params: { filePath: string }) =>
+    restoreBackup({ filePath: params?.filePath })
+  );
 
   // 删除备份
   ipcMain.handle("backup:delete", async (_e, params: { fileName: string }) => {

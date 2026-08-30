@@ -54,13 +54,32 @@ export function listBackups(): Promise<BackupListItem[]> {
 }
 
 /**
- * 恢复指定备份
+ * 恢复指定备份（备份目录内的文件）
  *
  * @param {string} fileName - 备份文件名
  * @returns {Promise<CommonResult>} 成功返回 needRestart:true 与原备份清单
  */
 export function restoreBackup(fileName: string): Promise<CommonResult> {
   return call<CommonResult>("backup:restore", { fileName });
+}
+
+/**
+ * 选择外部备份文件（主进程原生文件选择框，仅 .jlbak）
+ *
+ * @returns {Promise<CommonResult>} 成功返回 filePath 与 manifest 预览
+ */
+export function selectBackupFile(): Promise<CommonResult> {
+  return call<CommonResult>("backup:select-backup-file");
+}
+
+/**
+ * 按绝对路径恢复（配合 selectBackupFile 使用，用于恢复外部备份文件）
+ *
+ * @param {string} filePath - 备份文件绝对路径
+ * @returns {Promise<CommonResult>} 成功返回 needRestart:true 与原备份清单
+ */
+export function restoreFromPath(filePath: string): Promise<CommonResult> {
+  return call<CommonResult>("backup:restore-path", { filePath });
 }
 
 /**

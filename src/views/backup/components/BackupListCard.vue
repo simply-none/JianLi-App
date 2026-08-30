@@ -8,7 +8,7 @@
       </div>
     </div>
     <div class="backup-card-body">
-      <el-empty v-if="backups.length === 0" description="暂无备份，点击上方「立即备份」创建" :image-size="80" />
+      <el-empty v-if="backups.length === 0" description="暂无备份：点击上方「立即备份」创建；已有备份文件可通过「从文件恢复」导入恢复" :image-size="80" />
 
       <div v-else class="backup-list">
         <div v-for="item in backups" :key="item.fileName" class="backup-item">

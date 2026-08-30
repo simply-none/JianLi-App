@@ -6,7 +6,7 @@ SQLite 数据库级备份/恢复 + 数据导出中心。备份 `db.sqlite` / `us
 ## 关键文件
 - 主进程：`electron/main/module/backup.ts`（`initBackup()` 注册全部通道 + 自动备份定时器）
 - 主进程重连函数：`newSql.ts` 的 `reopenNewSqlite()`、`sql.ts` 的 `reopenSqlite()`（恢复流程专用，不重复注册 IPC）
-- 前端页面：`src/views/backup/`（`index.vue` 三 Tab + `components/` 四卡片 + `api/backupApi.ts`）
+- 前端页面：`src/views/backup/`（`index.vue` 三 Tab + `components/` 五卡片：RestoreCard 操作说明与从文件恢复 / BackupInfoCard 概况与立即备份 / BackupListCard 备份列表 / AutoBackupCard 自动备份 / ExportCenterCard 导出中心 + `api/backupApi.ts`）
 - 路由：`RouteNames.BACKUP` → `/backup`，侧边栏「系统与资源」分组
 
 ## 备份文件结构（.jlbak = zip）
@@ -20,7 +20,9 @@ SQLite 数据库级备份/恢复 + 数据导出中心。备份 `db.sqlite` / `us
 | `backup:get-info` | 各库概况 + 备份目录 + 自动备份配置 + 最近备份 |
 | `backup:create` | 创建手动备份（`{note}`），成功后同步刷新自动备份时间戳 |
 | `backup:list` | 备份列表（按时间倒序，损坏文件 manifest 为 null） |
-| `backup:restore` | 恢复（安全流程见下），返回 `needRestart:true` |
+| `backup:restore` | 恢复（`{fileName}`=备份目录内文件名 或 `{filePath}`=任意位置 .jlbak 绝对路径，二选一），返回 `needRestart:true` |
+| `backup:select-backup-file` | 文件选择框选外部 .jlbak，返回路径+清单预览（前端确认后调 restore-path） |
+| `backup:restore-path` | 按绝对路径恢复（配合 select-backup-file，用于恢复其他电脑/手动保存的备份） |
 | `backup:delete` | 删除备份（校验路径防穿越） |
 | `backup:open-dir` | 打开备份目录 |
 | `backup:get-auto-config` / `backup:set-auto-config` | 自动备份配置（存 electron-store `backupAutoConfig`） |

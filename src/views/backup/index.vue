@@ -10,6 +10,7 @@
     <el-tabs v-model="activeTab" class="backup-tabs">
       <!-- 备份与恢复 -->
       <el-tab-pane label="备份与恢复" name="backup">
+        <RestoreCard @refresh="refresh" />
         <BackupInfoCard :info="info" @created="refresh" @refresh="refresh" />
         <BackupListCard :backups="backups" @refresh="refresh" />
       </el-tab-pane>
@@ -34,6 +35,7 @@ import type { BackupInfo, BackupListItem } from './types';
 import { getBackupInfo, listBackups } from './api/backupApi';
 import BackupInfoCard from './components/BackupInfoCard.vue';
 import BackupListCard from './components/BackupListCard.vue';
+import RestoreCard from './components/RestoreCard.vue';
 import AutoBackupCard from './components/AutoBackupCard.vue';
 import ExportCenterCard from './components/ExportCenterCard.vue';
 
