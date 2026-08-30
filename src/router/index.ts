@@ -58,6 +58,7 @@ export const RouteNames = {
   STOCK_MINI: "stockMini",
   DOWNLOADER: "downloader",
   COLOR_PALETTE: "colorPalette",
+  DATA_ACQUISITION: "dataAcquisition",
 } as const;
 
 export type RouteNameType = typeof RouteNames[keyof typeof RouteNames];
@@ -327,6 +328,14 @@ export const layoutRouters: RouteRecordRaw[] = [
     component: () => import("@/views/colorPalette/index.vue"),
     meta: {
       title: "调色板",
+    },
+  },
+  {
+    path: "/dataAcquisition",
+    name: RouteNames.DATA_ACQUISITION,
+    component: () => import("@/views/dataAcquisition/index.vue"),
+    meta: {
+      title: "数据获取",
     },
   },
 ];

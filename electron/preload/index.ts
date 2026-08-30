@@ -387,6 +387,49 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
       return ipcRenderer.invoke('ebook:delete-bg-image', id)
     },
   },
+  // 数据获取（Puppeteer 任务化采集）API
+  scraper: {
+    /**
+     * 启动采集任务（异步执行，进度/结果经 scraper:task-progress / task-result 推送）
+     * @param params - 必填参数 { taskId, config, mode }（mode: 'run' 正式 / 'test' 试运行）
+     * @returns 成功返回 Promise<{ success: boolean; error?: string }>
+     */
+    runTask(params: { taskId: string; config: any; mode: 'run' | 'test' }) {
+      return ipcRenderer.invoke('scraper:run-task', params)
+    },
+    /** 请求取消任务 */
+    stopTask(taskId: string) {
+      return ipcRenderer.invoke('scraper:stop-task', taskId)
+    },
+    /** 打开有头登录窗口（用户手动完成登录/验证码） */
+    loginStart(profile: string, url: string) {
+      return ipcRenderer.invoke('scraper:login-start', { profile, url })
+    },
+    /** 完成登录：保存 Cookie 档案并关闭有头窗口，返回 Cookie 条数 */
+    loginFinish(profile: string) {
+      return ipcRenderer.invoke('scraper:login-finish', { profile })
+    },
+    /** 取消登录会话（不保存 Cookie） */
+    loginCancel() {
+      return ipcRenderer.invoke('scraper:login-cancel')
+    },
+    /** 列出全部登录档案 */
+    loginList() {
+      return ipcRenderer.invoke('scraper:login-list')
+    },
+    /** 删除登录档案 */
+    loginDelete(profile: string) {
+      return ipcRenderer.invoke('scraper:login-delete', { profile })
+    },
+    /** 读取全局设置（无头/代理/并发/超时/UA） */
+    getSettings() {
+      return ipcRenderer.invoke('scraper:get-settings')
+    },
+    /** 保存全局设置（无头/代理变化时浏览器自动重建） */
+    setSettings(patch: any) {
+      return ipcRenderer.invoke('scraper:set-settings', patch)
+    },
+  },
   on(...args: Parameters<typeof ipcRenderer.on>) {
     const [channel, listener] = args as [string, (event: any, ...rest: any[]) => void]
     return ipcRenderer.on(channel, (event, ...rest) => listener(event, ...rest))

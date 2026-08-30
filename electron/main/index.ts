@@ -25,6 +25,7 @@ import { initLog } from "./module/log.ts";
 import { initAutoUpdate } from "./module/autoUpdate.ts";
 import { initWeather } from "./module/weather.ts";
 import { initCrawler } from "./module/crawler.ts";
+import { initDataAcquisition } from "./module/dataAcquisition/index.ts";
 import { initLocation } from "./module/location.ts";
 import { initBing } from "./module/bing.ts";
 import { initTTS } from "./module/tts.ts";
@@ -117,6 +118,8 @@ async function createWindow() {
   initWeather();
   // 新爬虫工具（通用网页爬取）
   initCrawler();
+  // 数据获取模块（Puppeteer 任务化采集引擎，独立于天气爬虫）
+  initDataAcquisition();
   // 定位模块
   initLocation();
   // Bing 图片模块

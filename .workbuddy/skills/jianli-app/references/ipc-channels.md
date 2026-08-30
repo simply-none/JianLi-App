@@ -37,6 +37,7 @@
 - **快捷键**：`register-shortcut`（`globalShortcutFn` 分发 `open_habit_window` / `open_todo_window` / `open_pomodoro_window` / `open_clipboard_window` / `open_command_palette` / `open_quick_note` / `show_app` / `open_match_page`）
 - **待办 / 番茄**：`update-todo-reminders` / `start-job` / `stop-job`（→主）；`job-start-tip` / `job-end-tip`（主→渲染）
 - **天气 / 定位 / Bing**：`get-weather` / `get-weather-broadcast` / `get-current-position` / `get-bing-image`
+- **数据获取（Puppeteer 采集）**：`scraper:run-task` / `stop-task` / `login-start` / `login-finish` / `login-cancel` / `login-list` / `login-delete` / `get-settings` / `set-settings`；主→渲染推送 `scraper:task-progress` / `scraper:task-result`（preload `scraper.*` 命名空间，见 `modules/data-acquisition.md`）
 - **系统 / 文件**：`get-fonts` / `get-default-file-path` / `open-file-by-default-app` / `get-installed-apps`；`start-scan` / `copy-files` / `copy-folder` / `rename-files`(+ `-reversed`) / `delete-files`（带 `-progress` 进度）
 - **TTS**：`tts:speak` / `tts:stop` / `tts:get-voices` / `tts:is-available` 及 `tts:system:*`
 - **电子书**：`ebook:*` 约 40 个（preload 封装，见 `preload/index.ts:54-389`）

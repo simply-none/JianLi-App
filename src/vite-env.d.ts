@@ -98,6 +98,27 @@ interface Window {
       // 按 id 删除一张已保存的阅读背景图
       deleteBgImage: (id: number) => Promise<{ success: boolean; error?: string }>;
     };
+    // 数据获取（Puppeteer 任务化采集）API
+    scraper: {
+      // 启动采集任务（进度/结果经 scraper:task-progress / task-result 推送）
+      runTask: (params: { taskId: string; config: any; mode: 'run' | 'test' }) => Promise<{ success: boolean; error?: string }>;
+      // 请求取消任务
+      stopTask: (taskId: string) => Promise<{ success: boolean }>;
+      // 打开有头登录窗口（用户手动完成登录/验证码）
+      loginStart: (profile: string, url: string) => Promise<{ success: boolean; error?: string }>;
+      // 完成登录：保存 Cookie 档案并关闭有头窗口
+      loginFinish: (profile: string) => Promise<{ success: boolean; cookieCount?: number; error?: string }>;
+      // 取消登录会话（不保存 Cookie）
+      loginCancel: () => Promise<{ success: boolean }>;
+      // 列出全部登录档案
+      loginList: () => Promise<{ success: boolean; data?: { name: string; cookieCount: number; savedAt: string }[] }>;
+      // 删除登录档案
+      loginDelete: (profile: string) => Promise<{ success: boolean }>;
+      // 读取全局设置（无头/代理/并发/超时/UA）
+      getSettings: () => Promise<any>;
+      // 保存全局设置
+      setSettings: (patch: any) => Promise<any>;
+    };
   }
 }
 

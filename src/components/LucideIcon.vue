@@ -41,6 +41,7 @@ import { AlarmClock, AlarmClockCheck, AlarmClockMinus, AlarmClockPlus, ArrowDown
   MinimizeIcon,
   RotateCcwIcon,
   OrbitIcon,
+  Radar,
   // 命令面板用图标
   Command,
   LoaderCircle,
@@ -146,6 +147,7 @@ withDefaults(
 let nameMap = ref<Record<any, any>>({
   Fullscreen,
   Undo2,
+  Radar,
   // 命令面板用图标
   Command,
   LoaderCircle,

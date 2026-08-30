@@ -161,6 +161,7 @@ export const iconMap: Record<string, string> = {
   habit: 'AlarmClockCheck',
   downloader: 'Download',
   colorPalette: 'Palette',
+  dataAcquisition: 'Radar',
 };
 
 export { getLightColor, getDarkColor } from './color';
