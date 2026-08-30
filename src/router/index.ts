@@ -62,6 +62,7 @@ export const RouteNames = {
   COLOR_PALETTE: "colorPalette",
   DATA_ACQUISITION: "dataAcquisition",
   DEV_TOOLBOX: "devToolbox",
+  RESUME: "resume",
 } as const;
 
 export type RouteNameType = typeof RouteNames[keyof typeof RouteNames];
@@ -355,6 +356,14 @@ export const layoutRouters: RouteRecordRaw[] = [
     component: () => import("@/views/devToolbox/index.vue"),
     meta: {
       title: "开发工具箱",
+    },
+  },
+  {
+    path: "/resume",
+    name: RouteNames.RESUME,
+    component: () => import("@/views/resume/index.vue"),
+    meta: {
+      title: "简历",
     },
   },
 ];

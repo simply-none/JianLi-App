@@ -39,6 +39,7 @@ import { initBrowserYtDlp } from "./module/browserYtDlp.ts";
 import { initBrowserPermission, setPermissionWindowGetter } from "./module/browserPermission.ts";
 import { initDownloader } from "./module/download/index.ts";
 import { initResource } from "./module/resource.ts";
+import { initResume } from "./module/resume.ts";
 
 registerJlocalProtocolBefore()
 
@@ -146,6 +147,8 @@ async function createWindow() {
   initBrowserPermission();
   // 系统级下载器（多线程分段引擎，接管浏览器下载 + 剪贴板监视）
   await initDownloader();
+  // 简历模块（printToPDF 导出）
+  initResume();
 }
 
 app.whenReady().then(async () => {

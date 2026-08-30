@@ -164,6 +164,7 @@ export const iconMap: Record<string, string> = {
   colorPalette: 'Palette',
   dataAcquisition: 'Radar',
   devToolbox: 'Wrench',
+  resume: 'FileUser',
 };
 
 export { getLightColor, getDarkColor } from './color';
