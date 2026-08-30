@@ -30,6 +30,16 @@ const DEFAULT_HABIT_CONFIG = {
   skin: "white",
 };
 
+const DEFAULT_COUNTDOWN_CONFIG = {
+  position: "bottom-right",
+  width: 300,
+  height: 380,
+  gap: 30,
+  x: 0,
+  y: 0,
+  skin: "white",
+};
+
 function openMatchPage(url: string) {
   win.show();
   win.webContents.send("open-match-page", url);
@@ -287,6 +297,46 @@ function getHabitWindow() {
   });
 }
 
+function toggleCountdownWindow() {
+  const cdWin = getCountdownWindow();
+  if (cdWin && cdWin.isVisible()) {
+    hideOtherWindow("countdownMiniWindow");
+  } else {
+    queryByConditions({
+      db: myDb.db,
+      tableName: "basic_info",
+      conditions: {
+        whereStr: "key = 'window-mode:countdownMiniWindow'",
+      },
+      callback: (err, data) => {
+        if (err) {
+          console.log(err, "err");
+          createOtherWindow("countdownMiniWindow", { ...DEFAULT_COUNTDOWN_CONFIG, mouseEvents: true });
+          return;
+        }
+        let config = { ...DEFAULT_COUNTDOWN_CONFIG };
+        if (data && data.length) {
+          try {
+            const parsed = JSON.parse(data[0].value);
+            config = { ...config, ...parsed };
+          } catch (e) {
+            console.log(e, "parse error");
+          }
+        }
+        createOtherWindow("countdownMiniWindow", { ...config, mouseEvents: true });
+      },
+    });
+  }
+}
+
+function getCountdownWindow() {
+  const allWindows = BrowserWindow.getAllWindows();
+  return allWindows.find((w) => {
+    const url = w.webContents.getURL();
+    return url.includes("countdownMiniWindow") && url.includes("isSecondWindow=true");
+  });
+}
+
 function getPomodoroWindow() {
   const allWindows = BrowserWindow.getAllWindows();
   return allWindows.find((w) => {
@@ -356,6 +406,9 @@ function globalShortcutFn(item) {
     }
     else if (item.type == 'open_habit_window') {
       toggleHabitWindow();
+    }
+    else if (item.type == 'open_countdown_window') {
+      toggleCountdownWindow();
     }
     else if (item.type == 'lock_app') {
       lockAppNow();

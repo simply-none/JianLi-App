@@ -279,6 +279,13 @@ const originShortcuts = ref([
     shortcut: ['', '', ''],
   },
   {
+    type: 'open_countdown_window',
+    url: '',
+    name: '倒计时小窗口',
+    key: 'countdownWindowShortcut',
+    shortcut: ['', '', ''],
+  },
+  {
     type: 'lock_app',
     url: '',
     name: '锁定应用',

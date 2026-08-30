@@ -28,6 +28,7 @@ export const TYPE_META: Record<CommandType, { label: string; color: string }> = 
   note: { label: '笔记', color: 'var(--color-success)' },
   todo: { label: '待办', color: 'var(--color-warning)' },
   habit: { label: '习惯', color: 'var(--color-error)' },
+  countdown: { label: '倒计时', color: 'var(--color-primary)' },
 }
 
 /**
@@ -39,6 +40,7 @@ export const SCOPE_PREFIX_MAP: Record<string, string[]> = {
   '#': ['todo'],
   '/': ['route', 'action'],
   '!': ['habit'],
+  '>': ['countdown'],
 }
 
 /** 作用域前缀的展示文案，渲染在输入框右侧 */
@@ -47,6 +49,7 @@ export const SCOPE_LABEL: Record<string, string> = {
   '#': '待办',
   '/': '功能',
   '!': '习惯',
+  '>': '倒计时',
 }
 
 /** 从上到下：默认展示顺序（route 分组内部按此顺序排序） */

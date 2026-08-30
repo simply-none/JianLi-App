@@ -159,6 +159,7 @@ export const iconMap: Record<string, string> = {
   accounting: 'Wallet',
   stock: 'TrendingUp',
   habit: 'AlarmClockCheck',
+  countdown: 'Timer',
   downloader: 'Download',
   colorPalette: 'Palette',
   dataAcquisition: 'Radar',

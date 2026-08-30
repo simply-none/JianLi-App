@@ -18,6 +18,7 @@ import { registerJlocalProtocol, registerJlocalProtocolBefore } from "./module/p
 import { initSqlite } from "./module/sql.ts";
 import { initNewSqlite, ensureTableExists } from "./module/newSql.ts";
 import { initNewReminder } from "./module/newReminder.ts";
+import { initCountdown } from "./module/countdown.ts";
 import { appName } from "./variables.ts";
 import { initRegisterShortcut } from "./module/registerShortcut.ts";
 import { initSys } from "./module/sys.ts";
@@ -72,6 +73,8 @@ async function createWindow() {
   await initNewSqlite();
   // 全新提醒引擎（定点/周期/多状态），依赖 newSql
   await initNewReminder();
+  // 倒计时模块（独立调度 + 自有表 countdown）
+  await initCountdown();
   // 诗词数据
   initPoetData();
   // 定时任务（番茄钟）

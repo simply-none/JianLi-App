@@ -14,6 +14,7 @@ export type WindowKey =
   | 'clipboard'
   | 'commandPalette'
   | 'habit'
+  | 'countdown'
 
 /** 通用可选项（皮肤、排版等） */
 export interface NamedOption {
@@ -147,6 +148,12 @@ const HABIT_SIZE_OPTIONS: SizeOption[] = [
   { label: '480×620', width: 480, height: 620 },
 ]
 
+const COUNTDOWN_SIZE_OPTIONS: SizeOption[] = [
+  { label: '260×340', width: 260, height: 340 },
+  { label: '300×380', width: 300, height: 380 },
+  { label: '360×460', width: 360, height: 460 },
+]
+
 // —— 各小窗的排版预设 ——
 const POMODORO_LAYOUT_OPTIONS: NamedOption[] = [
   { label: '默认', value: 'default' },
@@ -262,6 +269,15 @@ export const WINDOW_SECTIONS: WindowSection[] = [
     storeKey: 'habitMiniWindow',
     fields: { position: true, size: true, gap: true, skin: true, layout: false },
     sizeOptions: HABIT_SIZE_OPTIONS,
+    skinOptions: SKIN_OPTIONS,
+  },
+  {
+    key: 'countdown',
+    title: '倒计时小窗口',
+    icon: 'Timer',
+    storeKey: 'countdownMiniWindow',
+    fields: { position: true, size: true, gap: true, skin: true, layout: false },
+    sizeOptions: COUNTDOWN_SIZE_OPTIONS,
     skinOptions: SKIN_OPTIONS,
   },
 ]

@@ -89,6 +89,16 @@ if (!isSecondWindow) {
     sysNotify(title, content, '');
     appNotify(title, content, 5000);
   });
+
+  // 倒计时结束提醒：弹系统/站内通知；点击打开倒计时主页
+  window.ipcRenderer.on('countdown-finished', (event, payload: any) => {
+    const title = `倒计时结束：${payload?.name || '倒计时'}`;
+    const content = payload?.name ? `「${payload.name}」时间到` : '倒计时时间到';
+    window.ipcRenderer.send('tray-balloon', { title, content });
+    const openCountdown = () => router.push({ name: RouteNames.COUNTDOWN });
+    sysNotify(title, content, '', 3, openCountdown);
+    appNotify(title, content, 5000, openCountdown);
+  });
 }
 
 // 监听事件

@@ -27,6 +27,7 @@ export function useWindowModeSetting() {
     clipboard: refs.clipboardWindowConfig,
     commandPalette: refs.commandPaletteWindowConfig,
     habit: refs.habitWindowConfig,
+    countdown: refs.countdownWindowConfig,
   }
 
   const showSetterMap: Record<WindowKey, (val: boolean) => void> = {
@@ -40,6 +41,7 @@ export function useWindowModeSetting() {
     clipboard: store.setShowClipboardWindow,
     commandPalette: store.setShowCommandPaletteWindow,
     habit: store.setShowHabitWindow,
+    countdown: store.setShowCountdownWindow,
   }
 
   const storeVisibleMap: Record<WindowKey, Ref<any>> = {
@@ -53,6 +55,7 @@ export function useWindowModeSetting() {
     clipboard: refs.showClipboardWindowC,
     commandPalette: refs.showCommandPaletteWindowC,
     habit: refs.showHabitWindowC,
+    countdown: refs.showCountdownWindowC,
   }
 
   // —— 页面侧本地副本：store 变化时同步，避免直接改 store 引起连锁更新 ——

@@ -179,6 +179,44 @@ export default defineStore("window-mode", () => {
     }
   });
 
+  // ============ 倒计时小窗 ============
+  const showCountdownWindow = ref();
+  const showCountdownWindowC = computed(() => showCountdownWindow.value);
+  function setShowCountdownWindow(value: boolean) {
+    showCountdownWindow.value = value;
+    setStore("showCountdownWindow", value);
+  }
+  /**
+   * 打开倒计时小窗（供通知点击 / 快捷键复用）。
+   * 已开启时上面的 watch 不会触发（值未变化），这里直接下发一次 open-new-window。
+   */
+  function openCountdownWindow() {
+    if (showCountdownWindow.value === true) {
+      send("open-new-window", "countdownMiniWindow", countdownWindowConfig.value);
+      return;
+    }
+    showCountdownWindow.value = true;
+    setStore("showCountdownWindow", true);
+  }
+  const countdownWindowConfig = ref({
+    position: 'bottom-right',
+    width: 300,
+    height: 380,
+    gap: 30,
+    x: 0,
+    y: 0,
+    skin: 'white',
+    // 常驻捕获态小窗，必须显式开启鼠标事件，否则进入穿透态点不动拖不动
+    mouseEvents: true,
+  });
+  watch(showCountdownWindow, (newValue) => {
+    if (newValue == true) {
+      send("open-new-window", "countdownMiniWindow", countdownWindowConfig.value);
+    } else {
+      send("hide-new-window", "countdownMiniWindow");
+    }
+  });
+
   // ============ 命令面板小窗 ============
   const showCommandPaletteWindow = ref();
   const showCommandPaletteWindowC = computed(() => showCommandPaletteWindow.value);
@@ -473,6 +511,21 @@ export default defineStore("window-mode", () => {
         map: habitWindowConfig,
       },
       {
+        field: "window-mode:countdownMiniWindow",
+        default: {
+          position: 'bottom-right',
+          width: 300,
+          height: 380,
+          gap: 30,
+          x: 0,
+          y: 0,
+          skin: 'white',
+          // 见上方说明：必须显式开启鼠标事件，否则窗口进入穿透态
+          mouseEvents: true,
+        },
+        map: countdownWindowConfig,
+      },
+      {
         field: "window-mode:themeConversationMini",
         default: {
           position: 'bottom-right',
@@ -622,6 +675,11 @@ export default defineStore("window-mode", () => {
     setShowHabitWindow,
     openHabitWindow,
     habitWindowConfig,
+    showCountdownWindow,
+    showCountdownWindowC,
+    setShowCountdownWindow,
+    openCountdownWindow,
+    countdownWindowConfig,
     showThemeConversationMiniWindow,
     showThemeConversationMiniWindowC,
     setShowThemeConversationMiniWindow,

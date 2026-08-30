@@ -10,6 +10,8 @@ export const RouteNames = {
   SETTING: "setting",
   NEW_TIPS: "newTips",
   HABIT: "habit",
+  COUNTDOWN: "countdown",
+  COUNTDOWN_MINI: "countdownMiniWindow",
   SYSTEM_INFO: "systemInfo",
   HOME_MODE: "homeMode",
   WINDOW_MODE: "windowMode",
@@ -104,6 +106,14 @@ export const layoutRouters: RouteRecordRaw[] = [
     component: () => import("@/views/habit/index.vue"),
     meta: {
       title: "习惯打卡",
+    },
+  },
+  {
+    path: "/countdown",
+    name: RouteNames.COUNTDOWN,
+    component: () => import("@/views/countdown/index.vue"),
+    meta: {
+      title: "倒计时",
     },
   },
   {
@@ -396,6 +406,12 @@ const routers: RouteRecordRaw[] = [
     path: "/habitMiniWindow",
     name: RouteNames.HABIT_MINI_WINDOW,
     component: () => import("@/views/habitMiniWindow/index.vue"),
+  },
+  {
+    // 倒计时小窗：路径必须与 open-new-window 传入的 arg（countdownMiniWindow）一致
+    path: "/countdownMiniWindow",
+    name: RouteNames.COUNTDOWN_MINI,
+    component: () => import("@/views/countdownMiniWindow/index.vue"),
   },
   {
     // 命令面板小窗：路径必须与主进程 createOtherWindow 的 arg 一致
