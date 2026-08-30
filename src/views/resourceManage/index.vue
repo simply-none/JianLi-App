@@ -2,282 +2,309 @@
   <layout-vue>
     <template #main>
       <div class="resource-page">
-        <!-- Section 1: 上传文件 -->
-        <div class="section">
-          <h2 class="section-title">
-            <LucideIcon name="UploadCloud" />
-            上传文件
-          </h2>
-          <div class="upload-card">
-            <UploadVue :limit="10" :multiply="true" @updateData="handleChange" />
-          </div>
-        </div>
+        <!-- 上传区 -->
+        <ResourceUploadCard @file-saved="onFileSaved" />
 
-        <!-- Section 2: 文件列表 -->
+        <!-- 工具栏 -->
+        <ResourceToolbar
+          v-model:keyword="keyword"
+          v-model:filter-types="filterTypes"
+          v-model:sort-by="sortBy"
+          v-model:order="order"
+          v-model:view-mode="viewMode"
+          v-model:batch-mode="batchMode"
+          :selected-count="selectedKeys.size"
+          :total-count="displayItems.length"
+          :refreshing="loading"
+          @select-all="selectAll"
+          @clear-selection="clearSelection"
+          @batch-delete="onBatchDelete"
+          @refresh="load"
+        />
+
+        <!-- 统计条 -->
+        <ResourceStatsBar :stats="stats" />
+
+        <!-- 资源列表 -->
         <div class="section">
           <h2 class="section-title">
             <LucideIcon name="FolderOpen" />
             文件列表
           </h2>
-          <div class="file-list-card">
-            <div class="file-list" v-if="imageResourceCc.length > 0">
-              <div
-                v-for="(file, index) in imageResourceCc"
-                :key="index"
-                class="file-card"
-                @click="previewFile(file)"
-              >
-                <div class="file-preview">
-                  <el-image
-                    v-if="getFileType(file.origin) === 'image'"
-                    :src="fileProtocol + file.val"
-                    fit="cover"
-                    lazy
-                  />
-                  <FileIcon
-                    v-else
-                    :type="getFileType(file.origin)"
-                    :size="64"
-                  />
-                </div>
-                <div class="file-info">
-                  <div class="file-name">{{ file.origin }}</div>
-                  <div class="file-meta">
-                    <span class="file-type" :class="getFileType(file.origin)">
-                      {{ getFileTypeLabel(file.origin) }}
-                    </span>
-                  </div>
-                </div>
-                <div class="file-actions">
-                  <el-button
-                    size="small"
-                    type="primary"
-                    @click.stop="openFileLocation(file)"
-                  >
-                    打开位置
-                  </el-button>
-                  <el-button
-                    size="small"
-                    type="danger"
-                    @click.stop="deleteFile(file, index as number)"
-                  >
-                    删除
-                  </el-button>
-                </div>
-              </div>
+          <div class="file-area" v-loading="loading">
+            <!-- 网格视图 -->
+            <ResourceGrid
+              v-if="viewMode === 'grid' && displayItems.length > 0"
+              :items="displayItems"
+              :batch-mode="batchMode"
+              :selected-keys="selectedKeys"
+              @preview="onPreview"
+              @open-location="onOpenLocation"
+              @star="onStar"
+              @delete="onDeleteSingle"
+              @toggle-select="toggleSelect"
+            />
+            <!-- 列表视图 -->
+            <ResourceList
+              v-else-if="viewMode === 'list' && displayItems.length > 0"
+              :items="displayItems"
+              :batch-mode="batchMode"
+              :selected-keys="selectedKeys"
+              @preview="onPreview"
+              @open-location="onOpenLocation"
+              @delete="onDeleteSingle"
+              @toggle-select="toggleSelect"
+            />
+            <!-- 空状态：无任何资源 -->
+            <div v-else-if="items.length === 0" class="empty-state">
+              <el-empty description="暂无资源，先上传文件吧">
+                <LucideIcon name="SearchX" :size="48" />
+              </el-empty>
             </div>
+            <!-- 空状态：筛选无结果 -->
             <div v-else class="empty-state">
-              <el-empty description="暂无上传文件" />
+              <el-empty description="无匹配结果">
+                <el-button type="primary" plain @click="clearFilters">清除筛选</el-button>
+              </el-empty>
             </div>
           </div>
         </div>
 
-        <!-- 预览对话框 -->
-        <app-dialog
-          v-model="previewVisible"
-          :title="previewTitle"
-          width="80%"
-          top="5vh"
-        >
-          <div class="preview-content">
-            <el-image
-              v-if="previewFileType === 'image'"
-              :src="fileProtocol + previewFileData?.val"
-              fit="contain"
-              style="max-height: 70vh"
-            />
-            <video
-              v-else-if="previewFileType === 'video'"
-              :src="fileProtocol + previewFileData?.val"
-              controls
-              style="max-width: 100%; max-height: 70vh"
-            />
-            <audio
-              v-else-if="previewFileType === 'audio'"
-              :src="fileProtocol + previewFileData?.val"
-              controls
-              style="width: 100%"
-            />
-            <pre v-else-if="previewFileType === 'text'" class="text-preview">
-              {{ previewContent }}
-            </pre>
-            <iframe
-              v-else-if="previewFileType === 'pdf'"
-              :src="fileProtocol + previewFileData?.val"
-              style="width: 100%; height: 70vh"
-              frameborder="0"
-            />
-            <div v-else class="other-preview">
-              <FileIcon :type="previewFileType" :size="64" class="mb-4" />
-              <div>该文件类型不支持预览</div>
-              <div class="mt-2 text-muted">文件名：{{ previewFileData?.origin }}</div>
-              <el-button
-                type="primary"
-                class="mt-4"
-                @click="openFileLocation(previewFileData)"
-              >
-                打开文件位置
-              </el-button>
+        <!-- 预览弹窗 -->
+        <ResourcePreviewDialog
+          :visible="preview.visible.value"
+          :current-item="preview.currentItem.value"
+          :preview-type="preview.previewType.value"
+          :text-content="preview.textContent.value"
+          :text-truncated="preview.textTruncated.value"
+          :text-loading="preview.textLoading.value"
+          :zoom="preview.imageZoom.value"
+          :rotate="preview.imageRotate.value"
+          :nav-index="preview.navIndex.value"
+          :nav-total="preview.navListLength.value"
+          @close="preview.close()"
+          @prev="preview.prev()"
+          @next="preview.next()"
+          @zoom-in="preview.zoomIn()"
+          @zoom-out="preview.zoomOut()"
+          @rotate="preview.rotate()"
+          @open-location="onOpenLocation"
+        />
+
+        <!-- 删除确认弹窗（含「同时删除物理文件」勾选项） -->
+        <el-dialog v-model="deleteDialogVisible" title="删除确认" width="420px">
+          <div class="delete-confirm">
+            <div class="delete-text">
+              <template v-if="pendingDeleteItems.length === 1">
+                确定要删除文件「{{ pendingDeleteItems[0]?.name }}」吗？
+              </template>
+              <template v-else>确定要删除选中的 {{ pendingDeleteItems.length }} 个文件吗？</template>
             </div>
+            <el-checkbox v-model="deletePhysicalChecked">同时删除磁盘上的物理文件</el-checkbox>
+            <div class="delete-tip">未勾选时仅删除资源记录，物理文件仍保留在磁盘上。</div>
           </div>
-        </app-dialog>
+          <template #footer>
+            <el-button @click="deleteDialogVisible = false">取消</el-button>
+            <el-button type="danger" :loading="deleting" @click="confirmDelete">删除</el-button>
+          </template>
+        </el-dialog>
       </div>
     </template>
   </layout-vue>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed, onMounted } from 'vue';
+/**
+ * 资源管理页面（重构版）
+ * ------------------------------------------------------------------
+ * 架构：index.vue 仅做组件编排与事件转发，业务逻辑下沉到
+ * composables（useResourceList / useResourcePreview）与 api（resourceApi）。
+ * 数据存储：SQLite resource 表（首次启动自动迁移旧 imageResource 数据）。
+ */
+import { onMounted, ref } from 'vue';
 import { storeToRefs } from 'pinia';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus';
 import LayoutVue from '@/components/layout.vue';
 import LucideIcon from '@/components/LucideIcon.vue';
-import FileIcon from '@/components/FileIcon.vue';
+import ResourceToolbar from './components/ResourceToolbar.vue';
+import ResourceStatsBar from './components/ResourceStatsBar.vue';
+import ResourceUploadCard from './components/ResourceUploadCard.vue';
+import ResourceGrid from './components/ResourceGrid.vue';
+import ResourceList from './components/ResourceList.vue';
+import ResourcePreviewDialog from './components/ResourcePreviewDialog.vue';
+import { useResourceList } from './composables/useResourceList';
+import { useResourcePreview } from './composables/useResourcePreview';
+import type { ResourceItem } from './types';
+import { send } from '@/utils/common';
 import useCacheSetStore from '@/store/useCacheSet';
-import useResourceManage from '@/store/useResourceManage';
-import { send, sendSync, setStore } from '@/utils/common';
-import UploadVue from '@/components/upload.vue';
-import { fileProtocol } from '@/var';
 
-const { imageResourceC } = storeToRefs(useResourceManage());
-const { setImageResource } = useResourceManage();
-const imageResourceCc = ref(JSON.parse(JSON.stringify(imageResourceC.value || [])));
+// ------------------------------------------------------------------
+// 状态接入
+// ------------------------------------------------------------------
 
-watch(
-  () => imageResourceC.value,
-  (n) => {
-    imageResourceCc.value = JSON.parse(JSON.stringify(n || []));
-  },
-  {
-    immediate: true,
-    deep: true,
-  }
-);
+const {
+  items,
+  loading,
+  keyword,
+  filterTypes,
+  sortBy,
+  order,
+  viewMode,
+  batchMode,
+  selectedKeys,
+  displayItems,
+  stats,
+  load,
+  removeItems,
+  handleFileSaved,
+  starItem,
+  toggleSelect,
+  selectAll,
+  clearSelection,
+} = useResourceList();
 
+const preview = useResourcePreview();
+
+/** 文件缓存目录（物理文件删除白名单） */
 const { fileCachePathC } = storeToRefs(useCacheSetStore());
 
-const previewVisible = ref(false);
-const previewFileData = ref<ObjectType | null>(null);
-const previewContent = ref('');
-const previewFileType = ref('');
+// ------------------------------------------------------------------
+// 生命周期
+// ------------------------------------------------------------------
 
-const previewTitle = computed(() => {
-  return previewFileData.value?.origin || '文件预览';
+onMounted(() => {
+  load();
 });
 
-const imageExts = [
-  'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'tif', 'tiff',
-  'psd', 'ai', 'eps', 'raw', 'svgz', 'avif', 'heic', 'heif', 'indd', 'jfif',
-  'jpe', 'jpf', 'jpx', 'j2c', 'j2k', 'jp2', 'j2p', 'jxr', 'wbmp', 'xbm',
-];
+// ------------------------------------------------------------------
+// 上传与去重
+// ------------------------------------------------------------------
 
-const videoExts = [
-  'mp4', 'webm', 'ogg', 'mov', 'avi', 'flv', 'wmv', 'mkv', 'm4v', '3gp',
-  '3g2', 'mpeg', 'mpg', 'mpe', 'mpv', 'm2v', 'm2ts', 'ts', 'vob', 'ogv',
-  'qt', 'f4v', 'f4p', 'f4a', 'f4b', 'rm', 'rmvb', 'asf', 'divx', 'xvid',
-  'amv', 'mts', 'm2ts', 'mxf', 'roq', 'nsv', 'mng', 'yuv', 'gifv', 'webm',
-];
-
-const audioExts = [
-  'mp3', 'wav', 'ogg', 'aac', 'flac', 'wma', 'm4a', 'aiff', 'alac', 'dsf',
-  'dff', 'ogg', 'opus', 'vorbis', 'pcm', 'au', 'snd', 'mid', 'midi', 'rmi',
-  'm4b', 'm4p', 'aac', 'mpc', 'ape', 'wv', 'tak', 'tta', 'shn', 'wavpack',
-  'mp2', 'mp1', 'amr', 'awb', '3ga', 'ogg', 'oga', 'spx', 'mka',
-];
-
-const textExts = [
-  'txt', 'md', 'json', 'js', 'ts', 'html', 'css', 'vue', 'xml', 'yaml', 'yml',
-  'csv', 'tsv', 'log', 'ini', 'conf', 'cfg', 'env', 'bat', 'cmd', 'ps1',
-  'sh', 'bash', 'zsh', 'fish', 'sql', 'python', 'py', 'java', 'cpp', 'c',
-  'cxx', 'h', 'hpp', 'cs', 'go', 'rs', 'rust', 'swift', 'kt', 'kotlin',
-  'rb', 'ruby', 'php', 'perl', 'pl', 'lua', 'dart', 'groovy', 'scala',
-  'clj', 'cljs', ' cljs', 'edn', 'hs', 'haskell', 'ml', 'ocaml', 'elm',
-  'purs', 'purescript', 'nim', 'zig', 'crystal', 'd', 'r', 'matlab', 'm',
-  'v', 'vlang', 'svelte', 'astro', 'mdx', 'jsx', 'tsx', 'ejs', 'nunjucks',
-  'jinja', 'twig', 'pug', 'haml', 'sass', 'scss', 'less', 'stylus',
-];
-
-const pdfExts = ['pdf'];
-const fontExts = ['woff', 'woff2', 'ttf', 'otf', 'eot', 'svg', 'sfnt'];
-const archiveExts = ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'lz', 'lzma'];
-const documentExts = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp'];
-
-function getFileType(filename: string): string {
-  const ext = filename.split('.').pop()?.toLowerCase() || '';
-  if (imageExts.includes(ext)) return 'image';
-  if (videoExts.includes(ext)) return 'video';
-  if (audioExts.includes(ext)) return 'audio';
-  if (textExts.includes(ext)) return 'text';
-  if (pdfExts.includes(ext)) return 'pdf';
-  if (fontExts.includes(ext)) return 'font';
-  if (archiveExts.includes(ext)) return 'archive';
-  if (documentExts.includes(ext)) return 'document';
-  return 'other';
-}
-
-function getFileTypeLabel(filename: string): string {
-  const ext = filename.split('.').pop()?.toLowerCase() || '';
-  if (imageExts.includes(ext)) return '图片';
-  if (videoExts.includes(ext)) return '视频';
-  if (audioExts.includes(ext)) return '音频';
-  if (textExts.includes(ext)) return '文本';
-  if (pdfExts.includes(ext)) return 'PDF';
-  if (fontExts.includes(ext)) return '字体';
-  if (archiveExts.includes(ext)) return '压缩包';
-  if (documentExts.includes(ext)) return '文档';
-  return '其他';
-}
-
-function previewFile(file: ObjectType) {
-  previewFileData.value = file;
-  previewFileType.value = getFileType(file.origin);
-
-  if (previewFileType.value === 'text') {
-    previewContent.value = '加载中...';
-    loadTextContent(file.val);
+/**
+ * 单文件上传完成：去重入库（重复文件已在 composable 内清理物理文件）
+ *
+ * @param {Object} payload - 上传结果（path/name/size）
+ * @returns {void} 无返回值
+ */
+async function onFileSaved(payload: { path: string; name: string; size: number }) {
+  const result = await handleFileSaved(payload, fileCachePathC.value || '');
+  if (result === 'duplicate') {
+    ElMessage.info(`「${payload.name}」已存在同名同大小文件，已跳过`);
   }
-
-  previewVisible.value = true;
 }
 
-function loadTextContent(filePath: string) {
+// ------------------------------------------------------------------
+// 卡片 / 行操作
+// ------------------------------------------------------------------
+
+/**
+ * 打开预览（基于当前展示列表做上一个/下一个导航）
+ *
+ * @param {ResourceItem} item - 待预览资源
+ * @returns {void} 无返回值
+ */
+function onPreview(item: ResourceItem) {
+  preview.open(item, displayItems.value);
+}
+
+/**
+ * 在系统资源管理器中打开文件位置
+ *
+ * @param {ResourceItem} item - 目标资源
+ * @returns {void} 无返回值
+ */
+function onOpenLocation(item: ResourceItem) {
+  if (!item?.path) return;
+  send('open-file-in-assets-manager', { path: item.path });
+}
+
+/**
+ * 切换收藏状态
+ *
+ * @param {ResourceItem} item - 目标资源
+ * @returns {void} 无返回值
+ */
+function onStar(item: ResourceItem) {
+  starItem(item);
+}
+
+// ------------------------------------------------------------------
+// 删除流程（单个 / 批量，含「同时删除物理文件」选项）
+// ------------------------------------------------------------------
+
+/** 删除确认弹窗可见性 */
+const deleteDialogVisible = ref(false);
+/** 待删除资源（单个或批量） */
+const pendingDeleteItems = ref<ResourceItem[]>([]);
+/** 是否同时删除物理文件（勾选项，默认不勾选） */
+const deletePhysicalChecked = ref(false);
+/** 删除执行中 */
+const deleting = ref(false);
+
+/**
+ * 发起单个资源删除（打开确认弹窗）
+ *
+ * @param {ResourceItem} item - 目标资源
+ * @returns {void} 无返回值
+ */
+function onDeleteSingle(item: ResourceItem) {
+  pendingDeleteItems.value = [item];
+  deletePhysicalChecked.value = false;
+  deleteDialogVisible.value = true;
+}
+
+/**
+ * 发起批量删除（打开确认弹窗）
+ *
+ * @returns {void} 无返回值
+ */
+function onBatchDelete() {
+  if (selectedKeys.value.size === 0) return;
+  const keySet = selectedKeys.value;
+  pendingDeleteItems.value = displayItems.value.filter((it) => keySet.has(it.key));
+  deletePhysicalChecked.value = false;
+  deleteDialogVisible.value = true;
+}
+
+/**
+ * 确认删除：删记录（+ 可选删物理文件），失败时提示
+ *
+ * @returns {Promise<void>} 无返回值
+ */
+async function confirmDelete() {
+  deleting.value = true;
   try {
-    const fullPath = filePath.startsWith('file://') ? filePath.slice(7) : filePath;
-    const content = sendSync('read-file', fullPath);
-    previewContent.value = content || '无法读取文件内容';
-  } catch (e) {
-    previewContent.value = '读取文件失败';
-    console.error('读取文件失败', e);
+    const keys = pendingDeleteItems.value.map((it) => it.key);
+    const { removed, physicalFailed } = await removeItems(
+      keys,
+      deletePhysicalChecked.value,
+      fileCachePathC.value || '',
+    );
+    if (physicalFailed > 0) {
+      ElMessage.warning(`已删除 ${removed} 条记录，其中 ${physicalFailed} 个物理文件删除失败`);
+    } else {
+      ElMessage.success(`已删除 ${removed} 个资源`);
+    }
+    // 预览中的文件被删除时关闭预览
+    if (preview.currentItem.value && keys.includes(preview.currentItem.value.key)) {
+      preview.close();
+    }
+  } finally {
+    deleting.value = false;
+    deleteDialogVisible.value = false;
+    pendingDeleteItems.value = [];
+    batchMode.value = false;
   }
 }
 
-function openFileLocation(file: ObjectType | null) {
-  if (!file?.val) return;
-  const fullPath = file.val.startsWith('file://') ? file.val.slice(7) : file.val;
-  send('open-file-in-assets-manager', { path: fullPath });
-}
-
-function deleteFile(file: ObjectType, index: number) {
-  ElMessageBox.confirm(`确定要删除文件 "${file.origin}" 吗？`, '提示', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-    type: 'warning',
-  }).then(() => {
-    imageResourceCc.value.splice(index, 1);
-    const allVars = imageResourceCc.value.map((item: any) => ({
-      val: item.val,
-      name: item.name,
-      origin: item.origin,
-    }));
-    setStore('imageResource', allVars);
-    ElMessage.success('删除成功');
-  }).catch(() => {
-    // 取消删除
-  });
-}
-
-function handleChange(data: any) {
-  console.log(data, 'data');
+/**
+ * 清除搜索与类型筛选
+ *
+ * @returns {void} 无返回值
+ */
+function clearFilters() {
+  keyword.value = '';
+  filterTypes.value = [];
 }
 </script>
 
@@ -301,9 +328,8 @@ function handleChange(data: any) {
       font-size: 16px;
       font-weight: 600;
       color: var(--text-primary);
-      margin: 0 0 16px;
+      margin: 0 0 14px;
       padding-bottom: 10px;
-      border-bottom: 1px solid transparent;
       background: linear-gradient(90deg, var(--color-primary), transparent) no-repeat left bottom / 100% 1px;
 
       .el-icon {
@@ -312,186 +338,31 @@ function handleChange(data: any) {
     }
   }
 
-  .upload-card {
+  .file-area {
     background: var(--bg-card);
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-card);
-    padding: 20px;
-    transition: all 0.2s ease;
-
-    &:hover {
-      border-color: var(--color-primary);
-      box-shadow: var(--shadow-card);
-    }
-  }
-
-  .file-list-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-card);
-    padding: 20px;
-  }
-
-  .file-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 16px;
-    width: 100%;
-  }
-
-  .file-card {
-    background: var(--bg-base);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-card);
-    overflow: hidden;
-    cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
-    display: flex;
-    flex-direction: column;
-
-    &:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    }
-  }
-
-  .file-preview {
-    width: 100%;
-    height: 120px;
-    background: var(--bg-base);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-
-    img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-  }
-
-  .file-info {
-    padding: 12px;
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .file-name {
-    font-size: 0.86rem;
-    font-weight: 500;
-    color: var(--text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .file-meta {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.72rem;
-  }
-
-  .file-type {
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-weight: 500;
-
-    &.image {
-      background: rgba(99, 102, 241, 0.1);
-      color: var(--color-primary);
-    }
-
-    &.video {
-      background: rgba(239, 68, 68, 0.1);
-      color: #ef4444;
-    }
-
-    &.audio {
-      background: rgba(139, 92, 246, 0.1);
-      color: #8b5cf6;
-    }
-
-    &.text {
-      background: rgba(34, 197, 94, 0.1);
-      color: #22c55e;
-    }
-
-    &.pdf {
-      background: rgba(239, 68, 68, 0.1);
-      color: #ef4444;
-    }
-
-    &.font {
-      background: rgba(245, 158, 11, 0.1);
-      color: #f59e0b;
-    }
-
-    &.archive {
-      background: rgba(6, 182, 212, 0.1);
-      color: #06b6d4;
-    }
-
-    &.document {
-      background: rgba(59, 130, 246, 0.1);
-      color: #3b82f6;
-    }
-
-    &.other {
-      background: rgba(156, 163, 175, 0.1);
-      color: var(--text-muted);
-    }
-  }
-
-  .file-size {
-    color: var(--text-muted);
-  }
-
-  .file-actions {
-    padding: 0 12px 12px;
-    display: flex;
-    gap: 8px;
-
-    button {
-      flex: 1;
-    }
+    padding: 16px;
+    min-height: 160px;
   }
 
   .empty-state {
-    padding: 40px 0;
+    padding: 24px 0;
   }
 
-  .preview-content {
-    padding: 20px;
-    max-height: 70vh;
-    overflow: auto;
-  }
-
-  .text-preview {
-    background: var(--bg-base);
-    padding: 16px;
-    border-radius: var(--radius-card);
-    font-size: 0.82rem;
-    line-height: 1.6;
-    color: var(--text-primary);
-    white-space: pre-wrap;
-    word-break: break-all;
-    max-height: 70vh;
-    overflow: auto;
-  }
-
-  .other-preview {
+  .delete-confirm {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 40px 0;
-    color: var(--text-secondary);
+    gap: 10px;
 
-    .text-muted {
+    .delete-text {
+      font-size: 0.88rem;
+      color: var(--text-primary);
+      word-break: break-all;
+    }
+
+    .delete-tip {
+      font-size: 0.76rem;
       color: var(--text-muted);
     }
   }

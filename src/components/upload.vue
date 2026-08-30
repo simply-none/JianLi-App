@@ -63,10 +63,16 @@ const props = defineProps({
   autoSave: {
     type: Boolean,
     default: false,
+  },
+  // 是否同步写入旧 electron-store（imageResource）。默认 true 保持旧页面兼容；
+  // 新版资源管理页走 SQLite，传 false 关闭旧存储写入
+  legacyStore: {
+    type: Boolean,
+    default: true,
   }
 })
 
-const emit = defineEmits(['updateData', 'getFilePath', 'uploadSuccess', 'uploadError'])
+const emit = defineEmits(['updateData', 'getFilePath', 'uploadSuccess', 'uploadError', 'fileSaved'])
 
 const { imageResourceC } = storeToRefs(useResourceManage())
 const { setImageResource } = useResourceManage()
@@ -212,10 +218,19 @@ async function saveFile(file: UploadFile) {
 
     if (lastResult) {
       emit('getFilePath', lastResult);
-      setImageResource({
-        val: lastResult,
-        name: lastResult,
-        origin: file.name || lastResult,
+      // 旧存储写入按调用方需要开关（新版资源管理页传 legacyStore=false 走 SQLite）
+      if (props.legacyStore) {
+        setImageResource({
+          val: lastResult,
+          name: lastResult,
+          origin: file.name || lastResult,
+        });
+      }
+      // 通知调用方单文件落盘成功（带文件名与大小，供调用方入库/去重）
+      emit('fileSaved', {
+        path: lastResult,
+        name: file.name || lastResult,
+        size,
       });
       ElMessage.success(`文件 "${file.name}" 上传成功`);
       return true;

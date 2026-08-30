@@ -36,6 +36,7 @@ import { initBrowserSniffer } from "./module/browserSniffer.ts";
 import { initBrowserYtDlp } from "./module/browserYtDlp.ts";
 import { initBrowserPermission, setPermissionWindowGetter } from "./module/browserPermission.ts";
 import { initDownloader } from "./module/download/index.ts";
+import { initResource } from "./module/resource.ts";
 
 registerJlocalProtocolBefore()
 
@@ -90,6 +91,8 @@ async function createWindow() {
   initBackup();
   // 文件相关
   initFile();
+  // 资源管理（文本预览读取 + 物理文件删除）
+  initResource();
   // 数据加密解密
   initCrypto();
   // 应用锁 / 隐私模式（依赖 DB 与加密密钥，须在 initCrypto 之后）
