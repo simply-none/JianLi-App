@@ -8,6 +8,17 @@ export type CountdownStatus = "running" | "paused" | "finished";
 /** 设定方式：指定结束时刻 / 指定时长 */
 export type CountdownMode = "datetime" | "duration";
 
+/** 展示样式（全局统一切换，不落库倒计时表，存 electron-store） */
+export type CountdownStyle = "digital" | "bar" | "flip" | "gradient";
+
+/** 展示样式可选清单 */
+export const COUNTDOWN_STYLES: { value: CountdownStyle; label: string }[] = [
+  { value: "digital", label: "数字" },
+  { value: "bar", label: "进度条" },
+  { value: "flip", label: "翻转" },
+  { value: "gradient", label: "渐变文字" },
+];
+
 /** 数据库行（字段与 electron/main/module/countdown.ts 的表结构一致） */
 export interface CountdownRow {
   key: string;

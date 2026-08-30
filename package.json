@@ -87,6 +87,7 @@
     "@vue-flow/node-toolbar": "^1.1.1",
     "adm-zip": "^0.6.0",
     "chardet": "^2.2.0",
+    "diff": "^9.0.0",
     "electron-log": "^5.4.3",
     "epubjs": "^0.3.93",
     "font-list": "^2.0.1",

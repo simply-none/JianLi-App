@@ -4,7 +4,8 @@
  */
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
-import type { CountdownRow, CountdownInput } from "@/views/countdown/types";
+import type { CountdownRow, CountdownInput, CountdownStyle } from "@/views/countdown/types";
+import { getStore, setStore } from "@/utils/common";
 import * as api from "@/views/countdown/api/countdownApi";
 
 /**
@@ -35,6 +36,14 @@ export const useCountdown = defineStore("countdown", () => {
   const rows = ref<CountdownRow[]>([]);
   const activeKey = ref<string>("");
   const loading = ref(false);
+
+  /** 全局统一展示样式（页面/小窗共享，存 electron-store，不落库倒计时表） */
+  const STYLE_KEY = "countdownDisplayStyle";
+  const displayStyle = ref<CountdownStyle>((getStore(STYLE_KEY) as CountdownStyle) || "digital");
+  function setDisplayStyle(s: CountdownStyle) {
+    displayStyle.value = s;
+    setStore(STYLE_KEY, s);
+  }
 
   /** 当前选中的倒计时（用于大计时器视图） */
   const active = computed<CountdownRow | null>(() => {
@@ -88,5 +97,5 @@ export const useCountdown = defineStore("countdown", () => {
     await load();
   }
 
-  return { rows, activeKey, loading, active, load, setActive, save, remove, start, pause, reset };
+  return { rows, activeKey, loading, active, displayStyle, setDisplayStyle, load, setActive, save, remove, start, pause, reset };
 });

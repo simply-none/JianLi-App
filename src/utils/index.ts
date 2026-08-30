@@ -163,6 +163,7 @@ export const iconMap: Record<string, string> = {
   downloader: 'Download',
   colorPalette: 'Palette',
   dataAcquisition: 'Radar',
+  devToolbox: 'Wrench',
 };
 
 export { getLightColor, getDarkColor } from './color';

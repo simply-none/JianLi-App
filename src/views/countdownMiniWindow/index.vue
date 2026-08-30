@@ -1,7 +1,7 @@
 <!--
   倒计时小窗（薄壳）：常驻浮动显示最临近结束的计时器。
   - 复用主页面的 useCountdown store（独立渲染进程，自行 load）。
-  - 复用 CountdownRing + formatRemaining，不重复造轮子。
+  - 复用 CountdownDisplay 展示（不依赖圆环，样式随全局 displayStyle 切换）。
   - 透明 frameless 窗口，mouseEvents:true 已开启（捕获态，可点可拖）。
   - 双击标题栏循环皮肤（data-skin），写回 window-mode:countdownMiniWindow 与主窗口设置页同步。
   - 不监听 finished 弹通知（由主窗口 App.vue 守卫 isSecondWindow 处理），仅刷新本地 rows。
@@ -14,21 +14,11 @@
     </div>
 
     <div v-if="displayRow" class="mini-body">
-      <div class="mini-ring">
-        <CountdownRing
-          :progress="progress"
-          :color="displayRow.color || 'var(--color-primary)'"
-          :size="ringSize"
-          :stroke="12"
-        />
-        <div class="mini-center">
-          <div class="mini-name">{{ displayRow.name }}</div>
-          <div class="mini-digits" :style="{ color: displayRow.color || 'var(--color-primary)' }">
-            {{ remainingText }}
-          </div>
-          <div class="mini-status">{{ statusLabel }}</div>
-        </div>
+      <div class="mini-name">{{ displayRow.name }}</div>
+      <div class="mini-display">
+        <CountdownDisplay :row="displayRow" />
       </div>
+      <div class="mini-status">{{ statusLabel }}</div>
 
       <div class="mini-controls">
         <button
@@ -57,13 +47,11 @@
 
 <script setup lang="ts">
 import { computed, onMounted } from "vue";
-import CountdownRing from "@/views/countdown/components/CountdownRing.vue";
+import CountdownDisplay from "@/views/countdown/components/CountdownDisplay.vue";
 import { useCountdown } from "@/store/useCountdown";
-import { useCountdownTimer, formatRemaining } from "@/views/countdown/composables/useCountdownTimer";
 import type { CountdownRow, CountdownStatus } from "@/views/countdown/types";
 
 const store = useCountdown();
-const { now } = useCountdownTimer();
 
 const STORE_KEY = "countdownMiniWindow";
 const themes = [
@@ -88,8 +76,6 @@ const displayRow = computed<CountdownRow | null>(() => {
   return store.rows[0] || null;
 });
 
-const ringSize = 200;
-
 const statusMap: Record<CountdownStatus, string> = {
   running: "进行中",
   paused: "已暂停",
@@ -100,25 +86,9 @@ const statusLabel = computed(() => {
   return s ? statusMap[s] : "";
 });
 
-const remainingMs = computed(() => {
-  const r = displayRow.value;
-  if (!r) return 0;
-  if (r.status === "paused") return r.paused_remaining;
-  if (r.status === "finished") return 0;
-  return Math.max(0, r.end_time - now.value);
-});
-
-const remainingText = computed(() => formatRemaining(remainingMs.value).text);
-
-const progress = computed(() => {
-  const r = displayRow.value;
-  if (!r || !r.duration) return 0;
-  return remainingMs.value / r.duration;
-});
-
 function onPause() {
   const r = displayRow.value;
-  if (r) store.pause(r.key, remainingMs.value);
+  if (r) store.pause(r.key, Math.max(0, r.end_time - Date.now()));
 }
 function onResume() {
   const r = displayRow.value;
@@ -182,7 +152,7 @@ onMounted(() => {
   width: 100%;
   height: 100%;
   box-sizing: border-box;
-  padding: 8px 10px;
+  padding: 10px 14px;
   display: flex;
   flex-direction: column;
   background: var(--skin-bg, rgba(255, 255, 255, 0.85));
@@ -190,7 +160,7 @@ onMounted(() => {
   backdrop-filter: blur(10px);
   border: 1px solid var(--skin-border, transparent);
   color: var(--skin-text, var(--text-primary));
-  font-size: clamp(9px, 3vmin, 14px);
+  font-size: clamp(11px, 3.2vmin, 15px);
   overflow: hidden;
 }
 
@@ -201,7 +171,8 @@ onMounted(() => {
   -webkit-app-region: drag;
   cursor: move;
   user-select: none;
-  padding-bottom: 4px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--skin-border, var(--border-subtle));
 }
 
 .mini-title {
@@ -231,40 +202,23 @@ onMounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 14px;
-}
-
-.mini-ring {
-  position: relative;
-  width: 200px;
-  height: 200px;
-}
-
-.mini-center {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  -webkit-app-region: no-drag;
+  gap: 12px;
 }
 
 .mini-name {
-  max-width: 170px;
+  max-width: 90%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.95em;
+  font-size: 1em;
+  font-weight: 600;
   color: var(--skin-text-secondary, var(--text-secondary));
+  text-align: center;
 }
 
-.mini-digits {
-  font-size: 1.9em;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.5px;
+.mini-display {
+  width: 100%;
+  padding: 6px 4px;
 }
 
 .mini-status {
