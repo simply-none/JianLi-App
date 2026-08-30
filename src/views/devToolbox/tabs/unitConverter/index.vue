@@ -1,9 +1,11 @@
 <template>
   <div class="unit-converter">
-    <!-- 类别 Tabs -->
-    <el-tabs v-model="activeCat" class="cat-tabs" stretch>
-      <el-tab-pane v-for="cat in categories" :key="cat.id" :name="cat.id" :label="cat.label" />
-    </el-tabs>
+    <!-- 类别切换（通用 TopTabs 替代 el-tabs） -->
+    <TopTabs
+      :tabs="catTabs"
+      :model-value="activeCat"
+      @update:modelValue="(k: string | number) => (activeCat = k as string)"
+    />
 
     <!-- 转换主区 -->
     <div class="convert-main">
@@ -67,6 +69,7 @@
  * 支持长度/重量/温度/面积/体积，纯前端，localStorage 存历史
  */
 import { ref, computed, watch, reactive } from 'vue';
+import TopTabs, { type TopTabItem } from '@/components/TopTabs.vue';
 import { ArrowLeftRight, Trash2, Plus } from '@lucide/vue';
 
 // ============== 单位类别配置 ==============
@@ -148,6 +151,8 @@ const categories: CategoryDef[] = [
 
 // ============== 状态 ==============
 const activeCat = ref('length');
+/** 类别 Tab 数据源：复用 categories 的 id/label（纯文字，不强配色，回退主题主色） */
+const catTabs: TopTabItem[] = categories.map(c => ({ key: c.id, label: c.label }));
 const inputValue = ref<number | null>(1);
 const outputValue = ref<number | null>(null);
 const fromUnit = ref('m');
@@ -250,13 +255,23 @@ function formatResult(n: number): string {
 </script>
 
 <style lang="scss" scoped>
-.unit-converter { display: flex; flex-direction: column; gap: 14px; }
-.cat-tabs { flex-shrink: 0; }
+/* 根撑满内容区，各区块纵向排列 */
+.unit-converter {
+  display: flex; flex-direction: column; gap: 14px;
+  height: 100%; min-height: 0;
+}
 
+/* 内嵌 TopTabs 与下方面板的间距（覆盖通用组件的默认 margin-bottom） */
+.unit-converter :deep(.top-tabs) { margin-bottom: 0; flex-shrink: 0; }
+
+/* 转换主区：渐变强调卡片 */
 .convert-main {
   display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center;
-  padding: 16px; background: linear-gradient(135deg, var(--el-color-primary-light-9), var(--el-fill-color-light));
-  border-radius: 10px;
+  padding: 16px;
+  background: linear-gradient(135deg, var(--el-color-primary-light-9), var(--bg-base, var(--el-fill-color-light)));
+  border: 1px solid var(--border-subtle, var(--el-border-color-lighter));
+  border-radius: var(--radius-btn, 10px);
+  flex-shrink: 0;
 }
 .convert-row { display: flex; gap: 8px; }
 .num-input { flex: 1; }
@@ -266,31 +281,61 @@ function formatResult(n: number): string {
 .unit-select { width: 140px; }
 .swap-btn { align-self: center; }
 
+/* 精度与快捷操作：浅底圆角条 */
 .options-bar {
   display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
-  padding: 10px 14px; background: var(--el-fill-color-light); border-radius: 8px;
+  padding: 10px 14px;
+  background: var(--bg-base, var(--el-fill-color-light));
+  border-radius: 8px;
+  flex-shrink: 0;
 }
 
+/* 快速换算表：统一卡片，弹性占满剩余高度 */
 .quick-table-wrap {
-  border: 1px solid var(--el-border-color-lighter); border-radius: 8px; padding: 12px 14px;
+  padding: 14px;
+  background: var(--bg-card, var(--el-bg-color));
+  border: 1px solid var(--border-subtle, var(--el-border-color-lighter));
+  border-radius: var(--radius-btn, 10px);
+  box-shadow: var(--shadow-card, none);
+  display: flex; flex-direction: column; gap: 10px;
+  flex: 1; min-height: 0;
 }
-.quick-header { font-size: 12px; color: var(--el-text-color-secondary); margin-bottom: 10px; font-weight: 500; }
-.quick-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+.quick-header {
+  font-size: 12px; color: var(--text-secondary, var(--el-text-color-secondary));
+  font-weight: 500; flex-shrink: 0;
+}
+/* 单位网格：尽量占满高度，超出内部滚动 */
+.quick-list {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-auto-rows: min-content; gap: 8px;
+  flex: 1; min-height: 0; align-content: flex-start;
+  overflow: auto;
+}
 .quick-item {
   display: flex; flex-direction: column; padding: 8px 10px;
-  background: var(--el-fill-color-light); border-radius: 6px;
+  background: var(--bg-base, var(--el-fill-color-light));
+  border-radius: 6px;
 }
-.q-val { font-family: Consolas, monospace; font-weight: 600; color: var(--el-color-primary); font-size: 14px; }
-.q-unit { font-size: 12px; color: var(--el-text-color-secondary); margin-top: 2px; }
+.q-val {
+  font-family: Consolas, monospace; font-weight: 600;
+  color: var(--color-primary, var(--el-color-primary));
+  font-size: 14px;
+}
+.q-unit { font-size: 12px; color: var(--text-secondary, var(--el-text-color-secondary)); margin-top: 2px; }
 .q-symbol { opacity: 0.7; }
 
-.history-wrap { border-top: 1px solid var(--el-border-color-lighter); padding-top: 12px; }
-.section-header { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--el-text-color-secondary); }
+.history-wrap { border-top: 1px solid var(--border-subtle, var(--el-border-color-lighter)); padding-top: 12px; flex-shrink: 0; }
+.section-header {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 13px; color: var(--text-secondary, var(--el-text-color-secondary));
+}
 .history-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
 .history-item {
-  padding: 8px 12px; background: var(--el-fill-color-light); border-radius: 6px;
+  padding: 8px 12px;
+  background: var(--bg-base, var(--el-fill-color-light));
+  border-radius: 6px;
   cursor: pointer; font-size: 13px; font-family: Consolas, monospace;
   transition: background 0.15s;
-  &:hover { background: var(--el-color-primary-light-9); color: var(--el-color-primary); }
+  &:hover { background: var(--el-color-primary-light-9); color: var(--color-primary, var(--el-color-primary)); }
 }
 </style>

@@ -1,13 +1,11 @@
 <template>
   <div class="date-calculator">
-    <!-- 子 Tab -->
-    <el-tabs v-model="subTab" class="sub-tabs" stretch>
-      <el-tab-pane label="日期差" name="diff" />
-      <el-tab-pane label="日期加减" name="offset" />
-      <el-tab-pane label="工作日" name="workday" />
-      <el-tab-pane label="倒计时" name="countdown" />
-      <el-tab-pane label="时间戳" name="ts" />
-    </el-tabs>
+    <!-- 子工具切换（通用 TopTabs 替代 el-tabs） -->
+    <TopTabs
+      :tabs="subTabs"
+      :model-value="subTab"
+      @update:modelValue="(k: string | number) => (subTab = k as 'diff' | 'offset' | 'workday' | 'countdown' | 'ts')"
+    />
 
     <!-- 日期差 -->
     <div v-show="subTab === 'diff'" class="panel">
@@ -117,8 +115,17 @@
  */
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import moment from 'moment';
+import TopTabs, { type TopTabItem } from '@/components/TopTabs.vue';
 import { ArrowLeftRight } from '@lucide/vue';
 
+/** 子工具 Tab 数据源（纯文字，不强配色，回退主题主色） */
+const subTabs: TopTabItem[] = [
+  { key: 'diff', label: '日期差' },
+  { key: 'offset', label: '日期加减' },
+  { key: 'workday', label: '工作日' },
+  { key: 'countdown', label: '倒计时' },
+  { key: 'ts', label: '时间戳' },
+];
 const subTab = ref<'diff' | 'offset' | 'workday' | 'countdown' | 'ts'>('diff');
 
 // ================ 日期差 ================
@@ -260,49 +267,83 @@ function fillNowMs() { fillNow(); }
 </script>
 
 <style lang="scss" scoped>
-.date-calculator { display: flex; flex-direction: column; gap: 12px; }
-.sub-tabs { flex-shrink: 0; }
+/* 根撑满内容区，面板弹性占满剩余高度 */
+.date-calculator {
+  display: flex; flex-direction: column; gap: 14px;
+  height: 100%; min-height: 0;
+}
+
+/* 内嵌 TopTabs 与下方面板的间距（覆盖通用组件的默认 margin-bottom） */
+.date-calculator :deep(.top-tabs) { margin-bottom: 0; flex-shrink: 0; }
+
+/* 统一工具卡片：flex:1 撑满剩余高度 */
 .panel {
-  padding: 14px; border: 1px solid var(--el-border-color-lighter); border-radius: 8px;
-  display: flex; flex-direction: column; gap: 12px;
+  padding: 16px;
+  background: var(--bg-card, var(--el-bg-color));
+  border: 1px solid var(--border-subtle, var(--el-border-color-lighter));
+  border-radius: var(--radius-btn, 10px);
+  box-shadow: var(--shadow-card, none);
+  display: flex; flex-direction: column; gap: 14px;
+  flex: 1; min-height: 0;
 }
 .input-row {
   display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  flex-shrink: 0;
 }
-.icon-arrow { color: var(--el-text-color-secondary); }
+.icon-arrow { color: var(--text-secondary, var(--el-text-color-secondary)); }
 
-.result-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+/* 结果卡片网格：填充剩余高度并居中展示 */
+.result-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px;
+  flex: 1; min-height: 0; align-content: center;
+}
 .result-card {
-  background: var(--el-fill-color-light); border-radius: 8px; padding: 12px 14px;
+  background: var(--bg-base, var(--el-fill-color-light));
+  border-radius: 8px; padding: 16px 14px;
   display: flex; flex-direction: column; gap: 4px;
 }
-.res-label { font-size: 12px; color: var(--el-text-color-secondary); }
-.res-value { font-size: 20px; font-weight: 600; font-family: Consolas, monospace; color: var(--el-color-primary); }
+.res-label { font-size: 12px; color: var(--text-secondary, var(--el-text-color-secondary)); }
+.res-value {
+  font-size: 20px; font-weight: 600;
+  font-family: Consolas, monospace;
+  color: var(--color-primary, var(--el-color-primary));
+}
 
 .offset-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
 .offset-item { display: flex; flex-direction: column; gap: 4px; }
-.o-label { font-size: 12px; color: var(--el-text-color-secondary); }
+.o-label { font-size: 12px; color: var(--text-secondary, var(--el-text-color-secondary)); }
 
 .result-box {
-  background: var(--el-fill-color-light); border-radius: 8px; padding: 12px 14px;
+  background: var(--bg-base, var(--el-fill-color-light));
+  border-radius: 8px; padding: 12px 14px;
   display: flex; flex-direction: column; gap: 6px; font-size: 13px;
 }
 .r-line { display: flex; gap: 10px; }
-.r-value { color: var(--el-color-primary); font-family: Consolas, monospace; }
+.r-value { color: var(--color-primary, var(--el-color-primary)); font-family: Consolas, monospace; }
 
+/* 倒计时：大数字居中放大，占满面板剩余空间 */
 .countdown-display {
   display: flex; align-items: center; gap: 6px; justify-content: center;
-  padding: 24px; background: linear-gradient(135deg, var(--el-color-primary-light-9), var(--el-fill-color-light));
+  flex: 1; min-height: 0;
+  padding: 24px;
+  background: linear-gradient(135deg, var(--el-color-primary-light-9), var(--bg-base, var(--el-fill-color-light)));
   border-radius: 10px;
 }
 .cd-block {
   display: flex; flex-direction: column; align-items: center;
-  background: var(--el-bg-color); border-radius: 8px; padding: 12px 16px; min-width: 70px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  background: var(--bg-card, var(--el-bg-color));
+  border: 1px solid var(--border-subtle, var(--el-border-color-lighter));
+  border-radius: 8px; padding: 16px 20px; min-width: 76px;
+  box-shadow: var(--shadow-card, 0 2px 8px rgba(0,0,0,0.06));
 }
-.cd-num { font-size: 36px; font-weight: 700; font-family: Consolas, monospace; color: var(--el-color-primary); line-height: 1; }
-.cd-unit { font-size: 12px; color: var(--el-text-color-secondary); margin-top: 4px; }
-.cd-sep { font-size: 28px; font-weight: 700; color: var(--el-text-color-secondary); }
+.cd-num {
+  font-size: 36px; font-weight: 700;
+  font-family: Consolas, monospace;
+  color: var(--color-primary, var(--el-color-primary));
+  line-height: 1;
+}
+.cd-unit { font-size: 12px; color: var(--text-secondary, var(--el-text-color-secondary)); margin-top: 4px; }
+.cd-sep { font-size: 28px; font-weight: 700; color: var(--text-secondary, var(--el-text-color-secondary)); }
 
 .ts-row { display: grid; grid-template-columns: 100px 1fr; gap: 10px; align-items: center; }
 .ts-row.actions { grid-template-columns: 1fr; justify-content: flex-start; }

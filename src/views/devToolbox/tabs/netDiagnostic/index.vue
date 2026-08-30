@@ -13,13 +13,12 @@
       </el-select>
     </div>
 
-    <!-- 子 Tab -->
-    <el-tabs v-model="activeSub" class="net-tabs" stretch>
-      <el-tab-pane label="Ping" name="ping" />
-      <el-tab-pane label="Traceroute" name="trace" />
-      <el-tab-pane label="DNS 查询" name="dns" />
-      <el-tab-pane label="端口检测" name="port" />
-    </el-tabs>
+    <!-- 子工具切换（通用 TopTabs 替代 el-tabs） -->
+    <TopTabs
+      :tabs="subTabs"
+      :model-value="activeSub"
+      @update:modelValue="(k: string | number) => (activeSub = k as 'ping' | 'trace' | 'dns' | 'port')"
+    />
 
     <!-- Ping -->
     <div v-show="activeSub === 'ping'" class="diag-panel">
@@ -113,12 +112,20 @@
  */
 import { ref, onUnmounted, computed } from 'vue';
 import { ElMessage } from 'element-plus';
+import TopTabs, { type TopTabItem } from '@/components/TopTabs.vue';
 import { Play, Square, Trash2 } from '@lucide/vue';
 import { PORT_SERVICES } from '../../shared/types';
 import TerminalOutput from './components/TerminalOutput.vue';
 
 const host = ref('');
 const preset = ref('');
+/** 子工具 Tab 数据源（纯文字，不强配色，回退主题主色） */
+const subTabs: TopTabItem[] = [
+  { key: 'ping', label: 'Ping' },
+  { key: 'trace', label: 'Traceroute' },
+  { key: 'dns', label: 'DNS 查询' },
+  { key: 'port', label: '端口检测' },
+];
 const activeSub = ref<'ping' | 'trace' | 'dns' | 'port'>('ping');
 const running = ref(false);
 const currentTaskId = ref('');
@@ -288,32 +295,80 @@ onUnmounted(() => { cancelCurrent(); });
 </script>
 
 <style lang="scss" scoped>
-.net-diagnostic { display: flex; flex-direction: column; gap: 12px; }
-.target-bar { display: flex; gap: 10px; align-items: center; }
-.host-input { flex: 1; }
-.net-tabs { flex-shrink: 0; }
+/* 根撑满内容区，面板弹性占满剩余高度 */
+.net-diagnostic {
+  display: flex; flex-direction: column; gap: 14px;
+  height: 100%; min-height: 0;
+}
 
-.diag-panel { display: flex; flex-direction: column; gap: 10px; }
+/* 内嵌 TopTabs 与下方面板的间距（覆盖通用组件的默认 margin-bottom） */
+.net-diagnostic :deep(.top-tabs) { margin-bottom: 0; flex-shrink: 0; }
+
+/* 目标输入条：统一卡片 */
+.target-bar {
+  display: flex; gap: 10px; align-items: center;
+  padding: 12px 14px;
+  background: var(--bg-card, var(--el-bg-color));
+  border: 1px solid var(--border-subtle, var(--el-border-color-lighter));
+  border-radius: var(--radius-btn, 10px);
+  box-shadow: var(--shadow-card, none);
+  flex-shrink: 0;
+}
+.host-input { flex: 1; }
+
+/* 诊断面板：撑满剩余高度，内部纵向排列 */
+.diag-panel {
+  display: flex; flex-direction: column; gap: 12px;
+  flex: 1; min-height: 0;
+}
+/* 操作行：浅底圆角条 */
 .options-row {
   display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
-  padding: 10px 14px; background: var(--el-fill-color-light); border-radius: 8px;
+  padding: 10px 14px;
+  background: var(--bg-base, var(--el-fill-color-light));
+  border-radius: 8px;
+  flex-shrink: 0;
 }
 
 .stats-bar {
   font-size: 13px; font-family: Consolas, monospace;
-  padding: 6px 12px; background: var(--el-fill-color-lighter); border-radius: 6px;
-  display: flex; gap: 12px; color: var(--el-text-color-regular);
+  padding: 6px 12px;
+  background: var(--bg-base, var(--el-fill-color-lighter));
+  border-radius: 6px;
+  display: flex; gap: 12px;
+  color: var(--text-secondary, var(--el-text-color-regular));
+  flex-shrink: 0;
 }
 .high-latency { color: #e6a23c; }
 .timeout { color: #f56c6c; }
 
-.dns-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
-.dns-block { border: 1px solid var(--el-border-color-lighter); border-radius: 8px; overflow: hidden; }
-.dns-type { background: var(--el-color-primary-light-9); padding: 6px 12px; font-weight: 600; font-size: 13px; color: var(--el-color-primary); }
-.dns-value { margin: 0; padding: 10px 12px; font-size: 12px; font-family: Consolas, monospace; white-space: pre-wrap; word-break: break-all; max-height: 160px; overflow: auto; }
+/* DNS 结果网格：撑满剩余并内部滚动 */
+.dns-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px;
+  flex: 1; min-height: 0; align-content: flex-start;
+  overflow: auto;
+}
+.dns-block {
+  border: 1px solid var(--border-subtle, var(--el-border-color-lighter));
+  border-radius: 8px; overflow: hidden;
+  background: var(--bg-card, var(--el-bg-color));
+}
+.dns-type {
+  background: var(--el-color-primary-light-9);
+  padding: 6px 12px; font-weight: 600; font-size: 13px;
+  color: var(--color-primary, var(--el-color-primary));
+}
+.dns-value {
+  margin: 0; padding: 10px 12px; font-size: 12px;
+  font-family: Consolas, monospace;
+  white-space: pre-wrap; word-break: break-all;
+  max-height: 160px; overflow: auto;
+}
 
 .service-tag {
   font-family: Consolas, monospace; font-size: 12px;
-  padding: 1px 6px; background: var(--el-fill-color-lighter); border-radius: 3px;
+  padding: 1px 6px;
+  background: var(--bg-base, var(--el-fill-color-lighter));
+  border-radius: 3px;
 }
 </style>

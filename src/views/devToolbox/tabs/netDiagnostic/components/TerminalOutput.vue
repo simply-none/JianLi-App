@@ -36,6 +36,9 @@ async function onCopy() {
 <style lang="scss" scoped>
 .terminal-output {
   border-radius: 8px; overflow: hidden; border: 1px solid #2d2d2d;
+  /* 弹性占满所在面板的剩余高度，终端始终铺满可用空间 */
+  display: flex; flex-direction: column;
+  flex: 1; min-height: 120px;
 }
 .terminal-toolbar {
   display: flex; align-items: center; gap: 6px;
@@ -51,7 +54,9 @@ async function onCopy() {
 .terminal-body {
   background: #1e1e1e; color: #d4d4d4;
   padding: 12px; font-family: Consolas, 'Courier New', monospace; font-size: 13px;
-  line-height: 1.55; min-height: 120px; max-height: 360px; overflow: auto;
+  line-height: 1.55;
+  flex: 1; min-height: 0; max-height: none;
+  overflow: auto;
   white-space: pre-wrap; word-break: break-all;
 }
 </style>

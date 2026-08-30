@@ -43,8 +43,9 @@
       <el-input
         v-model="testString"
         type="textarea"
-        :autosize="{ minRows: 5, maxRows: 15 }"
+        :rows="6"
         placeholder="输入待匹配的文本..."
+        class="test-textarea"
         @input="triggerTest"
       />
     </div>
@@ -224,37 +225,64 @@ function escapeHtml(s: string): string {
 </script>
 
 <style lang="scss" scoped>
-.regex-tester { display: flex; flex-direction: column; gap: 12px; }
+/* 根撑满内容区，各区块纵向排列，测试字符串区弹性占满 */
+.regex-tester {
+  display: flex; flex-direction: column; gap: 14px;
+  height: 100%; min-height: 0;
+}
 
+/* 正则输入行：统一主操作卡片 */
 .regex-input-row {
   display: flex; flex-direction: column; gap: 10px;
-  padding: 12px 14px; background: var(--el-fill-color-light); border-radius: 8px;
+  padding: 14px 16px;
+  background: var(--bg-card, var(--el-bg-color));
+  border: 1px solid var(--border-subtle, var(--el-border-color-lighter));
+  border-radius: var(--radius-btn, 10px);
+  box-shadow: var(--shadow-card, none);
 }
 .pattern-wrap {
   display: grid; grid-template-columns: 20px 1fr 20px 120px; gap: 6px; align-items: center;
 }
-.pattern-slash { font-family: Consolas, monospace; font-weight: 700; color: var(--el-color-primary); font-size: 18px; }
+.pattern-slash { font-family: Consolas, monospace; font-weight: 700; color: var(--color-primary, var(--el-color-primary)); font-size: 18px; }
 .pattern-input :deep(.el-input__inner) { font-family: Consolas, monospace; font-size: 14px; }
 .flags-input :deep(.el-input__inner) { font-family: Consolas, monospace; font-weight: 600; }
 .flags-checks { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .actions { display: flex; gap: 8px; justify-content: flex-end; }
 
 .template-row { display: flex; align-items: center; gap: 10px; }
-.label { color: var(--el-text-color-secondary); font-size: 13px; }
+.label { color: var(--text-secondary, var(--el-text-color-secondary)); font-size: 13px; }
 
+/* 信息区块：浅底内卡 */
 .test-string-wrap, .highlight-wrap, .groups-wrap {
-  border: 1px solid var(--el-border-color-lighter); border-radius: 8px; padding: 10px 14px;
+  padding: 12px 14px;
+  background: var(--bg-base, var(--el-fill-color-light));
+  border: 1px solid var(--border-subtle, var(--el-border-color-lighter));
+  border-radius: 8px;
 }
 .section-header {
   display: flex; justify-content: space-between; align-items: center;
-  font-size: 12px; color: var(--el-text-color-secondary); margin-bottom: 6px; font-weight: 500;
+  font-size: 12px; color: var(--text-secondary, var(--el-text-color-secondary));
+  margin-bottom: 8px; font-weight: 500;
 }
 .char-count, .match-count { font-family: Consolas, monospace; }
+
+/* 测试字符串：弹性占满剩余高度 */
+.test-string-wrap {
+  flex: 1; min-height: 160px;
+  display: flex; flex-direction: column;
+}
+.test-textarea { flex: 1; min-height: 0; }
+.test-textarea :deep(.el-textarea) { height: 100%; }
+.test-textarea :deep(.el-textarea__inner) {
+  height: 100% !important; resize: none;
+  font-family: Consolas, monospace; font-size: 13px; line-height: 1.6;
+}
 
 .highlight-body {
   white-space: pre-wrap; word-break: break-word;
   font-family: Consolas, monospace; font-size: 13px; line-height: 1.6;
-  background: var(--el-fill-color-lighter); padding: 10px; border-radius: 6px;
+  background: var(--bg-card, var(--el-bg-color));
+  padding: 10px; border-radius: 6px;
   max-height: 300px; overflow: auto;
 }
 
@@ -269,10 +297,11 @@ function escapeHtml(s: string): string {
 :deep(.match-7) { background: #ffa39e; }
 
 .group-code {
-  background: var(--el-fill-color-lighter); padding: 1px 5px; border-radius: 3px;
+  background: var(--bg-base, var(--el-fill-color-lighter));
+  padding: 1px 5px; border-radius: 3px;
   font-family: Consolas, monospace; font-size: 12px;
 }
 .group-nested { display: flex; flex-direction: column; gap: 4px; }
 .group-item { display: flex; gap: 6px; align-items: center; font-size: 12px; }
-.g-name { color: var(--el-color-primary); min-width: 48px; }
+.g-name { color: var(--color-primary, var(--el-color-primary)); min-width: 48px; }
 </style>

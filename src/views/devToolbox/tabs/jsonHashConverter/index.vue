@@ -1,14 +1,14 @@
 <template>
   <div class="json-hash-converter">
-    <!-- 子 Tab -->
-    <el-tabs v-model="subTab" class="sub-tabs" stretch>
-      <el-tab-pane label="JSON 格式化" name="json" />
-      <el-tab-pane label="Hash 计算" name="hash" />
-      <el-tab-pane label="编码转换" name="encode" />
-    </el-tabs>
+    <!-- 子工具切换（通用 TopTabs 替代 el-tabs） -->
+    <TopTabs
+      :tabs="subTabs"
+      :model-value="subTab"
+      @update:modelValue="(k: string | number) => (subTab = k as 'json' | 'hash' | 'encode')"
+    />
 
     <!-- JSON 格式化 -->
-    <div v-show="subTab === 'json'" class="panel">
+    <div v-show="subTab === 'json'" class="panel json-panel">
       <div class="toolbar">
         <el-radio-group v-model="indentSize" size="small">
           <el-radio-button :value="2">2 空格</el-radio-button>
@@ -34,7 +34,7 @@
           <el-input
             v-model="inputText"
             type="textarea"
-            :autosize="{ minRows: 12, maxRows: 30 }"
+            :rows="12"
             placeholder="输入 JSON 字符串..."
             class="json-editor"
           />
@@ -44,7 +44,7 @@
           <el-input
             v-model="resultText"
             type="textarea"
-            :autosize="{ minRows: 12, maxRows: 30 }"
+            :rows="12"
             readonly
             class="json-editor result"
           />
@@ -53,12 +53,12 @@
     </div>
 
     <!-- Hash 计算 -->
-    <div v-show="subTab === 'hash'" class="panel">
+    <div v-show="subTab === 'hash'" class="panel hash-panel">
       <div class="hash-input">
         <el-input
           v-model="hashInput"
           type="textarea"
-          :autosize="{ minRows: 4, maxRows: 12 }"
+          :rows="8"
           placeholder="输入待计算哈希的文本..."
         />
         <div class="hash-options">
@@ -114,10 +114,12 @@
 
 <script setup lang="ts">
 /**
- * JSON/Hash/编码 工具箱 - Tab1 子组件
+ * JSON/Hash/编码 工具箱 - 三个子工具用通用 TopTabs 切换
+ * 统一卡片化视觉：面板使用主题变量 --bg-card / --border-subtle / --radius-btn / --shadow-card
  */
 import { ref, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
+import TopTabs, { type TopTabItem } from '@/components/TopTabs.vue';
 import {
   Wand2, Minimize2, Lock, Unlock, CircleCheck, ArrowLeftRight,
   Clipboard, Play, ArrowRight, ArrowLeft,
@@ -126,8 +128,14 @@ import { computeHash } from '../../shared/hash';
 import type { HashAlgorithm } from '../../shared/types';
 import { writeClipboard } from '../../shared/clipboard';
 
-// ==================== 子 Tab ====================
+// ==================== 子工具 Tab ====================
 const subTab = ref<'json' | 'hash' | 'encode'>('json');
+/** 子工具 Tab 数据源（纯文字，不强配色，回退主题主色） */
+const subTabs: TopTabItem[] = [
+  { key: 'json', label: 'JSON 格式化' },
+  { key: 'hash', label: 'Hash 计算' },
+  { key: 'encode', label: '编码转换' },
+];
 
 // ==================== JSON 格式化 ====================
 const inputText = ref('');
@@ -358,40 +366,78 @@ function clearEncode() {
 </script>
 
 <style lang="scss" scoped>
-.json-hash-converter { display: flex; flex-direction: column; gap: 12px; }
-.sub-tabs { flex-shrink: 0; }
+/* 根撑满内容区（toolbox-content 的剩余高度），内嵌 TopTabs + 面板纵向排列 */
+.json-hash-converter {
+  display: flex; flex-direction: column; gap: 14px;
+  height: 100%; min-height: 0;
+}
 
-.panel { display: flex; flex-direction: column; gap: 12px; }
+/* 内嵌 TopTabs 与下方面板的间距（覆盖通用组件的默认 margin-bottom） */
+.json-hash-converter :deep(.top-tabs) { margin-bottom: 0; }
+
+/* 统一工具卡片：flex:1 撑满剩余高度，避免内容挤在顶部 */
+.panel {
+  display: flex; flex-direction: column; gap: 14px;
+  flex: 1; min-height: 0;
+  padding: 16px;
+  background: var(--bg-card, var(--el-bg-color));
+  border: 1px solid var(--border-subtle, var(--el-border-color-lighter));
+  border-radius: var(--radius-btn, 10px);
+  box-shadow: var(--shadow-card, none);
+}
+
+/* 工具栏：浅底圆角条 */
 .toolbar {
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-  padding: 10px 14px; background: var(--el-fill-color-light); border-radius: 8px;
+  padding: 10px 14px;
+  background: var(--bg-base, var(--el-fill-color-light));
+  border-radius: 8px;
 }
 .btn-group { display: flex; gap: 6px; flex-wrap: wrap; }
 
-.editor-split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.editor-item { display: flex; flex-direction: column; gap: 6px; }
-.editor-label { font-size: 12px; color: var(--el-text-color-secondary); font-weight: 500; }
-.json-editor :deep(textarea) {
-  font-family: Consolas, 'Courier New', monospace; font-size: 13px; line-height: 1.5;
+/* JSON 编辑器对：弹性占满剩余高度 */
+.editor-split {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  flex: 1; min-height: 0;
 }
-.json-editor.result :deep(textarea) { background: var(--el-fill-color-lighter); }
+.editor-item { display: flex; flex-direction: column; gap: 6px; flex: 1; min-height: 0; }
+.editor-label { font-size: 12px; color: var(--text-secondary, var(--el-text-color-secondary)); font-weight: 500; flex-shrink: 0; }
+.json-editor { flex: 1; min-height: 0; }
+.json-editor :deep(.el-textarea) { height: 100%; }
+.json-editor :deep(.el-textarea__inner) {
+  height: 100% !important;
+  font-family: Consolas, 'Courier New', monospace; font-size: 13px; line-height: 1.5;
+  resize: none;
+}
+.json-editor.result :deep(.el-textarea__inner) { background: var(--bg-base, var(--el-fill-color-lighter)); }
 
-.hash-input { display: flex; flex-direction: column; gap: 10px; }
+/* Hash 子页：输入区撑满 */
+.hash-panel { min-height: 0; }
+.hash-input { display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 0; }
+.hash-input :deep(.el-textarea) { flex: 1; min-height: 0; }
+.hash-input :deep(.el-textarea__inner) {
+  height: 100% !important; resize: none;
+  font-family: Consolas, 'Courier New', monospace; font-size: 13px;
+}
 .hash-options {
   display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
-  padding: 10px 14px; background: var(--el-fill-color-light); border-radius: 8px;
+  padding: 10px 14px;
+  background: var(--bg-base, var(--el-fill-color-light));
+  border-radius: 8px;
 }
 .hmac-row { display: flex; align-items: center; gap: 8px; }
 
 .hash-results { display: flex; flex-direction: column; gap: 8px; }
 .hash-row { display: grid; grid-template-columns: 100px 1fr auto; gap: 8px; align-items: center; }
-.hash-algo { font-family: Consolas, monospace; font-weight: 600; color: var(--el-color-primary); }
+.hash-algo { font-family: Consolas, monospace; font-weight: 600; color: var(--color-primary, var(--el-color-primary)); }
 
 .encode-input-row { display: flex; flex-direction: column; gap: 10px; }
 .encode-results { display: flex; flex-direction: column; gap: 8px; }
 .encode-row {
   display: grid; grid-template-columns: 100px 1fr auto auto; gap: 8px; align-items: center;
-  padding: 6px 10px; background: var(--el-fill-color-light); border-radius: 6px;
+  padding: 6px 10px;
+  background: var(--bg-base, var(--el-fill-color-light));
+  border-radius: 6px;
 }
 .encode-label { font-weight: 500; font-size: 13px; }
 
