@@ -2,7 +2,13 @@
 
 ## 两套数据层并存
 - **新层** `electron/main/module/newSql.ts`：业务表首选。封装 `query` / `count` / `insert` / `upsert` / `update` / `delete` / `transaction` 等。
-- **旧层** `electron/main/module/sql.ts`：`myDb` / `queryByConditions` / `upsertData`，小窗位置等基础配置（`basic_info` 表）仍走它。**新增业务不要再用旧层**。
+- **旧层** `electron/main/module/sql.ts`：`myDb` / `queryByConditions` / `upsertData`，通道 `query-data`/`set-data`/`delete-data` **渲染端已弃用**（2026-08-30 完成迁移，仅保留注册供 `basic_info`/`clipboard_history` 建表兜底与主进程内部使用）。**新增业务严禁再用旧层**。
+
+## 新旧层查询语义差异（迁移易踩）
+- 旧层：`whereStr` / `limit` / `offset` / `orderBy` / `orderByDesc` 全塞在 `conditions` 里。
+- 新层 `new-sql:query`：这些参数必须放**顶层 options**；塞在 `conditions` 里会被静默忽略或当等值过滤。
+- 写入：旧 `set-data` payload 与 `new-sql:upsert` 完全同构（`{tableName, data, config:{primaryKey}}`），可直接换通道名。
+- 删除：旧 `delete-data` payload 与 `new-sql:delete` 完全同构（`{tableName, condition}`）。
 
 ## 读写红线（务必遵守）
 - 读业务表：走 `new-sql:query`，`conditions.SqlStr` 直传 SQL，返回兼容 `{data|rows}`。

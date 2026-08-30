@@ -141,7 +141,8 @@ async function handleDelete(note) {
       type: 'warning'
     });
 
-    const result = await window.ipcRenderer.handlePromise('delete-data', {
+    // newSql 删除：按 key 等值条件删除
+    const result = await window.ipcRenderer.handlePromise('new-sql:delete', {
       tableName: 'note_book',
       condition: {
         key: note.key

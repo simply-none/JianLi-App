@@ -209,13 +209,12 @@ const updateNodes = (nodes: ObjectType[]) => {
 }
 
 onMounted(() => {
-  window.ipcRenderer.handlePromise('query-data', {
+  // newSql 查询：limit/orderBy 需放顶层（conditions 内只放等值过滤）
+  window.ipcRenderer.handlePromise('new-sql:query', {
     tableName: 'flow',
-    conditions: {
-      limit: 1,
-      orderBy: 'id',
-      orderByDesc: true
-    }
+    limit: 1,
+    orderBy: 'id',
+    orderByDesc: true
   }).then(result => {
     if (result.success) {
       console.log(result.data, 'result.data')

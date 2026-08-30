@@ -123,7 +123,8 @@ const curstatusLabel = ref('新内容')
 
 const options = ref({
   onSave: async (content, page, document) => {
-    window.ipcRenderer.handlePromise('set-data', {
+    // newSql 写入：主键冲突即更新（upsert）
+    window.ipcRenderer.handlePromise('new-sql:upsert', {
       tableName: 'note_book',
       data: {
         ...curNote.value,
@@ -159,7 +160,8 @@ async function saveNoteBook() {
     return false;
   }
   let content = editorRef.value.getContent('html');
-  window.ipcRenderer.handlePromise('set-data', {
+  // newSql 写入：主键冲突即更新（upsert）
+  window.ipcRenderer.handlePromise('new-sql:upsert', {
     tableName: 'note_book',
     data: {
       ...curNote.value,
@@ -395,7 +397,8 @@ function showContent(row) {
 }
 
 function deleteContent(row) {
-  window.ipcRenderer.handlePromise('delete-data', {
+  // newSql 删除：按 key 等值条件删除
+  window.ipcRenderer.handlePromise('new-sql:delete', {
     tableName: 'note_book',
     condition: {
       key: row.key,

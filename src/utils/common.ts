@@ -94,7 +94,17 @@ export function getWindowConfig(windowName: string): ObjectType {
   }
 }
 
-// sql
+/**
+ * 写入/更新业务表数据（newSql 数据层）
+ *
+ * 走 new-sql:upsert 通道：主键冲突时更新，否则插入。
+ * 表不存在时主进程会按 config.primaryKey 自动建表并补唯一索引。
+ *
+ * @param params.tableName 必填，目标表名
+ * @param params.data 必填，写入的数据对象（自动还原 Vue 代理）
+ * @param params.config 可选，{ primaryKey } 指定主键字段，默认 id
+ * @returns 成功返回主进程结果对象；失败返回 false
+ */
 export const setSqlData = async ({
   tableName,
   data,
@@ -106,7 +116,7 @@ export const setSqlData = async ({
 }) => {
   const curTime = moment().format('YYYY-MM-DD HH:mm:ss')
 
-  return window.ipcRenderer.handlePromise('set-data', {
+  return window.ipcRenderer.handlePromise('new-sql:upsert', {
     tableName: tableName,
     data: {
       ...toPlain(data),
@@ -119,16 +129,30 @@ export const setSqlData = async ({
   })
 }
 
+/**
+ * 查询业务表数据（newSql 数据层）
+ *
+ * 走 new-sql:query 通道。注意与旧 query-data 的差异：
+ * whereStr / orderBy / orderByDesc / limit / offset 必须放在顶层，
+ * conditions 里只放等值过滤字段。
+ *
+ * @param params.tableName 必填，目标表名
+ * @param params.conditions 可选，等值过滤条件对象 {字段:值}
+ * @param params.rest 可选，顶层查询选项（whereStr/orderBy/orderByDesc/limit/offset/SqlStr 等）
+ * @returns 成功返回 { success: true, data: 行数组 }；失败返回 []
+ */
 export const getSqlData = async ({
   tableName,
   conditions,
+  ...rest
 }: {
   tableName: string,
-  conditions: Object,
-}) => {
-  return window.ipcRenderer.handlePromise('query-data', {
+  conditions?: Object,
+} & Record<string, any>) => {
+  return window.ipcRenderer.handlePromise('new-sql:query', {
     tableName: tableName,
-    conditions: conditions,
+    conditions: toPlain(conditions),
+    ...toPlain(rest),
   }).catch(err => {
     console.error(err, 'getSqlData error')
     return []
@@ -159,6 +183,15 @@ export const deletePomodoroStatus = async (condition: Object) => {
   return res?.success === true
 }
 
+/**
+ * 删除业务表数据（newSql 数据层）
+ *
+ * 走 new-sql:delete 通道，按 condition 等值条件构造 WHERE 删除。
+ *
+ * @param params.tableName 必填，目标表名
+ * @param params.conditions 必填，删除条件对象 {字段:值}，不能为空
+ * @returns 成功返回主进程结果对象；失败返回 false
+ */
 export const deleteSqlData = async ({
   tableName,
   conditions,
@@ -166,9 +199,9 @@ export const deleteSqlData = async ({
   tableName: string,
   conditions: Object,
 }) => {
-  return window.ipcRenderer.handlePromise('delete-data', {
+  return window.ipcRenderer.handlePromise('new-sql:delete', {
     tableName: tableName,
-    condition: conditions,
+    condition: toPlain(conditions),
   }).catch(err => {
     console.error(err, 'deleteSqlData error')
     return false

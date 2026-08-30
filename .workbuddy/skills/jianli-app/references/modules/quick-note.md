@@ -1,7 +1,7 @@
 # 快速记录小窗 (quickNote)
 
 ## 职责
-常驻便签小窗：多笔记管理 + 4 种排版（minimal/glass/sidebar/classic）+ 皮肤切换，数据走通用 `query-data`/`set-data`（非 newSql 三件套），配置受小窗四件套纳管。
+常驻便签小窗：多笔记管理 + 4 种排版（minimal/glass/sidebar/classic）+ 皮肤切换，数据走 newSql 三件套，配置受小窗四件套纳管。
 
 ## 关键文件
 - 小窗：`src/views/quickNote/index.vue`（核心逻辑：加载/保存/关闭/鼠标穿透/皮肤循环）
@@ -11,8 +11,8 @@
 - `RouteNames.QUICK_NOTE` → `/quickNote`
 
 ## 用到的 IPC 通道
-- `query-data`（渲染→主，拉笔记列表，`index.vue:163`）
-- `set-data`（渲染→主，存笔记，`index.vue:228`，旧 data API 而非 newSql）
+- `new-sql:query`（渲染→主，拉笔记列表，`index.vue:164`；whereStr/limit/orderBy 放顶层）
+- `new-sql:upsert`（渲染→主，存笔记，`index.vue:228`，`config:{primaryKey:'key'}`）
 - `sync-data-to-other-window`（配置/数据变更广播，`:94`）
 - `close-new-window`(`quickNote`，`:139`)、`disable/enable-mouse-click-through`(`quickNote`，`:143/:147`)
 - `get-store` / `set-store`（读小窗配置 `window-mode:quickNote`）
@@ -23,6 +23,6 @@
 - **鼠标穿透控制**：`index.vue` 左右 `mouse-* click-through` 实现拖动/点击区分，常驻需 `mouseEvents:true`。
 
 ## 特有坑 / 注意
-- **用的是 `query-data`/`set-data` 旧通道**，不是 `new-sql:*` 三件套——这是项目早期的 data API，新增便签逻辑不要误改成 `new-sql`（除非确认已迁移）。
+- **已迁移 newSql 数据层**（2026-08-30）：原 `query-data`/`set-data` 旧通道已切到 `new-sql:query`/`new-sql:upsert`；注意新层 `whereStr`/`limit`/`orderBy` 必须放顶层 options，不能塞 `conditions`。
 - **小窗必须 `mouseEvents:true`**：`quickNote` 是常驻捕获态，config 缺该字段会进入穿透态（点不动）。
 - **皮肤/排版循环**：`cycleSkin`/`cycleLayout` 在本地维护 `currentSkin/currentLayout`，并通过 `sync-data-to-other-window` 广播，保持主窗口设置页与小窗一致。

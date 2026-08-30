@@ -256,7 +256,9 @@ async function fetchNotes(isLoadMore = false) {
   let sql = 'SELECT * FROM note_book';
 
   if (searchKeyword.value.trim()) {
-    sql += ` WHERE (mdText LIKE '%${searchKeyword.value}%' OR content LIKE '%${searchKeyword.value}%' OR html LIKE '%${searchKeyword.value}%' OR excerpt LIKE '%${searchKeyword.value}%')`;
+    // 用户自由输入的关键词：转义单引号，防止 SQL 注入/语法错误
+    const keyword = searchKeyword.value.trim().replace(/'/g, "''");
+    sql += ` WHERE (mdText LIKE '%${keyword}%' OR content LIKE '%${keyword}%' OR html LIKE '%${keyword}%' OR excerpt LIKE '%${keyword}%')`;
   }
 
   if (selectedFilterTags.value.length > 0) {
@@ -270,11 +272,10 @@ async function fetchNotes(isLoadMore = false) {
 
   sql += ` ORDER BY updateTime DESC LIMIT ${pageSize.value} OFFSET ${offset}`;
 
-  window.ipcRenderer.handlePromise('query-data', {
+  // newSql 查询：完整 SQL 放顶层 SqlStr
+  window.ipcRenderer.handlePromise('new-sql:query', {
     tableName: 'note_book',
-    conditions: {
-      SqlStr: sql,
-    }
+    SqlStr: sql,
   }).then(result => {
     console.log(performance.now(), '获取笔记耗时:')
     if (result.success) {
@@ -393,7 +394,8 @@ async function handleEditorSave(v, h) {
     updateTime: moment().format('YYYY-MM-DD HH:mm:ss'),
   };
 
-  window.ipcRenderer.handlePromise('set-data', {
+  // newSql 写入：主键冲突即更新（upsert）
+  window.ipcRenderer.handlePromise('new-sql:upsert', {
     tableName: 'note_book',
     data: noteData,
     config: {

@@ -162,7 +162,8 @@ async function handleSave(v, h) {
       updateTime: moment().format('YYYY-MM-DD HH:mm:ss'),
     };
 
-    window.ipcRenderer.handlePromise('set-data', {
+    // newSql 写入：主键冲突即更新（upsert）
+    window.ipcRenderer.handlePromise('new-sql:upsert', {
       tableName: 'note_book',
       data: noteData,
       config: {

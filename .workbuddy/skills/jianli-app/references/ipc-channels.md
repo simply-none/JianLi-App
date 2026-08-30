@@ -11,6 +11,7 @@
 | `new-sql:record-pomodoro` | 渲染→主 | 番茄钟记录写入 |
 | `new-sql:execute` | 渲染→主 | ❌ 危险，**禁用** |
 | `new-sql:explain` / `transaction` / `get-table-list` | 渲染→主 | 执行计划 / 事务 / 表列表 |
+| ~~`query-data` / `set-data` / `delete-data`~~ | 渲染→主 | **已弃用**（2026-08-30 渲染端全部迁移到 `new-sql:*` 三件套，主进程保留注册仅供 `basic_info`/`clipboard_history` 兜底与主进程内部使用，新代码禁用） |
 | `get-store` / `set-store` / `replace-store` / `clear-store` / `get-stort-all` | 双向 | electron-store 读写（注意 `get-stort-all` 疑似拼写错误） |
 
 ## 提醒引擎 newReminder

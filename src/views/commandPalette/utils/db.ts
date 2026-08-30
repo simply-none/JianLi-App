@@ -2,7 +2,7 @@
  * 命令面板的查询封装。
  *
  * 严格复用已有业务模块的查询通道，不再自创 SQL 通道：
- * - 笔记：复用「可归类的笔记」模块的 `query-data` 通道（conditions.SqlStr 直接塞 SQL），
+ * - 笔记：走 newSql 数据层 `new-sql:query` 通道（顶层 SqlStr 传完整 SQL），
  *         返回 result.data 即行数组。
  * - 待办：复用「待办」模块的 `new-sql:execute` 通道（sql + params + primaryKey），
  *         返回 result.data.rows。
@@ -21,12 +21,12 @@ function invoke<T = unknown>(channel: string, args: any): Promise<IpcResult<T>> 
   return (window as any).ipcRenderer.handlePromise(channel, args)
 }
 
-/** 笔记查询：走 query-data 通道，sql 内已含 LIKE/ORDER/LIMIT，返回行数组 */
+/** 笔记查询：走 new-sql:query 通道（顶层 SqlStr），sql 内已含 LIKE/ORDER/LIMIT，返回行数组 */
 export async function queryNoteRows<T = Record<string, any>>(sql: string): Promise<T[]> {
   try {
-    const result = await invoke<{ rows?: T[] } | T[]>('query-data', {
+    const result = await invoke<{ rows?: T[] } | T[]>('new-sql:query', {
       tableName: 'note_book',
-      conditions: { SqlStr: sql },
+      SqlStr: sql,
     })
     if (!result?.success) return []
     const data = (result as any).data

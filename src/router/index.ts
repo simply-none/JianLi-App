@@ -23,7 +23,6 @@ export const RouteNames = {
   REGISTER_SHORTCUT: "registerShortcut",
   SAFETY_PROTECTION: "safetyProtection",
   NET_REQUEST: "netRequest",
-  SQL_TEST: "sqlTest",
   HIGH_PERF_SQL: "highPerfSql",
   FLOW: "flow",
   FUNCTION: "function",
@@ -216,14 +215,6 @@ export const layoutRouters: RouteRecordRaw[] = [
     component: () => import("@/views/netRequest/index.vue"),
     meta: {
       title: "网络请求",
-    },
-  },
-  {
-    path: "/sqlTest",
-    name: RouteNames.SQL_TEST,
-    component: () => import("@/views/sqlTest/index.vue"),
-    meta: {
-      title: "数据库测试",
     },
   },
   {

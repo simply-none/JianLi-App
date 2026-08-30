@@ -95,6 +95,17 @@ async function createDBFile() {
   })
 }
 
+/**
+ * 初始化旧版数据层 IPC 通道（已弃用，渲染端请改用 newSql.ts 的 new-sql:* 三件套）
+ *
+ * ⚠️ 渲染端弃用说明：
+ * - query-data / set-data / delete-data 为项目早期透传通道，
+ *   业务表读写已统一迁移到 newSql.ts 的 new-sql:query / new-sql:upsert / new-sql:delete。
+ * - 通道本身保留注册：basic_info / clipboard_history 建表兜底及主进程内部模块仍依赖本文件，
+ *   贸然移除会破坏未排查到的历史调用。
+ * - 新代码一律走 newSql 数据层；旧层语义差异（whereStr/limit/orderBy 放 conditions 内）
+ *   见 skill 文档 references/data-layer.md。
+ */
 export function initSqliteFn(dbName, isDefault = false) {
   // 初始化表结构，不然打不开
   isDefault && initTable(dbName)

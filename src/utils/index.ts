@@ -146,7 +146,6 @@ export const iconMap: Record<string, string> = {
   registerShortcut: 'Lightbulb',
   safetyProtection: 'Lock',
   netRequest: 'MapPin',
-  sqlTest: 'Database',
   highPerfSql: 'Database',
   flow: 'Share2',
   function: 'Wrench',

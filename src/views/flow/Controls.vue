@@ -46,7 +46,8 @@ function onSave(isSaveAs: boolean = false) {
   const flow = toObject()
   console.log(flow)
   // localStorage.setItem(flowKey, JSON.stringify(flow))
-  window.ipcRenderer.handlePromise('set-data', {
+  // newSql 写入：主键冲突即更新（upsert，主键默认 id 自增）
+  window.ipcRenderer.handlePromise('new-sql:upsert', {
     tableName: 'flow',
     data: props.currentFlow.id || !isSaveAs ? {
       id: props.currentFlow.id,
@@ -78,13 +79,12 @@ const flowList = ref([])
 
 function onRestorePre() {
   dialogVisibleFlow.value = true
-  window.ipcRenderer.handlePromise('query-data', {
+  // newSql 查询：limit/orderBy 需放顶层（conditions 内只放等值过滤）
+  window.ipcRenderer.handlePromise('new-sql:query', {
     tableName: 'flow',
-    conditions: {
-      limit: 100,
-      orderBy: 'id',
-      orderByDesc: true
-    }
+    limit: 100,
+    orderBy: 'id',
+    orderByDesc: true
   }).then(result => {
     if (result.success) {
       console.log(result.data, 'result.data')
@@ -108,7 +108,8 @@ function onRestore(flow: any) {
 
 function onRemove(flow: any) {
   console.log(flow, '删除')
-  window.ipcRenderer.handlePromise('delete-data', {
+  // newSql 删除：按 id 等值条件删除
+  window.ipcRenderer.handlePromise('new-sql:delete', {
     tableName: 'flow',
     condition: {
       id: flow.id

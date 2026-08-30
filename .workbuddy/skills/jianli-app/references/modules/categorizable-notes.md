@@ -5,7 +5,7 @@
 
 ## 关键文件
 - 主页面：`src/views/categorizableNotes/index.vue`、`NoteList.vue`、`NoteDetailDialog.vue`、`TagSelector.vue`
-- 关联主进程：**无独立 module**；走旧通道 `query-data`/`set-data`/`delete-data`（payload `tableName:'note_book'`，`index.vue:273` 用 `SqlStr` 传原始 SQL）
+- 关联主进程：**无独立 module**；数据走 newSql 三件套（payload `tableName:'note_book'`，`index.vue:276` 用顶层 `SqlStr` 传原生 SQL）
 - 无专用 store（仅 `useTheme` 用于主题）；命令面板侧读取见 `src/views/commandPalette/sources/noteSource.ts`（同表 `note_book`）
 
 ## 路由
@@ -13,15 +13,15 @@
 - 无小窗（`windowSections` 无 categorizable 条目）
 
 ## 用到的 IPC 通道
-- `query-data`（`index.vue:273`，`conditions:{ SqlStr: <原生SQL> }` 分页/筛选）
-- `set-data`（`index.vue:396`、`NoteDetailDialog.vue:165`，旧透传）
-- `delete-data`（`NoteList.vue:144`，旧透传）
-- 命令面板：`new-sql:execute`（`commandPalette/utils/db.ts` 以 `note_book` 表做 LIKE 搜索）
+- `new-sql:query`（`index.vue:276`，顶层 `SqlStr` 传分页/筛选 SQL）
+- `new-sql:upsert`（`index.vue:398`、`NoteDetailDialog.vue:166`，`config:{primaryKey:'key'}`）
+- `new-sql:delete`（`NoteList.vue:145`，按 `key` 删）
+- 命令面板：`new-sql:query`（`commandPalette/utils/db.ts` 的 `queryNoteRows`，顶层 `SqlStr`）+ `new-sql:execute`（待办查询）
 
 ## 复用 / 集成点
 - **命令面板 REGISTRY**：`useCommandSources.ts:13` 的 `noteSource` 索引本模块 `note_book` 表，命中后跳 `/categorizableNotes`（`navigate('categorizableNotes')`）。新增笔记字段后请同步 `noteSource` 的预览/搜索列。
 - 不接小窗四件套、VirtualList、AppDialog。
 
 ## 特有坑 / 注意
-- **未迁移新数据层**：沿用旧 `query-data`/`set-data`/`delete-data` 透传，且分页 SQL 以字符串（`SqlStr`）内插拼接，与「业务表走 new-sql:query/upsert/delete」约定不符；命令面板 `noteSource` 也裸用 `new-sql:execute` 做 `LIKE` 内插（存在注入风险，关键词已做单引号转义）。
+- **已迁移 newSql 数据层**（2026-08-30）：旧 `query-data`/`set-data`/`delete-data` 已切到 `new-sql:query`/`new-sql:upsert`/`new-sql:delete`；分页 SQL 仍以字符串（顶层 `SqlStr`）内插拼接，搜索关键词已做单引号转义（`index.vue:260`）；命令面板待办查询仍裸用 `new-sql:execute`（占位符传参，风险可控）。
 - 与 notebook 模块数据不通（不同表/不同入口），命令面板只覆盖本模块。

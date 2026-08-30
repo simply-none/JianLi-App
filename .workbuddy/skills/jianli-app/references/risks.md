@@ -4,7 +4,7 @@
 
 1. **node 版本不一致**：README「安装」写 v20.13.1，但 `package.json` `engines` 要求 `>=22` 且 `prestart` 跑 `check-node-version.js` 会拦截——**以代码为准，需 node 22+**。
 2. **get-store typo**：`store.ts` 注册的是 `get-stort-all`（疑似拼写错误），调用方若用 `get-store-all` 将失效。
-3. **双数据层并存**：`sql.ts`（旧）与 `newSql.ts`（新）同时存在，小窗位置等仍走旧层 `basic_info` 表；新增业务明确用 newSql，避免两套 API 混淆。
+3. **双数据层并存（渲染端旧通道已迁移）**：`sql.ts`（旧）与 `newSql.ts`（新）同时存在。2026-08-30 已把渲染端全部 `query-data`/`set-data`/`delete-data` 调用迁移到 `new-sql:query`/`upsert`/`delete`；旧通道仅保留注册供 `basic_info`/`clipboard_history` 建表兜底与主进程内部使用，**新增业务严禁再用旧层**。注意语义差异：旧层 `whereStr`/`limit`/`orderBy` 塞 `conditions` 内，新层必须放顶层 options。
 4. **死 / 未接通道**：渲染端 `invoke`/`send` 的 `save-file`、`get-file-list`、`save-debug-data` 在主进程未找到 handler（可能走 worker 或已废弃），封装前核实。
 5. **new-sql:execute 仍存在**：危险通道代码层未移除，只靠规范约束——**永远不要调用**。
 6. **遗留 / 未注册项**：`src/views/chart` 目录存在但未注册路由（疑似废弃）；`src/views/test.vue`、`src/demos/ipc.ts` 为调试残留；根 `功能清单.md` 为空占位。

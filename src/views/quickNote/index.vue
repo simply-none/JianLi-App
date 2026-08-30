@@ -160,14 +160,13 @@ function fetchNoteData(options: any = {}) {
     whereStr = `createTime >= DATE('now', '-${days} days')`
   }
 
-  return window.ipcRenderer.handlePromise('query-data', {
+  // newSql 查询：whereStr/limit/orderBy 需放顶层（conditions 内只放等值过滤）
+  return window.ipcRenderer.handlePromise('new-sql:query', {
     tableName: 'note_book',
-    conditions: {
-      whereStr: whereStr,
-      limit: 50,
-      orderByDesc: true,
-      orderBy: 'createTime'
-    }
+    whereStr: whereStr,
+    limit: 50,
+    orderByDesc: true,
+    orderBy: 'createTime'
   }).then((result: any) => {
     if (result.success) {
       return result.data
@@ -225,7 +224,8 @@ async function saveNote() {
 
   saveStatus.value = 'saving'
 
-  window.ipcRenderer.handlePromise('set-data', {
+  // newSql 写入：主键冲突即更新（upsert）
+  window.ipcRenderer.handlePromise('new-sql:upsert', {
     tableName: 'note_book',
     data: {
       ...curNote.value,

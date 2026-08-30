@@ -17,11 +17,6 @@ function render(template: string, vars: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? "");
 }
 
-/** 转义单引号 */
-function esc(v: unknown): string {
-  return String(v ?? "").replace(/'/g, "''");
-}
-
 /** 本次日志的笔记 key：习惯 + 日期，保证一天一条且可精确定位 */
 function noteKeyOf(habitKey: string, date: string): string {
   return `habit-log-${habitKey}-${date}`;
@@ -66,10 +61,10 @@ const noteAction: HabitChainAction = {
   },
 
   async rollback(ctx) {
-    // 走笔记模块自身的删除通道（delete-data + condition），保持一致
-    await invoke("delete-data", {
+    // 走 newSql 数据层删除通道（new-sql:delete + condition，按 key 等值删除）
+    await invoke("new-sql:delete", {
       tableName: "note_book",
-      condition: { key: esc(noteKeyOf(ctx.habit.key, ctx.checkin.date)) },
+      condition: { key: noteKeyOf(ctx.habit.key, ctx.checkin.date) },
     });
   },
 };
