@@ -8,11 +8,62 @@
  * 样式来自 ModuleStyle.customRows（heading/text/textbox TextStyle + list ListStyle）。
  */
 
-import type { PageStyle, SectionRow, SectionRowBlock } from '../../types'
+import type { PageStyle, SectionRow, SectionRowBlock, CustomSectionData } from '../../types'
 import type { CustomRowsStyle, ModuleStyle } from '../types'
 import { esc, textStyleToCss } from '../components/text'
 import { renderSectionTitle } from '../components/sectionTitle'
 import { renderBulletList } from '../components/bulletList'
+
+/** 行结构样式兜底（存量排版项缺 customRows 时使用，与 createCustomModuleStyle 默认一致） */
+const FALLBACK_CUSTOM_ROWS: CustomRowsStyle = {
+  rowGap: 6,
+  heading: { visible: true, size: 'base', weight: 600, ink: 1000, letterSpacing: 0, italic: false },
+  text: { visible: true, size: 'base', weight: 400, ink: 850, letterSpacing: 0, italic: false },
+  textbox: { visible: true, size: 'base', weight: 400, ink: 750, letterSpacing: 0, italic: false },
+  list: { marker: 'dot', markerInk: 500, indent: 11, itemGap: 0, text: { visible: true, size: 'base', weight: 400, ink: 850, letterSpacing: 0, italic: false } },
+}
+
+/**
+ * 自定义模块结构规范化：v1（kind=entry/text 固定字段）无损转换为 v2 行结构；
+ * 已是 v2（含 rows 数组）的原样返回。
+ * @param sec 任意版本的自定义模块数据
+ * @returns v2 行结构数据
+ */
+export function normalizeCustomSection(sec: any): CustomSectionData {
+  // 已是 v2 行结构
+  if (sec && Array.isArray(sec.rows)) return sec as CustomSectionData
+  // v1 文本型 → 单个整行段落块
+  if (sec?.kind === 'text') {
+    return {
+      id: sec.id,
+      title: sec.title || '自定义模块',
+      rows: [
+        {
+          id: `${sec.id}-r1`,
+          blocks: [{ id: `${sec.id}-b1`, type: 'textbox', span: 'full', text: sec.content || '' }],
+        },
+      ],
+    }
+  }
+  // v1 条目型 → 每条目两行：条目头行（主字段/副字段/日期）+ 描述列表行
+  const rows: SectionRow[] = (sec?.entries || []).flatMap((e: any, i: number) => {
+    const headBlocks: any[] = []
+    if (e?.field1) headBlocks.push({ id: `${sec.id}-r${i}-b1`, type: 'heading', span: 'left', text: e.field1 })
+    if (e?.field2) headBlocks.push({ id: `${sec.id}-r${i}-b2`, type: 'text', span: 'left', text: e.field2 })
+    const date = [e?.startTime, e?.endTime].filter((s: string) => s && String(s).trim()).join(' ~ ')
+    if (date) headBlocks.push({ id: `${sec.id}-r${i}-b3`, type: 'text', span: 'right', text: date })
+    const out: any[] = []
+    if (headBlocks.length > 0) out.push({ id: `${sec.id}-r${i}-head`, blocks: headBlocks })
+    if (e?.description) {
+      out.push({
+        id: `${sec.id}-r${i}-desc`,
+        blocks: [{ id: `${sec.id}-r${i}-b4`, type: 'list', span: 'full', text: e.description }],
+      })
+    }
+    return out
+  })
+  return { id: sec?.id || '', title: sec?.title || '自定义模块', rows }
+}
 
 /** 判断块是否独占整行（列表/文本块，或显式 span=full） */
 function isFullBlock(b: SectionRowBlock): boolean {
@@ -106,8 +157,8 @@ function renderRow(row: SectionRow, st: CustomRowsStyle, page: PageStyle): strin
  * @returns HTML 片段（无内容返回空串）
  */
 export function renderCustomRowsSection(sec: { title: string; rows: SectionRow[] }, ms: ModuleStyle, page: PageStyle): string {
-  const st = ms.customRows
-  if (!st) return ''
+  // 存量排版项可能缺 customRows（旧版本创建），兜底默认样式保证内容可见
+  const st = ms.customRows || FALLBACK_CUSTOM_ROWS
   const rows = sec.rows || []
   if (rows.length === 0) return ''
 

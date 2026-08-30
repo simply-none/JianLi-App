@@ -66,17 +66,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import LucideIcon from '@/components/LucideIcon.vue'
 import ResumePaper from '../ResumePaper.vue'
 import PageStyleGroup from './groups/PageStyleGroup.vue'
 import ModuleList from './groups/ModuleList.vue'
-import { mergeConfig } from '../../engine/defaultConfig'
+import { mergeConfig, createCustomModuleStyle } from '../../engine/defaultConfig'
 import { renderResume } from '../../engine/sections'
 import { createMockResumeData } from '../../mock'
 import { saveLayoutPreset } from '../../db'
-import type { ResumeLayoutConfig } from '../../engine/types'
+import type { ResumeData, ResumeLayoutConfig, CustomSectionData } from '../../types'
 
 /**
  * 排版设置全屏弹窗
@@ -90,6 +90,8 @@ const props = defineProps<{
   visible: boolean
   /** 当前生效的排版配置 */
   config: ResumeLayoutConfig
+  /** 当前简历数据（预览优先使用；简历无内容时回退 mock 示例数据） */
+  resumeData?: ResumeData
 }>()
 
 const emit = defineEmits<{
@@ -107,8 +109,49 @@ const previewHtml = ref('')
 const renderTick = ref(0)
 /** 当前 draft 关联的预设名（保存/另存为成功后更新；恢复默认后清空） */
 const presetName = ref<string | null>(null)
-/** 示例简历数据（弹窗生命周期内固定一份） */
+/** 示例简历数据（简历无内容时的兜底预览数据） */
 const mockData = createMockResumeData()
+
+/**
+ * 判断简历是否有任何有效内容（基本信息/各模块/自定义模块任一非空即视为有内容）
+ * @param d 简历数据
+ */
+function hasResumeContent(d?: ResumeData): boolean {
+  if (!d) return false
+  const b = d.basics || ({} as ResumeData['basics'])
+  const hasBasics = Boolean(b.name || b.jobIntent || b.phone || b.email || b.city)
+  const hasSections = Boolean(
+    d.education?.length || d.work?.length || d.project?.length || d.skills?.length
+  )
+  const hasEval = Boolean(d.evaluation && d.evaluation.trim())
+  const hasCustom = (d.customSections || []).some((s) =>
+    (s.rows || []).some((r) => (r.blocks || []).some((bl) => bl.text && bl.text.trim()))
+  )
+  return hasBasics || hasSections || hasEval || hasCustom
+}
+
+/**
+ * 预览数据：有简历内容时用当前简历数据（所见即所编辑），
+ * 简历为空/无简历时回退 mock 示例数据
+ */
+const previewData = computed<ResumeData>(() =>
+  hasResumeContent(props.resumeData) ? (props.resumeData as ResumeData) : mockData
+)
+
+/**
+ * 为预览配置补齐自定义模块缺失的默认排版项（仅作用于渲染副本，不写入 draft）
+ * @param config 排版配置副本
+ * @param sections 预览数据的自定义模块
+ * @returns 补齐后的配置
+ */
+function ensureCustomModules(config: ResumeLayoutConfig, sections: CustomSectionData[]): ResumeLayoutConfig {
+  const missing = sections.filter((s) => !config.modules.find((m) => m.id === `custom:${s.id}`))
+  if (missing.length === 0) return config
+  return {
+    ...config,
+    modules: [...config.modules, ...missing.map((s) => createCustomModuleStyle(s.id, s.title))],
+  }
+}
 /** 防抖定时器 */
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -122,7 +165,9 @@ function scheduleRender() {
   debounceTimer = setTimeout(() => {
     if (draft.value) {
       const plain = JSON.parse(JSON.stringify(draft.value)) as ResumeLayoutConfig
-      previewHtml.value = renderResume(mockData, plain)
+      // 补齐自定义模块排版项后再渲染，保证右侧预览包含自定义模块内容
+      const withCustom = ensureCustomModules(plain, previewData.value.customSections || [])
+      previewHtml.value = renderResume(previewData.value, withCustom)
       renderTick.value++
     }
   }, 120)

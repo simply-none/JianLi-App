@@ -196,15 +196,23 @@ export function mergeConfig(saved: Partial<ResumeLayoutConfig> | null | undefine
   if (saved.page) {
     merged.page = { ...merged.page, ...saved.page }
   }
-  // 模块：按 saved 顺序重排，缺失的组件/字段用默认补全；未知 id（自定义模块）原样保留
+  // 模块：按 saved 顺序重排，缺失的组件/字段用默认补全；未知 id（自定义模块）保留并补行结构样式默认
   const byId = new Map(merged.modules.map((m) => [m.id, m]))
   const result: ModuleStyle[] = []
   for (const sm of saved.modules) {
     if (!sm || !sm.id) continue
     const base = byId.get(sm.id)
-    // 未知 id（自定义模块）直接保留——渲染时数据缺失自动为空隐藏
+    // 未知 id（自定义模块）：保留原项并补齐 customRows 默认样式（旧版本排版项可能缺失）
     if (!base) {
-      result.push(sm)
+      const fallback = createCustomModuleStyle(
+        sm.id.startsWith('custom:') ? sm.id.slice('custom:'.length) : sm.id,
+        sm.customTitle || ''
+      )
+      result.push({
+        ...fallback,
+        ...sm,
+        customRows: { ...fallback.customRows!, ...(sm.customRows || {}) },
+      })
       continue
     }
     const combined: ModuleStyle = {

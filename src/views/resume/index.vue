@@ -58,8 +58,13 @@
       <ResumePreview :html="previewHtml" @open-style="styleDialogVisible = true" />
     </div>
 
-    <!-- 排版设置全屏弹窗（左配置 / 右示例简历实时渲染） -->
-    <StyleDialog v-model:visible="styleDialogVisible" :config="layoutConfig" @apply="applyLayout" />
+    <!-- 排版设置全屏弹窗（左配置 / 右预览：有简历内容用简历数据实时渲染，无内容用示例数据） -->
+    <StyleDialog
+      v-model:visible="styleDialogVisible"
+      :config="layoutConfig"
+      :resume-data="localData"
+      @apply="applyLayout"
+    />
   </div>
 </template>
 

@@ -13,6 +13,7 @@
 import { deepClone } from '@/utils/deepClone'
 import { DEFAULT_TEMPLATE_ID } from './templates'
 import { mergeConfig } from './engine/defaultConfig'
+import { normalizeCustomSection } from './engine/sections/customRows'
 import type { ResumeData, ResumeRecord, ResumeLayoutConfig, CustomSectionData } from './types'
 
 /** 简历表名 */
@@ -154,7 +155,7 @@ function parseRow(row: any): ResumeRecord | null {
 
 /**
  * 自定义模块结构迁移：v1（kind=entry/text 固定字段）→ v2（行结构 rows）
- * 已是 v2（含 rows 数组）的原样返回；旧结构无损转换为等效行组合。
+ * 逐个模块经 normalizeCustomSection 规范化，已是 v2 的原样返回。
  * @param data 简历数据
  * @returns 迁移后的简历数据
  */
@@ -163,42 +164,7 @@ function migrateCustomSections(data: ResumeData): ResumeData {
   if (!Array.isArray(sections)) {
     return { ...data, customSections: [] }
   }
-  const migrated: CustomSectionData[] = sections.map((sec: any) => {
-    // 已是 v2 行结构
-    if (sec && Array.isArray(sec.rows)) return sec as CustomSectionData
-    // v1 文本型 → 单个整行段落块
-    if (sec?.kind === 'text') {
-      return {
-        id: sec.id,
-        title: sec.title || '自定义模块',
-        rows: [
-          {
-            id: `${sec.id}-r1`,
-            blocks: [{ id: `${sec.id}-b1`, type: 'textbox', span: 'full', text: sec.content || '' }],
-          },
-        ],
-      }
-    }
-    // v1 条目型 → 每条目两行：条目头行（主字段/副字段/日期）+ 描述列表行
-    const rows = (sec?.entries || []).flatMap((e: any, i: number) => {
-      const headBlocks: any[] = []
-      if (e?.field1) headBlocks.push({ id: `${sec.id}-r${i}-b1`, type: 'heading', span: 'left', text: e.field1 })
-      if (e?.field2) headBlocks.push({ id: `${sec.id}-r${i}-b2`, type: 'text', span: 'left', text: e.field2 })
-      const date = [e?.startTime, e?.endTime].filter((s: string) => s && String(s).trim()).join(' ~ ')
-      if (date) headBlocks.push({ id: `${sec.id}-r${i}-b3`, type: 'text', span: 'right', text: date })
-      const out: any[] = []
-      if (headBlocks.length > 0) out.push({ id: `${sec.id}-r${i}-head`, blocks: headBlocks })
-      if (e?.description) {
-        out.push({
-          id: `${sec.id}-r${i}-desc`,
-          blocks: [{ id: `${sec.id}-r${i}-b4`, type: 'list', span: 'full', text: e.description }],
-        })
-      }
-      return out
-    })
-    return { id: sec.id, title: sec.title || '自定义模块', rows }
-  })
-  return { ...data, customSections: migrated }
+  return { ...data, customSections: sections.map(normalizeCustomSection) }
 }
 
 /**

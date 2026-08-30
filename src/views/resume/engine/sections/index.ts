@@ -9,7 +9,7 @@
 import type { ModuleId, ModuleStyle, PageStyle } from '../types'
 import type { ResumeData, ResumeEducationItem, ResumeWorkItem, ResumeProjectItem, ResumeLayoutConfig, CustomSectionData } from '../../types'
 import { createEntrySection } from './entrySection'
-import { renderCustomRowsSection } from './customRows'
+import { renderCustomRowsSection, normalizeCustomSection } from './customRows'
 import { renderBasics } from './basics'
 import { renderSkills } from './skills'
 import { renderEvaluation } from './evaluation'
@@ -80,14 +80,15 @@ function resolveFontStack(page: PageStyle): string {
 }
 
 /**
- * 渲染自定义模块（行结构，样式取 ms.customRows）
- * @param sec 自定义模块数据
+ * 渲染自定义模块（行结构，样式取 ms.customRows，缺省时引擎兜底默认样式）
+ * @param sec 自定义模块数据（兼容 v1 结构，渲染前规范化）
  * @param ms 排版配置
  * @param page 页面全局配置
  * @returns HTML 片段（数据缺失/无内容返回空串）
  */
 function renderCustomSection(sec: CustomSectionData, ms: ModuleStyle, page: PageStyle): string {
-  return renderCustomRowsSection(sec, ms, page)
+  // 规范化：内存中的 v1 结构（热重载残留等场景）统一转为行结构
+  return renderCustomRowsSection(normalizeCustomSection(sec), ms, page)
 }
 
 /**
