@@ -5,13 +5,15 @@
  * - 分类配置：持久化到 SQLite 表 accounting_categories（分类）+ accounting_keywords（关键字），
  *   首次启动若分类表为空则批量写入 DEFAULT_CATEGORIES 种子（含各分类关键词）。
  * - 记账记录：缓存于内存，来源 SQLite 表 accounting_records（自动建表/加列）。
+ * - 预算管理：月度分类预算 + 超支提醒（子模块 @/store/accounting/budget）。
+ * - 周期性账单：房租/订阅等自动记账引擎（子模块 @/store/accounting/recurring）。
  * - 增删改：落库后刷新本地缓存，并广播 sync-data-to-other-window 让另一窗口同步。
  * - 页面（完整页）与小窗口（accountingMini）共用同一 store，数据天然一致。
  */
-
 import { computed, onMounted, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { send } from '@/utils/common'
+import { sysNotify } from '@/utils/notify'
 import {
   ACCOUNTING_TABLE,
   ACCOUNTING_CATEGORIES_TABLE,
@@ -21,24 +23,27 @@ import {
   type AccountingRecord,
   type AccountingType,
 } from '@/constants/accounting'
-
-// 复用项目既有 new-sql IPC（启动已 initNewSqlite，表与列自动创建）
-function ipc<T = any>(channel: string, payload: any): Promise<T> {
-  return window.ipcRenderer.handlePromise(channel, payload) as Promise<T>
-}
-
-/** 当前时间字符串 YYYY-MM-DD HH:mm:ss */
-function nowStr(): string {
-  const d = new Date()
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
-}
+import { accountingIpc, nowStr } from './accounting/base'
+import { createBudgetModule, type BudgetModule } from './accounting/budget'
+import { createRecurringModule, type RecurringModule } from './accounting/recurring'
 
 export default defineStore('accounting', () => {
   // ============ 状态 ============
   const categories = ref<AccountingCategory[]>([])
   const records = ref<AccountingRecord[]>([])
   const loading = ref(false)
+
+  // ============ 子模块（预算 / 周期账单） ============
+  const budget: BudgetModule = createBudgetModule({
+    records: () => records.value,
+  })
+  const recurring: RecurringModule = createRecurringModule({
+    onGenerated: async (affectedMonths) => {
+      await loadRecords()
+      broadcastChange()
+      checkOverspend(affectedMonths)
+    },
+  })
 
   // ============ 分类派生 ============
   const expenseCategories = computed(() =>
@@ -54,7 +59,7 @@ export default defineStore('accounting', () => {
     if (!schemaReady) {
       schemaReady = (async () => {
         // 分类表：以分类 name 作为主键，与记账记录的分类字段天然关联
-        await ipc('new-sql:execute', {
+        await accountingIpc('new-sql:execute', {
           sql: `CREATE TABLE IF NOT EXISTS ${ACCOUNTING_CATEGORIES_TABLE} (
             name TEXT PRIMARY KEY,
             type TEXT,
@@ -65,7 +70,7 @@ export default defineStore('accounting', () => {
           )`,
         })
         // 关键字表：每条关键词一行，category_id 关联分类表 name
-        await ipc('new-sql:execute', {
+        await accountingIpc('new-sql:execute', {
           sql: `CREATE TABLE IF NOT EXISTS ${ACCOUNTING_KEYWORDS_TABLE} (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             category_id TEXT,
@@ -85,11 +90,17 @@ export default defineStore('accounting', () => {
   function init() {
     loadCategories()
     loadRecords()
+    budget.loadBudgets()
+    recurring.loadRecurring()
+    // 周期账单自动记账引擎：立即跑一轮 + 每 5 分钟检查（覆盖跨天与长挂机）
+    recurring.startScheduler()
     // 监听另一窗口的数据变更广播，主动刷新本窗口缓存
     window.ipcRenderer?.on('sync-data-to-other-window', (_e: any, arg: any) => {
       if (arg && arg.accountingDataChanged) {
         loadCategories()
         loadRecords()
+        budget.loadBudgets()
+        recurring.loadRecurring()
       }
     })
   }
@@ -97,7 +108,7 @@ export default defineStore('accounting', () => {
   // ============ 分类读写 ============
   /** 分类表为空时批量写入默认种子（分类 + 关键字） */
   async function seedIfEmpty() {
-    const cnt = await ipc<{ success: boolean; data?: number }>('new-sql:count', {
+    const cnt = await accountingIpc<{ success: boolean; data?: number }>('new-sql:count', {
       tableName: ACCOUNTING_CATEGORIES_TABLE,
     })
     if (cnt?.success && (cnt.data || 0) > 0) return
@@ -111,7 +122,7 @@ export default defineStore('accounting', () => {
       sort: i,
       created_at: cur,
     }))
-    await ipc('new-sql:insert', {
+    await accountingIpc('new-sql:insert', {
       tableName: ACCOUNTING_CATEGORIES_TABLE,
       data: catRows,
       config: { primaryKey: 'name' },
@@ -125,7 +136,7 @@ export default defineStore('accounting', () => {
       })),
     )
     if (kwRows.length > 0) {
-      await ipc('new-sql:insert', {
+      await accountingIpc('new-sql:insert', {
         tableName: ACCOUNTING_KEYWORDS_TABLE,
         data: kwRows,
         config: { primaryKey: 'id' },
@@ -139,13 +150,13 @@ export default defineStore('accounting', () => {
       await ensureSchema()
       await seedIfEmpty()
 
-      const catRes = await ipc<{ success: boolean; data?: any[] }>('new-sql:query', {
+      const catRes = await accountingIpc<{ success: boolean; data?: any[] }>('new-sql:query', {
         tableName: ACCOUNTING_CATEGORIES_TABLE,
         conditions: {},
         orderBy: 'sort',
         orderByDesc: false,
       })
-      const kwRes = await ipc<{ success: boolean; data?: any[] }>('new-sql:query', {
+      const kwRes = await accountingIpc<{ success: boolean; data?: any[] }>('new-sql:query', {
         tableName: ACCOUNTING_KEYWORDS_TABLE,
         conditions: {},
       })
@@ -182,7 +193,7 @@ export default defineStore('accounting', () => {
   async function addCategory(cat: AccountingCategory) {
     const cur = nowStr()
     await ensureSchema()
-    await ipc('new-sql:insert', {
+    await accountingIpc('new-sql:insert', {
       tableName: ACCOUNTING_CATEGORIES_TABLE,
       data: {
         name: cat.name,
@@ -195,7 +206,7 @@ export default defineStore('accounting', () => {
       config: { primaryKey: 'name' },
     })
     if (cat.keywords && cat.keywords.length > 0) {
-      await ipc('new-sql:insert', {
+      await accountingIpc('new-sql:insert', {
         tableName: ACCOUNTING_KEYWORDS_TABLE,
         data: cat.keywords.map((kw) => ({
           category_id: cat.name,
@@ -218,7 +229,7 @@ export default defineStore('accounting', () => {
     if (patch.name !== undefined) data.name = patch.name
     await ensureSchema()
     if (Object.keys(data).length > 0) {
-      await ipc('new-sql:update', {
+      await accountingIpc('new-sql:update', {
         tableName: ACCOUNTING_CATEGORIES_TABLE,
         data,
         condition: { name },
@@ -226,7 +237,7 @@ export default defineStore('accounting', () => {
     }
     // 改名时同步迁移关键字表的 category_id 关联（关键词内容不变）
     if (patch.name !== undefined && patch.name !== name) {
-      await ipc('new-sql:update', {
+      await accountingIpc('new-sql:update', {
         tableName: ACCOUNTING_KEYWORDS_TABLE,
         data: { category_id: patch.name },
         condition: { category_id: name },
@@ -235,13 +246,13 @@ export default defineStore('accounting', () => {
     if (patch.keywords !== undefined) {
       // 先删后插，保证关键字与分类一致（用可能的改名后的 name 重新关联）
       const targetId = patch.name || name
-      await ipc('new-sql:delete', {
+      await accountingIpc('new-sql:delete', {
         tableName: ACCOUNTING_KEYWORDS_TABLE,
         condition: { category_id: name },
       })
       if (patch.keywords.length > 0) {
         const cur = nowStr()
-        await ipc('new-sql:insert', {
+        await accountingIpc('new-sql:insert', {
           tableName: ACCOUNTING_KEYWORDS_TABLE,
           data: patch.keywords.map((kw) => ({
             category_id: targetId,
@@ -259,11 +270,11 @@ export default defineStore('accounting', () => {
   /** 删除分类（同时删除其关键字） */
   async function deleteCategory(name: string) {
     await ensureSchema()
-    await ipc('new-sql:delete', {
+    await accountingIpc('new-sql:delete', {
       tableName: ACCOUNTING_CATEGORIES_TABLE,
       condition: { name },
     })
-    await ipc('new-sql:delete', {
+    await accountingIpc('new-sql:delete', {
       tableName: ACCOUNTING_KEYWORDS_TABLE,
       condition: { category_id: name },
     })
@@ -276,7 +287,7 @@ export default defineStore('accounting', () => {
   async function addKeyword(categoryId: string, keyword: string) {
     await ensureSchema()
     const cur = nowStr()
-    await ipc('new-sql:insert', {
+    await accountingIpc('new-sql:insert', {
       tableName: ACCOUNTING_KEYWORDS_TABLE,
       data: { category_id: categoryId, keyword, created_at: cur },
       config: { primaryKey: 'id' },
@@ -288,13 +299,13 @@ export default defineStore('accounting', () => {
   /** 重命名某分类下的一个关键字（删除旧值后插入新值） */
   async function updateKeyword(categoryId: string, oldKeyword: string, newKeyword: string) {
     await ensureSchema()
-    await ipc('new-sql:delete', {
+    await accountingIpc('new-sql:delete', {
       tableName: ACCOUNTING_KEYWORDS_TABLE,
       condition: { category_id: categoryId, keyword: oldKeyword },
     })
     if (newKeyword && newKeyword !== oldKeyword) {
       const cur = nowStr()
-      await ipc('new-sql:insert', {
+      await accountingIpc('new-sql:insert', {
         tableName: ACCOUNTING_KEYWORDS_TABLE,
         data: { category_id: categoryId, keyword: newKeyword, created_at: cur },
         config: { primaryKey: 'id' },
@@ -307,7 +318,7 @@ export default defineStore('accounting', () => {
   /** 删除某分类下的一个关键字 */
   async function deleteKeyword(categoryId: string, keyword: string) {
     await ensureSchema()
-    await ipc('new-sql:delete', {
+    await accountingIpc('new-sql:delete', {
       tableName: ACCOUNTING_KEYWORDS_TABLE,
       condition: { category_id: categoryId, keyword },
     })
@@ -318,8 +329,8 @@ export default defineStore('accounting', () => {
   /** 恢复默认分类：清空两表后重新播种 */
   async function resetCategories() {
     await ensureSchema()
-    await ipc('new-sql:execute', { sql: `DELETE FROM ${ACCOUNTING_CATEGORIES_TABLE}` })
-    await ipc('new-sql:execute', { sql: `DELETE FROM ${ACCOUNTING_KEYWORDS_TABLE}` })
+    await accountingIpc('new-sql:execute', { sql: `DELETE FROM ${ACCOUNTING_CATEGORIES_TABLE}` })
+    await accountingIpc('new-sql:execute', { sql: `DELETE FROM ${ACCOUNTING_KEYWORDS_TABLE}` })
     await seedIfEmpty()
     await loadCategories()
     broadcastChange()
@@ -329,7 +340,7 @@ export default defineStore('accounting', () => {
   async function loadRecords() {
     loading.value = true
     try {
-      const res = await ipc('new-sql:query', {
+      const res = await accountingIpc('new-sql:query', {
         tableName: ACCOUNTING_TABLE,
         conditions: {},
         orderBy: 'record_date',
@@ -346,6 +357,7 @@ export default defineStore('accounting', () => {
           account: r.account || '',
           record_date: r.record_date || '',
           created_at: r.created_at || r.create_time || '',
+          recurring_id: r.recurring_id != null ? Number(r.recurring_id) : undefined,
         }))
         // 同一天内按 id 倒序（新录入在前）
         .sort((a, b) => {
@@ -360,12 +372,44 @@ export default defineStore('accounting', () => {
     }
   }
 
+  // ============ 超支提醒 ============
+  /** 会话内已提醒过的超支项（month::category），每项只提醒一次防骚扰 */
+  const overspendNotified = new Set<string>()
+
+  /**
+   * 检查指定月份的预算超支情况，对尚未提醒过的超支项发起系统通知
+   *
+   * @param months - 需要检查的月份集合（YYYY-MM）
+   */
+  function checkOverspend(months: Iterable<string>) {
+    try {
+      for (const m of months) {
+        if (!/^\d{4}-\d{2}$/.test(m)) continue
+        for (const s of budget.monthStatus(m)) {
+          if (!s.over || s.budget <= 0) continue
+          const key = `${m}::${s.category}`
+          if (overspendNotified.has(key)) continue
+          overspendNotified.add(key)
+          const label = `${m.slice(0, 4)}年${Number(m.slice(5, 7))}月`
+          sysNotify(
+            '记账预算超支提醒',
+            `${label}「${s.label}」已超支：已支出 ¥${s.spent.toFixed(2)} / 预算 ¥${s.budget.toFixed(2)}`,
+            '',
+            6,
+          )
+        }
+      }
+    } catch {
+      /* 提醒失败不影响记账主流程 */
+    }
+  }
+
   /** 新增一条记录（自动写入 created_at），返回新记录或 null */
   async function addRecord(payload: Omit<AccountingRecord, 'id' | 'created_at'>): Promise<AccountingRecord | null> {
     const cur = new Date()
     const createdAt = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')} ${String(cur.getHours()).padStart(2, '0')}:${String(cur.getMinutes()).padStart(2, '0')}:${String(cur.getSeconds()).padStart(2, '0')}`
     const data = { ...payload, created_at: createdAt }
-    const res = await ipc('new-sql:insert', {
+    const res = await accountingIpc('new-sql:insert', {
       tableName: ACCOUNTING_TABLE,
       data,
       config: { primaryKey: 'id' },
@@ -373,15 +417,18 @@ export default defineStore('accounting', () => {
     if (res?.success) {
       await loadRecords()
       broadcastChange()
+      // 记账后即时做预算超支判定（记录日期所属月份）
+      if (payload.record_date) checkOverspend([payload.record_date.slice(0, 7)])
       // 取最新一条作为返回值
       return records.value[0] || null
     }
     return null
   }
 
-  /** 修改记录 */
+  /** 修改记录（可能改动日期/分类/金额，前后月份都纳入超支检查） */
   async function updateRecord(id: number, payload: Partial<AccountingRecord>): Promise<boolean> {
-    const res = await ipc('new-sql:update', {
+    const before = records.value.find((r) => r.id === id)
+    const res = await accountingIpc('new-sql:update', {
       tableName: ACCOUNTING_TABLE,
       data: payload,
       condition: { id },
@@ -389,6 +436,10 @@ export default defineStore('accounting', () => {
     if (res?.success) {
       await loadRecords()
       broadcastChange()
+      const months = new Set<string>()
+      if (before?.record_date) months.add(before.record_date.slice(0, 7))
+      if (payload.record_date) months.add(payload.record_date.slice(0, 7))
+      checkOverspend(months)
       return true
     }
     return false
@@ -396,13 +447,16 @@ export default defineStore('accounting', () => {
 
   /** 删除记录 */
   async function deleteRecord(id: number): Promise<boolean> {
-    const res = await ipc('new-sql:delete', {
+    const before = records.value.find((r) => r.id === id)
+    const res = await accountingIpc('new-sql:delete', {
       tableName: ACCOUNTING_TABLE,
       condition: { id },
     })
     if (res?.success) {
       records.value = records.value.filter((r) => r.id !== id)
       broadcastChange()
+      // 删除也可能使超支恢复，同月复检（超支项只提醒一次，不会重复打扰）
+      if (before?.record_date) checkOverspend([before.record_date.slice(0, 7)])
       return true
     }
     return false
@@ -444,5 +498,22 @@ export default defineStore('accounting', () => {
     addRecord,
     updateRecord,
     deleteRecord,
+    // 预算（子模块成员拍平暴露，保证 Pinia ref 解包）
+    budgets: budget.budgets,
+    loadBudgets: budget.loadBudgets,
+    setBudget: budget.setBudget,
+    removeBudget: budget.removeBudget,
+    monthSpend: budget.monthSpend,
+    monthStatus: budget.monthStatus,
+    hasBudget: budget.hasBudget,
+    // 周期账单（子模块成员拍平暴露）
+    recurringItems: recurring.items,
+    loadRecurring: recurring.loadRecurring,
+    addRecurring: recurring.addRecurring,
+    updateRecurring: recurring.updateRecurring,
+    deleteRecurring: recurring.deleteRecurring,
+    toggleRecurringEnabled: recurring.toggleEnabled,
+    defaultRecurringNextDate: recurring.defaultNextDate,
+    runDueBills: recurring.runDueBills,
   }
 })

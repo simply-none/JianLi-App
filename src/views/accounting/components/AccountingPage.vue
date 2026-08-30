@@ -1,11 +1,13 @@
 <!--
  * 记账 - 共用页面（完整页与小窗口共用同一套排版）
- * 排版结构：el-tabs 两页
+ * 排版结构：el-tabs 四页
  *   ├─ Tab「记录列表」：上下结构
  *   │    上：记录列表（flex:1，内部滚动，header 带日/月/年范围筛选，与统计面板一致）
  *   │    中：今日汇总（紧贴记账条上方，记完一笔即时反馈）
  *   │    下：记账功能（可折叠横条，收起时为一条「+ 记一笔」按钮）
- *   └─ Tab「统计」：StatisticsPanel（首次切入时才渲染，避免 ECharts 在隐藏容器内初始化）
+ *   ├─ Tab「统计」：StatisticsPanel（首次切入时才渲染，避免 ECharts 在隐藏容器内初始化）
+ *   ├─ Tab「预算」：BudgetPanel（月度分类预算 + 超支预警）
+ *   └─ Tab「周期账单」：RecurringPanel（房租/订阅等自动记账规则管理）
  * 注：compact 模式（小窗口）沿用同一 Tab 排版，仅收紧尺寸；并把「应用主题变量」
  *     重映射为皮肤变量（与主题对话页一致），使同一组件在小窗外壳内自动换肤。
 -->
@@ -131,6 +133,20 @@
           <StatisticsPanel :compact="compact" />
         </div>
       </el-tab-pane>
+
+      <!-- ===== Tab 3：预算（月度分类预算 + 超支预警） ===== -->
+      <el-tab-pane label="预算" name="budget" lazy>
+        <div class="tab-sub">
+          <BudgetPanel :compact="compact" />
+        </div>
+      </el-tab-pane>
+
+      <!-- ===== Tab 4：周期账单（房租/订阅等自动记账规则） ===== -->
+      <el-tab-pane :label="compact ? '周期' : '周期账单'" name="recurring" lazy>
+        <div class="tab-sub">
+          <RecurringPanel :compact="compact" />
+        </div>
+      </el-tab-pane>
     </el-tabs>
 
     <!-- 编辑弹窗 -->
@@ -148,14 +164,17 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import RecordForm from '@/components/accounting/RecordForm.vue'
-import RecordList from '@/components/accounting/RecordList.vue'
-import RecordSummaryList from '@/components/accounting/RecordSummaryList.vue'
-import RecordEditDialog from '@/components/accounting/RecordEditDialog.vue'
-import StatisticsPanel from '@/components/accounting/StatisticsPanel.vue'
-import SettingsDrawer from '@/components/accounting/SettingsDrawer.vue'
+import RecordForm from './record/RecordForm.vue'
+import RecordList from './record/RecordList.vue'
+import RecordSummaryList from './record/RecordSummaryList.vue'
+import RecordEditDialog from './record/RecordEditDialog.vue'
+import StatisticsPanel from './stat/StatisticsPanel.vue'
+import BudgetPanel from './budget/BudgetPanel.vue'
+import RecurringPanel from './recurring/RecurringPanel.vue'
+import SettingsDrawer from './settings/SettingsDrawer.vue'
 import LucideIcon from '@/components/LucideIcon.vue'
 import useAccounting from '@/store/useAccounting'
+import { currentMonth, shiftRangeValue, todayStr, type RangeMode } from '../utils/rangeUtils'
 import type { AccountingRecord } from '@/constants/accounting'
 
 withDefaults(defineProps<{ compact?: boolean }>(), { compact: false })
@@ -164,7 +183,7 @@ const store = useAccounting()
 const { records } = storeToRefs(store)
 
 /** 当前 Tab */
-const activeTab = ref<'list' | 'stat'>('list')
+const activeTab = ref<'list' | 'stat' | 'budget' | 'recurring'>('list')
 
 // —— 记账横条折叠状态（记住上次选择，避免高频记账时每次都要展开） ——
 const FORM_OPEN_KEY = 'accounting:formOpen'
@@ -178,10 +197,6 @@ function money(n: number) {
   return '¥' + (Number(n) || 0).toFixed(2)
 }
 
-function todayStr() {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
 const todayDate = todayStr()
 
 /** 今日收支汇总 */
@@ -197,7 +212,7 @@ const todaySummary = computed(() => {
 })
 
 // —— 列表范围筛选：日 / 月 / 年（与统计面板一致） ——
-const rangeMode = ref<'day' | 'month' | 'year'>('month')
+const rangeMode = ref<RangeMode>('month')
 const rangeDay = ref(todayStr())
 const rangeMonth = ref(currentMonth())
 const rangeYear = ref(String(new Date().getFullYear()))
@@ -208,11 +223,6 @@ const yearPop = ref(false)
 const SHOW_ALL_KEY = 'accounting:showAll'
 const showAll = ref(localStorage.getItem(SHOW_ALL_KEY) === '1')
 watch(showAll, (v) => localStorage.setItem(SHOW_ALL_KEY, v ? '1' : '0'))
-
-function currentMonth() {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-}
 
 /** 当前选中范围的值（日=YYYY-MM-DD / 月=YYYY-MM / 年=YYYY） */
 const rangeValue = computed(() =>
@@ -280,16 +290,11 @@ function onDrill(nextMode: 'month' | 'day', value: string) {
 /** 上一年/月/日 或 下一 年/月/日（按当前 rangeMode 切换；箭头按钮用） */
 function shiftRange(dir: number) {
   if (rangeMode.value === 'day') {
-    const [y, m, d] = rangeDay.value.split('-').map(Number)
-    const dt = new Date(y, m - 1, d)
-    dt.setDate(dt.getDate() + dir)
-    rangeDay.value = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+    rangeDay.value = shiftRangeValue('day', rangeDay.value, dir)
   } else if (rangeMode.value === 'month') {
-    const [y, m] = rangeMonth.value.split('-').map(Number)
-    const dt = new Date(y, m - 1 + dir, 1)
-    rangeMonth.value = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`
+    rangeMonth.value = shiftRangeValue('month', rangeMonth.value, dir)
   } else {
-    rangeYear.value = String(Number(rangeYear.value) + dir)
+    rangeYear.value = shiftRangeValue('year', rangeYear.value, dir)
   }
 }
 
@@ -593,6 +598,13 @@ const settingsVisible = ref(false)
   .tab-stat {
     height: 100%;
     overflow: auto;
+  }
+
+  // ===== Tab 3/4：预算 / 周期账单（面板自带滚动） =====
+  .tab-sub {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
   }
 
   // ============ compact（小窗口） ============

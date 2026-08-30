@@ -619,6 +619,8 @@ function renderPieChart (workMin: number, restMin: number, screenMin: number) {
         radius: ['45%', '70%'],
         center: ['50%', '50%'],
         avoidLabelOverlap: true,
+        // 最小扇区角度：数据差距悬殊时，极小分类至少占 5°，保证可见、可悬停
+        minAngle: 5,
         itemStyle: {
           borderRadius: 6,
           borderColor: tc.pieBorder,

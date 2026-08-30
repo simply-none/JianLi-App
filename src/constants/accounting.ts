@@ -47,6 +47,8 @@ export interface AccountingRecord {
   record_date: string
   /** 创建时间 YYYY-MM-DD HH:mm:ss（插入时由 DB 写入） */
   created_at?: string
+  /** 关联的周期账单 id（由周期性账单自动生成时写入，手动记账为空） */
+  recurring_id?: number
 }
 
 /** SQLite 表名 */
@@ -55,6 +57,72 @@ export const ACCOUNTING_TABLE = 'accounting_records'
 export const ACCOUNTING_CATEGORIES_TABLE = 'accounting_categories'
 /** 关键字表名（每个分类下的自动匹配关键词，独立成表，便于增删改与关联） */
 export const ACCOUNTING_KEYWORDS_TABLE = 'accounting_keywords'
+/** 月度预算表名（每行 = 某月某分类的预算金额） */
+export const ACCOUNTING_BUDGETS_TABLE = 'accounting_budgets'
+/** 周期性账单表名（房租 / 订阅等自动记账规则） */
+export const ACCOUNTING_RECURRING_TABLE = 'accounting_recurring'
+
+/** 月度总预算在预算表 category 字段中的特殊标识（非真实分类名） */
+export const BUDGET_TOTAL_CATEGORY = '_total_'
+
+/** 周期类型：每周 / 每月 / 每年 */
+export type RecurringCycle = 'weekly' | 'monthly' | 'yearly'
+
+/** 周期类型 → 中文标签 */
+export const RECURRING_CYCLE_LABELS: Record<RecurringCycle, string> = {
+  weekly: '每周',
+  monthly: '每月',
+  yearly: '每年',
+}
+
+/** 单条月度预算（持久化到 SQLite 表 accounting_budgets，主键 key = `${month}::${category}`） */
+export interface AccountingBudget {
+  /** 主键：`YYYY-MM::分类名`（插入时无需传，由 store 组装） */
+  key?: string
+  /** 预算月份 YYYY-MM */
+  month: string
+  /** 分类名；BUDGET_TOTAL_CATEGORY 表示该月的总预算 */
+  category: string
+  /** 预算金额（元） */
+  amount: number
+  /** 创建时间 YYYY-MM-DD HH:mm:ss */
+  created_at?: string
+}
+
+/** 单条周期性账单（持久化到 SQLite 表 accounting_recurring，id 自增主键） */
+export interface AccountingRecurring {
+  /** 自增主键（插入时无需传） */
+  id?: number
+  /** 账单名称（如 房租 / 视频会员），自动生成的记录备注默认取该名称 */
+  name: string
+  /** 支出 / 收入 */
+  type: AccountingType
+  /** 每期金额（元，正数） */
+  amount: number
+  /** 记账分类名称，须存在于分类配置 */
+  category: string
+  /** 备注（可选，缺省用 name） */
+  note?: string
+  /** 支付账户（可选） */
+  account?: string
+  /** 周期类型：每周 / 每月 / 每年 */
+  cycle: RecurringCycle
+  /**
+   * 执行日（按 cycle 解释，统一存字符串）：
+   * - monthly：'1'~'31'（当月无该日则取月末最后一天）
+   * - weekly：'1'~'7'（1=周一 … 7=周日）
+   * - yearly：'MM-DD'
+   */
+  day: string
+  /** 是否启用（SQLite 存 0/1） */
+  enabled: number
+  /** 下次执行日期 YYYY-MM-DD（引擎只处理 next_date <= 今天的账单） */
+  next_date: string
+  /** 最近一次自动记账日期 YYYY-MM-DD */
+  last_date?: string
+  /** 创建时间 YYYY-MM-DD HH:mm:ss */
+  created_at?: string
+}
 
 /** 预置分类种子（穷举常见消费 / 收入分类及关键词） */
 export const DEFAULT_CATEGORIES: AccountingCategory[] = [

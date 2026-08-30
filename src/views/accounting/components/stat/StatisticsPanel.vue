@@ -82,6 +82,9 @@
       <div class="chart-block-title">分类收支</div>
       <div ref="barRef" class="chart-box bar-box"></div>
     </div>
+
+    <!-- 月度收支趋势（近 12 个月）+ 报表导出 -->
+    <TrendChart :compact="compact" />
   </div>
 </template>
 
@@ -94,6 +97,8 @@ import useAccounting from '@/store/useAccounting'
 import useThemeStore from '@/store/useTheme'
 import { installPassiveScrollListeners } from '@/utils/passiveEvents'
 import { THEME_COLORS } from '@/utils/chartTheme'
+import { currentMonth, shiftRangeValue, todayStr, type RangeMode } from '../../utils/rangeUtils'
+import TrendChart from './TrendChart.vue'
 import type { AccountingRecord, AccountingType } from '@/constants/accounting'
 
 // ECharts 非 passive 滚轮监听告警兜底（与项目其它图表一致）
@@ -107,7 +112,7 @@ const { categories } = storeToRefs(store)
 const { currentTheme } = storeToRefs(useThemeStore())
 
 // ============ 统计范围：日 / 月 / 年 ============
-const rangeMode = ref<'day' | 'month' | 'year'>('month')
+const rangeMode = ref<RangeMode>('month')
 const rangeDay = ref(todayStr())
 const rangeMonth = ref(currentMonth())
 const rangeYear = ref(String(new Date().getFullYear()))
@@ -116,15 +121,6 @@ const rangeYear = ref(String(new Date().getFullYear()))
 const dayPop = ref(false)
 const monthPop = ref(false)
 const yearPop = ref(false)
-
-function currentMonth() {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-}
-function todayStr() {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
 
 /** 当前选中范围的值（日=YYYY-MM-DD / 月=YYYY-MM / 年=YYYY） */
 const rangeValue = computed(() =>
@@ -158,16 +154,11 @@ function onYearPick() {
 /** 上一年/月/日 或 下一 年/月/日（按当前 rangeMode 切换；箭头按钮用） */
 function shiftRange(dir: number) {
   if (rangeMode.value === 'day') {
-    const [y, m, d] = rangeDay.value.split('-').map(Number)
-    const dt = new Date(y, m - 1, d)
-    dt.setDate(dt.getDate() + dir)
-    rangeDay.value = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+    rangeDay.value = shiftRangeValue('day', rangeDay.value, dir)
   } else if (rangeMode.value === 'month') {
-    const [y, m] = rangeMonth.value.split('-').map(Number)
-    const dt = new Date(y, m - 1 + dir, 1)
-    rangeMonth.value = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`
+    rangeMonth.value = shiftRangeValue('month', rangeMonth.value, dir)
   } else {
-    rangeYear.value = String(Number(rangeYear.value) + dir)
+    rangeYear.value = shiftRangeValue('year', rangeYear.value, dir)
   }
 }
 
@@ -274,6 +265,8 @@ function pieOption(data: { name: string; value: number; itemStyle: { color: stri
         radius: ['42%', '70%'],
         center: ['50%', '50%'],
         avoidLabelOverlap: true,
+        // 最小扇区角度：数据差距悬殊时，极小分类至少占 5°，保证可见、可悬停
+        minAngle: 5,
         itemStyle: { borderRadius: 6, borderColor: tc.pieBorder, borderWidth: 2 },
         label: { show: true, formatter: '{b}\n{d}%', fontSize: 12, color: tc.labelColor },
         data,
@@ -348,6 +341,8 @@ function renderBar() {
       {
         type: 'bar',
         barWidth: '58%',
+        // 最小柱高（px）：数据差距悬殊时，小金额分类至少显示 2px，保证可见可交互（0 值也会出现 2px 桩，悬停可见真实金额）
+        barMinHeight: 2,
         data: arr.map((c) => ({
           value: c.value,
           _name: c.name,
