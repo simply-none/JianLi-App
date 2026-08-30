@@ -54,6 +54,9 @@ export function paginateDocument(doc: Document, options: PaginateOptions = {}): 
   try {
     // ===== 第一步：递归片段化到视觉行级（全部测量在已挂载 flow 中完成） =====
     for (const mod of Array.from(flow.children) as HTMLElement[]) {
+      // 跳过隐藏测量容器：splitLeafText 的行块克隆暂存在其中，若被当作模块递归
+      // 会产生重复片段（同一节点被两次 appendChild 移动），导致文本内容整块丢失
+      if (mod === measure) continue
       if (innerSplit) {
         pieces.push(...flattenToLines(doc, mod, null, measure))
       } else {
@@ -62,6 +65,12 @@ export function paginateDocument(doc: Document, options: PaginateOptions = {}): 
         if (h > 0) pieces.push({ nodes: [mod], h, wrapTpl: null })
       }
     }
+
+    // 诊断：输出全部片段清单（高度/是否带容器包装/文本头部），用于核对内容是否在片段化阶段丢失
+    console.debug(
+      '[resume] 片段清单:',
+      pieces.map((p, i) => `#${i} h${p.h}${p.wrapTpl ? 'W' : ''}|${(p.nodes[0]?.textContent || '').replace(/\s+/g, ' ').slice(0, 10)}`).join(' · ')
+    )
 
     // ===== 第二步：纯数据装箱（贪心，页内容高 innerH） =====
     type PageData = { pieces: Piece[]; used: number }
@@ -76,6 +85,12 @@ export function paginateDocument(doc: Document, options: PaginateOptions = {}): 
       cur.used += p.h
     }
     if (cur.pieces.length > 0) pagesData.push(cur)
+
+    // 诊断：输出每页装箱结果（片段数/累计高度），用于核对片段是否全部进入页数据
+    console.debug(
+      '[resume] 装箱结果:',
+      JSON.stringify(pagesData.map((pd) => ({ n: pd.pieces.length, used: Math.round(pd.used) })))
+    )
 
     // ===== 第三步：一次性移动 DOM（移动时不再测量） =====
     const pages: HTMLElement[] = []
@@ -156,6 +171,11 @@ export function paginateDocument(doc: Document, options: PaginateOptions = {}): 
     console.debug('[resume] 分页：', JSON.stringify({ limit: Math.round(innerH), pages: heights }))
 
     flow.replaceWith(...pages)
+
+    // 诊断：最终核对全部片段节点均已挂载到文档（未挂载 = 内容丢失直接证据）
+    const detached = pieces.flatMap((p) => p.nodes).filter((n) => !n.isConnected)
+    console.debug('[resume] 最终未挂载节点数:', detached.length)
+
     return pages.length
   } finally {
     measure.remove()
@@ -265,6 +285,7 @@ function splitLeafText(
       d.textContent = '\u00A0'
       measure.appendChild(d)
       out.push({ nodes: [d], h: d.offsetHeight, wrapTpl })
+      d.remove()
       continue
     }
     // 长段按估算字符数切块
@@ -274,8 +295,22 @@ function splitLeafText(
       d.textContent = chunk
       measure.appendChild(d)
       out.push({ nodes: [d], h: d.offsetHeight, wrapTpl })
+      // 测量完立即移出：防止克隆滞留 measure 被模块循环再次处理（内容丢失根因）
+      d.remove()
     }
   }
+  // 诊断：超页文本块拆分结果（估算行宽/切块数/各块实测高），用于核对拆分是否异常
+  console.debug(
+    '[resume][split] 文本块拆分:',
+    JSON.stringify({
+      head: text.slice(0, 14),
+      原高: el.offsetHeight,
+      宽: width,
+      charW: +charW.toFixed(2),
+      每行字符: charsPerLine,
+      块: out.map((o) => ({ h: o.h, t: (o.nodes[0].textContent || '').slice(0, 8) })),
+    })
+  )
   return out
 }
 
