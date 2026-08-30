@@ -67,6 +67,7 @@
       v-model:visible="styleDialogVisible"
       :config="layoutConfig"
       :resume-data="localData"
+      :inner-split="innerSplit"
       @apply="applyLayout"
     />
   </div>

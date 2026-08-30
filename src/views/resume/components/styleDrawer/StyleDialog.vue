@@ -43,13 +43,13 @@
         </div>
       </div>
 
-      <!-- 右：示例简历实时渲染 -->
+      <!-- 右：实时渲染（简历数据 + 模块内切断开关与主预览一致） -->
       <div class="preview-panel">
         <div class="preview-tip">
           <LucideIcon name="Info" :size="13" />
           <span>示例数据预览（不影响当前简历内容），宽度自适应</span>
         </div>
-        <ResumePaper :key="renderTick" :html="previewHtml" />
+        <ResumePaper :key="renderTick" :html="previewHtml" :inner-split="innerSplit !== false" />
       </div>
     </div>
 
@@ -92,6 +92,8 @@ const props = defineProps<{
   config: ResumeLayoutConfig
   /** 当前简历数据（预览优先使用；简历无内容时回退 mock 示例数据） */
   resumeData?: ResumeData
+  /** 模块内切断开关（与主预览一致，透传给纸张切页） */
+  innerSplit?: boolean
 }>()
 
 const emit = defineEmits<{
