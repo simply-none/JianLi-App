@@ -129,6 +129,16 @@ export interface OutputConfig {
   maxRecords?: number;
 }
 
+/** 提取项容器组：在记录容器（或页面）内再匹配多个子项，每个子项产出一组字段（结果为数组） */
+export interface ItemGroup {
+  /** 组名（结果记录中的字段名，如「相关新闻」） */
+  name: string;
+  /** 项容器选择器：命中多个元素，每个元素产出一项 */
+  selector: string;
+  /** 项内字段规则 */
+  rules: FieldRule[];
+}
+
 /** 采集任务完整配置（落库核心 JSON） */
 export interface ScrapeConfig {
   /** 任务名 */
@@ -141,8 +151,10 @@ export interface ScrapeConfig {
   wait?: WaitConfig;
   /** 记录容器选择器（列表模式；缺省为扁平模式） */
   itemSelector?: string;
-  /** 字段规则列表 */
+  /** 字段规则列表（记录级字段） */
   rules: FieldRule[];
+  /** 提取项容器组（可选多个）：每条记录内收集子项数组，返回全部子项 */
+  groups?: ItemGroup[];
   /** 每页抽取前的交互步骤 */
   actions?: ActionStep[];
   /** 接口捕获配置（source=network 时必填） */

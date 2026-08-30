@@ -67,42 +67,30 @@ export function useHistory() {
 }
 
 /**
- * 记录数组转 CSV 文本（带 BOM，Excel 直开不乱码）
- * @param records 记录数组（取首条记录的键并集作为列，值统一 String 化）
- * @returns CSV 文本
+ * 生成导出用时间戳（本地时间 YYYYMMDD-HHmmss，与调试快照命名风格一致）
+ * @returns 时间戳字符串
  */
-export function buildCsv(records: any[]): string {
-  if (!records || !records.length) return ''
-  const headers = Array.from(
-    records.reduce((set: Set<string>, row: any) => {
-      Object.keys(row || {}).forEach((k) => set.add(k))
-      return set
-    }, new Set<string>())
-  )
-  const escape = (v: any) => {
-    const s = v === null || v === undefined ? '' : Array.isArray(v) ? v.join(';') : String(v)
-    return `"${s.replace(/"/g, '""').replace(/[\r\n]+/g, ' ')}"`
-  }
-  const lines = [headers.map(escape).join(',')]
-  for (const row of records) {
-    lines.push(headers.map((h) => escape(row?.[h])).join(','))
-  }
-  return '\uFEFF' + lines.join('\r\n')
+function timestamp(): string {
+  const d = new Date()
+  const p = (n: number): string => String(n).padStart(2, '0')
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
 }
 
 /**
- * 采集结果导出（CSV），经系统保存对话框写盘（复用 net-request:save-file 通用出口）
- * @param records 记录数组
- * @param name 导出文件名基础（不含扩展名）
- * @returns 成功返回保存路径，取消/失败返回 null
+ * 导出记录为 JSON 文件（文件名：任务名称-时间.json）
+ * 保留记录原始结构（含提取项容器数组），CSV 会丢失层级不适合本模块
+ * @param records 采集记录数组
+ * @param name 任务名称（作为文件名前缀）
+ * @returns 保存后的文件路径（用户取消时返回 null）
+ * @throws IPC 调用失败时向上抛出（调用方提示）
  */
 export async function exportRecords(records: any[], name: string): Promise<string | null> {
   if (!records || !records.length) return null
   const ipc: any = (window as any).ipcRenderer
   const res = await ipc.handlePromise('net-request:save-file', {
     title: '导出采集结果',
-    defaultName: `${name}.csv`,
-    text: buildCsv(records),
+    defaultName: `${name || '采集结果'}-${timestamp()}.json`,
+    text: JSON.stringify(records, null, 2),
   })
   return res?.path || null
 }

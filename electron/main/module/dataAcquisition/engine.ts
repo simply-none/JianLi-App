@@ -408,7 +408,7 @@ export async function runScraperTask(params: {
 
       // 4.6 数据抽取（DOM 规则 / 接口捕获）
       emit("running", pageNum, "抽取数据");
-      stepCtx = `第${pageNum}页 · 数据抽取（${config.source === "network" ? `接口捕获 ${config.capture?.urlPattern || ""}` : `${config.itemSelector ? `容器=${config.itemSelector}，` : ""}字段规则 ${config.rules?.length || 0} 条`}）`;
+      stepCtx = `第${pageNum}页 · 数据抽取（${config.source === "network" ? `接口捕获 ${config.capture?.urlPattern || ""}` : `${config.itemSelector ? `容器=${config.itemSelector}，` : ""}字段规则 ${config.rules?.length || 0} 条${config.groups?.length ? `，提取项容器 ${config.groups.length} 个` : ""}`}）`;
       if (config.source === "network" && captureBuffer) {
         // 增量消费：仅取本页新捕获的响应，多页捕获不重复
         const fresh = captureBuffer.slice(captureOffset);

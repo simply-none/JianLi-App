@@ -87,15 +87,16 @@ export function useTask() {
   }
 
   /**
-   * 保存任务（按 name 幂等）并刷新列表
-   * @param config 完整任务配置
+   * 保存任务（指定 id 时更新原任务，支持改名；未指定时新建）并刷新列表
+   * @param config 任务配置
+   * @param id 任务 id（编辑已有任务时传入）
    * @returns 任务 id
-   * @throws 写库失败时抛出（调用方 ElMessage 提示）
+   * @throws 写库失败时抛出
    */
-  async function persistTask(config: ScrapeConfig): Promise<number> {
-    const id = await saveTask(config)
+  async function persistTask(config: ScrapeConfig, id?: number | null): Promise<number> {
+    const savedId = await saveTask(config, id)
     await refreshTasks()
-    return id
+    return savedId
   }
 
   /**

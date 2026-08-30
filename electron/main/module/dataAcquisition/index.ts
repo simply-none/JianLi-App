@@ -11,10 +11,12 @@
  * - scraper:login-delete  渲染→主 删除登录档案
  * - scraper:get-settings  渲染→主 读取全局设置
  * - scraper:set-settings  渲染→主 保存全局设置（无头/代理变化自动重建浏览器）
+ * - scraper:reveal-file   渲染→主 在系统文件管理器中定位文件（导出结果跳转用）
  * - scraper:task-progress 主→渲染 实时进度推送
  * - scraper:task-result   主→渲染 任务结果推送
  */
-import { ipcMain, app } from "electron";
+import { ipcMain, app, shell } from "electron";
+import fs from "node:fs";
 import { runScraperTask, stopScraperTask } from "./engine.ts";
 import {
   openLoginSession,
@@ -62,6 +64,15 @@ export function initDataAcquisition(): void {
   // 请求取消任务
   ipcMain.handle("scraper:stop-task", (_event, taskId: string) => {
     return { success: stopScraperTask(taskId) };
+  });
+
+  // 在系统文件管理器中定位文件（导出结果提示的跳转入口）
+  ipcMain.handle("scraper:reveal-file", (_event, filePath: string) => {
+    if (filePath && fs.existsSync(filePath)) {
+      shell.showItemInFolder(filePath);
+      return { success: true };
+    }
+    return { success: false, error: "文件不存在或已被移动" };
   });
 
   // 打开有头登录窗口

@@ -140,23 +140,38 @@ async function ensureTables(): Promise<void> {
 /* ------------------------------------------------------------------ */
 
 /**
- * 保存任务（按 name 幂等：存在即更新，否则插入）
- * @param config 完整任务配置（name 为唯一标识）
- * @returns 任务 id（新插入时为自增 id）
- * @throws {Error} 写库失败时抛出
+ * 保存任务（指定 id 时按 id 更新，支持改名；未指定时按 name 幂等）
+ * @param config 完整任务配置
+ * @param id 任务 id（编辑已有任务时传入；新建时省略）
+ * @returns 任务 id
+ * @throws {Error} 写库失败时抛出（改名与其他任务重复时提示友好错误）
  */
-export async function saveTask(config: ScrapeConfig): Promise<number> {
+export async function saveTask(config: ScrapeConfig, id?: number | null): Promise<number> {
   await ensureTables()
-  const existing = await dbQuery(`SELECT id FROM ${TASK_TABLE} WHERE name = ?`, [config.name])
   const configJson = JSON.stringify(config)
+  // 编辑已有任务：按 id 更新（含改名），不按名称匹配（否则改名会被当成新任务）
+  if (id) {
+    try {
+      const res = await dbRun(
+        `UPDATE ${TASK_TABLE} SET name = ?, config = ?, updated_at = ? WHERE id = ?`,
+        [config.name, configJson, Date.now(), id]
+      )
+      if (res.changes > 0) return id
+      // 任务已被删除（changes=0）时回退为按名称幂等的新增流程
+    } catch (err) {
+      // 名称唯一索引冲突 → 改成了其他任务的名称
+      throw new Error(`保存失败：任务名称「${config.name}」与其他任务重复，请换一个名称`)
+    }
+  }
+  const existing = await dbQuery(`SELECT id FROM ${TASK_TABLE} WHERE name = ?`, [config.name])
   if (existing.length) {
-    const id = existing[0].id
+    const existId = existing[0].id
     await dbRun(`UPDATE ${TASK_TABLE} SET config = ?, updated_at = ? WHERE id = ?`, [
       configJson,
       Date.now(),
-      id,
+      existId,
     ])
-    return id
+    return existId
   }
   const res = await dbRun(
     `INSERT INTO ${TASK_TABLE} (name, config, updated_at) VALUES (?, ?, ?)`,

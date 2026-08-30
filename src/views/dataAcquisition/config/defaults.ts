@@ -3,7 +3,7 @@
  * ------------------------------------------------------------------
  * 新建任务 / 空状态时提供合理的缺省配置，避免用户从零摸索。
  */
-import type { ScrapeConfig, FieldRule } from '../types'
+import type { ScrapeConfig, FieldRule, ItemGroup } from '../types'
 
 /**
  * 创建一条空白字段规则
@@ -17,6 +17,18 @@ export function createEmptyRule(): FieldRule {
     optional: true,
     multiple: false,
     transforms: [],
+  }
+}
+
+/**
+ * 创建一个空白的提取项容器组
+ * @returns 提取项容器组对象
+ */
+export function createEmptyGroup(): ItemGroup {
+  return {
+    name: '',
+    selector: '',
+    rules: [createEmptyRule()],
   }
 }
 
@@ -37,6 +49,7 @@ export function createDefaultConfig(): ScrapeConfig {
     },
     itemSelector: '',
     rules: [createEmptyRule()],
+    groups: [],
     actions: [],
     capture: {
       urlPattern: '',

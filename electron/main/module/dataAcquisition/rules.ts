@@ -10,7 +10,7 @@
  *    扁平模式（无 itemSelector）：整页产出一条记录，multiple 规则产出数组
  */
 import type puppeteer from "puppeteer";
-import type { FieldRule, TransformStep, CaptureConfig } from "./types.ts";
+import type { FieldRule, TransformStep, CaptureConfig, ItemGroup } from "./types.ts";
 
 /** 页面内取值函数（在浏览器上下文执行，禁止引用外部变量） */
 function getElValue(el: Element, attr: string): string {
@@ -113,21 +113,57 @@ async function extractField(
 }
 
 /**
+ * 在指定作用域内收集一个提取项容器组的全部子项
+ * （命中多少个子项容器就产出多少条，返回全部而非第一个）
+ * @param scope 抽取作用域（页面或记录容器元素）
+ * @param group 提取项容器组配置
+ * @returns 子项记录数组（每个子项容器一条，可能为空数组）
+ */
+async function extractGroupItems(scope: puppeteer.Page | puppeteer.ElementHandle, group: ItemGroup): Promise<any[]> {
+  // 过滤无效规则：字段名与选择器必填
+  const rules = (group.rules || []).filter((r) => r.field && r.selector);
+  const elements = await scope.$$(group.selector);
+  const out: any[] = [];
+  for (const el of elements) {
+    const record: Record<string, any> = {};
+    for (const rule of rules) {
+      record[rule.field] = await extractField(el, rule);
+    }
+    out.push(record);
+  }
+  return out;
+}
+
+/**
+ * 判断记录值是否为空（空串/null/空数组视为空）
+ * @param v 记录字段值
+ * @returns 为空时返回 true
+ */
+function isEmptyValue(v: any): boolean {
+  return v === "" || v === null || v === undefined || (Array.isArray(v) && !v.length);
+}
+
+/**
  * 在当前页面上执行规则抽取（列表模式 / 扁平模式自动分流）
+ * 记录 = 记录级字段 + 各提取项容器组的子项数组（子项返回全部而非第一个）
  * @param page 目标页面
- * @param config 任务配置（使用 itemSelector/rules）
+ * @param config 任务配置（使用 itemSelector/rules/groups）
  * @returns 抽取出的记录数组（可能为空数组）
  */
 export async function extractRecords(page: puppeteer.Page, config: {
   itemSelector?: string;
   rules: FieldRule[];
+  groups?: ItemGroup[];
 }): Promise<any[]> {
   // 过滤无效规则：字段名与选择器均为必填，避免 querySelector('') 抛
   // "The provided selector is empty"（新建任务默认带一条空规则，极易触发）
   const rules = (config.rules || []).filter((r) => r.field && r.selector);
-  if (!rules.length) {
+  // 过滤有效提取项容器组：组名与选择器必填（项容器可选，可为空）
+  const groups = (config.groups || []).filter((g) => g.name && g.selector);
+  // 记录级规则与提取项容器至少要有一个，否则无从抽取
+  if (!rules.length && !groups.length) {
     throw new Error(
-      "没有有效的字段规则：每条规则的「字段名」与「选择器」都必须填写（可在任务配置的字段规则中检查）"
+      "没有有效的抽取配置：请填写字段规则（字段名与选择器必填），或添加至少一个提取项容器（组名与选择器必填）"
     );
   }
   // 列表模式：遍历记录容器，容器内按字段选择器相对抽取
@@ -143,28 +179,34 @@ export async function extractRecords(page: puppeteer.Page, config: {
     const records: any[] = [];
     for (const item of items) {
       const record: Record<string, any> = {};
+      // 记录级字段
       for (const rule of rules) {
         record[rule.field] = await extractField(item, rule);
       }
+      // 提取项容器组：每条记录内收集全部子项（数组）
+      for (const group of groups) {
+        record[group.name] = await extractGroupItems(item, group);
+      }
       records.push(record);
     }
-    // 容器有元素但字段全部取空时提示定位（常见于相对选择器与容器不匹配）
-    const allEmpty = records.every((rec) =>
-      Object.values(rec).every((v) => v === "" || v === null || (Array.isArray(v) && !v.length))
-    );
+    // 容器有元素但内容全部取空时提示定位（常见于相对选择器与容器不匹配）
+    const allEmpty = records.every((rec) => Object.values(rec).every(isEmptyValue));
     if (allEmpty) {
-      const selectors = rules.map((r) => r.selector).join("、");
+      const selectors = [...rules.map((r) => r.selector), ...groups.map((g) => g.selector)].join("、");
       throw new Error(
-        `记录容器 '${config.itemSelector}' 命中 ${items.length} 个元素，但字段选择器全部取到空值：${selectors}` +
-          `。请确认字段选择器是相对容器内部的路径，而非容器自身的绝对选择器`
+        `记录容器 '${config.itemSelector}' 命中 ${items.length} 个元素，但字段/项容器选择器全部取到空值：${selectors}` +
+          `。请确认选择器是相对容器内部的路径，而非容器自身的绝对选择器`
       );
     }
     return records;
   }
-  // 扁平模式：整页一条记录（multiple 规则产出数组，可配合分页聚合）
+  // 扁平模式：整页一条记录（multiple 规则与提取项容器产出数组）
   const record: Record<string, any> = {};
   for (const rule of rules) {
     record[rule.field] = await extractField(page, rule);
+  }
+  for (const group of groups) {
+    record[group.name] = await extractGroupItems(page, group);
   }
   return [record];
 }

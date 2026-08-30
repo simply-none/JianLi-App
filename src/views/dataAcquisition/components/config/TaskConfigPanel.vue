@@ -76,7 +76,8 @@
             />
           </el-form-item>
         </el-form>
-        <RuleEditor :rules="config.rules" :item-mode="!!config.itemSelector" />
+        <!-- 提取结果编辑器：记录字段 + 可选提取项容器（点击芯片切换，默认展示第一个） -->
+        <ExtractEditor :config="config" />
       </template>
       <template v-else>
         <div class="capture-panel">
@@ -177,7 +178,7 @@
 import { ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { ScrapeConfig } from '../../types'
-import RuleEditor from './RuleEditor.vue'
+import ExtractEditor from './ExtractEditor.vue'
 import ActionPanel from './ActionPanel.vue'
 import PaginationPanel from './PaginationPanel.vue'
 import AntiCrawlPanel from './AntiCrawlPanel.vue'

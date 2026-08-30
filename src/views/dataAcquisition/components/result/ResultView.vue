@@ -12,29 +12,61 @@
     <div v-if="!records.length" class="result-empty">暂无数据（先试运行采集）</div>
 
     <template v-else>
-      <el-table
-        v-if="viewMode === 'table'"
-        :data="pagedRecords"
-        size="small"
-        border
-        stripe
-        class="result-table"
-        :max-height="tableMaxHeight"
-      >
-        <el-table-column type="index" label="#" width="52" fixed />
-        <el-table-column
-          v-for="col in columns"
-          :key="col"
-          :prop="col"
-          :label="col"
-          :min-width="140"
-          show-overflow-tooltip
-        >
-          <template #default="{ row }">
-            {{ formatCell(row[col]) }}
-          </template>
-        </el-table-column>
-      </el-table>
+      <!-- 表格视图：按容器归类分节展示（记录容器一节、每个提取项容器一节，空节不展示） -->
+      <template v-if="viewMode === 'table'">
+        <!-- 记录容器节：记录级字段（无记录级字段列时不展示） -->
+        <div v-if="mainColumns.length" class="result-section">
+          <div class="section-title">记录容器（{{ records.length }} 条）</div>
+          <el-table
+            :data="pagedRecords"
+            size="small"
+            border
+            stripe
+            class="result-table"
+            :max-height="tableMaxHeight"
+          >
+            <el-table-column type="index" label="#" width="52" fixed />
+            <el-table-column
+              v-for="col in mainColumns"
+              :key="col"
+              :prop="col"
+              :label="col"
+              :min-width="140"
+              show-overflow-tooltip
+            >
+              <template #default="{ row }">
+                {{ formatCell(row[col]) }}
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+        <!-- 项容器节：组名 + 该容器全部记录的子项汇总表（无子项不展示） -->
+        <div v-for="gk in groupKeys" :key="gk" class="result-section">
+          <div class="section-title">{{ gk }}（{{ flattened(gk).length }} 项）</div>
+          <el-table
+            :data="flattened(gk)"
+            size="small"
+            border
+            stripe
+            class="result-table"
+            :max-height="tableMaxHeight"
+          >
+            <el-table-column type="index" label="#" width="52" fixed />
+            <el-table-column
+              v-for="col in groupItemKeys(gk)"
+              :key="col"
+              :prop="col"
+              :label="col"
+              :min-width="120"
+              show-overflow-tooltip
+            >
+              <template #default="{ row: item }">
+                {{ formatCell(item[col]) }}
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+      </template>
       <el-input
         v-else
         :model-value="jsonText"
@@ -45,7 +77,7 @@
         spellcheck="false"
       />
       <el-pagination
-        v-if="viewMode === 'table' && records.length > pageSize"
+        v-if="viewMode === 'table' && mainColumns.length && records.length > pageSize"
         v-model:current-page="page"
         :page-size="pageSize"
         :total="records.length"
@@ -61,9 +93,9 @@
  * 采集结果视图
  * ------------------------------------------------------------------
  * 动态列表格（列取自记录键并集）与 JSON 双视图，分页展示，
- * 支持 CSV 导出（带 BOM）。
+ * 支持 JSON 导出（成功提示含文件链接，点击定位文件位置）。
  */
-import { ref, computed } from 'vue'
+import { ref, computed, watch, h } from 'vue'
 import { ElMessage } from 'element-plus'
 import { exportRecords } from '../../composables/useHistory'
 
@@ -92,6 +124,72 @@ const columns = computed(() => {
   }
   return Array.from(set)
 })
+
+/**
+ * 判断值是否为「项容器子项数组」（非空数组且元素为对象）
+ * @param value 待判断的值
+ * @returns 是子项数组时返回 true
+ */
+function isItemArray(value: any): boolean {
+  return Array.isArray(value) && value.length > 0 && typeof value[0] === 'object' && value[0] !== null
+}
+
+/** 提取项容器字段名（值在样本记录中为对象数组的键） */
+const groupKeys = computed(() => columns.value.filter((k) => props.records.slice(0, 200).some((r) => isItemArray(r?.[k]))))
+
+/** 记录级主表列（排除提取项容器字段） */
+const mainColumns = computed(() => columns.value.filter((k) => !groupKeys.value.includes(k)))
+
+/** 子项字段的列缓存（键 → 子项列数组，避免模板中反复求并集） */
+const groupItemKeysCache = new Map<string, string[]>()
+/** 子项拍平汇总缓存（键 → 全部记录子项合并数组） */
+const flattenCache = new Map<string, any[]>()
+
+// 记录变化（重新运行）时清空缓存，避免展示旧字段/旧数据
+watch(
+  () => props.records,
+  () => {
+    groupItemKeysCache.clear()
+    flattenCache.clear()
+  }
+)
+
+/**
+ * 求某提取项容器下全部子项的字段列并集
+ * @param key 容器字段名
+ * @returns 子项字段名数组
+ */
+function groupItemKeys(key: string): string[] {
+  const cached = groupItemKeysCache.get(key)
+  if (cached) return cached
+  const set = new Set<string>()
+  for (const row of props.records.slice(0, 200)) {
+    const items = row?.[key]
+    if (isItemArray(items)) {
+      for (const item of items.slice(0, 50)) Object.keys(item || {}).forEach((k) => set.add(k))
+    }
+  }
+  const keys = Array.from(set)
+  groupItemKeysCache.set(key, keys)
+  return keys
+}
+
+/**
+ * 拍平某提取项容器：全部记录的子项合并为一张表的数据源
+ * @param key 容器字段名
+ * @returns 子项对象数组
+ */
+function flattened(key: string): any[] {
+  const cached = flattenCache.get(key)
+  if (cached) return cached
+  const out: any[] = []
+  for (const row of props.records) {
+    const items = row?.[key]
+    if (isItemArray(items)) out.push(...items)
+  }
+  flattenCache.set(key, out)
+  return out
+}
 
 /** 当前页记录切片 */
 const pagedRecords = computed(() => {
@@ -122,12 +220,39 @@ function formatCell(value: any): string {
 }
 
 /**
- * 导出当前结果为 CSV
+ * 导出当前结果为 JSON 文件，成功提示展示文件链接（点击定位到文件位置）
  */
 async function onExport(): Promise<void> {
   const saved = await exportRecords(props.records, props.exportName || '采集结果')
   if (saved) {
-    ElMessage.success(`已导出：${saved}`)
+    ElMessage({
+      type: 'success',
+      duration: 5000,
+      message: h('span', { class: 'export-tip' }, [
+        '已导出：',
+        h(
+          'a',
+          {
+            class: 'export-link',
+            title: '在文件管理器中显示',
+            onClick: () => revealFile(saved),
+          },
+          saved.split(/[\\/]/).pop()
+        ),
+      ]),
+    })
+  }
+}
+
+/**
+ * 在系统文件管理器中定位导出的文件
+ * @param filePath 文件绝对路径
+ */
+async function revealFile(filePath: string): Promise<void> {
+  const ipc: any = (window as any).ipcRenderer
+  const res = await ipc.handlePromise('scraper:reveal-file', filePath)
+  if (res && res.success === false) {
+    ElMessage.warning(res.error || '无法定位文件')
   }
 }
 </script>
@@ -157,8 +282,30 @@ async function onExport(): Promise<void> {
 .result-table {
   width: 100%;
 }
+.result-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  padding-left: 2px;
+}
 .result-json {
   font-family: Consolas, Monaco, monospace;
   font-size: 12px;
+}
+</style>
+
+<style>
+/* 导出提示中的文件链接（ElMessage 挂载于 body，需全局样式） */
+.export-tip .export-link {
+  color: var(--el-color-primary);
+  cursor: pointer;
+  text-decoration: underline;
+  margin-left: 4px;
+  word-break: break-all;
 }
 </style>
