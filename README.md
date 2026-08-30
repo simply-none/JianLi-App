@@ -43,6 +43,12 @@ npm run build
 
 ## 项目改动记录
 
+- 2026-08-30：托盘增强（`electron/main/module/tray.ts`）
+  - 右键快捷菜单新增：打卡（打开 `habitMiniWindow` 打卡小窗）/ 番茄钟（打开 `pomodoro` 小窗）/ 截图（直接唤起截图选框层）/ 快速记录（打开 `quickNote` 小窗）。
+    统一复用 `registerShortcut` 的 `openOrToggleMiniWindow` 模式（命中已开窗口则收起，否则读 `window-mode:{key}` 配置并以 `mouseEvents:true` 打开 frameless 小窗）；截图复用 `screenshot.ts` 新增导出的 `startScreenshotCapture()`。
+  - 新增「关闭时最小化到托盘」：偏好持久化在 electron-store 键 `closeToTray`（默认关闭）。`mainWindow.ts` 的 `close` 事件改为按该偏好分流——开启则 `hideApp()` 收进托盘（可从托盘菜单「退出应用」真正退出），关闭则 `exitApp()` 正常退出。（原 `before-close` 事件渲染端无人消费，已移除。）
+  - 托盘气泡提醒（Windows `Tray.displayBalloon`）：`tray.ts` 暴露 `showTrayBalloon` + `tray-balloon` IPC；`src/App.vue` 在 `tips-trigger` / `tips-state-change` / `todo-reminder-trigger` 触发时发送该 IPC，应用收在托盘也能看到提醒。非 Windows 平台做能力守卫，避免抛错。`balloon-click` 恢复应用。
+
 - 2026-08-29：新增「习惯打卡」模块（阶段①：数据模型 + 引擎复用）
   - 数据层 `src/views/habit/api/habitApi.ts`：自有表 `habit_def` / `habit_checkin`。
     读走 `new-sql:query`（支持 conditions.SqlStr、不按 SQL 推导列）、写走 `new-sql:upsert`、删走 `new-sql:delete`；

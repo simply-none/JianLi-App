@@ -1,7 +1,7 @@
 /**
  * 重复任务引擎（主进程）
- * - 在应用启动与每日 00:00 扫描 todo_list 中的「重复模板」，补生成未来一段时间内的周期实例
- * - 每次保存重复待办后，渲染端发送 recurrence:sync 立即补生成
+ * - 在应用启动与每日 00:00 扫描 todo_list 中的「重复模板」，按「天」懒生成实例（只生成当天的，不预生成未来）
+ * - 每次保存重复待办后，渲染端发送 recurrence:sync 立即生成当天实例
  * - 生成完成后调用 applyTodoReminders 重新排程截止提醒
  *
  * 数据模型：模板行 recurrenceRule 非空且 recurrenceId 为空；实例行 recurrenceId=模板key、isRecurrenceInstance=1
@@ -14,8 +14,7 @@ import { randomUUID } from 'crypto';
 import { query, upsert } from './newSql.ts';
 import { applyTodoReminders } from './job.ts';
 
-/** 向前预生成多少天的实例 */
-const LOOKAHEAD_DAYS = 60;
+/** 向前预生成多少天（已废弃：改为「按天懒生成」，每次只生成当天实例，由每日 00:00 定时任务补次日） */
 
 interface RawTodo {
   key: string;
@@ -73,14 +72,15 @@ function timeOfDay(t: RawTodo): string {
 }
 
 /**
- * 生成某模板在未来 LOOKAHEAD_DAYS 内的所有应存在实例
- * 已存在的（按 日期 去重）跳过，避免重复生成
+ * 按「天」懒生成：只生成「今天」当天应存在的实例（已存在的按日期去重跳过）
+ * 不预生成未来——未来某天的实例交由每日 00:00 的定时任务在其当天开始(00:00)时生成，
+ * 避免一次性刷出大量实例。
  */
 async function generateForTemplate(t: RawTodo) {
   const anchor = anchorDate(t);
   const tod = timeOfDay(t);
   const interval = Math.max(1, Number(t.recurrenceInterval) || 1);
-  const end = moment().add(LOOKAHEAD_DAYS, 'days').endOf('day');
+  const end = moment().endOf('day');
   const endStr = t.recurrenceEnd ? moment(t.recurrenceEnd, 'YYYY-MM-DD').format('YYYY-MM-DD') : null;
   const start = moment().startOf('day');
 
@@ -103,18 +103,10 @@ async function generateForTemplate(t: RawTodo) {
     if (t.recurrenceRule === 'daily') {
       hit = daysDiff >= 0 && daysDiff % interval === 0;
     } else if (t.recurrenceRule === 'weekly') {
-      // 与锚点同星期、且间隔周数整除
-      const weeksDiff = Math.floor(d.diff(anchor, 'weeks', true));
-      hit = d.day() === weekdays[0] || weekdays.includes(d.day());
-      // 仅在「锚点所在星期」对齐时才计入，避免每周多天重复生成
-      const anchorWeekday = anchor.day();
-      if (weekdays.includes(d.day())) {
-        const wdiff = Math.floor(Math.abs(d.diff(anchor, 'days')) / 7);
-        hit = wdiff % interval === 0;
-        void anchorWeekday;
-      } else {
-        hit = false;
-      }
+      // 仅当落在目标星期，且距锚点周数为间隔整数倍时生成
+      if (!weekdays.includes(d.day())) continue;
+      const wdiff = Math.floor(Math.abs(d.diff(anchor, 'days')) / 7);
+      hit = wdiff % interval === 0;
     }
     if (!hit) continue;
 
@@ -142,8 +134,8 @@ async function generateForTemplate(t: RawTodo) {
       remindIntervalUnit: t.remindIntervalUnit === 'hour' ? 'hour' : 'minute',
       createTime: moment().format('YYYY-MM-DD HH:mm:ss'),
       updateTime: moment().format('YYYY-MM-DD HH:mm:ss'),
-      parentId: null,
-      order: 0,
+      parentIds: null,
+      sortOrder: 0,
       recurrenceRule: t.recurrenceRule,
       recurrenceInterval: interval,
       recurrenceWeekdays: t.recurrenceWeekdays || null,
@@ -155,7 +147,7 @@ async function generateForTemplate(t: RawTodo) {
   }
 }
 
-/** 全量补生成所有模板的实例，并刷新提醒排程 */
+/** 全量补生成所有模板「当天」的实例，并刷新提醒排程 */
 export async function generateRecurrenceInstances() {
   try {
     const templates = await getTemplates();
@@ -169,7 +161,7 @@ export async function generateRecurrenceInstances() {
 }
 
 export function initRecurrence() {
-  // 启动时立即补生成一次
+  // 启动时仅补生成「当天」实例
   generateRecurrenceInstances();
 
   // 渲染端保存重复待办后触发即时补生成

@@ -257,6 +257,12 @@ function openSelectLayer(mode: "region" | "full") {
   });
 }
 
+/** 供托盘 / 快捷键等主进程入口直接唤起截图选框层（区域模式）。
+ *  与渲染端调用 ipcRenderer.invoke("screenshot:start") 走同一个入口。 */
+export function startScreenshotCapture() {
+  launchSelect("region");
+}
+
 /** 统一唤起选框层（带重复打开守卫） */
 async function launchSelect(mode: "region" | "full") {
   if (selectWin && !selectWin.isDestroyed()) {

@@ -826,16 +826,8 @@ export async function ensureTableExists(
           });
         });
 
-        const hasPrimaryKey = await new Promise<boolean>((resolve, reject) => {
-          db.all(`PRAGMA table_info(${tableName})`, [], (err, rows) => {
-            if (err) reject(err);
-            else resolve((rows as any[]).some(row => row.pk === 1));
-          });
-        });
-
-        if (!existingColumns.includes(primaryKey) && !hasPrimaryKey) {
-          // SQLite 不支持通过 ALTER 给既存表加主键列，故分两步：
-          // 1) 先加普通列；2) 再建唯一索引，等价于主键的唯一约束。
+        // 确保主键列存在（旧表可能缺该列）
+        if (!existingColumns.includes(primaryKey)) {
           const pkType = config?.primaryKeyType || (primaryKey === 'id' ? 'INTEGER' : 'TEXT');
           await new Promise<void>((res) => {
             db.run(`ALTER TABLE ${tableName} ADD COLUMN ${primaryKey} ${pkType}`, (alterErr) => {
@@ -848,18 +840,44 @@ export async function ensureTableExists(
               res();
             });
           });
-          await new Promise<void>((res) => {
+        }
+
+        // 确保主键列具备唯一索引：upsert 依赖 ON CONFLICT(primaryKey) 触发更新。
+        // 旧表常出现「列已存在但无唯一约束」的情况，导致 ON CONFLICT 永不命中、
+        // upsert 退化为重复 INSERT（表现为「编辑待办却变成新增一条」）。
+        await new Promise<void>((res) => {
+          const createIdx = () => {
             db.run(
               `CREATE UNIQUE INDEX IF NOT EXISTS uq_${tableName}_${primaryKey} ON ${tableName}(${primaryKey})`,
               (idxErr) => {
-                if (idxErr) {
-                  console.warn(`Failed to create unique index on ${tableName}(${primaryKey}):`, (idxErr as Error).message);
+                const msg = (idxErr as Error)?.message || '';
+                // 唯一约束冲突说明存在重复主键：清理重复（保留每 key 最新一条）后重试一次
+                if (idxErr && /UNIQUE constraint failed|duplicate/i.test(msg)) {
+                  db.run(
+                    `DELETE FROM ${tableName} WHERE rowid NOT IN (SELECT MAX(rowid) FROM ${tableName} GROUP BY ${primaryKey}) AND ${primaryKey} IS NOT NULL`,
+                    (delErr) => {
+                      if (delErr) {
+                        console.warn(`Failed to dedupe ${tableName}(${primaryKey}):`, (delErr as Error).message);
+                        return res();
+                      }
+                      db.run(
+                        `CREATE UNIQUE INDEX IF NOT EXISTS uq_${tableName}_${primaryKey} ON ${tableName}(${primaryKey})`,
+                        (e2) => {
+                          if (e2) console.warn(`Failed to create unique index on ${tableName}(${primaryKey}):`, (e2 as Error).message);
+                          res();
+                        },
+                      );
+                    },
+                  );
+                } else {
+                  if (idxErr) console.warn(`Failed to create unique index on ${tableName}(${primaryKey}):`, msg);
+                  res();
                 }
-                res();
-              }
+              },
             );
-          });
-        }
+          };
+          createIdx();
+        });
 
         if (columns && columns.length > 0) {
           await ensureColumns(db, tableName, columns.filter(col => col.toLowerCase() !== primaryKey.toLowerCase()));

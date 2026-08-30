@@ -63,24 +63,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import LucideIcon from '@/components/LucideIcon.vue';
 import moment from 'moment';
 import { v4 as uuidv4 } from 'uuid';
 import { ElMessage, ElMessageBox } from 'element-plus';
-
-interface TodoItem {
-  key: string;
-  title: string;
-  description: string;
-  tags: string;
-  completed: number;
-  completedTime: string;
-  priority: string;
-  dueDate: string;
-  createTime: string;
-  updateTime: string;
-}
+// 统一到新数据层：复用 todoApi（走 new-sql:query/upsert，禁裸 execute）+ 集中类型 + 行归一化
+import { fetchAllTodos, saveTodo, normalize } from '@/views/todoList/api/todoApi';
+import type { TodoItem } from '@/views/todoList/types';
 
 const allTodos = ref<TodoItem[]>([]);
 const newTodoTitle = ref('');
@@ -93,7 +83,12 @@ const themes = [
 
 const pendingTodos = computed(() => {
   return allTodos.value
+    // 只显示未完成的顶层任务
     .filter(t => t.completed == 0)
+    // 排除子任务（迷你窗只看顶层），parentIds 非空即视为子任务
+    .filter(t => !(t.parentIds && t.parentIds.length))
+    // 排除重复模板（只显示各周期实例），与主窗口默认行为一致
+    .filter(t => !(t.recurrenceRule && !t.recurrenceId))
     .sort((a, b) => {
       const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
       return (priorityOrder[a.priority] || 1) - (priorityOrder[b.priority] || 1);
@@ -147,16 +142,8 @@ const loadConfig = () => {
 
 async function fetchTodos() {
   try {
-    const result = await window.ipcRenderer.handlePromise('new-sql:execute', {
-      sql: 'SELECT * FROM todo_list WHERE completed = 0 ORDER BY priority ASC, updateTime DESC',
-      params: [],
-    });
-
-    if (result.success) {
-      const data = (result.data || []).rows || [];
-      console.log(data, 'data')
-      allTodos.value = data
-    }
+    // 走新数据层：fetchAllTodos 内部用 new-sql:query 全表拉取并归一化，杜绝裸 execute
+    allTodos.value = await fetchAllTodos();
   } catch (error) {
     console.error('获取待办失败:', error);
   }
@@ -166,7 +153,9 @@ async function addNewTodo() {
   const title = newTodoTitle.value.trim();
   if (!title) return;
 
-  const todoData: TodoItem = {
+  const now = moment().format('YYYY-MM-DD HH:mm:ss');
+  // 构造完整 TodoItem 并归一化，确保字段与主数据层一致
+  const todoData = normalize({
     key: uuidv4(),
     title,
     description: '',
@@ -175,20 +164,17 @@ async function addNewTodo() {
     completedTime: '',
     priority: 'medium',
     dueDate: '',
-    createTime: moment().format('YYYY-MM-DD HH:mm:ss'),
-    updateTime: moment().format('YYYY-MM-DD HH:mm:ss'),
-  };
-
-  const result = await window.ipcRenderer.handlePromise('new-sql:upsert', {
-    tableName: 'todo_list',
-    data: todoData,
-    config: { primaryKey: 'key' },
+    createTime: now,
+    updateTime: now,
   });
 
-  if (result.success) {
+  try {
+    await saveTodo(todoData);
     allTodos.value.unshift(todoData);
     newTodoTitle.value = '';
     window.ipcRenderer.send('sync-data-to-other-window', { todoUpdated: true });
+  } catch (error) {
+    console.error('添加待办失败:', error);
   }
 }
 
@@ -204,27 +190,22 @@ async function toggleTodo(todo: TodoItem) {
       }
     );
 
-    const todoData = {
+    const now = moment().format('YYYY-MM-DD HH:mm:ss');
+    // 归一化后写库，保证字段结构与主数据层一致
+    const todoData = normalize({
       ...todo,
       completed: 1,
-      completedTime: moment().format('YYYY-MM-DD HH:mm:ss'),
-      updateTime: moment().format('YYYY-MM-DD HH:mm:ss'),
-    };
-
-    const result = await window.ipcRenderer.handlePromise('new-sql:upsert', {
-      tableName: 'todo_list',
-      data: todoData,
-      config: { primaryKey: 'key' },
+      completedTime: now,
+      updateTime: now,
     });
 
-    if (result.success) {
-      const index = allTodos.value.findIndex(t => t.key === todo.key);
-      if (index > -1) {
-        allTodos.value.splice(index, 1);
-      }
-      window.ipcRenderer.send('sync-data-to-other-window', { todoUpdated: true });
-      ElMessage.success('已标记为完成');
+    await saveTodo(todoData);
+    const index = allTodos.value.findIndex(t => t.key === todo.key);
+    if (index > -1) {
+      allTodos.value.splice(index, 1);
     }
+    window.ipcRenderer.send('sync-data-to-other-window', { todoUpdated: true });
+    ElMessage.success('已标记为完成');
   } catch (error) {
     if (error !== 'cancel') {
       console.error('操作失败:', error);

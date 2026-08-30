@@ -43,3 +43,37 @@ export function getTodoStatusMeta(status: string | undefined | null): TodoStatus
 export function deriveStatusFromCompleted(completed: number | string | undefined): TodoStatus {
   return Number(completed) === 1 ? 'completed' : 'not_started';
 }
+
+// ============ 重复任务展示文案 ============
+export type RecurrenceRule = 'daily' | 'weekly' | null;
+
+export const RECURRENCE_OPTIONS: { value: RecurrenceRule; label: string }[] = [
+  { value: null, label: '不重复' },
+  { value: 'daily', label: '每天' },
+  { value: 'weekly', label: '每周' },
+];
+
+const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
+
+/** 把重复配置格式化为可读文案，如「每 2 天」「每周一、三」 */
+export function formatRecurrence(
+  rule: RecurrenceRule | undefined | null,
+  interval = 1,
+  weekdays?: string | null,
+): string {
+  if (!rule) return '';
+  if (rule === 'daily') {
+    return interval > 1 ? `每 ${interval} 天` : '每天';
+  }
+  // weekly
+  let days: number[] = [];
+  try {
+    days = (JSON.parse(weekdays || '[]') as number[]).sort((a, b) => a - b);
+  } catch {
+    days = [];
+  }
+  const dayText = days.length
+    ? days.map((d) => '周' + WEEKDAY_LABELS[d]).join('、')
+    : '每周';
+  return interval > 1 ? `${interval} 周（${dayText}）` : dayText;
+}

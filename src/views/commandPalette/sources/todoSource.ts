@@ -3,6 +3,7 @@ import { matchScore, byScoreDesc } from '../utils/score'
 import { queryTodoRows } from '../utils/db'
 import { truncate, formatTime } from '../utils/text'
 import { DEFAULT_LIMIT, MAX_PER_SOURCE } from '../config/paletteConfig'
+import { useTodoStore } from '@/store/useTodo'
 
 const TABLE = 'todo_list'
 
@@ -20,6 +21,9 @@ interface TodoRow {
   updateTime?: string
   priority?: string
   dueDate?: string
+  parentIds?: string
+  recurrenceRule?: string
+  recurrenceId?: string
 }
 
 function rowToItem(row: TodoRow, score: number): CommandItem {
@@ -38,8 +42,9 @@ function rowToItem(row: TodoRow, score: number): CommandItem {
       .join(' · '),
     icon: row.completed === 1 ? 'CircleCheck' : 'Circle',
     score,
-    // 待办页暂不支持按 key 直接展开详情，先跳到列表页
+    // 跳转到待办页并高亮定位到该条（由 useTodoStore.highlightKey 驱动滚动+闪烁）
     run: ({ hidePalette, navigate }) => {
+      useTodoStore().highlightKey = row.key
       hidePalette()
       navigate('todoList')
     },
@@ -53,7 +58,8 @@ export const todoSource: CommandSource = {
   async search(query) {
     const q = query.trim()
 
-    // 照搬「待办」模块的写法：new-sql:execute + ? 占位参数 + SELECT *
+    // 顶层任务为主：排除子任务（parentIds 非空）与重复模板（recurrenceId 为空但 recurrenceRule 非空）
+    // 子任务/模板的排除放在客户端过滤，避免 parentIds 为 JSON 列导致 SQL 写法脆弱
     const sql = q
       ? `SELECT * FROM ${TABLE}
          WHERE (title LIKE ? OR description LIKE ?)
@@ -70,8 +76,20 @@ export const todoSource: CommandSource = {
     const rows = await queryTodoRows<TodoRow>(sql, params)
     if (!rows.length) return []
 
+    // 客户端排除子任务与重复模板
+    const visible = rows.filter((r) => {
+      if (r.recurrenceRule && !r.recurrenceId) return false // 重复模板
+      if (r.parentIds) {
+        try {
+          const arr = JSON.parse(r.parentIds)
+          if (Array.isArray(arr) && arr.length) return false // 子任务
+        } catch { /* ignore */ }
+      }
+      return true
+    })
+
     // SQL 已做 LIKE 匹配，这里只按相关度排序，不删除任何命中行
-    const scored: CommandItem[] = rows.map((row) => {
+    const scored: CommandItem[] = visible.map((row) => {
       const score = q
         ? Math.max(matchScore(q, row.title), matchScore(q, row.description || '') - 15)
         : 1

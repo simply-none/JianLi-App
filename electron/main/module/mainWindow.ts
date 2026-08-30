@@ -7,6 +7,7 @@ import {
   appName,
 } from "../variables.ts";
 import { destroyTray } from "./tray.ts";
+import { store } from "./store.ts";
 import { setAutoStartup, checkAutoStartupStatus } from "./autoStartup.ts";
 import { getStatefulCurrentState, restartStatefulRound } from "./newReminder.ts";
 
@@ -194,6 +195,20 @@ export function initMainWindow() {
   });
   win.on("close", (e) => {
     e.preventDefault(); //先阻止一下默认行为，不然直接关了，提示框只会闪一下
-    win.webContents.send("before-close");
+    // 关闭行为：读取「关闭时最小化到托盘」偏好。
+    // - 开启：隐藏到托盘（不退出，可从托盘菜单恢复 / 退出）
+    // - 关闭：正常退出应用
+    // 注：原 before-close 事件在渲染端无人消费，这里改为直接按偏好分流。
+    let closeToTray = false;
+    try {
+      closeToTray = store.get("closeToTray") === true;
+    } catch {
+      closeToTray = false;
+    }
+    if (closeToTray) {
+      hideApp();
+    } else {
+      exitApp();
+    }
   });
 }

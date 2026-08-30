@@ -46,6 +46,9 @@ if (!isSecondWindow) {
     const title = reminder?.title || '提醒';
     const content = reminder?.content || `${title}提醒到了`;
 
+    // 托盘气泡提醒（Windows）：应用收在托盘时也能看到提醒
+    window.ipcRenderer.send('tray-balloon', { title, content });
+
     // 习惯提醒（id 形如 habit:<key>#<序号>）：到点唤起打卡小窗，点通知也能再唤出
     const isHabit = isHabitReminderId(reminder?.id);
     const openHabitWindow = isHabit
@@ -70,6 +73,7 @@ if (!isSecondWindow) {
   window.ipcRenderer.on('todo-reminder-trigger', (event, todo: any) => {
     const title = `待办提醒：${todo?.title || '待办事项'}`;
     const content = todo?.dueDate ? `即将到期（截止 ${todo.dueDate}）` : '即将到期';
+    window.ipcRenderer.send('tray-balloon', { title, content });
     sysNotify(title, content, '');
     appNotify(title, content, 5000);
   });
@@ -81,6 +85,7 @@ if (!isSecondWindow) {
     if (!arg || !arg.reminderId) return;
     const title = arg.title || '提醒';
     const content = arg.content || `${arg.stateLabel || ''}提醒到了`;
+    window.ipcRenderer.send('tray-balloon', { title, content });
     sysNotify(title, content, '');
     appNotify(title, content, 5000);
   });

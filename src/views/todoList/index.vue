@@ -6,118 +6,89 @@
           <h2>待办事项</h2>
           <p class="todo-subtitle">高效管理你的任务清单</p>
         </div>
-        <el-button type="primary" @click="createNewTodo">
-          <LucideIcon name="Plus" />
-          新建待办
-        </el-button>
+        <div class="todo-header-actions">
+          <el-button type="primary" @click="createNewTodo">
+            <LucideIcon name="Plus" />
+            新建待办
+          </el-button>
+          <el-button @click="openBatchDelete">
+            <LucideIcon name="Trash2" />
+            批量删除
+          </el-button>
+        </div>
       </div>
 
+      <!-- 视图切换：卡片 / 列表 / 日历 -->
+      <TopTabs
+        :tabs="viewTabs"
+        :model-value="store.view"
+        @update:model-value="(k: string | number) => (store.view = k as TodoView)"
+      />
+
       <div class="todo-toolbar">
-        <div class="toolbar-left">
-          <div class="search-box">
-            <el-input
-              v-model="searchKeyword"
-              placeholder="搜索待办内容..."
-              clearable
-              size="default"
-              @input="handleSearch"
-              @clear="handleSearch"
-              class="search-input"
-            >
-            <template #prefix>
-              <LucideIcon name="Search" :size="14" class="search-icon" />
-            </template>
-          </el-input>
-          </div>
-          <div class="priority-filter">
-            <el-select
-              v-model="selectedPriority"
-              placeholder="优先级"
-              size="default"
-              clearable
-              @change="handleSearch"
-            >
+        <div class="toolbar-main">
+          <div class="toolbar-left">
+            <div class="search-box">
+              <el-input
+                v-model="store.keyword"
+                placeholder="搜索待办内容..."
+                clearable
+                size="default"
+                class="search-input"
+              >
+                <template #prefix>
+                  <LucideIcon name="Search" :size="14" class="search-icon" />
+                </template>
+              </el-input>
+            </div>
+            <el-select v-model="store.priorityFilter" placeholder="优先级" size="default" clearable>
               <el-option label="高" value="high" />
               <el-option label="中" value="medium" />
               <el-option label="低" value="low" />
             </el-select>
-          </div>
-          <div class="tag-filter">
-            <el-select
-              v-model="selectedTag"
-              placeholder="标签"
-              size="default"
-              clearable
-              @change="handleSearch"
-            >
-              <el-option
-                v-for="tag in allTags"
-                :key="tag.key"
-                :label="tag.name"
-                :value="tag.key"
-              >
-                <span
-                  class="tag-color-dot"
-                  :style="{ backgroundColor: tag.color }"
-                ></span>
-                {{ tag.name }}
-              </el-option>
+            <el-select v-model="store.statusFilter" placeholder="状态" size="default" clearable>
+              <el-option v-for="opt in TODO_STATUS_LIST" :key="opt.value" :label="opt.label" :value="opt.value" />
             </el-select>
           </div>
-          <div class="status-filter">
+          <div class="toolbar-right">
             <el-select
-              v-model="selectedStatus"
-              placeholder="状态"
+              v-if="store.view !== 'calendar'"
+              v-model="store.groupBy"
+              placeholder="分组"
               size="default"
-              clearable
-              @change="handleSearch"
+              class="group-select"
             >
-              <el-option
-                v-for="opt in TODO_STATUS_LIST"
-                :key="opt.value"
-                :label="opt.label"
-                :value="opt.value"
-              />
+              <el-option label="不分组" value="none" />
+              <el-option label="按状态" value="status" />
+              <el-option label="按截止日期" value="due" />
+              <el-option label="按父任务" value="parent" />
             </el-select>
+            <el-checkbox v-model="store.showCompleted" class="tb-check">显示已完成</el-checkbox>
+            <el-checkbox v-model="store.showTemplates" class="tb-check">重复模板</el-checkbox>
+            <div class="todo-stats">
+              <span class="stat-item"><span class="stat-value">{{ store.totalCount }}</span><span class="stat-label">总计</span></span>
+              <span class="stat-divider" />
+              <span class="stat-item"><span class="stat-value pending">{{ store.inProgressCount }}</span><span class="stat-label">进行中</span></span>
+              <span class="stat-divider" />
+              <span class="stat-item"><span class="stat-value completed">{{ store.completedCount }}</span><span class="stat-label">已完成</span></span>
+              <span class="stat-divider" />
+              <span class="stat-item"><span class="stat-value cancelled">{{ store.cancelledCount }}</span><span class="stat-label">已取消</span></span>
+            </div>
           </div>
         </div>
-        <div class="toolbar-right">
-          <div class="todo-stats">
-            <span class="stat-item">
-              <span class="stat-value">{{ totalCount }}</span>
-              <span class="stat-label">总计</span>
-            </span>
-            <span class="stat-divider"></span>
-            <span class="stat-item">
-              <span class="stat-value pending">{{ inProgressCount }}</span>
-              <span class="stat-label">进行中</span>
-            </span>
-            <span class="stat-divider"></span>
-            <span class="stat-item">
-              <span class="stat-value completed">{{ completedCount }}</span>
-              <span class="stat-label">已完成</span>
-            </span>
-            <span class="stat-divider"></span>
-            <span class="stat-item">
-              <span class="stat-value cancelled">{{ cancelledCount }}</span>
-              <span class="stat-label">已取消</span>
-            </span>
-          </div>
+
+        <!-- 标签筛选单独成行：更宽展示已选标签 chips -->
+        <div class="toolbar-tags">
+          <LucideIcon name="Tag" :size="14" class="tags-label-icon" />
+          <span class="tags-label">标签</span>
+          <TagSelectPopover v-model="store.tagFilters" class="tags-popover" />
         </div>
       </div>
 
-      <div class="todo-content">
-        <TodoList
-          :todos="filteredTodos"
-          :tags="allTags"
-          :loading="loading"
-          :has-more="false"
-          @view="handleViewTodo"
-          @edit="handleEditTodo"
-          @delete="handleDeleteTodo"
-          @status-change="handleStatusChange"
-          @record="handleRecord"
-        />
+      <div ref="contentRef" class="todo-content">
+        <TodoList v-show="store.view === 'card'" :tags="allTags" @view="openView" @edit="openEdit" @delete="handleDelete" @status-change="handleStatusChange" @record="openRecord" @view-parent="openReadOnly" />
+        <TodoListView v-show="store.view === 'list'" :tags="allTags" @view="openView" @edit="openEdit" @delete="handleDelete" @status-change="handleStatusChange" @record="openRecord" @view-parent="openReadOnly" />
+        <TodoCalendarView v-show="store.view === 'calendar'" :tags="allTags" @view="openView" @edit="openEdit" @delete="handleDelete" @status-change="handleStatusChange" @record="openRecord" @view-parent="openReadOnly" />
       </div>
     </div>
 
@@ -127,7 +98,22 @@
       :tags="allTags"
       @update:visible="dialogVisible = $event"
       @save="handleDialogSave"
-      @tag-update="fetchTags"
+      @tag-update="store.fetchTags"
+      @view-detail="openReadOnly"
+    />
+
+    <!-- 只读详情：查看父任务（不可编辑），覆盖在任意弹窗之上 -->
+    <TodoDetailDialog
+      :visible="readOnlyVisible"
+      :todo="readOnlyTodo"
+      :tags="allTags"
+      read-only
+      @update:visible="readOnlyVisible = $event"
+    />
+
+    <TodoBatchDeleteDialog
+      :visible="deleteDialogVisible"
+      @update:visible="deleteDialogVisible = $event"
     />
 
     <RecordProgressDialog
@@ -139,207 +125,131 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
-import { storeToRefs } from 'pinia';
-import { ElMessage } from 'element-plus';
+import { ref, computed, onMounted, watch, nextTick } from 'vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import LucideIcon from '@/components/LucideIcon.vue';
-import moment from 'moment';
+import TopTabs from '@/components/TopTabs.vue';
 import useTheme from '@/store/useTheme';
+import { useTodoStore } from '@/store/useTodo';
+import { TODO_STATUS_LIST } from './statusConfig';
+import type { TodoItem, Tag } from './types';
+import type { TodoView } from '@/store/useTodo';
 import TodoList from './TodoList.vue';
+import TodoListView from './TodoListView.vue';
+import TodoCalendarView from './TodoCalendarView.vue';
 import TodoDetailDialog from './TodoDetailDialog.vue';
+import TodoBatchDeleteDialog from './TodoBatchDeleteDialog.vue';
 import RecordProgressDialog from './RecordProgressDialog.vue';
-import { TODO_STATUS_LIST, deriveStatusFromCompleted } from './statusConfig';
+import TagSelectPopover from './components/TagSelectPopover.vue';
 
 const themeStore = useTheme();
-const { currentTheme } = storeToRefs(themeStore);
+const { currentTheme } = themeStore;
+const store = useTodoStore();
 
-interface Tag {
-  key: string;
-  name: string;
-  color: string;
-}
+const allTags = computed(() => store.tags);
 
-interface TodoItem {
-  key: string;
-  title: string;
-  description: string;
-  tags: string;
-  completed: number;
-  completedTime: string;
-  priority: string;
-  dueDate: string;
-  /** 待办状态：not_started/in_progress/blocked/completed/cancelled/restart，默认 not_started */
-  status?: string;
-  deadlineReminder?: number;
-  remindCount?: number;
-  remindInterval?: number;
-  remindIntervalUnit?: string;
-  createTime: string;
-  updateTime: string;
-}
+const viewTabs = [
+  { key: 'card', label: '卡片', icon: 'LayoutGrid' },
+  { key: 'list', label: '列表', icon: 'List' },
+  { key: 'calendar', label: '日历', icon: 'Calendar' },
+];
 
-const searchKeyword = ref('');
-const selectedPriority = ref('');
-const selectedStatus = ref<string | null>(null);
-const selectedTag = ref('');
-const allTags = ref<Tag[]>([]);
-const allTodos = ref<TodoItem[]>([]);
 const dialogVisible = ref(false);
 const currentTodo = ref<TodoItem | null>(null);
+const readOnlyVisible = ref(false);
+const readOnlyTodo = ref<TodoItem | null>(null);
+const deleteDialogVisible = ref(false);
 const recordDialogVisible = ref(false);
 const recordTodo = ref<TodoItem | null>(null);
-const pageSize = ref(10);
-const currentPage = ref(1);
-const loading = ref(false);
-const hasMore = ref(true);
-
-/** 由待办派生出有效状态（兼容旧数据无 status 字段的情况） */
-function effectiveStatus(todo: TodoItem): string {
-  return todo.status || deriveStatusFromCompleted(todo.completed);
-}
-
-const totalCount = computed(() => rawTodos.value.length);
-const inProgressCount = computed(() => rawTodos.value.filter(t => effectiveStatus(t) === 'in_progress').length);
-const completedCount = computed(() => rawTodos.value.filter(t => effectiveStatus(t) === 'completed').length);
-const cancelledCount = computed(() => rawTodos.value.filter(t => effectiveStatus(t) === 'cancelled').length);
-
-async function fetchTags() {
-  try {
-    const result = await window.ipcRenderer.handlePromise('new-sql:query', {
-      tableName: 'todo_tags',
-      conditions: {},
-    });
-    if (result.success) {
-      allTags.value = result.data || [];
-    } else {
-      allTags.value = [];
-    }
-  } catch (error) {
-    console.error('获取标签失败:', error);
-    allTags.value = [];
-  }
-}
-
-const rawTodos = ref<TodoItem[]>([]);
-
-async function fetchTodos() {
-  if (loading.value) return;
-
-  loading.value = true;
-
-  let sql = 'SELECT * FROM todo_list';
-  const params: any[] = [];
-  const whereClauses: string[] = [];
-
-  if (searchKeyword.value.trim()) {
-    whereClauses.push('(title LIKE ? OR description LIKE ?)');
-    params.push(`%${searchKeyword.value}%`, `%${searchKeyword.value}%`);
-  }
-
-  if (selectedPriority.value) {
-    whereClauses.push('priority = ?');
-    params.push(selectedPriority.value);
-  }
-
-  if (selectedTag.value) {
-    whereClauses.push("tags LIKE ?");
-    params.push(`%"${selectedTag.value}"%`);
-  }
-
-  if (whereClauses.length > 0) {
-    sql += ` WHERE ${whereClauses.join(' AND ')}`;
-  }
-
-  sql += ' ORDER BY updateTime DESC';
-
-  try {
-    const result = await window.ipcRenderer.handlePromise('new-sql:execute', {
-      sql,
-      params,
-      primaryKey: 'key',
-    });
-
-    if (result.success) {
-      const data = result.data?.rows || [];
-      const cleanData = data.filter((item: any) =>
-        item && typeof item === 'object' && !item.$el && !item.$options && !item._componentTag
-      );
-      // 归一化：旧数据无 status 字段时按 completed 推导，保证列表/筛选/统计一致
-      rawTodos.value = cleanData.map((item: any) => ({
-        ...item,
-        status: item.status || deriveStatusFromCompleted(item.completed),
-      }));
-    }
-  } catch (err) {
-    console.error('获取待办失败:', err);
-    rawTodos.value = [];
-  } finally {
-    loading.value = false;
-  }
-}
-
-// 状态筛选（客户端）：默认仅展示未完结（排除已完成、已取消）
-const filteredTodos = computed(() => {
-  if (!selectedStatus.value) {
-    return rawTodos.value.filter(t => {
-      const s = effectiveStatus(t);
-      return s !== 'completed' && s !== 'cancelled';
-    });
-  }
-  return rawTodos.value.filter(t => effectiveStatus(t) === selectedStatus.value);
-});
-
-function handleSearch() {
-  fetchTodos();
-}
+const contentRef = ref<HTMLElement | null>(null);
 
 function createNewTodo() {
   currentTodo.value = null;
   dialogVisible.value = true;
 }
-
-function handleViewTodo(todo: TodoItem) {
+function openBatchDelete() {
+  deleteDialogVisible.value = true;
+}
+function openView(todo: TodoItem) {
   currentTodo.value = { ...todo };
   dialogVisible.value = true;
 }
-
-function handleEditTodo(todo: TodoItem) {
+function openEdit(todo: TodoItem) {
   currentTodo.value = { ...todo };
   dialogVisible.value = true;
 }
-
-function handleDeleteTodo(todo: TodoItem) {
-  const index = rawTodos.value.findIndex(t => t.key === todo.key);
-  if (index > -1) {
-    rawTodos.value.splice(index, 1);
-  }
-}
-
-function handleStatusChange(todo: TodoItem) {
-  const index = rawTodos.value.findIndex(t => t.key === todo.key);
-  if (index > -1) {
-    rawTodos.value[index] = todo;
-  }
-}
-
-/** 打开「记录进展」弹窗，把进展保存到以待办名称为主题的主题对话中 */
-function handleRecord(todo: TodoItem) {
+function openRecord(todo: TodoItem) {
   recordTodo.value = { ...todo };
   recordDialogVisible.value = true;
 }
 
-async function handleDialogSave(todoData: TodoItem) {
-  fetchTags().then(() => {
-    fetchTodos();
+/** 打开只读详情（查看父任务等场景，不可编辑） */
+function openReadOnly(todo: TodoItem) {
+  readOnlyTodo.value = { ...todo };
+  readOnlyVisible.value = true;
+}
+
+async function handleStatusChange(todo: TodoItem) {
+  const res: any = await window.ipcRenderer.handlePromise('new-sql:upsert', {
+    tableName: 'todo_list',
+    data: todo,
+    config: { primaryKey: 'key' },
+  });
+  if (res.success) {
+    window.ipcRenderer.send('update-todo-reminders');
+    ElMessage.success('状态已更新');
+    store.fetchTodos();
+  } else {
+    ElMessage.error('操作失败:' + res.error);
+  }
+}
+
+async function handleDelete(todo: TodoItem) {
+  try {
+    await ElMessageBox.confirm('确定要删除这个待办事项吗？', '确认删除', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+    });
+    const res: any = await window.ipcRenderer.handlePromise('new-sql:delete', {
+      tableName: 'todo_list',
+      condition: { key: todo.key },
+    });
+    if (res.success) {
+      window.ipcRenderer.send('update-todo-reminders');
+      ElMessage.success('删除成功');
+      store.fetchTodos();
+    }
+  } catch {
+    /* 取消 */
+  }
+}
+
+function handleDialogSave() {
+  store.fetchTags().then(() => store.fetchTodos());
+}
+
+// 命令面板跳转高亮：滚动到目标卡片并闪烁提示
+function applyHighlight(key: string) {
+  if (!key) return;
+  store.view = 'card';
+  nextTick(() => {
+    const el = contentRef.value?.querySelector(`[data-todo-key="${key}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('todo-flash');
+      setTimeout(() => el.classList.remove('todo-flash'), 1600);
+    }
+    store.highlightKey = '';
   });
 }
 
-function handleDialogClose() {
-  currentTodo.value = null;
-}
+watch(() => store.highlightKey, (key) => applyHighlight(key));
 
-onMounted(async () => {
-  Promise.all([fetchTags(), fetchTodos()]);
+onMounted(() => {
+  Promise.all([store.fetchTags(), store.fetchTodos()]).then(() => {
+    if (store.highlightKey) applyHighlight(store.highlightKey);
+  });
 });
 </script>
 
@@ -349,61 +259,102 @@ onMounted(async () => {
   height: 100%;
   overflow: hidden;
 }
-
 .todo-container {
   display: flex;
   flex-direction: column;
   height: 100%;
-  gap: 16px;
+  gap: 12px;
 }
+  .todo-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 
-.todo-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-
-  .todo-title {
-    h2 {
-      margin: 0;
-      font-size: 22px;
-      font-weight: 700;
-      color: var(--text-primary);
+    .todo-title {
+      h2 {
+        margin: 0;
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--text-primary);
+      }
+      .todo-subtitle {
+        margin: 4px 0 0;
+        font-size: 13px;
+        color: var(--text-muted);
+      }
     }
 
-    .todo-subtitle {
-      margin: 4px 0 0;
-      font-size: 13px;
-      color: var(--text-muted);
+    .todo-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
     }
   }
-}
-
 .todo-toolbar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 10px;
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-card);
-  padding: 12px 16px;
-  gap: 12px;
+  padding: 10px 16px;
 
+  .toolbar-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: nowrap;
+  }
   .toolbar-left {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     flex: 1;
+    flex-wrap: nowrap;
+    min-width: 0;
   }
-
   .toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: nowrap;
     flex-shrink: 0;
   }
-}
+  .toolbar-tags {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--border-subtle);
 
+    .tags-label-icon {
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+    .tags-label {
+      font-size: 13px;
+      color: var(--text-secondary);
+      flex-shrink: 0;
+    }
+    .tags-popover {
+      flex: 1;
+      min-width: 0;
+    }
+  }
+  .group-select {
+    width: 120px;
+  }
+  .tb-check {
+    margin-right: 4px;
+  }
+}
 .search-box {
   position: relative;
-  flex: 1;
-  max-width: 300px;
+  flex: 0 0 200px;
+  max-width: 200px;
+  width: 200px;
 
   .search-icon {
     position: absolute;
@@ -414,43 +365,32 @@ onMounted(async () => {
     font-size: 16px;
     z-index: 1;
   }
-
   .search-input {
     :deep(.el-input__wrapper) {
       padding-left: 36px;
       background: var(--bg-base);
       box-shadow: 0 0 0 1px var(--border-subtle) inset;
 
-      &:hover {
-        box-shadow: 0 0 0 1px var(--color-primary) inset;
-      }
-
+      &:hover,
       &.is-focus {
         box-shadow: 0 0 0 1px var(--color-primary) inset;
       }
     }
   }
 }
+// 第二行标签筛选：触发器占满整行，便于展示多个已选标签
+.toolbar-tags .tags-popover {
+  flex: 1;
+  min-width: 0;
 
-.priority-filter,
-.status-filter,
-.tag-filter {
-  min-width: 100px;
+  :deep(.tag-trigger) {
+    width: 100%;
+  }
 }
-
-.tag-color-dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-right: 6px;
-  vertical-align: middle;
-}
-
 .todo-stats {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
 
   .stat-item {
     display: flex;
@@ -466,32 +406,41 @@ onMounted(async () => {
       &.pending {
         color: var(--color-primary);
       }
-
       &.completed {
         color: #22c55e;
       }
-
       &.cancelled {
         color: #9ca3af;
       }
     }
-
     .stat-label {
       font-size: 11px;
       color: var(--text-muted);
     }
   }
-
   .stat-divider {
     width: 1px;
     height: 24px;
     background: var(--border-subtle);
   }
 }
-
 .todo-content {
   flex: 1;
   overflow: hidden;
   min-height: 0;
+}
+
+// 命令面板定位高亮闪烁
+:deep(.todo-flash) {
+  animation: flash 1.6s ease;
+}
+@keyframes flash {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+  30% {
+    box-shadow: 0 0 0 2px var(--color-primary);
+  }
 }
 </style>

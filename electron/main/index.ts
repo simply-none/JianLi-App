@@ -15,7 +15,7 @@ import { initNetRequest } from "./module/netRequest.ts";
 import { initClipboard } from "./module/clipboard.ts";
 import { registerJlocalProtocol, registerJlocalProtocolBefore } from "./module/protocol.ts";
 import { initSqlite } from "./module/sql.ts";
-import { initNewSqlite } from "./module/newSql.ts";
+import { initNewSqlite, ensureTableExists } from "./module/newSql.ts";
 import { initNewReminder } from "./module/newReminder.ts";
 import { appName } from "./variables.ts";
 import { initRegisterShortcut } from "./module/registerShortcut.ts";
@@ -75,6 +75,14 @@ async function createWindow() {
   initJob();
   // 重复任务引擎（启动扫描 + 每日 00:00 生成实例）
   initRecurrence();
+  // 修复历史数据：确保待办表 key 列具备唯一索引，并清理重构前遗留的重复记录
+  // （旧表常出现「key 列已存在但无唯一约束」，导致 upsert 退化为重复 INSERT —— 编辑变新增）
+  ensureTableExists('todo_list', undefined, 'key', { primaryKeyType: 'TEXT' }).catch((e) =>
+    console.warn('ensure todo_list key index failed:', e),
+  );
+  ensureTableExists('todo_tags', undefined, 'id', { primaryKeyType: 'INTEGER' }).catch((e) =>
+    console.warn('ensure todo_tags id index failed:', e),
+  );
   // 数据缓存
   initStore();
   // 备份与恢复 + 数据导出中心（依赖 newSql 连接池，须在其后初始化）
