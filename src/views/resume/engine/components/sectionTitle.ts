@@ -20,14 +20,14 @@ export function renderSectionTitle(title: SectionTitleStyle, titleText: string, 
   const gap = title.line.gap
 
   if (title.line.enabled && title.line.position === 'after') {
-    // 右侧延伸：flex 行内放文字 + 线
-    return `<div style="display:flex;align-items:center;gap:${gap}px;margin-bottom:6px">
+    // 右侧延伸：flex 行内放文字 + 线（间距用 padding-bottom 计量，进入切页高度测量）
+    return `<div style="display:flex;align-items:center;gap:${gap}px;padding-bottom:6px">
       <span style="${css}">${esc(titleText)}</span>
       ${renderLine(title.line, true)}
     </div>`
   }
   // 下方：文字行 + 独立线行
-  return `<div style="margin-bottom:6px">
+  return `<div style="padding-bottom:6px">
     <span style="${css}">${esc(titleText)}</span>
     ${renderLineBelow(title.line)}
   </div>`

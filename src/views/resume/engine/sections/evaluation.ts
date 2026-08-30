@@ -22,6 +22,7 @@ const BASE_TEXT: TextStyle = {
 
 /**
  * 渲染文本型章节主体（公共函数，自我评价与自定义文本模块共用）
+ * 换行用 white-space:pre-wrap 保留（不转 <br>），保证切页工具可按文本行切分。
  * @param titleText 模块标题文案
  * @param raw 多行文本
  * @param ms 模块排版配置
@@ -31,12 +32,12 @@ const BASE_TEXT: TextStyle = {
 export function renderTextSection(titleText: string, raw: string, ms: ModuleStyle, page: PageStyle): string {
   const base = ms.textStyle || BASE_TEXT
   const style = resolveFieldStyle(base, ms.fields?.text)
-  const text = String(raw ?? '').trim()
-  if (!style.visible || !text) return ''
+  const text = String(raw ?? '')
+  if (!style.visible || !text.trim()) return ''
 
   const titleHtml = ms.title ? renderSectionTitle(ms.title, titleText, page.fontSize) : ''
-  const bodyHtml = esc(text).replace(/\r?\n/g, '<br>')
-  return `<div>${titleHtml}<div style="${textStyleToCss(style, page.fontSize)};line-height:inherit">${bodyHtml}</div></div>`
+  const bodyHtml = esc(text)
+  return `<div>${titleHtml}<div style="${textStyleToCss(style, page.fontSize)};white-space:pre-wrap;line-height:inherit">${bodyHtml}</div></div>`
 }
 
 /**

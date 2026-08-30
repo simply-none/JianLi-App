@@ -9,6 +9,10 @@
       <el-slider v-model="model.lineHeight" size="small" :min="1.2" :max="1.8" :step="0.05" class="slider" @input="notify" />
     </div>
     <div class="g-row">
+      <span class="g-label">字间距 {{ model.letterSpacing }}px</span>
+      <el-slider v-model="model.letterSpacing" size="small" :min="0" :max="5" :step="0.5" class="slider" @input="notify" />
+    </div>
+    <div class="g-row">
       <span class="g-label">字体</span>
       <el-radio-group v-model="model.fontFamily" size="small" @change="notify">
         <el-radio-button value="sans">无衬线</el-radio-button>

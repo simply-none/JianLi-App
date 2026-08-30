@@ -93,6 +93,10 @@ function renderCustomSection(sec: CustomSectionData, ms: ModuleStyle, page: Page
 
 /**
  * 渲染完整简历 HTML
+ * 布局规范（配合预览切页与打印分页）：
+ *   - body 无内边距，页面边距由 .rfs-page（预览）/printToPDF margins（导出）提供
+ *   - 所有纵向间距用 padding-bottom 计量（进入 offsetHeight，切页测量准确）
+ *   - .rfs-items 标记条目/行容器，供切页脚本按条目粒度拆分
  * @param data 简历数据
  * @param config 排版配置
  * @returns 完整 HTML 文档字符串
@@ -106,14 +110,13 @@ export function renderResume(data: ResumeData, config: ResumeLayoutConfig): stri
     `color:#333333`,
     `font-size:${page.fontSize}pt`,
     `line-height:${page.lineHeight}`,
+    `letter-spacing:${page.letterSpacing}px`,
     `width:210mm`,
-    `min-height:297mm`,
-    `padding:${page.paddingY}mm ${page.paddingX}mm`,
-    '-webkit-print-color-adjust:exact',
+    `-webkit-print-color-adjust:exact`,
     'print-color-adjust:exact',
   ].join(';')
 
-  // 按配置顺序渲染模块（隐藏/空内容跳过），模块间距用 flex column gap
+  // 按配置顺序渲染模块（隐藏/空内容跳过）；模块间距用 padding-bottom（进入高度测量）
   const sectionsHtml = config.modules
     .map((ms) => {
       if (!ms.visible) return ''
@@ -121,10 +124,12 @@ export function renderResume(data: ResumeData, config: ResumeLayoutConfig): stri
       if (ms.id.startsWith(CUSTOM_PREFIX)) {
         const secId = ms.id.slice(CUSTOM_PREFIX.length)
         const sec = (data.customSections || []).find((s) => s.id === secId)
-        return sec ? renderCustomSection(sec, ms, page) : ''
+        const html = sec ? renderCustomSection(sec, ms, page) : ''
+        return html ? `<div class="rfs-module" style="padding-bottom:${page.sectionGap}px">${html}</div>` : ''
       }
       const renderer = RENDERERS[ms.id as ModuleId]
-      return renderer ? renderer(data, ms, page) : ''
+      const html = renderer ? renderer(data, ms, page) : ''
+      return html ? `<div class="rfs-module" style="padding-bottom:${page.sectionGap}px">${html}</div>` : ''
     })
     .filter(Boolean)
     .join('')
@@ -133,16 +138,43 @@ export function renderResume(data: ResumeData, config: ResumeLayoutConfig): stri
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
+<meta name="resume-page" data-pad-y="${page.paddingY}" data-pad-x="${page.paddingX}">
 <title>${escapeTitle(data?.basics?.name || '简历')}</title>
 <style>
   @page { size: A4; margin: 0; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { background: #ffffff; }
-  .rfs-body { ${bodyCss}; display: flex; flex-direction: column; gap: ${page.sectionGap}px; }
+  body { ${bodyCss}; }
+  /* 预览分页纸张：每页固定 A4 尺寸与统一内边距 */
+  .rfs-page {
+    width: 210mm;
+    height: 297mm;
+    padding: ${page.paddingY}mm ${page.paddingX}mm;
+    box-sizing: border-box;
+    background: #ffffff;
+    overflow: hidden;
+    position: relative;
+    break-after: page;
+    page-break-after: always;
+  }
+  /* 末页不再强制分页，避免导出产生空白页 */
+  .rfs-page:last-child { break-after: auto; page-break-after: auto; }
+  /* 预览模式：灰底衬托纸张边界 + 轻阴影（导出时 body 无 preview-mode 类） */
+  body.preview-mode { background: #e5e7eb; }
+  body.preview-mode .rfs-page { box-shadow: 0 1px 6px rgba(0, 0, 0, 0.18); }
+  .rfs-page + .rfs-page { margin-top: 16px; }
+  @media print {
+    .rfs-page + .rfs-page { margin-top: 0; }
+    body.preview-mode { background: #ffffff; }
+    body.preview-mode .rfs-page { box-shadow: none; }
+  }
+  /* 打印/导出时避免条目被从中间切开 */
+  .rfs-module, .rfs-items > div { break-inside: avoid; page-break-inside: avoid; }
 </style>
 </head>
-<body>
-  <div class="rfs-body">${sectionsHtml}</div>
+<body data-pad-y="${page.paddingY}" data-pad-x="${page.paddingX}">
+  <!-- flow 预留与纸张一致的内边距：保证切页装箱时的高度测量与最终纸张内容宽度一致 -->
+  <div class="rfs-flow" style="padding:${page.paddingY}mm ${page.paddingX}mm">${sectionsHtml}</div>
 </body>
 </html>`
 }

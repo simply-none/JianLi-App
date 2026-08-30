@@ -176,6 +176,8 @@ export interface PageStyle {
   fontSize: number
   /** 全局行高（1.2-1.8） */
   lineHeight: number
+  /** 全局字间距 px（0-5，应用到整张简历所有元素） */
+  letterSpacing: number
   /** 字体族：sans 无衬线 / serif 衬线 */
   fontFamily: 'sans' | 'serif'
   /** 自定义字体名（系统已安装/内置字体；空串 = 跟随 fontFamily 默认字体栈） */

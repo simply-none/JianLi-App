@@ -46,10 +46,21 @@
 ## IPC 通道
 | 通道 | 方向 | 说明 |
 |---|---|---|
-| `resume:export-pdf` | 渲染→主 | `{ html, fileName }` → `{ ok, path?, canceled?, error? }` |
+| `resume:export-pdf` | 渲染→主 | `{ html, fileName }`（html 已离屏切页）→ `{ ok, path?, canceled?, error? }` |
+| `resume:reveal-file` | 渲染→主 | `{ path }` → shell.showItemInFolder（导出提示点击跳转） |
 
 ## PDF 导出链路
-渲染端 `currentTemplate.render(data, config)` → IPC `resume:export-pdf` → 隐藏 `BrowserWindow`（sandbox）加载 data URL → `printToPDF(A4, printBackground, margins 0)` → 保存对话框（文件名 `简历名-YYYYMMDD-HHmmss.pdf`）→ 写盘。导出前 dirty 自动静默保存（内容+排版）。
+渲染端先经 **`utils/paginate.ts` 的 `buildPaginatedHtml(rawHtml)`**：创建离屏 iframe 加载原始渲染 HTML → 执行 `paginateDocument` 切页（与预览同一套逻辑）→ 序列化切页后的 HTML → IPC `resume:export-pdf` → 主进程隐藏窗口 `printToPDF(A4, printBackground, margins 全 0)` → 保存对话框 → 写盘。每张 `.rfs-page` 即 PDF 一页（自带页面内边距），预览与导出 100% 一致。导出前 dirty 自动静默保存（内容+排版）。成功提示 `duration:5000 + showClose + onClick`（经 `resume:reveal-file` 显示文件）。
+
+## 分页（预览与导出，共享 `utils/paginate.ts`）
+- **布局规范**：body 无内边距；纵向间距全部用 `padding-bottom` 计量（进入 offsetHeight，切页测量准确）；条目/行容器标记 `.rfs-items`（条目 div padding-bottom=entryGap，行 padding-bottom=rowGap）；模块包装 `.rfs-module`（padding-bottom=sectionGap）；`.rfs-flow` 自带与纸张一致的内边距（保证测量宽度=纸张内容宽）
+- **切页三段式**（`paginateDocument(doc, { innerSplit })`）：①预测量（全部节点保持在已挂载 flow 中——节点移入未挂载容器后 offsetHeight=0，会导致所有内容挤进第一页）→ ②纯数据装箱（贪心，页内容高=297mm−2×padY）→ ③一次性移动 DOM（每页建 `.rfs-page`，跨页片段用容器克隆重建）→ ④挂载复核再平衡（每页挂同宽隐藏根实测：溢出页尾块后移、未满页上吸下一页头部块，闭环校正一切测量偏差）
+- **片段化粒度 = 视觉行**（`flattenToLines`）：默认开关下**所有内容递归拆到视觉行级**——`flex/grid/inline/list-item` 为不可拆整行（行内组合与 li 圆点保持完整）；纯文本叶子矮块（≤48px）整块、高块按「平均字符宽估算 + 隐藏容器实测」切成视觉行块；块容器逐子递归（跨页用容器克隆包装）。任意两行文本都可分布到不同页，页面精确填满；关闭开关=整模块粒度
+- **模块内切断开关**（预览工具条「模块内切断」按钮，`Scissors` 图标，默认开启；预览与导出共用 `index.vue innerSplit` 状态）：开启=视觉行级精确分页（页面填满、页尾空白 < 1 行）；关闭=整模块粒度（模块内容保持完整，页尾可能留白）；开关变化经 `iframeKey++` 强制 iframe 重建重切
+- **预览隔开效果**：切页后 body 加 `preview-mode` 类（灰底 #e5e7eb + 纸张阴影），纸张间 16px 间隙清晰可见；导出序列化前移除该类（恢复白底）
+- **导出分页**：printToPDF margins 恒 0（CSS `@page margin:0` 会覆盖 margins 参数，勿依赖）；每页由 `.rfs-page`（297mm 定高 + 自带 padding + `break-after:page`，末页 `break-after:auto` 防空白页）承载；`break-inside:avoid` 减少条目中间切断
+- ⚠️ 新增页面间距字段时必须用 padding 计量（margin 不进 offsetHeight 会破坏切页测量）
+- ⚠️ 改主进程 resume.ts 后需重启 Electron
 
 ## 特有约定 / 坑
 - **改主进程需重启 Electron**；引擎/页面改动热重载即可
@@ -64,8 +75,9 @@
 - 字段 id 约定：basics= name/jobIntent/phone/email/gender/age/city；条目模块主字段= school/major/degree、company/position、name/role、自定义= field1/field2；`date`、`description`、`skillName`、`text`；排版 UI 字段覆盖行的 base 由 `fieldBase(m, fid)` 按模块取组件基础样式（description→list.text、text→textStyle、条目头字段→entryHeader.textStyle），保证「未配置=继承」语义
 - 日期在条目间以 `start|end` 中转（entrySection 提取），最终按 `dateConnector`（–/~ /至/空格）拼接
 - 预览防抖 150ms（主页面）/ 120ms（排版弹窗），避免拖滑块高频重渲染 iframe
-- `@page A4 margin 0`，页面边距由 `page.paddingX/Y` 控制；body 为 flex column + `sectionGap` 控制模块间距
+- `@page A4 margin 0`：body 无内边距，页面边距由预览 `.rfs-page` padding / 导出 printToPDF margins 提供（见「分页」节）
 - 字体：`page.fontFamily`（sans/serif 默认栈）+ `page.fontFamilyName`（自定义字体名，空=跟随默认栈）；引擎 `resolveFontStack` 把自定义字体放栈首、默认栈兜底（防缺字）；字体下拉选项 = `useGlobalSetting().globalFontOpsC`（内置）+ `get-fonts` IPC（系统字体），按 value 去重（与设置页字体设置一致）
+- **字间距统一**：`page.letterSpacing`（0-5px）输出在 body，整张简历继承；`textStyleToCss` **不输出元素级 letter-spacing**（TextStyle.letterSpacing 字段保留但渲染忽略），元素不得硬编码字距
 
 ## 后续扩展（已确认方向）
 - 其余 9 套灰黑白模板：新模板 = 一组不同的 defaultConfig 预设（或独立 sections 差异渲染），在 `templates/` 增加适配层并在 `templates/index.ts` 注册

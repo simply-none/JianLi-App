@@ -54,13 +54,15 @@ export function renderEntrySection(
       const headerHtml = renderEntryHeader(fields, eh, ms.fields, page.fontSize)
       const listHtml = renderBulletList(entry.description, list, ms.fields, page.fontSize)
       if (!headerHtml && !listHtml) return ''
-      return `<div>${headerHtml}${listHtml}</div>`
+      // 条目间距用 padding-bottom 计量（进入高度测量，支持按条目切页）
+      return `<div style="padding-bottom:${page.entryGap}px">${headerHtml}${listHtml}</div>`
     })
     .filter(Boolean)
     .join('')
 
   if (!itemsHtml) return ''
-  return `<div>${titleHtml}<div style="display:flex;flex-direction:column;gap:${page.entryGap}px">${itemsHtml}</div></div>`
+  // .rfs-items 标记条目容器（切页脚本按条目粒度拆分）
+  return `<div>${titleHtml}<div class="rfs-items">${itemsHtml}</div></div>`
 }
 
 /**

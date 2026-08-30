@@ -165,10 +165,15 @@ export function renderCustomRowsSection(sec: { title: string; rows: SectionRow[]
   const titleHtml = ms.title ? `<div>${renderSectionTitle(ms.title, sec.title || '自定义模块', page.fontSize)}</div>` : ''
 
   const rowsHtml = rows
-    .map((row) => renderRow(row, st, page))
+    .map((row) => {
+      const html = renderRow(row, st, page)
+      // 行间距用 padding-bottom 计量（进入高度测量，支持按行切页）
+      return html ? `<div style="padding-bottom:${st.rowGap}px">${html}</div>` : ''
+    })
     .filter(Boolean)
     .join('')
 
   if (!rowsHtml) return ''
-  return `<div>${titleHtml}<div style="display:flex;flex-direction:column;gap:${st.rowGap}px">${rowsHtml}</div></div>`
+  // .rfs-items 标记行容器（切页脚本按行粒度拆分）
+  return `<div>${titleHtml}<div class="rfs-items">${rowsHtml}</div></div>`
 }

@@ -10,7 +10,7 @@
  *
  * 注意：预览与导出共用同一份 HTML，保证所见即所得。
  */
-import { app, BrowserWindow, dialog, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -18,7 +18,7 @@ import path from "node:path";
  * 导出 PDF 参数
  */
 interface ExportPdfParams {
-  /** 完整 HTML 文档字符串（模板渲染产物，内联样式） */
+  /** 完整 HTML 文档字符串（已离屏切页：每张 .rfs-page 即一页，自带页面内边距） */
   html: string
   /** 保存文件名（如 张三-20260830-162000.pdf） */
   fileName: string
@@ -40,7 +40,9 @@ interface ExportPdfResult {
 
 /**
  * 用隐藏窗口将 HTML 渲染为 PDF Buffer
- * @param html 完整 HTML 文档字符串
+ * HTML 已在渲染端离屏切页（每张 .rfs-page 固定 297mm 高、自带页面内边距、
+ * break-after: page），printToPDF margins 恒为 0 即可逐页精确打印。
+ * @param html 切页后的完整 HTML 文档字符串
  * @returns PDF 二进制 Buffer
  * @throws {Error} 窗口加载或打印失败时抛出
  */
@@ -56,11 +58,10 @@ async function renderHtmlToPdfBuffer(html: string): Promise<Buffer> {
   });
 
   try {
-    // data URL 加载（简历 HTML 体量通常 < 100KB，安全）
+    // data URL 加载（切页后 HTML 体量仍 < 数百 KB，安全）
     const dataUrl = "data:text/html;charset=utf-8," + encodeURIComponent(html);
     await win.loadURL(dataUrl);
 
-    // A4 纵向，背景色生效；页边距为 0（模板 CSS 内已含内边距）
     const buffer = await win.webContents.printToPDF({
       pageSize: "A4",
       printBackground: true,
@@ -88,7 +89,7 @@ async function handleExportPdf(_event: unknown, params: ExportPdfParams): Promis
       return { ok: false, error: "导出内容为空" };
     }
 
-    // 1. 生成 PDF Buffer
+    // 1. 生成 PDF Buffer（渲染端已切页，每页自带边距）
     const buffer = await renderHtmlToPdfBuffer(html);
 
     // 2. 保存对话框（默认保存到「下载」目录）
@@ -112,8 +113,18 @@ async function handleExportPdf(_event: unknown, params: ExportPdfParams): Promis
 
 /**
  * 初始化简历模块（注册 IPC 通道）
+ * - resume:export-pdf  导出 PDF（printToPDF + 保存对话框）
+ * - resume:reveal-file 在系统文件管理器中显示导出的文件（提示消息点击跳转）
  * @returns {void}
  */
 export function initResume() {
   ipcMain.handle("resume:export-pdf", handleExportPdf);
+  ipcMain.handle("resume:reveal-file", (_e, params: { path: string }) => {
+    const p = String(params?.path || "");
+    if (p && fs.existsSync(p)) {
+      shell.showItemInFolder(p);
+      return { ok: true };
+    }
+    return { ok: false };
+  });
 }

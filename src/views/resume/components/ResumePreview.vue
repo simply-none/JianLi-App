@@ -11,6 +11,17 @@
       </el-button>
       <el-button text size="small" @click="zoom = 'fit'">适应宽度</el-button>
       <el-divider direction="vertical" />
+      <!-- 模块内切断开关：开启后切页允许在模块内部（条目/行/文本行）跨页 -->
+      <el-button
+        text
+        size="small"
+        :type="innerSplit ? 'primary' : ''"
+        title="开启后切页允许在模块内部切断，消除页尾大空白"
+        @click="$emit('update:innerSplit', !innerSplit)"
+      >
+        <LucideIcon name="Scissors" :size="14" />
+        <span>模块内切断</span>
+      </el-button>
       <el-button text size="small" @click="$emit('open-style')">
         <LucideIcon name="SlidersHorizontal" :size="14" />
         <span>排版</span>
@@ -18,7 +29,7 @@
     </div>
 
     <!-- A4 纸张：fit-width 自适应缩放 + 内容高度自适应 -->
-    <ResumePaper :html="html" :zoom="zoom" />
+    <ResumePaper :html="html" :zoom="zoom" :inner-split="innerSplit !== false" />
   </div>
 </template>
 
@@ -35,11 +46,15 @@ import ResumePaper from './ResumePaper.vue'
 defineProps<{
   /** 模板渲染的完整 HTML 文档字符串 */
   html: string
+  /** 模块内切断开关（默认开启） */
+  innerSplit?: boolean
 }>()
 
 defineEmits<{
   /** 打开排版弹窗 */
   (e: 'open-style'): void
+  /** 切换模块内切断开关 */
+  (e: 'update:innerSplit', value: boolean): void
 }>()
 
 /** 最小缩放比例 */

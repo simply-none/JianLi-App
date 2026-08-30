@@ -21,10 +21,10 @@ function text(partial: Partial<TextStyle>): TextStyle {
   }
 }
 
-/** 章节标题默认（10.5pt 加粗 + 右侧通栏细线） */
+/** 章节标题默认（10.5pt 加粗 + 右侧通栏细线；字间距统一由页面全局控制） */
 function defaultTitle(): ModuleStyle['title'] {
   return {
-    text: text({ size: 'lg', weight: 700, ink: 1000, letterSpacing: 3 }),
+    text: text({ size: 'lg', weight: 700, ink: 1000 }),
     line: {
       enabled: true,
       position: 'after',
@@ -84,13 +84,13 @@ function defaultModules(): ModuleStyle[] {
         contactSeparator: { type: 'dot', gap: 4, ink: 650 },
       },
       fields: {
-        name: { size: 'giant', weight: 700, ink: 1000, letterSpacing: 2 },
+        name: { size: 'giant', weight: 700, ink: 1000 },
         jobIntent: { size: 'md', weight: 500, ink: 650 },
-        phone: { size: 'sm', ink: 650, letterSpacing: 0.2 },
-        email: { size: 'sm', ink: 650, letterSpacing: 0.2 },
-        gender: { size: 'sm', ink: 650, letterSpacing: 0.2 },
-        age: { size: 'sm', ink: 650, letterSpacing: 0.2 },
-        city: { size: 'sm', ink: 650, letterSpacing: 0.2 },
+        phone: { size: 'sm', ink: 650 },
+        email: { size: 'sm', ink: 650 },
+        gender: { size: 'sm', ink: 650 },
+        age: { size: 'sm', ink: 650 },
+        city: { size: 'sm', ink: 650 },
       },
     },
     {
@@ -139,6 +139,7 @@ export const defaultLayoutConfig: ResumeLayoutConfig = {
   page: {
     fontSize: 9.5,
     lineHeight: 1.35,
+    letterSpacing: 0,
     fontFamily: 'sans',
     fontFamilyName: '',
     paddingX: 14,

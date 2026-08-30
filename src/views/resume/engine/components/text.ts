@@ -20,6 +20,8 @@ export function esc(value: unknown): string {
 
 /**
  * TextStyle 转内联 style 字符串
+ * 注意：字间距统一由页面全局 letterSpacing 控制（body 继承），元素级不再输出，
+ * 保证整张简历字间距一致。
  * @param t 文本样式
  * @param baseFontSize 全局正文字号 pt
  * @returns style 属性值（不含 style="）
@@ -29,7 +31,6 @@ export function textStyleToCss(t: TextStyle, baseFontSize: number): string {
     `font-size:${resolveFontSize(t.size, baseFontSize)}pt`,
     `font-weight:${t.weight}`,
     `color:${resolveInkColor(t.ink)}`,
-    t.letterSpacing ? `letter-spacing:${t.letterSpacing}px` : '',
     t.italic ? 'font-style:italic' : '',
   ]
     .filter(Boolean)
