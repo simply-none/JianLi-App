@@ -7,11 +7,15 @@
  */
 
 import type { ModuleId, ModuleStyle, PageStyle } from '../types'
-import type { ResumeData, ResumeEducationItem, ResumeWorkItem, ResumeProjectItem, ResumeLayoutConfig } from '../../types'
+import type { ResumeData, ResumeEducationItem, ResumeWorkItem, ResumeProjectItem, ResumeLayoutConfig, CustomSectionData } from '../../types'
 import { createEntrySection } from './entrySection'
+import { renderCustomRowsSection } from './customRows'
 import { renderBasics } from './basics'
 import { renderSkills } from './skills'
 import { renderEvaluation } from './evaluation'
+
+/** 自定义模块排版 id 前缀（`custom:<数据 id>`） */
+const CUSTOM_PREFIX = 'custom:'
 
 /** 日期字段原始值格式：start|end（由提取函数统一） */
 function dateRaw(start: string, end: string): string {
@@ -63,6 +67,30 @@ const FONT_STACKS: Record<PageStyle['fontFamily'], string> = {
 }
 
 /**
+ * 解析页面字体栈：自定义字体名优先（含空格/中文自动加引号），回退到默认字体栈
+ * @param page 页面全局配置
+ * @returns CSS font-family 值
+ */
+function resolveFontStack(page: PageStyle): string {
+  const base = FONT_STACKS[page.fontFamily] || FONT_STACKS.sans
+  const custom = String(page.fontFamilyName || '').trim()
+  if (!custom) return base
+  const quoted = custom.includes('"') ? custom : `"${custom.replace(/"/g, '')}"`
+  return `${quoted}, ${base}`
+}
+
+/**
+ * 渲染自定义模块（行结构，样式取 ms.customRows）
+ * @param sec 自定义模块数据
+ * @param ms 排版配置
+ * @param page 页面全局配置
+ * @returns HTML 片段（数据缺失/无内容返回空串）
+ */
+function renderCustomSection(sec: CustomSectionData, ms: ModuleStyle, page: PageStyle): string {
+  return renderCustomRowsSection(sec, ms, page)
+}
+
+/**
  * 渲染完整简历 HTML
  * @param data 简历数据
  * @param config 排版配置
@@ -73,7 +101,7 @@ export function renderResume(data: ResumeData, config: ResumeLayoutConfig): stri
   const bodyCss = [
     'margin:0;padding:0;box-sizing:border-box',
     'background:#ffffff',
-    `font-family:${FONT_STACKS[page.fontFamily] || FONT_STACKS.sans}`,
+    `font-family:${resolveFontStack(page)}`,
     `color:#333333`,
     `font-size:${page.fontSize}pt`,
     `line-height:${page.lineHeight}`,
@@ -88,7 +116,13 @@ export function renderResume(data: ResumeData, config: ResumeLayoutConfig): stri
   const sectionsHtml = config.modules
     .map((ms) => {
       if (!ms.visible) return ''
-      const renderer = RENDERERS[ms.id]
+      // 自定义模块：按数据层 customSections 分发渲染
+      if (ms.id.startsWith(CUSTOM_PREFIX)) {
+        const secId = ms.id.slice(CUSTOM_PREFIX.length)
+        const sec = (data.customSections || []).find((s) => s.id === secId)
+        return sec ? renderCustomSection(sec, ms, page) : ''
+      }
+      const renderer = RENDERERS[ms.id as ModuleId]
       return renderer ? renderer(data, ms, page) : ''
     })
     .filter(Boolean)

@@ -75,6 +75,39 @@ export interface ResumeSkillItem {
   level: number
 }
 
+/** 自定义模块行内块类型：heading 标题 / text 单行文本 / list 列表 / textbox 文本块（多行段落） */
+export type RowBlockType = 'heading' | 'text' | 'list' | 'textbox'
+
+/** 行内内容块（自定义模块的最小内容单元） */
+export interface SectionRowBlock {
+  /** 块 id（编辑器 key 用） */
+  id: string
+  /** 块类型 */
+  type: RowBlockType
+  /** 文本内容：heading/text 为单行文本；list 每行一条转圆点；textbox 多行段落（保留换行） */
+  text: string
+  /** 水平区域：heading/text 可选 left/center/right（同行多块时分区）；list/textbox 固定 full 独占整行 */
+  span: 'left' | 'center' | 'right' | 'full'
+}
+
+/** 自定义模块中的一行（可容纳一个独占块，或多个标题/文本按区域并排） */
+export interface SectionRow {
+  /** 行 id（编辑器 key 用） */
+  id: string
+  /** 行内内容块列表 */
+  blocks: SectionRowBlock[]
+}
+
+/** 自定义模块（内容层：行级自由结构，存于 ResumeData.customSections 的副本） */
+export interface CustomSectionData {
+  /** 模块 id（生成值，排版层以 `custom:<id>` 引用） */
+  id: string
+  /** 模块标题（内容层可改名） */
+  title: string
+  /** 行列表（自上而下渲染） */
+  rows: SectionRow[]
+}
+
 /** 简历完整数据（JSON 存储结构） */
 export interface ResumeData {
   /** 基本信息 */
@@ -89,6 +122,8 @@ export interface ResumeData {
   skills: ResumeSkillItem[]
   /** 自我评价 */
   evaluation: string
+  /** 自定义模块列表（旧数据缺省时按空数组处理） */
+  customSections?: CustomSectionData[]
 }
 
 /** 数据库中的简历记录（data 列解析后的形态） */

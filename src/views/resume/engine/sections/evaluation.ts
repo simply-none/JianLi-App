@@ -21,6 +21,25 @@ const BASE_TEXT: TextStyle = {
 }
 
 /**
+ * 渲染文本型章节主体（公共函数，自我评价与自定义文本模块共用）
+ * @param titleText 模块标题文案
+ * @param raw 多行文本
+ * @param ms 模块排版配置
+ * @param page 页面全局配置
+ * @returns HTML 片段（空内容返回空串）
+ */
+export function renderTextSection(titleText: string, raw: string, ms: ModuleStyle, page: PageStyle): string {
+  const base = ms.textStyle || BASE_TEXT
+  const style = resolveFieldStyle(base, ms.fields?.text)
+  const text = String(raw ?? '').trim()
+  if (!style.visible || !text) return ''
+
+  const titleHtml = ms.title ? renderSectionTitle(ms.title, titleText, page.fontSize) : ''
+  const bodyHtml = esc(text).replace(/\r?\n/g, '<br>')
+  return `<div>${titleHtml}<div style="${textStyleToCss(style, page.fontSize)};line-height:inherit">${bodyHtml}</div></div>`
+}
+
+/**
  * 渲染自我评价模块
  * @param data 简历数据
  * @param ms 模块配置
@@ -28,12 +47,5 @@ const BASE_TEXT: TextStyle = {
  * @returns HTML 片段（空内容返回空串）
  */
 export function renderEvaluation(data: ResumeData, ms: ModuleStyle, page: PageStyle): string {
-  const base = ms.textStyle || BASE_TEXT
-  const style = resolveFieldStyle(base, ms.fields?.text)
-  const raw = String(data.evaluation || '').trim()
-  if (!style.visible || !raw) return ''
-
-  const titleHtml = renderSectionTitle(ms.title!, '自我评价', page.fontSize)
-  const bodyHtml = esc(raw).replace(/\r?\n/g, '<br>')
-  return `<div>${titleHtml}<div style="${textStyleToCss(style, page.fontSize)};line-height:inherit">${bodyHtml}</div></div>`
+  return renderTextSection('自我评价', data.evaluation || '', ms, page)
 }

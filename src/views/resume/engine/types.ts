@@ -122,13 +122,34 @@ export interface BasicsHeaderStyle {
   contactSeparator: SeparatorStyle
 }
 
-/** 模块 id */
+/** 固定模块 id（内置 6 模块） */
 export type ModuleId = 'basics' | 'education' | 'work' | 'project' | 'skills' | 'evaluation'
+
+/** 模块类别：fixed 内置 / custom 自定义（行结构，见 customRows） */
+export type ModuleKind = 'fixed' | 'custom'
+
+/** 自定义模块行结构排版样式 */
+export interface CustomRowsStyle {
+  /** 行间距 px */
+  rowGap: number
+  /** 标题块样式（heading） */
+  heading: TextStyle
+  /** 单行文本块样式（text） */
+  text: TextStyle
+  /** 多行段落块样式（textbox） */
+  textbox: TextStyle
+  /** 列表样式（list） */
+  list: ListStyle
+}
 
 /** 模块排版配置（各组件按模块内容可选；字段级覆盖放 fields） */
 export interface ModuleStyle {
-  /** 模块 id */
-  id: ModuleId
+  /** 模块 id：固定模块为 ModuleId；自定义模块为 `custom:<数据 id>` */
+  id: string
+  /** 模块类别（缺省视为 fixed，兼容旧数据） */
+  kind?: ModuleKind
+  /** 自定义模块显示标题（冗余自数据层 title，编辑器改名时同步，仅排版层显示用） */
+  customTitle?: string
   /** 是否显示 */
   visible: boolean
   /** 章节标题（basics 无标题，为空） */
@@ -137,12 +158,14 @@ export interface ModuleStyle {
   header?: BasicsHeaderStyle
   /** 条目头（education/work/project） */
   entryHeader?: EntryHeaderStyle
-  /** 列表（education/work/project 描述、skills 无、evaluation 无） */
+  /** 列表（条目型模块的描述） */
   list?: ListStyle
   /** 纯文本模块（evaluation） */
   textStyle?: TextStyle
   /** 技能圆点（skills） */
   dots?: SkillsDotStyle
+  /** 自定义模块行结构样式（kind=custom） */
+  customRows?: CustomRowsStyle
   /** 原子字段样式覆盖表：字段 id → 样式（未配置继承组件默认） */
   fields?: Record<string, Partial<TextStyle> & { visible?: boolean }>
 }
@@ -155,6 +178,8 @@ export interface PageStyle {
   lineHeight: number
   /** 字体族：sans 无衬线 / serif 衬线 */
   fontFamily: 'sans' | 'serif'
+  /** 自定义字体名（系统已安装/内置字体；空串 = 跟随 fontFamily 默认字体栈） */
+  fontFamilyName: string
   /** 页面水平边距 mm（8-20） */
   paddingX: number
   /** 页面垂直边距 mm（8-20） */

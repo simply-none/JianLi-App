@@ -4,7 +4,11 @@
 简历编辑与 PDF 导出工具（`/resume`，侧边栏「效率工具」分组）。顶部工具条（左：标题+简历选择+新建 / 右：填充示例+保存+导出 PDF）+ 下方左编辑右 A4 实时预览。支持多份简历管理（切换/新建/重命名/删除，收纳在顶部选择器下拉）。
 
 **原子化排版引擎**（2026-08-31 重构核心）：渲染从「模板硬编码」迁移为「配置驱动」——
-- 简历拆分为 模块（6 个，可排序/显隐）→ 组件（章节标题/装饰线/条目头/列表/纯文本/圆点）→ 原子字段（姓名/日期/学校…每个可独立调试：显隐/字号档/字重/灰阶）
+- 简历拆分为 模块（可排序/显隐）→ 组件（章节标题/装饰线/条目头/列表/纯文本/圆点）→ 原子字段（姓名/日期/学校…每个可独立调试：显隐/字号档/字重/灰阶）
+- **固定 6 模块 + 自定义模块（行结构 v2）**：自定义模块 = 标题 + `rows[]`；每行 = `blocks[]`（heading 标题 / text 单行文本 / list 列表 / textbox 多行段落）。heading/text 可同块多块并排并按 `span`（left/center/right）分区（多区 space-between 三栏布局），list/textbox 独占整行。数据存 `ResumeData.customSections[]` 副本（简历**不引用**模板 id）；排版以 `custom:<数据id>` 为 id，样式组 `ModuleStyle.customRows`（rowGap + heading/text/textbox TextStyle + list ListStyle）
+- **自定义模块模板表** `resume_custom_section`（name 唯一索引 + structure JSON）：编辑器自定义模块内「存为模板 / 从模板加载」（加载时深拷贝并重生成行/块 id，避免 key 冲突）；db 读取时 `migrateCustomSections` 自动把 v1（kind=entry/text）无损迁移为行结构
+- 自定义模块渲染：`ms.id.startsWith('custom:')` → `renderCustomRowsSection`（engine/sections/customRows.ts）；数据缺失自动空隐藏；编辑器删除模块 = 数据+排版一并删；改名经 `onDataChange` 同步 `customTitle`
+- `mergeConfig` 对未知 id 的模块项**原样保留**（预设含自定义模块应用到其他简历时不丢配置）；`createCustomModuleStyle(id, title)` 生成新模块默认排版
 - 预览工具条「排版」按钮打开**全屏弹窗**：左侧配置面板、右侧**示例简历（mock）实时渲染**（120ms 防抖），「完成」应用 draft，「取消」丢弃
 - 弹窗顶部按钮：**保存**（输入名字，同名覆盖=编辑/新名=新增）、**另存为**（强制新增，同名拒绝）、恢复默认排版；保存的预设进入 `resume_layout_preset` 表
 - 主页面「填充示例」左侧有**「选择排版」下拉**（展开时拉取预设列表，`LayoutTemplate` 图标），选中预设即应用到当前简历排版（置 dirty，随「保存」落库）
@@ -57,10 +61,11 @@
 - 渲染兜底：StyleDialog 用 `watch(draft, deep)` 兜底漏发事件 + `renderTick` 递增作为 ResumePaper 的 **key 强制 iframe 重建**（杜绝 srcdoc 更新不重载），渲染输入先深拷贝脱离 proxy
 - `ensureField`（ModuleList 内）保证字段覆盖对象为**完整 TextStyle**（defaultConfig 里 fields 是 Partial）
 - 引擎 `TextStyle.ink` 用灰阶档位（InkLevel）而非自由色，维持灰黑白基调；新增可调维度先扩 engine/types.ts + tokens.ts
-- 字段 id 约定：basics= name/jobIntent/phone/email/gender/age/city；条目模块主字段= school/major/degree、company/position、name/role；`date`、`description`、`skillName`、`text`
+- 字段 id 约定：basics= name/jobIntent/phone/email/gender/age/city；条目模块主字段= school/major/degree、company/position、name/role、自定义= field1/field2；`date`、`description`、`skillName`、`text`；排版 UI 字段覆盖行的 base 由 `fieldBase(m, fid)` 按模块取组件基础样式（description→list.text、text→textStyle、条目头字段→entryHeader.textStyle），保证「未配置=继承」语义
 - 日期在条目间以 `start|end` 中转（entrySection 提取），最终按 `dateConnector`（–/~ /至/空格）拼接
 - 预览防抖 150ms（主页面）/ 120ms（排版弹窗），避免拖滑块高频重渲染 iframe
 - `@page A4 margin 0`，页面边距由 `page.paddingX/Y` 控制；body 为 flex column + `sectionGap` 控制模块间距
+- 字体：`page.fontFamily`（sans/serif 默认栈）+ `page.fontFamilyName`（自定义字体名，空=跟随默认栈）；引擎 `resolveFontStack` 把自定义字体放栈首、默认栈兜底（防缺字）；字体下拉选项 = `useGlobalSetting().globalFontOpsC`（内置）+ `get-fonts` IPC（系统字体），按 value 去重（与设置页字体设置一致）
 
 ## 后续扩展（已确认方向）
 - 其余 9 套灰黑白模板：新模板 = 一组不同的 defaultConfig 预设（或独立 sections 差异渲染），在 `templates/` 增加适配层并在 `templates/index.ts` 注册

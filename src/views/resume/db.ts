@@ -13,7 +13,7 @@
 import { deepClone } from '@/utils/deepClone'
 import { DEFAULT_TEMPLATE_ID } from './templates'
 import { mergeConfig } from './engine/defaultConfig'
-import type { ResumeData, ResumeRecord, ResumeLayoutConfig } from './types'
+import type { ResumeData, ResumeRecord, ResumeLayoutConfig, CustomSectionData } from './types'
 
 /** 简历表名 */
 const RESUME_TABLE = 'resume_data'
@@ -21,6 +21,8 @@ const RESUME_TABLE = 'resume_data'
 const LAYOUT_TABLE = 'resume_layout'
 /** 排版预设表名（命名排版方案库，用于复用/切换展示效果） */
 const PRESET_TABLE = 'resume_layout_preset'
+/** 自定义模块结构模板表（保存行结构方案，供简历选择加载副本） */
+const CUSTOM_TEMPLATE_TABLE = 'resume_custom_section'
 
 /** IPC 句柄 */
 const ipc: any = (window as any).ipcRenderer
@@ -141,13 +143,62 @@ function parseRow(row: any): ResumeRecord | null {
       id: row.id,
       name: row.name,
       templateId: row.template_id || DEFAULT_TEMPLATE_ID,
-      data: JSON.parse(row.data || '{}') as ResumeData,
+      data: migrateCustomSections(JSON.parse(row.data || '{}')),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }
   } catch {
     return null
   }
+}
+
+/**
+ * 自定义模块结构迁移：v1（kind=entry/text 固定字段）→ v2（行结构 rows）
+ * 已是 v2（含 rows 数组）的原样返回；旧结构无损转换为等效行组合。
+ * @param data 简历数据
+ * @returns 迁移后的简历数据
+ */
+function migrateCustomSections(data: ResumeData): ResumeData {
+  const sections = (data as any)?.customSections
+  if (!Array.isArray(sections)) {
+    return { ...data, customSections: [] }
+  }
+  const migrated: CustomSectionData[] = sections.map((sec: any) => {
+    // 已是 v2 行结构
+    if (sec && Array.isArray(sec.rows)) return sec as CustomSectionData
+    // v1 文本型 → 单个整行段落块
+    if (sec?.kind === 'text') {
+      return {
+        id: sec.id,
+        title: sec.title || '自定义模块',
+        rows: [
+          {
+            id: `${sec.id}-r1`,
+            blocks: [{ id: `${sec.id}-b1`, type: 'textbox', span: 'full', text: sec.content || '' }],
+          },
+        ],
+      }
+    }
+    // v1 条目型 → 每条目两行：条目头行（主字段/副字段/日期）+ 描述列表行
+    const rows = (sec?.entries || []).flatMap((e: any, i: number) => {
+      const headBlocks: any[] = []
+      if (e?.field1) headBlocks.push({ id: `${sec.id}-r${i}-b1`, type: 'heading', span: 'left', text: e.field1 })
+      if (e?.field2) headBlocks.push({ id: `${sec.id}-r${i}-b2`, type: 'text', span: 'left', text: e.field2 })
+      const date = [e?.startTime, e?.endTime].filter((s: string) => s && String(s).trim()).join(' ~ ')
+      if (date) headBlocks.push({ id: `${sec.id}-r${i}-b3`, type: 'text', span: 'right', text: date })
+      const out: any[] = []
+      if (headBlocks.length > 0) out.push({ id: `${sec.id}-r${i}-head`, blocks: headBlocks })
+      if (e?.description) {
+        out.push({
+          id: `${sec.id}-r${i}-desc`,
+          blocks: [{ id: `${sec.id}-r${i}-b4`, type: 'list', span: 'full', text: e.description }],
+        })
+      }
+      return out
+    })
+    return { id: sec.id, title: sec.title || '自定义模块', rows }
+  })
+  return { ...data, customSections: migrated }
 }
 
 /**
@@ -398,4 +449,115 @@ export async function saveLayoutPreset(
 export async function deleteLayoutPreset(id: number): Promise<void> {
   await ensurePresetTable()
   await dbRun(`DELETE FROM ${PRESET_TABLE} WHERE id = ?`, [id])
+}
+
+/** 自定义模块结构模板记录（模板表解析后的形态） */
+export interface CustomSectionTemplateRecord {
+  /** 模板 id */
+  id: number
+  /** 模板名称（唯一） */
+  name: string
+  /** 模块结构（title + rows，加载时深拷贝为简历自己的数据副本） */
+  structure: CustomSectionData
+  /** 更新时间戳（ms） */
+  updatedAt: number
+}
+
+/** 模板表结构校验完成的标记（进程内仅校验一次） */
+let customTemplateTableReady = false
+
+/**
+ * 确保 resume_custom_section 模板表存在且结构可用（幂等）
+ * 结构：id 自增主键 + name 唯一索引 + structure(JSON) + created_at + updated_at
+ * @throws {Error} 建表失败时抛出
+ */
+async function ensureCustomTemplateTable(): Promise<void> {
+  if (customTemplateTableReady) return
+
+  await dbRun(`
+    CREATE TABLE IF NOT EXISTS ${CUSTOM_TEMPLATE_TABLE} (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT,
+      structure TEXT,
+      created_at INTEGER,
+      updated_at INTEGER
+    )
+  `)
+  await dbRun(`CREATE UNIQUE INDEX IF NOT EXISTS uq_resume_custom_tpl_name ON ${CUSTOM_TEMPLATE_TABLE} (name)`)
+
+  customTemplateTableReady = true
+}
+
+/**
+ * 解析模板 structure 列（失败回退空行结构）
+ * @param raw JSON 字符串
+ * @param fallbackName 兜底标题
+ * @returns 结构对象
+ */
+function parseCustomStructure(raw: string, fallbackName: string): CustomSectionData {
+  try {
+    const parsed = JSON.parse(raw || 'null')
+    if (parsed && Array.isArray(parsed.rows)) return parsed as CustomSectionData
+  } catch {
+    /* 解析失败走兜底 */
+  }
+  return { id: '', title: fallbackName, rows: [] }
+}
+
+/**
+ * 查询全部自定义模块模板（按更新时间倒序）
+ * @returns 模板列表
+ */
+export async function listCustomSectionTemplates(): Promise<CustomSectionTemplateRecord[]> {
+  await ensureCustomTemplateTable()
+  const rows = await dbQuery(
+    `SELECT id, name, structure, updated_at FROM ${CUSTOM_TEMPLATE_TABLE} ORDER BY updated_at DESC`
+  )
+  return (rows || []).map((row: any) => ({
+    id: row.id,
+    name: row.name,
+    structure: parseCustomStructure(row.structure, row.name),
+    updatedAt: row.updated_at,
+  }))
+}
+
+/**
+ * 保存自定义模块结构模板（新增/编辑一体）
+ * @param name 模板名称（同名按 overwrite 决定覆盖或失败）
+ * @param structure 模块结构
+ * @param opts.overwrite 是否允许覆盖同名
+ * @returns { ok, created, message? }
+ */
+export async function saveCustomSectionTemplate(
+  name: string,
+  structure: CustomSectionData,
+  opts: { overwrite: boolean }
+): Promise<{ ok: boolean; created: boolean; message?: string }> {
+  await ensureCustomTemplateTable()
+  const rows = await dbQuery(`SELECT id FROM ${CUSTOM_TEMPLATE_TABLE} WHERE name = ?`, [name])
+  const now = Date.now()
+  const json = JSON.stringify(deepClone({ ...structure, title: structure.title || name }))
+
+  if (rows && rows.length > 0) {
+    if (!opts.overwrite) {
+      return { ok: false, created: false, message: `已存在同名模板「${name}」` }
+    }
+    await dbRun(`UPDATE ${CUSTOM_TEMPLATE_TABLE} SET structure = ?, updated_at = ? WHERE id = ?`, [json, now, rows[0].id])
+    return { ok: true, created: false }
+  }
+
+  await dbRun(
+    `INSERT INTO ${CUSTOM_TEMPLATE_TABLE} (name, structure, created_at, updated_at) VALUES (?, ?, ?, ?)`,
+    [name, json, now, now]
+  )
+  return { ok: true, created: true }
+}
+
+/**
+ * 删除自定义模块结构模板
+ * @param id 模板 id
+ */
+export async function deleteCustomSectionTemplate(id: number): Promise<void> {
+  await ensureCustomTemplateTable()
+  await dbRun(`DELETE FROM ${CUSTOM_TEMPLATE_TABLE} WHERE id = ?`, [id])
 }

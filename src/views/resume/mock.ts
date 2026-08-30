@@ -90,5 +90,44 @@ export function createMockResumeData(): ResumeData {
     ],
     evaluation:
       '五年前端经验，深耕数据可视化与工程化方向\n具备从 0 到 1 的架构能力与跨团队协作经验\n持续输出技术博客与开源贡献，自驱力强',
+    customSections: [
+      {
+        id: 'mock-honor',
+        title: '获奖荣誉',
+        rows: [
+          {
+            id: 'h-r1',
+            blocks: [
+              { id: 'h-b1', type: 'heading', span: 'left', text: '国家奖学金' },
+              { id: 'h-b2', type: 'text', span: 'left', text: '教育部' },
+              { id: 'h-b3', type: 'text', span: 'right', text: '2022.10' },
+            ],
+          },
+          {
+            id: 'h-r2',
+            blocks: [{ id: 'h-b4', type: 'list', span: 'full', text: '综合评分专业第一\n全校仅 5 个名额' }],
+          },
+          {
+            id: 'h-r3',
+            blocks: [
+              { id: 'h-b5', type: 'heading', span: 'left', text: 'ACM 区域赛银牌' },
+              { id: 'h-b6', type: 'text', span: 'right', text: '2021.11' },
+            ],
+          },
+        ],
+      },
+      {
+        id: 'mock-hobby',
+        title: '兴趣爱好',
+        rows: [
+          {
+            id: 'hb-r1',
+            blocks: [
+              { id: 'hb-b1', type: 'textbox', span: 'full', text: '长跑：已完成 3 次半程马拉松\n摄影：专注城市纪实方向\n开源：活跃贡献者，累计 Star 500+' },
+            ],
+          },
+        ],
+      },
+    ],
   }
 }

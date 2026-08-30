@@ -8,7 +8,10 @@
             <LucideIcon :name="m.visible ? 'Eye' : 'EyeOff'" :size="14" />
           </button>
         </el-tooltip>
-        <span class="card-title">{{ MODULE_LABELS[m.id] }}</span>
+        <span class="card-title">
+          {{ moduleLabel(m) }}
+          <span v-if="isCustom(m)" class="custom-badge">自定义</span>
+        </span>
         <span class="card-spacer" />
         <el-tooltip content="上移" placement="top">
           <button class="icon-btn" :disabled="idx === 0" @click.stop="move(idx, -1)">
@@ -40,7 +43,7 @@
           <div class="group-caption">联系字段顺序</div>
           <div class="order-chips">
             <span v-for="(fid, cIdx) in m.header.contactOrder" :key="fid" class="chip">
-              {{ fieldLabel(m.id, fid) }}
+              {{ fieldLabel(m.id as ModuleId, fid) }}
               <button class="chip-btn" :disabled="cIdx === 0" @click="moveContact(m, cIdx, -1)">
                 <LucideIcon name="ArrowUp" :size="11" />
               </button>
@@ -52,7 +55,25 @@
           <SeparatorGroup label="联系分隔" :model="m.header.contactSeparator" @change="notify" />
         </template>
 
-        <!-- 条目型模块（教育/工作/项目） -->
+        <!-- 自定义模块（行结构样式组） -->
+        <template v-else-if="isCustom(m)">
+          <div class="group-caption">章节标题</div>
+          <SectionTitleGroup v-if="m.title" :model="m.title" @change="notify" />
+          <template v-if="m.customRows">
+            <div class="g-row">
+              <span class="g-label">行间距 {{ m.customRows.rowGap }}px</span>
+              <el-slider v-model="m.customRows.rowGap" size="small" :min="0" :max="20" :step="1" class="slider" @input="notify" />
+            </div>
+            <div class="group-caption">行内块样式（标题/文本同行可分区，列表/段落独占整行）</div>
+            <TextStyleRow label="标题块" :model="m.customRows.heading" @change="notify" />
+            <TextStyleRow label="文本块" :model="m.customRows.text" @change="notify" />
+            <TextStyleRow label="段落块" :model="m.customRows.textbox" @change="notify" />
+            <div class="group-caption">列表</div>
+            <ListStyleGroup :model="m.customRows.list" @change="notify" />
+          </template>
+        </template>
+
+        <!-- 条目型固定模块（教育/工作/项目） -->
         <template v-else-if="m.title && m.entryHeader && m.list">
           <div class="group-caption">章节标题</div>
           <SectionTitleGroup :model="m.title" @change="notify" />
@@ -79,15 +100,15 @@
         <!-- 原子字段调试行 -->
         <div class="group-caption">原子字段（实时调试）</div>
         <TextStyleRow
-          v-for="meta in MODULE_FIELD_META[m.id]"
+          v-for="meta in fieldMetas(m)"
           :key="meta.id"
           :label="meta.label"
-          :model="ensureField(m, meta.id)"
+          :model="ensureField(m, meta.id, fieldBase(m, meta.id))"
           @change="notify"
         />
       </div>
     </div>
-    <div class="module-tip">模块按此顺序渲染，可用 ↑ ↓ 调整；眼睛控制显隐</div>
+    <div class="module-tip">模块按此顺序渲染，可用 ↑ ↓ 调整；眼睛控制显隐；自定义模块在编辑器底部添加</div>
   </div>
 </template>
 
@@ -101,15 +122,14 @@ import SectionTitleGroup from './SectionTitleGroup.vue'
 import EntryHeaderGroup from './EntryHeaderGroup.vue'
 import ListStyleGroup from './ListStyleGroup.vue'
 import SkillsDotsGroup from './SkillsDotsGroup.vue'
-import { MODULE_FIELD_META, ENTRY_FIELD_LABELS } from './moduleMeta'
+import { MODULE_FIELD_META, ENTRY_FIELD_LABELS, type FieldMeta } from './moduleMeta'
 import { MODULE_LABELS } from '../../../engine/defaultConfig'
 import type { ModuleId, ModuleStyle, TextStyle } from '../../../engine/types'
 
 /**
  * 模块列表（排版核心区）
- * 每个模块一张卡片：显隐/上下移排序/手风琴展开；
- * 展开后按模块类型渲染组件配置组，末尾统一列出原子字段调试行。
- * 直接 mutate 传入的 modules 数组（reactive draft 子树）并通知父级。
+ * 每个模块一张卡片：显隐/上下移排序/手风琴展开；自定义模块按形态展示配置组。
+ * 控件直接 mutate 传入的 modules 数组（reactive draft 子树）并通知父级。
  */
 const props = defineProps<{
   /** 模块配置数组（draft 内引用，直接修改） */
@@ -122,7 +142,17 @@ const emit = defineEmits<{
 }>()
 
 /** 当前展开的模块 id（手风琴） */
-const expandedId = ref<ModuleId | null>(null)
+const expandedId = ref<string | null>(null)
+
+/** 通用兜底基础样式 */
+const BASE_TEXT: TextStyle = {
+  visible: true,
+  size: 'base',
+  weight: 400,
+  ink: 900,
+  letterSpacing: 0,
+  italic: false,
+}
 
 /** 通知父级配置变更 */
 function notify() {
@@ -130,10 +160,27 @@ function notify() {
 }
 
 /**
+ * 是否自定义模块
+ * @param m 模块配置
+ */
+function isCustom(m: ModuleStyle): boolean {
+  return m.id.startsWith('custom:')
+}
+
+/**
+ * 模块卡片显示名
+ * @param m 模块配置
+ */
+function moduleLabel(m: ModuleStyle): string {
+  if (isCustom(m)) return m.customTitle || '自定义模块'
+  return (MODULE_LABELS as Record<string, string>)[m.id] || m.id
+}
+
+/**
  * 切换手风琴展开
  * @param id 模块 id
  */
-function toggleExpand(id: ModuleId) {
+function toggleExpand(id: string) {
   expandedId.value = expandedId.value === id ? null : id
 }
 
@@ -176,13 +223,40 @@ function moveContact(m: ModuleStyle, idx: number, dir: -1 | 1) {
 }
 
 /**
- * 取字段完整样式对象（不存在或为 Partial 时补全一次并写回，之后幂等返回同一引用，
+ * 取字段行元数据（固定模块查表；自定义模块无原子字段行——样式走 customRows 组）
+ * @param m 模块配置
+ * @returns 字段元数据列表
+ */
+function fieldMetas(m: ModuleStyle): FieldMeta[] {
+  if (isCustom(m)) return []
+  return MODULE_FIELD_META[m.id as ModuleId] || []
+}
+
+/**
+ * 取字段继承基础样式（fields 覆盖前的基础，保证覆盖语义正确）
+ * @param m 模块配置
+ * @param fid 字段 id
+ * @returns 基础 TextStyle
+ */
+function fieldBase(m: ModuleStyle, fid: string): TextStyle {
+  // 描述类字段继承列表文本样式
+  if (fid === 'description' && m.list) return m.list.text
+  // 文本类字段继承模块文本样式
+  if (fid === 'text' && m.textStyle) return m.textStyle
+  // 条目头字段继承条目头基础样式（basics 无条目头，走通用默认）
+  if (m.entryHeader && fid !== 'date') return m.entryHeader.textStyle
+  return BASE_TEXT
+}
+
+/**
+ * 取字段完整样式对象（不存在或为 Partial 时按 base 补全一次并写回，之后幂等返回同一引用，
  * 避免每次渲染都新建对象触发递归更新）
  * @param m 模块配置
  * @param fid 字段 id
+ * @param base 字段继承基础样式
  * @returns 完整 TextStyle 引用
  */
-function ensureField(m: ModuleStyle, fid: string): TextStyle {
+function ensureField(m: ModuleStyle, fid: string, base: TextStyle): TextStyle {
   if (!m.fields) m.fields = {}
   const existing = m.fields[fid]
   // 已是完整对象（含 visible 布尔标记）时直接返回，不重复写回
@@ -190,12 +264,7 @@ function ensureField(m: ModuleStyle, fid: string): TextStyle {
     return existing as TextStyle
   }
   const full: TextStyle = {
-    visible: true,
-    size: 'base',
-    weight: 400,
-    ink: 900,
-    letterSpacing: 0,
-    italic: false,
+    ...base,
     ...(existing || {}),
   }
   m.fields[fid] = full
@@ -242,6 +311,20 @@ function fieldLabel(mid: ModuleId, fid: string): string {
   font-size: 13px;
   font-weight: 600;
   color: var(--skin-text-primary, #333);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.custom-badge {
+  font-size: 10px;
+  font-weight: 400;
+  color: #999;
+  border: 1px solid var(--skin-border, #e4e4e7);
+  border-radius: 4px;
+  padding: 0 4px;
+  line-height: 16px;
+  flex-shrink: 0;
 }
 .card-spacer {
   flex: 1;

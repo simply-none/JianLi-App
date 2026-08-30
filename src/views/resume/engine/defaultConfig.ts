@@ -6,7 +6,7 @@
  * 深合并工具 mergeConfig 用于库中存量配置与默认值的补全合并。
  */
 
-import type { ModuleId, ModuleStyle, ResumeLayoutConfig, TextStyle } from './types'
+import type { ModuleId, ModuleStyle, ResumeLayoutConfig, TextStyle, ListStyle } from './types'
 
 /** 通用文本样式快捷构造 */
 function text(partial: Partial<TextStyle>): TextStyle {
@@ -51,7 +51,7 @@ function defaultEntryHeader(fieldOrder: string[]): ModuleStyle['entryHeader'] {
 }
 
 /** 列表默认（圆点 #888 + 缩进 11px + #444 文本） */
-function defaultList(): ModuleStyle['list'] {
+function defaultList(): ListStyle {
   return {
     marker: 'dot',
     markerInk: 500,
@@ -140,12 +140,36 @@ export const defaultLayoutConfig: ResumeLayoutConfig = {
     fontSize: 9.5,
     lineHeight: 1.35,
     fontFamily: 'sans',
+    fontFamilyName: '',
     paddingX: 14,
     paddingY: 13,
     sectionGap: 10,
     entryGap: 6,
   },
   modules: defaultModules(),
+}
+
+/**
+ * 创建自定义模块的排版配置（新增自定义模块时注入 config.modules）
+ * @param id 自定义模块数据 id（排版层 id 为 `custom:<id>`）
+ * @param title 模块标题（显示用冗余）
+ * @returns 完整 ModuleStyle（行结构样式默认值）
+ */
+export function createCustomModuleStyle(id: string, title: string): ModuleStyle {
+  return {
+    id: `custom:${id}`,
+    kind: 'custom',
+    customTitle: title,
+    visible: true,
+    title: defaultTitle(),
+    customRows: {
+      rowGap: 6,
+      heading: text({ weight: 600, ink: 1000 }),
+      text: text({ ink: 850 }),
+      textbox: text({ ink: 750 }),
+      list: defaultList(),
+    },
+  }
 }
 
 /** 模块显示名（UI 用） */
@@ -172,13 +196,17 @@ export function mergeConfig(saved: Partial<ResumeLayoutConfig> | null | undefine
   if (saved.page) {
     merged.page = { ...merged.page, ...saved.page }
   }
-  // 模块：按 saved 顺序重排，缺失的组件/字段用默认补全
+  // 模块：按 saved 顺序重排，缺失的组件/字段用默认补全；未知 id（自定义模块）原样保留
   const byId = new Map(merged.modules.map((m) => [m.id, m]))
   const result: ModuleStyle[] = []
   for (const sm of saved.modules) {
     if (!sm || !sm.id) continue
-    const base = byId.get(sm.id as ModuleId)
-    if (!base) continue
+    const base = byId.get(sm.id)
+    // 未知 id（自定义模块）直接保留——渲染时数据缺失自动为空隐藏
+    if (!base) {
+      result.push(sm)
+      continue
+    }
     const combined: ModuleStyle = {
       ...base,
       ...sm,

@@ -44,7 +44,13 @@
 
     <!-- 主体：编辑器 | 预览 -->
     <div class="main-area">
-      <ResumeEditor v-if="activeRecord" :data="localData" @update:data="onDataChange" />
+      <ResumeEditor
+        v-if="activeRecord"
+        :data="localData"
+        @update:data="onDataChange"
+        @add-custom="handleAddCustom"
+        @remove-custom="handleRemoveCustom"
+      />
       <div v-else class="editor-empty">
         <LucideIcon name="FileText" :size="36" />
         <p>新建或选择一份简历开始编辑</p>
@@ -68,8 +74,8 @@ import StyleDialog from './components/styleDrawer/StyleDialog.vue'
 import { listResumes, createResume, updateResume, deleteResume, getResumeById, getLayoutByResumeId, saveLayout, listLayoutPresets, type LayoutPresetRecord } from './db'
 import { getTemplate, DEFAULT_TEMPLATE_ID } from './templates'
 import { createMockResumeData } from './mock'
-import { defaultLayoutConfig } from './engine/defaultConfig'
-import type { ResumeData, ResumeRecord, ResumeLayoutConfig } from './types'
+import { defaultLayoutConfig, createCustomModuleStyle } from './engine/defaultConfig'
+import type { ResumeData, ResumeRecord, ResumeLayoutConfig, CustomSectionData } from './types'
 
 /** IPC 句柄 */
 const ipc: any = (window as any).ipcRenderer
@@ -132,6 +138,7 @@ function emptyResumeData(): ResumeData {
     project: [],
     skills: [],
     evaluation: '',
+    customSections: [],
   }
 }
 
@@ -171,12 +178,56 @@ onMounted(async () => {
 })
 
 /**
- * 编辑数据变更（编辑器上报）
+ * 编辑数据变更（编辑器上报），并联动同步自定义模块标题到排版层显示名
  * @param value 最新简历数据
  */
 function onDataChange(value: ResumeData) {
+  // 自定义模块改名 → 同步 layoutConfig.modules 的 customTitle（排版弹窗显示用）
+  const customs = value.customSections || []
+  if (customs.length > 0) {
+    const modules = layoutConfig.value.modules.map((m) => {
+      if (!m.id.startsWith('custom:')) return m
+      const sec = customs.find((s) => s.id === m.id.slice('custom:'.length))
+      return sec && sec.title !== m.customTitle ? { ...m, customTitle: sec.title } : m
+    })
+    layoutConfig.value = { ...layoutConfig.value, modules }
+  }
   localData.value = value
   dirty.value = true
+}
+
+/**
+ * 添加自定义模块：数据入列 + 注入对应排版配置（默认样式、排在末尾）
+ * @param sec 新的自定义模块数据
+ */
+function handleAddCustom(sec: CustomSectionData) {
+  localData.value = {
+    ...localData.value,
+    customSections: [...(localData.value.customSections || []), sec],
+  }
+  layoutConfig.value = {
+    ...layoutConfig.value,
+    modules: [...layoutConfig.value.modules, createCustomModuleStyle(sec.id, sec.title)],
+  }
+  dirty.value = true
+  ElMessage.success(`已添加自定义模块「${sec.title}」，可在「排版」中调整其样式`)
+}
+
+/**
+ * 删除自定义模块：数据与排版配置一并移除
+ * @param id 自定义模块数据 id
+ */
+function handleRemoveCustom(id: string) {
+  localData.value = {
+    ...localData.value,
+    customSections: (localData.value.customSections || []).filter((s) => s.id !== id),
+  }
+  layoutConfig.value = {
+    ...layoutConfig.value,
+    modules: layoutConfig.value.modules.filter((m) => m.id !== `custom:${id}`),
+  }
+  dirty.value = true
+  ElMessage.success('自定义模块已删除')
 }
 
 /**
