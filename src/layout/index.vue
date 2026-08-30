@@ -85,6 +85,9 @@
       </template>
     </Layout>
 
+    <!-- 应用锁遮罩：锁定态下全屏覆盖（主进程广播驱动） -->
+    <AppLock />
+
     <!-- 顶部栏隐藏时显示的浮动恢复按钮 -->
     <Transition name="float-fade">
       <button
@@ -103,6 +106,7 @@
 import Layout from '@/components/layout.vue';
 import Header from '@/components/header.vue';
 import LucideIcon from '@/components/LucideIcon.vue';
+import AppLock from '@/layout/AppLock.vue';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter, type RouteRecordNameGeneric, type RouteRecordRaw } from 'vue-router';
 import { layoutRouters } from '@/router';

@@ -5,6 +5,7 @@ import { myDb } from "./sql.ts";
 import { clipboard, ipcMain, globalShortcut, BrowserWindow } from "electron";
 import colors from "colors";
 import { createOtherWindow, hideOtherWindow } from "./newWindow.ts";
+import { lockAppNow, togglePrivacyHide } from "./appLock.ts";
 
 export const tableName = "register_shortcut";
 
@@ -355,6 +356,12 @@ function globalShortcutFn(item) {
     }
     else if (item.type == 'open_habit_window') {
       toggleHabitWindow();
+    }
+    else if (item.type == 'lock_app') {
+      lockAppNow();
+    }
+    else if (item.type == 'privacy_hide') {
+      togglePrivacyHide();
     }
     console.log("Electron loves global shortcuts!");
   });

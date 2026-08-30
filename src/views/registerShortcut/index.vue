@@ -278,6 +278,20 @@ const originShortcuts = ref([
     key: 'habitWindowShortcut',
     shortcut: ['', '', ''],
   },
+  {
+    type: 'lock_app',
+    url: '',
+    name: '锁定应用',
+    key: 'lockAppShortcut',
+    shortcut: ['', '', ''],
+  },
+  {
+    type: 'privacy_hide',
+    url: '',
+    name: '隐私模式（老板键）',
+    key: 'privacyHideShortcut',
+    shortcut: ['', '', ''],
+  },
 ])
 
 // 路由功能：基于 layoutRouters 动态生成，所有布局内路由均可注册快捷键。

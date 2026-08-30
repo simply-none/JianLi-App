@@ -1,4 +1,5 @@
 import { send, getWindowConfig } from '@/utils/common'
+import useAppLock from '@/store/useAppLock'
 import type { CommandItem, CommandSource } from '../types'
 import { matchScore, byScoreDesc } from '../utils/score'
 import { MAX_PER_SOURCE } from '../config/paletteConfig'
@@ -74,6 +75,16 @@ const ACTIONS: ActionDef[] = [
     run: ({ hidePalette, navigate }) => {
       hidePalette()
       navigate('categorizableNotes')
+    },
+  },
+  {
+    id: 'action:lock-app',
+    title: '立即锁定',
+    subtitle: '锁定应用（需已在设置中开启应用锁）',
+    icon: 'LockKeyhole',
+    run: ({ hidePalette }) => {
+      hidePalette()
+      useAppLock().lock()
     },
   },
 ]

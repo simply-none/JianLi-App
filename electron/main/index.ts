@@ -6,6 +6,7 @@ import { initFile } from "./module/dialog.ts";
 import { initCrypto } from "./module/crypto.ts";
 import { initStore } from "./module/store.ts";
 import { initBackup } from "./module/backup.ts";
+import { initAppLock } from "./module/appLock.ts";
 import { initTray } from "./module/tray.ts";
 import { initPoetData } from "./module/poetData.ts";
 import { initMainWindow, win } from "./module/mainWindow.ts";
@@ -91,6 +92,8 @@ async function createWindow() {
   initFile();
   // 数据加密解密
   initCrypto();
+  // 应用锁 / 隐私模式（依赖 DB 与加密密钥，须在 initCrypto 之后）
+  initAppLock();
   // 托盘图标
   initTray();
   // 系统信息监控

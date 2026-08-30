@@ -36,7 +36,7 @@ agent_created: true
 - 通用复用模式：`references/patterns.md`
 - 已知差异与风险：`references/risks.md`
 - 逐模块文档（`references/modules/`，处理具体模块前先读对应文件）：
-  - **效率 / 提醒类**：`habit` `reminder` `todo` `pomodoro` `command-palette` `theme-conversation` `window-mode` `shortcut` `home-mode` `route-setting` `settings` `quick-note` `sticker`
+  - **效率 / 提醒类**：`habit` `reminder` `todo` `pomodoro` `command-palette` `theme-conversation` `window-mode` `shortcut` `home-mode` `route-setting` `settings` `quick-note` `sticker` `app-lock`
   - **内容 / 数据类**：`clipboard` `notebook` `categorizable-notes` `ebook-reader` `accounting` `stock` `flow` `function` `color-palette`
   - **系统 / 工具类**：`system-info` `weather` `crawler` `spider` `sql-test` `high-perf-sql` `file-rela` `resource-manage` `screenshot` `browser` `downloader` `about` `safety-protection` `app-cache` `backup` `tts` `small-window` `home`
 

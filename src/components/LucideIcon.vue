@@ -107,6 +107,8 @@ import { AlarmClock, AlarmClockCheck, AlarmClockMinus, AlarmClockPlus, ArrowDown
   FileDown,
   FileUp,
   SaveAll,
+  LockKeyhole,
+  KeyRound,
  } from '@lucide/vue';
 import { ref } from 'vue';
 import { getLightColor } from '@/utils';
@@ -236,6 +238,8 @@ let nameMap = ref<Record<any, any>>({
   FileDown,
   FileUp,
   SaveAll,
+  LockKeyhole,
+  KeyRound,
   WebcamOff,
   Share2,
   Wrench,

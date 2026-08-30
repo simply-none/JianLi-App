@@ -171,6 +171,14 @@
 
         <div class="section">
           <h2 class="section-title">
+            <LucideIcon name="LockKeyhole" />
+            安全与隐私
+          </h2>
+          <AppLockSetting />
+        </div>
+
+        <div class="section">
+          <h2 class="section-title">
             <LucideIcon name="Settings" />
             其他设置
           </h2>
@@ -280,6 +288,7 @@ import { storeToRefs } from 'pinia';
 import { timeUnit } from '@/utils/time';
 import confirmDialog from '@/utils/confirmDialog';
 import CacheSet from '@/views/setting/cacheSet.vue';
+import AppLockSetting from '@/views/setting/components/AppLockSetting.vue';
 
 const { clearStore } = useClearStore();
 const { forceWorkWithTimes, forceToState } = useTipsActions();

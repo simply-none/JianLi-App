@@ -70,8 +70,9 @@ function stripJsonQuotes(text: string): string {
   return t;
 }
 
-// 统一的私钥解密入口：返回结构化结果，便于上层区分「解密失败」与「密码不匹配」
-function safePrivateDecrypt(
+// 统一的私钥解密入口：返回结构化结果，便于上层区分「解密失败」与「密码不匹配」。
+// 导出供 appLock 等模块复用（内部持有密钥口令，避免各处遗漏 passphrase 导致解密必败）。
+export function safePrivateDecrypt(
   encryptedText: string,
   privateKeyPem: string,
   passphrase: string = originPassPhrase
