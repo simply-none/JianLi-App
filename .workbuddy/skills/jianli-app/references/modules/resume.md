@@ -64,6 +64,8 @@
 
 ## 特有约定 / 坑
 - **改主进程需重启 Electron**；引擎/页面改动热重载即可
+- **⚠️ 切页测量容器（measure）绝不能被当作内容模块递归**（2026-08-31 内容丢失事故根因）：paginateDocument 的隐藏测量容器挂在 `.rfs-flow` 末尾，模块循环 `flow.children` 会遍历到它；splitLeafText 的行块克隆测量后若滞留其中，会被再次片段化产生**引用同一批节点的重复片段**，DOM 移动时同一节点被 appendChild 两次 → 前面页只剩标题、文本整块消失（表现为：文本块内容超过约 2 行就整块不显示）。修复 = 模块循环跳过 measure + splitLeafText 克隆测量完立即 `d.remove()`，两条都要保留
+- **自定义字体导致的"字间距异常"先查字体度量**：部分下载字体（如 052-上首碑楷体）空格字形宽达 0.5em（标准中文字体约 0.25-0.3em）、汉字步进 1.021em（标准 1.0em），视觉上字距松散、中英文间有间隔，属字体本身设计非代码 bug（可用 TTF hmtx 表解析验证）；引擎 body 已显式输出 `text-autospace:no-autospace` 禁用浏览器自动中英文间距（Chrome 139 曾默认开启，勿删，保证跨 Chromium 版本渲染确定性）
 - **预览与导出必须同源**：都走 `render(data, config)`，且导出前落库保证一致
 - 模板 HTML **自包含**：全部内联样式（引擎按配置拼 style 属性），禁止外部资源
 - 排版 UI 采用 **draft 直改模式**：StyleDialog 对 config 深拷贝出 reactive draft，子组件直接 mutate props 引用对象 + emit('change') 通知重渲染（务实约定，非严格单向流）；「完成」才 apply 回主状态并置 dirty

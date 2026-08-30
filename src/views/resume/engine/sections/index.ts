@@ -111,6 +111,9 @@ export function renderResume(data: ResumeData, config: ResumeLayoutConfig): stri
     `font-size:${page.fontSize}pt`,
     `line-height:${page.lineHeight}`,
     `letter-spacing:${page.letterSpacing}px`,
+    // 显式禁用浏览器自动中英文间距（text-autospace）：新版 Chromium 曾默认开启，
+    // 会导致中英文/中文与数字之间出现不受控的额外间隔，破坏字间距为 0 的排版语义
+    'text-autospace:no-autospace',
     `width:210mm`,
     `-webkit-print-color-adjust:exact`,
     'print-color-adjust:exact',

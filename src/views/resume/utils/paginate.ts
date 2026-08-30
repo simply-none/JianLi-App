@@ -66,12 +66,6 @@ export function paginateDocument(doc: Document, options: PaginateOptions = {}): 
       }
     }
 
-    // 诊断：输出全部片段清单（高度/是否带容器包装/文本头部），用于核对内容是否在片段化阶段丢失
-    console.debug(
-      '[resume] 片段清单:',
-      pieces.map((p, i) => `#${i} h${p.h}${p.wrapTpl ? 'W' : ''}|${(p.nodes[0]?.textContent || '').replace(/\s+/g, ' ').slice(0, 10)}`).join(' · ')
-    )
-
     // ===== 第二步：纯数据装箱（贪心，页内容高 innerH） =====
     type PageData = { pieces: Piece[]; used: number }
     const pagesData: PageData[] = []
@@ -85,12 +79,6 @@ export function paginateDocument(doc: Document, options: PaginateOptions = {}): 
       cur.used += p.h
     }
     if (cur.pieces.length > 0) pagesData.push(cur)
-
-    // 诊断：输出每页装箱结果（片段数/累计高度），用于核对片段是否全部进入页数据
-    console.debug(
-      '[resume] 装箱结果:',
-      JSON.stringify(pagesData.map((pd) => ({ n: pd.pieces.length, used: Math.round(pd.used) })))
-    )
 
     // ===== 第三步：一次性移动 DOM（移动时不再测量） =====
     const pages: HTMLElement[] = []
@@ -159,23 +147,7 @@ export function paginateDocument(doc: Document, options: PaginateOptions = {}): 
     pages.length = 0
     pages.push(...filled)
 
-    // 诊断：输出每页实际内容高度与内部块明细，便于核对分页填充效果
-    const heights = filled.map((p) => {
-      const inner = p.firstElementChild as HTMLElement
-      const kids = Array.from(inner.children).map((c) => {
-        const cls = String(c.className || c.tagName).slice(0, 24)
-        return `${cls}|h${Math.round((c as HTMLElement).offsetHeight)}|${(c.textContent || '').slice(0, 10)}`
-      })
-      return { h: Math.round(inner.scrollHeight), kids }
-    })
-    console.debug('[resume] 分页：', JSON.stringify({ limit: Math.round(innerH), pages: heights }))
-
     flow.replaceWith(...pages)
-
-    // 诊断：最终核对全部片段节点均已挂载到文档（未挂载 = 内容丢失直接证据）
-    const detached = pieces.flatMap((p) => p.nodes).filter((n) => !n.isConnected)
-    console.debug('[resume] 最终未挂载节点数:', detached.length)
-
     return pages.length
   } finally {
     measure.remove()
@@ -299,18 +271,6 @@ function splitLeafText(
       d.remove()
     }
   }
-  // 诊断：超页文本块拆分结果（估算行宽/切块数/各块实测高），用于核对拆分是否异常
-  console.debug(
-    '[resume][split] 文本块拆分:',
-    JSON.stringify({
-      head: text.slice(0, 14),
-      原高: el.offsetHeight,
-      宽: width,
-      charW: +charW.toFixed(2),
-      每行字符: charsPerLine,
-      块: out.map((o) => ({ h: o.h, t: (o.nodes[0].textContent || '').slice(0, 8) })),
-    })
-  )
   return out
 }
 
