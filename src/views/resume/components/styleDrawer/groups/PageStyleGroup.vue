@@ -13,6 +13,19 @@
       <el-slider v-model="model.letterSpacing" size="small" :min="0" :max="5" :step="0.5" class="slider" @input="notify" />
     </div>
     <div class="g-row">
+      <span class="g-label">中西文间距 {{ model.cjkGap }}px</span>
+      <el-slider
+        v-model="model.cjkGap"
+        size="small"
+        :min="-10"
+        :max="10"
+        :step="0.25"
+        class="slider"
+        title="在中文与英文/数字边界插入间隔（负值收紧），用于补偿不同字体的中西文字宽差异"
+        @input="notify"
+      />
+    </div>
+    <div class="g-row">
       <span class="g-label">字体</span>
       <el-radio-group v-model="model.fontFamily" size="small" @change="notify">
         <el-radio-button value="sans">无衬线</el-radio-button>

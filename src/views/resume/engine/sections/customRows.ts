@@ -10,7 +10,7 @@
 
 import type { PageStyle, SectionRow, SectionRowBlock, CustomSectionData } from '../../types'
 import type { CustomRowsStyle, ModuleStyle } from '../types'
-import { esc, textStyleToCss } from '../components/text'
+import { renderContent, textStyleToCss } from '../components/text'
 import { renderSectionTitle } from '../components/sectionTitle'
 import { renderBulletList } from '../components/bulletList'
 
@@ -81,7 +81,7 @@ function renderInlineBlock(b: SectionRowBlock, st: CustomRowsStyle, page: PageSt
   const text = String(b.text ?? '').trim()
   if (!text) return ''
   const style = b.type === 'heading' ? st.heading : st.text
-  return `<span style="${textStyleToCss(style, page.fontSize)};white-space:pre-wrap">${esc(text)}</span>`
+  return `<span style="${textStyleToCss(style, page.fontSize)};white-space:pre-wrap">${renderContent(text)}</span>`
 }
 
 /**
@@ -98,7 +98,7 @@ function renderFullBlock(b: SectionRowBlock, st: CustomRowsStyle, page: PageStyl
   if (b.type === 'textbox') {
     const text = String(b.text ?? '').trim()
     if (!text) return ''
-    return `<div style="${textStyleToCss(st.textbox, page.fontSize)};white-space:pre-wrap;line-height:inherit">${esc(text)}</div>`
+    return `<div style="${textStyleToCss(st.textbox, page.fontSize)};white-space:pre-wrap;line-height:inherit">${renderContent(text)}</div>`
   }
   // full 的 heading/text 也按整行文本渲染
   return renderInlineBlock(b, st, page)

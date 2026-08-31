@@ -178,6 +178,8 @@ export interface PageStyle {
   lineHeight: number
   /** 全局字间距 px（0-5，应用到整张简历所有元素） */
   letterSpacing: number
+  /** 中西文间距 px（-1~3；在中文与英文/数字边界插入间隔节点，0=关闭；用于补偿不同字体的中西文字宽差异） */
+  cjkGap: number
   /** 字体族：sans 无衬线 / serif 衬线 */
   fontFamily: 'sans' | 'serif'
   /** 自定义字体名（系统已安装/内置字体；空串 = 跟随 fontFamily 默认字体栈） */

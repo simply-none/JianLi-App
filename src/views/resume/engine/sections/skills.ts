@@ -8,7 +8,7 @@
 import type { ModuleStyle, PageStyle, TextStyle } from '../types'
 import type { ResumeData } from '../../types'
 import { renderSectionTitle } from '../components/sectionTitle'
-import { esc, textStyleToCss } from '../components/text'
+import { renderContent, textStyleToCss } from '../components/text'
 import { resolveInkColor } from '../tokens'
 import { resolveFieldStyle } from '../components/entryHeader'
 
@@ -51,7 +51,7 @@ export function renderSkills(data: ResumeData, ms: ModuleStyle, page: PageStyle)
         )
         .join('')
       return `<span style="display:inline-flex;align-items:center;gap:5px">
-        <span style="${textStyleToCss(style, page.fontSize)}">${esc(s.name)}</span>
+        <span style="${textStyleToCss(style, page.fontSize)}">${renderContent(s.name)}</span>
         <span style="display:inline-flex;align-items:center">${dotSpans}</span>
       </span>`
     })

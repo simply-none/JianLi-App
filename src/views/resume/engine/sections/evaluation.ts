@@ -7,7 +7,7 @@
 import type { ModuleStyle, PageStyle, TextStyle } from '../types'
 import type { ResumeData } from '../../types'
 import { renderSectionTitle } from '../components/sectionTitle'
-import { esc, textStyleToCss } from '../components/text'
+import { renderContent, textStyleToCss } from '../components/text'
 import { resolveFieldStyle } from '../components/entryHeader'
 
 /** 兜底基础样式 */
@@ -36,7 +36,7 @@ export function renderTextSection(titleText: string, raw: string, ms: ModuleStyl
   if (!style.visible || !text.trim()) return ''
 
   const titleHtml = ms.title ? renderSectionTitle(ms.title, titleText, page.fontSize) : ''
-  const bodyHtml = esc(text)
+  const bodyHtml = renderContent(text)
   return `<div>${titleHtml}<div style="${textStyleToCss(style, page.fontSize)};white-space:pre-wrap;line-height:inherit">${bodyHtml}</div></div>`
 }
 

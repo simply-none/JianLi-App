@@ -13,6 +13,7 @@ import { renderCustomRowsSection, normalizeCustomSection } from './customRows'
 import { renderBasics } from './basics'
 import { renderSkills } from './skills'
 import { renderEvaluation } from './evaluation'
+import { setCjkGap } from '../components/text'
 
 /** 自定义模块排版 id 前缀（`custom:<数据 id>`） */
 const CUSTOM_PREFIX = 'custom:'
@@ -103,6 +104,8 @@ function renderCustomSection(sec: CustomSectionData, ms: ModuleStyle, page: Page
  */
 export function renderResume(data: ResumeData, config: ResumeLayoutConfig): string {
   const page = config.page
+  // 注入中西文间距（各模块内容文本统一经 renderContent 出口处理）
+  setCjkGap(page.cjkGap)
   const bodyCss = [
     'margin:0;padding:0;box-sizing:border-box',
     'background:#ffffff',

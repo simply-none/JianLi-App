@@ -6,7 +6,7 @@
  */
 
 import { resolveInkColor } from '../tokens'
-import { esc, textStyleToCss } from './text'
+import { renderContent, textStyleToCss } from './text'
 import type { ListStyle, TextStyle } from '../types'
 
 /**
@@ -49,7 +49,7 @@ export function renderBulletList(
               : ''
       const pad = ls.marker === 'none' ? 0 : 0 // 缩进已由 marker 的 margin-right 提供
       void pad
-      return `<li style="list-style:none;${liGap}line-height:inherit">${markerHtml}<span style="${css}">${esc(line)}</span></li>`
+      return `<li style="list-style:none;${liGap}line-height:inherit">${markerHtml}<span style="${css}">${renderContent(line)}</span></li>`
     })
     .join('')
 

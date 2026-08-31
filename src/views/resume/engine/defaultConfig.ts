@@ -140,6 +140,7 @@ export const defaultLayoutConfig: ResumeLayoutConfig = {
     fontSize: 9.5,
     lineHeight: 1.35,
     letterSpacing: 0,
+    cjkGap: 0,
     fontFamily: 'sans',
     fontFamilyName: '',
     paddingX: 14,

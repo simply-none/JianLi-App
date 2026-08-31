@@ -5,7 +5,7 @@
  */
 
 import { renderLine, renderLineBelow } from './line'
-import { esc, textStyleToCss } from './text'
+import { renderContent, textStyleToCss } from './text'
 import type { SectionTitleStyle } from '../types'
 
 /**
@@ -22,13 +22,13 @@ export function renderSectionTitle(title: SectionTitleStyle, titleText: string, 
   if (title.line.enabled && title.line.position === 'after') {
     // 右侧延伸：flex 行内放文字 + 线（间距用 padding-bottom 计量，进入切页高度测量）
     return `<div style="display:flex;align-items:center;gap:${gap}px;padding-bottom:6px">
-      <span style="${css}">${esc(titleText)}</span>
+      <span style="${css}">${renderContent(titleText)}</span>
       ${renderLine(title.line, true)}
     </div>`
   }
   // 下方：文字行 + 独立线行
   return `<div style="padding-bottom:6px">
-    <span style="${css}">${esc(titleText)}</span>
+    <span style="${css}">${renderContent(titleText)}</span>
     ${renderLineBelow(title.line)}
   </div>`
 }

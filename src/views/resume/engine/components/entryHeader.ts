@@ -5,7 +5,7 @@
  * 字段样式以组件 textStyle 为底、fields 覆盖为辅。
  */
 
-import { renderField, renderFieldGroup, textStyleToCss } from './text'
+import { insertCjkGaps, renderField, renderFieldGroup, textStyleToCss } from './text'
 import type { EntryHeaderStyle, TextStyle } from '../types'
 
 /**
@@ -74,11 +74,11 @@ export function renderEntryHeader(
 }
 
 /**
- * 提取日期 span 的内部文本（renderField 已生成带样式 span，此处复用其文本避免双层 span）
+ * 提取日期 span 的内部文本（renderField 已生成带样式 span，此处复用其文本避免双层 span）。
+ * renderField 输出现在可能含中西文间隔 span，需剥离全部标签后重新补插边界间距。
  * @param dateHtml 已渲染的日期字段 HTML
- * @returns 日期文本（HTML 转义后）
+ * @returns 日期文本（已转义 + 中西文间距处理）
  */
 function dateInner(dateHtml: string): string {
-  const m = dateHtml.match(/>([^<]*)</)
-  return m ? m[1] : ''
+  return insertCjkGaps(dateHtml.replace(/<[^>]+>/g, ''))
 }

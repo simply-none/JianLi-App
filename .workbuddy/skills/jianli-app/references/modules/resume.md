@@ -80,6 +80,7 @@
 - `@page A4 margin 0`：body 无内边距，页面边距由预览 `.rfs-page` padding / 导出 printToPDF margins 提供（见「分页」节）
 - 字体：`page.fontFamily`（sans/serif 默认栈）+ `page.fontFamilyName`（自定义字体名，空=跟随默认栈）；引擎 `resolveFontStack` 把自定义字体放栈首、默认栈兜底（防缺字）；字体下拉选项 = `useGlobalSetting().globalFontOpsC`（内置）+ `get-fonts` IPC（系统字体），按 value 去重（与设置页字体设置一致）
 - **字间距统一**：`page.letterSpacing`（0-5px）输出在 body，整张简历继承；`textStyleToCss` **不输出元素级 letter-spacing**（TextStyle.letterSpacing 字段保留但渲染忽略），元素不得硬编码字距
+- **中西文间距**：`page.cjkGap`（-10~10px，默认 0=关闭）在中文与英文/数字边界插入透明 inline-block 间隔 span（正间距用 width 撑开、负间距用 margin-left 收紧），用于补偿不同字体的中西文字宽差异（如上首碑楷体）；实现在 `components/text.ts` 的 `renderContent`（= esc + `insertCjkGaps`），是**全部内容文本的统一出口**（renderField/bulletList/sectionTitle/evaluation/customRows/skills 均经此出口）；`renderResume` 入口经 `setCjkGap(page.cjkGap)` 注入（模块级状态，纯同步渲染安全）；entryHeader.dateInner 提取日期文本需先剥标签再 `insertCjkGaps`（renderField 输出含间隔 span，勿用 `>([^<]*)<` 单段提取）；新增可见文本渲染必须走 renderContent，勿直接用 esc；body 同时显式输出 `text-autospace:no-autospace`（禁浏览器自动中英文间距，勿删）
 
 ## 后续扩展（已确认方向）
 - 其余 9 套灰黑白模板：新模板 = 一组不同的 defaultConfig 预设（或独立 sections 差异渲染），在 `templates/` 增加适配层并在 `templates/index.ts` 注册
