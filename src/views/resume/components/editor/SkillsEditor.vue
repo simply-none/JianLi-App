@@ -95,7 +95,7 @@ function addItem() {
 .empty-tip {
   text-align: center;
   font-size: 12px;
-  color: #999;
+  color: var(--text-muted);
   padding: 12px 0;
 }
 .add-btn {

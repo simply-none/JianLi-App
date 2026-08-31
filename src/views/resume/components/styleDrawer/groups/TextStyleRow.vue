@@ -86,7 +86,7 @@ function setInk(level: TextStyle['ink']) {
   width: 58px;
   flex-shrink: 0;
   font-size: 12px;
-  color: var(--skin-text-primary, #333);
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -102,7 +102,7 @@ function setInk(level: TextStyle['ink']) {
   flex-shrink: 0;
 }
 .mini-btn:hover {
-  background: var(--skin-btn-bg, #f0f0f0);
+  background: var(--bg-hover);
 }
 .sel {
   flex-shrink: 0;
@@ -122,12 +122,12 @@ function setInk(level: TextStyle['ink']) {
   width: 14px;
   height: 14px;
   border-radius: 4px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  border: 1px solid var(--border-subtle);
   cursor: pointer;
   padding: 0;
 }
 .swatch.is-active {
-  outline: 2px solid #409eff;
+  outline: 2px solid var(--color-primary);
   outline-offset: 1px;
 }
 </style>

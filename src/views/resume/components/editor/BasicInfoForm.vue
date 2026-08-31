@@ -1,6 +1,6 @@
 <template>
   <div class="basic-info-form">
-    <el-form :model="form" label-width="64px" size="default" @submit.prevent>
+    <el-form :model="form" label-width="72px" size="default" @submit.prevent>
       <el-row :gutter="12">
         <el-col :span="8">
           <el-form-item label="姓名">
@@ -83,6 +83,9 @@ watch(
 </script>
 
 <style scoped>
+.basic-info-form {
+  padding-top: 24px;
+}
 .basic-info-form :deep(.el-form-item) {
   margin-bottom: 10px;
 }

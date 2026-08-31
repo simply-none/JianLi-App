@@ -225,11 +225,11 @@ defineExpose({ syncHeight })
   display: flex;
   align-items: center;
   gap: 4px;
-  background: var(--skin-card, rgba(255, 255, 255, 0.92));
-  border: 1px solid var(--skin-border, #e4e4e7);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
   border-radius: 16px;
   padding: 2px 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--shadow-card);
   z-index: 5;
 }
 .pager-btn {
@@ -242,7 +242,7 @@ defineExpose({ syncHeight })
   display: inline-flex;
 }
 .pager-btn:hover:not(:disabled) {
-  background: var(--skin-btn-bg, #f0f0f0);
+  background: var(--bg-hover);
 }
 .pager-btn:disabled {
   opacity: 0.3;
@@ -250,7 +250,7 @@ defineExpose({ syncHeight })
 }
 .pager-text {
   font-size: 12px;
-  color: var(--skin-text-secondary, #666);
+  color: var(--text-secondary);
   min-width: 44px;
   text-align: center;
   user-select: none;

@@ -129,7 +129,7 @@ onMounted(() => {
 }
 .g-label {
   font-size: 12px;
-  color: var(--skin-text-secondary, #666);
+  color: var(--text-secondary);
   width: 110px;
   flex-shrink: 0;
 }

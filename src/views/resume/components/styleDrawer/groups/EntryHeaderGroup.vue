@@ -90,7 +90,7 @@ function moveField(idx: number, dir: -1 | 1) {
 }
 .group-caption {
   font-size: 11px;
-  color: #999;
+  color: var(--text-muted);
   margin-top: 4px;
 }
 .order-chips {
@@ -104,9 +104,9 @@ function moveField(idx: number, dir: -1 | 1) {
   gap: 2px;
   font-size: 12px;
   padding: 2px 6px;
-  border: 1px solid var(--skin-border, #e4e4e7);
+  border: 1px solid var(--border-subtle);
   border-radius: 6px;
-  background: var(--skin-btn-bg, #f7f7f8);
+  background: var(--bg-hover);
 }
 .chip-btn {
   border: none;
@@ -118,7 +118,7 @@ function moveField(idx: number, dir: -1 | 1) {
   display: inline-flex;
 }
 .chip-btn:hover:not(:disabled) {
-  background: var(--skin-border, #e4e4e7);
+  background: var(--bg-hover);
 }
 .chip-btn:disabled {
   opacity: 0.3;
@@ -132,7 +132,7 @@ function moveField(idx: number, dir: -1 | 1) {
 }
 .g-label {
   font-size: 12px;
-  color: var(--skin-text-secondary, #666);
+  color: var(--text-secondary);
 }
 .conn-select {
   width: 96px;

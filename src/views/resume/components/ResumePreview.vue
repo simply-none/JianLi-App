@@ -72,7 +72,7 @@ const currentZoom = computed(() => (typeof zoom.value === 'number' ? zoom.value 
 const splitBtnColor = computed(() =>
   props.innerSplit
     ? 'var(--color-primary)'
-    : 'color-mix(in srgb, var(--color-primary) 60%, white)'
+    : 'color-mix(in srgb, var(--color-primary) 60%, var(--bg-card))'
 )
 
 /**
@@ -91,7 +91,7 @@ function zoomStep(delta: number) {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  background: var(--skin-bg, #f3f4f6);
+  background: var(--bg-base);
   overflow: hidden;
 }
 .preview-toolbar {
@@ -100,13 +100,13 @@ function zoomStep(delta: number) {
   justify-content: flex-end;
   gap: 6px;
   padding: 6px 12px;
-  border-bottom: 1px solid var(--skin-border, #e4e4e7);
-  background: var(--skin-card, #fff);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-card);
   flex-shrink: 0;
 }
 .scale-text {
   font-size: 12px;
-  color: var(--skin-text-secondary, #888);
+  color: var(--text-secondary);
   min-width: 40px;
   text-align: center;
 }

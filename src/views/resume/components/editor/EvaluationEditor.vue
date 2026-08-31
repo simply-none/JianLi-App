@@ -29,7 +29,4 @@ defineEmits<{
 </script>
 
 <style scoped>
-.evaluation-editor :deep(.el-textarea__inner) {
-  --skin-border: var(--skin-border, #e4e4e7);
-}
 </style>

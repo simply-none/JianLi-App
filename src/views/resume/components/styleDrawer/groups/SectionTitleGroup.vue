@@ -41,7 +41,7 @@ function notify() {
 }
 .group-caption {
   font-size: 11px;
-  color: #999;
+  color: var(--text-muted);
   margin-top: 4px;
 }
 </style>

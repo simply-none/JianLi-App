@@ -277,7 +277,7 @@ async function addCustom() {
   gap: 6px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--skin-text-primary, #333);
+  color: var(--text-primary);
 }
 .custom-name {
   max-width: 160px;
@@ -288,8 +288,8 @@ async function addCustom() {
 .custom-badge {
   font-size: 10px;
   font-weight: 400;
-  color: #999;
-  border: 1px solid var(--skin-border, #e4e4e7);
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
   border-radius: 4px;
   padding: 0 4px;
   line-height: 16px;
@@ -311,7 +311,7 @@ async function addCustom() {
 }
 .add-label {
   font-size: 12px;
-  color: #999;
+  color: var(--text-muted);
 }
 .add-custom-row :deep(.el-button) {
   display: inline-flex;

@@ -340,10 +340,10 @@ void ElMessageBox
   gap: 8px;
 }
 .row-card {
-  border: 1px solid var(--skin-border, #e4e4e7);
+  border: 1px solid var(--border-subtle);
   border-radius: 8px;
   padding: 8px 10px;
-  background: var(--skin-card, #fff);
+  background: var(--bg-card);
 }
 .row-head {
   display: flex;
@@ -354,7 +354,7 @@ void ElMessageBox
 .row-index {
   font-size: 12px;
   font-weight: 600;
-  color: var(--skin-text-secondary, #666);
+  color: var(--text-secondary);
 }
 .row-actions {
   display: flex;
@@ -370,17 +370,17 @@ void ElMessageBox
   display: inline-flex;
 }
 .mini-btn:hover:not(:disabled) {
-  background: var(--skin-border, #e4e4e7);
+  background: var(--bg-hover);
 }
 .mini-btn:disabled {
   opacity: 0.3;
   cursor: default;
 }
 .mini-btn.is-danger:hover {
-  color: #e34d59;
+  color: var(--color-error);
 }
 .block-item {
-  border: 1px dashed var(--skin-border, #e4e4e7);
+  border: 1px dashed var(--border-subtle);
   border-radius: 6px;
   padding: 6px 8px;
   margin-bottom: 6px;
@@ -395,12 +395,12 @@ void ElMessageBox
   font-size: 11px;
   padding: 1px 6px;
   border-radius: 4px;
-  background: var(--skin-btn-bg, #f0f0f0);
-  color: var(--skin-text-secondary, #666);
+  background: var(--bg-hover);
+  color: var(--text-secondary);
   flex-shrink: 0;
 }
 .type-badge.is-heading {
-  color: #1a1a1a;
+  color: var(--text-primary);
   font-weight: 600;
 }
 .span-select {
@@ -408,7 +408,7 @@ void ElMessageBox
 }
 .span-fixed {
   font-size: 11px;
-  color: #999;
+  color: var(--text-muted);
 }
 .block-head .mini-btn {
   margin-left: auto;
@@ -421,26 +421,26 @@ void ElMessageBox
 }
 .add-hint {
   font-size: 11px;
-  color: #999;
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 .chip-add {
-  border: 1px dashed var(--skin-border, #d4d4d8);
+  border: 1px dashed var(--border-subtle);
   background: transparent;
-  color: var(--skin-text-secondary, #666);
+  color: var(--text-secondary);
   font-size: 12px;
   padding: 2px 10px;
   border-radius: 12px;
   cursor: pointer;
 }
 .chip-add:hover {
-  border-color: #a1a1aa;
-  color: var(--skin-text-primary, #333);
+  border-color: var(--border-subtle);
+  color: var(--text-primary);
 }
 .empty-tip {
   text-align: center;
   font-size: 12px;
-  color: #999;
+  color: var(--text-muted);
   padding: 12px 0;
 }
 .footer-row {

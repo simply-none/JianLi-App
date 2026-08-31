@@ -289,9 +289,9 @@ function fieldLabel(mid: ModuleId, fid: string): string {
   gap: 8px;
 }
 .module-card {
-  border: 1px solid var(--skin-border, #e4e4e7);
+  border: 1px solid var(--border-subtle);
   border-radius: 8px;
-  background: var(--skin-card, #fff);
+  background: var(--bg-card);
   overflow: hidden;
 }
 .module-card.is-hidden .card-title {
@@ -305,12 +305,12 @@ function fieldLabel(mid: ModuleId, fid: string): string {
   cursor: pointer;
 }
 .card-head:hover {
-  background: var(--skin-btn-bg, #f7f7f8);
+  background: var(--bg-hover);
 }
 .card-title {
   font-size: 13px;
   font-weight: 600;
-  color: var(--skin-text-primary, #333);
+  color: var(--text-primary);
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -319,8 +319,8 @@ function fieldLabel(mid: ModuleId, fid: string): string {
 .custom-badge {
   font-size: 10px;
   font-weight: 400;
-  color: #999;
-  border: 1px solid var(--skin-border, #e4e4e7);
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
   border-radius: 4px;
   padding: 0 4px;
   line-height: 16px;
@@ -339,26 +339,26 @@ function fieldLabel(mid: ModuleId, fid: string): string {
   display: inline-flex;
 }
 .icon-btn:hover:not(:disabled) {
-  background: var(--skin-border, #e4e4e7);
+  background: var(--bg-hover);
 }
 .icon-btn:disabled {
   opacity: 0.3;
   cursor: default;
 }
 .expand-icon {
-  color: #999;
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 .card-body {
   padding: 4px 10px 10px;
-  border-top: 1px solid var(--skin-border, #e4e4e7);
+  border-top: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 .group-caption {
   font-size: 11px;
-  color: #999;
+  color: var(--text-muted);
   margin-top: 4px;
 }
 .g-row {
@@ -368,7 +368,7 @@ function fieldLabel(mid: ModuleId, fid: string): string {
 }
 .g-label {
   font-size: 12px;
-  color: var(--skin-text-secondary, #666);
+  color: var(--text-secondary);
   flex-shrink: 0;
   min-width: 96px;
 }
@@ -386,9 +386,9 @@ function fieldLabel(mid: ModuleId, fid: string): string {
   gap: 2px;
   font-size: 12px;
   padding: 2px 6px;
-  border: 1px solid var(--skin-border, #e4e4e7);
+  border: 1px solid var(--border-subtle);
   border-radius: 6px;
-  background: var(--skin-btn-bg, #f7f7f8);
+  background: var(--bg-hover);
 }
 .chip-btn {
   border: none;
@@ -400,7 +400,7 @@ function fieldLabel(mid: ModuleId, fid: string): string {
   display: inline-flex;
 }
 .chip-btn:hover:not(:disabled) {
-  background: var(--skin-border, #e4e4e7);
+  background: var(--bg-hover);
 }
 .chip-btn:disabled {
   opacity: 0.3;
@@ -408,7 +408,7 @@ function fieldLabel(mid: ModuleId, fid: string): string {
 }
 .module-tip {
   font-size: 11px;
-  color: #bbb;
+  color: var(--text-muted);
   text-align: center;
   padding: 4px 0;
 }

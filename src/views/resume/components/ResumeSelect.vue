@@ -232,7 +232,7 @@ async function handleSaveAs() {
 .page-title {
   font-size: 14px;
   font-weight: 600;
-  color: var(--skin-text-primary, #333);
+  color: var(--text-primary);
   flex-shrink: 0;
 }
 .select-trigger {
@@ -274,19 +274,19 @@ async function handleSaveAs() {
   border-radius: 6px;
   cursor: pointer;
   font-size: 13px;
-  color: var(--skin-text-primary, #333);
+  color: var(--text-primary);
 }
 .resume-select-popper .rs-item:hover {
-  background: var(--skin-border, #e4e4e7);
+  background: var(--bg-hover);
 }
 /* 当前选中的简历：跟随主题主色高亮 */
 .resume-select-popper .rs-item.is-active {
-  background: var(--color-primary-light, rgba(99, 102, 241, 0.12));
-  color: var(--color-primary, #6366f1);
+  background: var(--color-primary-light);
+  color: var(--color-primary);
 }
 .resume-select-popper .rs-check {
   flex-shrink: 0;
-  color: var(--color-primary, #6366f1);
+  color: var(--color-primary);
 }
 .resume-select-popper .rs-name {
   flex: 1;
@@ -300,7 +300,7 @@ async function handleSaveAs() {
 }
 .resume-select-popper .rs-time {
   font-size: 11px;
-  color: #999;
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 .resume-select-popper .rs-ops {
@@ -310,14 +310,14 @@ async function handleSaveAs() {
 }
 .resume-select-popper .rs-empty {
   font-size: 12px;
-  color: #999;
+  color: var(--text-muted);
   text-align: center;
   padding: 16px 0;
 }
 .resume-select-popper .rs-foot {
   display: flex;
   gap: 8px;
-  border-top: 1px solid var(--skin-border, #e4e4e7);
+  border-top: 1px solid var(--border-subtle);
   padding-top: 8px;
 }
 .resume-select-popper .icon-btn {
@@ -331,9 +331,9 @@ async function handleSaveAs() {
   align-items: center;
 }
 .resume-select-popper .icon-btn:hover {
-  background: var(--skin-border, #e4e4e7);
+  background: var(--bg-hover);
 }
 .resume-select-popper .icon-btn.is-danger:hover {
-  color: #e34d59;
+  color: var(--color-error);
 }
 </style>

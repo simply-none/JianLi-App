@@ -590,15 +590,15 @@ async function handleExport() {
   justify-content: space-between;
   gap: 12px;
   padding: 8px 14px;
-  border-bottom: 1px solid var(--skin-border, #e4e4e7);
-  background: var(--skin-card, #fff);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-card);
   flex-shrink: 0;
 }
 .dirty-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #f59e0b;
+  background: var(--color-warning);
   display: inline-block;
 }
 .toolbar-right {
@@ -619,7 +619,7 @@ async function handleExport() {
   white-space: nowrap;
 }
 :deep(.el-button.is-active) .preset-trigger-label {
-  color: var(--color-primary, #6366f1);
+  color: var(--color-primary);
 }
 .main-area {
   flex: 1;
@@ -634,7 +634,7 @@ async function handleExport() {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  color: #999;
+  color: var(--text-muted);
   font-size: 13px;
 }
 </style>
@@ -663,23 +663,23 @@ async function handleExport() {
   border-radius: 6px;
   cursor: pointer;
   font-size: 13px;
-  color: var(--skin-text-primary, #333);
+  color: var(--text-primary);
 }
 .resume-preset-popper .preset-item:hover {
-  background: var(--skin-border, #e4e4e7);
+  background: var(--bg-hover);
 }
 /* 当前预览所套用的排版：跟随主题主色高亮，使「当前预览项」在 UI 上可见 */
 .resume-preset-popper .preset-item.is-active {
-  background: var(--color-primary-light, rgba(99, 102, 241, 0.12));
-  color: var(--color-primary, #6366f1);
+  background: var(--color-primary-light);
+  color: var(--color-primary);
 }
 .resume-preset-popper .preset-item.is-active .preset-name {
-  color: var(--color-primary, #6366f1);
+  color: var(--color-primary);
   font-weight: 600;
 }
 .resume-preset-popper .preset-check {
   flex-shrink: 0;
-  color: var(--color-primary, #6366f1);
+  color: var(--color-primary);
 }
 .resume-preset-popper .preset-name {
   flex: 1;
@@ -692,7 +692,7 @@ async function handleExport() {
   border: none;
   background: transparent;
   cursor: pointer;
-  color: #999;
+  color: var(--text-muted);
   padding: 2px;
   border-radius: 5px;
   display: inline-flex;
@@ -700,12 +700,12 @@ async function handleExport() {
   flex-shrink: 0;
 }
 .resume-preset-popper .preset-del:hover {
-  color: #e34d59;
-  background: rgba(227, 77, 89, 0.1);
+  color: var(--color-error);
+  background: color-mix(in srgb, var(--color-error) 12%, transparent);
 }
 .resume-preset-popper .preset-empty {
   font-size: 12px;
-  color: #999;
+  color: var(--text-muted);
   text-align: center;
   padding: 16px 0;
 }

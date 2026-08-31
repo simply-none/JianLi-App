@@ -76,7 +76,7 @@ function setInk(level: SeparatorStyle['ink']) {
 }
 .g-label {
   font-size: 12px;
-  color: var(--skin-text-secondary, #666);
+  color: var(--text-secondary);
   flex-shrink: 0;
   width: 74px;
 }
@@ -92,12 +92,12 @@ function setInk(level: SeparatorStyle['ink']) {
   width: 14px;
   height: 14px;
   border-radius: 4px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  border: 1px solid var(--border-subtle);
   cursor: pointer;
   padding: 0;
 }
 .swatch.is-active {
-  outline: 2px solid #409eff;
+  outline: 2px solid var(--color-primary);
   outline-offset: 1px;
 }
 </style>

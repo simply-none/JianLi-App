@@ -179,11 +179,11 @@ function addItem() {
 
 <style scoped>
 .item-card {
-  border: 1px solid var(--skin-border, #e4e4e7);
+  border: 1px solid var(--border-subtle);
   border-radius: 8px;
   padding: 8px 10px;
   margin-bottom: 8px;
-  background: var(--skin-card, #ffffff);
+  background: var(--bg-card);
 }
 .item-head {
   display: flex;
@@ -195,8 +195,8 @@ function addItem() {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: var(--skin-btn-bg, #f0f0f0);
-  color: var(--skin-text-primary, #333);
+  background: var(--bg-hover);
+  color: var(--text-primary);
   font-size: 12px;
   display: inline-flex;
   align-items: center;
@@ -206,7 +206,7 @@ function addItem() {
 .item-summary {
   flex: 1;
   font-size: 12px;
-  color: var(--skin-text-secondary, #666);
+  color: var(--text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -222,7 +222,7 @@ function addItem() {
 .empty-tip {
   text-align: center;
   font-size: 12px;
-  color: #999;
+  color: var(--text-muted);
   padding: 12px 0;
 }
 .add-btn {
