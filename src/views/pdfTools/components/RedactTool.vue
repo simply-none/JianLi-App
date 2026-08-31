@@ -14,8 +14,8 @@
 
     <template v-if="mode === 'whole'">
       <div class="field" style="margin-top: 12px">
-        <label>涂黑的页码（1 基，逗号/连字符，留空=全部）</label>
-        <el-input v-model="pagesSpec" placeholder="例如 1,3,5-8（留空则整本文档涂黑）" />
+        <label>涂黑的页码（留空=全部页）</label>
+        <RangeInput v-model="rangeTags" hint="支持多个范围与单页，回车生成 tag；留空则整本文档涂黑" />
       </div>
     </template>
 
@@ -38,33 +38,27 @@ import { ref, computed } from 'vue';
 import { ElMessage } from 'element-plus';
 import PdfSourcePicker from './PdfSourcePicker.vue';
 import PdfResultBar from './PdfResultBar.vue';
+import RangeInput from './RangeInput.vue';
 import { pdfApi } from '../api/pdfApi';
+import { rangeTagsToIndices } from '../utils/pageRange';
 import { usePdfTools } from '../store/usePdfTools';
 import type { PdfActionResult, RedactOpts } from '../types';
 
 const store = usePdfTools();
 const src = ref<string | null>(null);
 const mode = ref<'whole' | 'rects'>('whole');
-const pagesSpec = ref('');
+const rangeTags = ref<string[]>([]);
 const rectsText = ref('');
 const result = ref<PdfActionResult | null>(null);
 const loading = ref(false);
 
 const canRun = computed(() => (mode.value === 'whole' ? true : !!rectsText.value.trim()));
 
-function parsePages(spec: string): number[] | undefined {
-  if (!spec.trim()) return undefined; // 空 = 全部
-  const set = new Set<number>();
-  for (const part of spec.split(/[,\s]+/).filter(Boolean)) {
-    if (part.includes('-')) {
-      const [a, b] = part.split('-').map((x) => parseInt(x, 10));
-      if (!isNaN(a) && !isNaN(b)) for (let i = Math.min(a, b); i <= Math.max(a, b); i++) set.add(i - 1);
-    } else {
-      const n = parseInt(part, 10);
-      if (!isNaN(n)) set.add(n - 1);
-    }
-  }
-  return [...set];
+/** 解析 tag 列表 → 0 基页码集合；空 = 全部页（返回 undefined） */
+function parsePages(): number[] | undefined {
+  const idxs = rangeTagsToIndices(rangeTags.value);
+  if (!idxs.length) return undefined; // 空 = 全部
+  return idxs;
 }
 
 async function run(): Promise<void> {
@@ -75,7 +69,7 @@ async function run(): Promise<void> {
   }
   const opts: RedactOpts =
     mode.value === 'whole'
-      ? { mode: 'whole', pages: parsePages(pagesSpec.value) }
+      ? { mode: 'whole', pages: parsePages() }
       : {
           mode: 'rects',
           rects: rectsText.value

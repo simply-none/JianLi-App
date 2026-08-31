@@ -90,6 +90,15 @@
               <LucideIcon name="Search" :size="16" />
               搜索
             </el-button>
+            <!-- 附件按钮（仅 PDF）：列出 PDF 内嵌的附件并可另存到本地 -->
+            <el-button
+              v-if="currentFile.format === 'pdf'"
+              size="small"
+              @click="openAttachments"
+            >
+              <LucideIcon name="Paperclip" :size="16" />
+              附件
+            </el-button>
             <!-- 更多阅读设置按钮：点击打开右侧弹窗（字体/字号/分栏/翻页模式/行距/页边距等） -->
             <el-button
               size="small"
@@ -331,6 +340,14 @@
           @jump="onSearchJump"
         />
 
+        <!-- 附件抽屉（仅 PDF）：展示 PDF 内嵌附件，另存由父组件走主进程完成 -->
+        <AttachmentsDrawer
+          v-model="attachmentsDrawerVisible"
+          :items="attachments"
+          :loading="attachmentsLoading"
+          @download="onAttachmentDownload"
+        />
+
       <!-- 更多阅读设置抽屉（主题/排版/标注/翻页交互/界面），已抽为独立组件 SettingsDrawer -->
       <SettingsDrawer v-model="settingsDrawerVisible" :current-file="currentFile" />
       </div>
@@ -355,7 +372,11 @@ import AnnotationDrawer from './components/AnnotationDrawer.vue';
 import BookmarksDrawer from './components/BookmarksDrawer.vue';
 import SearchPanel from './components/SearchPanel.vue';
 import Bookshelf from './components/Bookshelf.vue';
+import AttachmentsDrawer from './components/AttachmentsDrawer.vue';
 import { useBookshelf, handleExportResult } from './composables/useBookshelf';
+// PDF 内嵌附件的读取/导出复用 PDF 工具箱已封装的 IPC（pdf:get-attachments / pdf:extract-attachment）
+import { pdfApi } from '@/views/pdfTools/api/pdfApi';
+import type { PdfAttachmentItem } from '@/views/pdfTools/types';
 import { useThemeConversation } from '@/views/themeConversation/composables/useThemeConversation';
 import { getFileName, getFormat } from './utils/fileUtils';
 import type { TocItem, FlatTocItem, ReaderComponentInstance, AnnotationDisplayItem, EpubSearchResult } from './types';
@@ -502,6 +523,13 @@ const searching = ref(false);
 
 /** 全文搜索面板显示状态 */
 const searchPanelVisible = ref(false);
+
+/** 附件抽屉显示状态（仅 PDF） */
+const attachmentsDrawerVisible = ref(false);
+/** PDF 内嵌附件列表（仅元信息：名称 / 类型 / 体积，字节在下载时由主进程直接写盘） */
+const attachments = ref<PdfAttachmentItem[]>([]);
+/** 是否正在读取附件列表 */
+const attachmentsLoading = ref(false);
 
 /** 笔记抽屉来源文件：null = 当前打开的书；string = 从书架打开的指定书路径 */
 const annotationSourceFile = ref<string | null>(null);
@@ -903,6 +931,60 @@ function onSearchJump(item: EpubSearchResult) {
 }
 
 /**
+ * 打开附件抽屉并读取当前 PDF 的内嵌附件列表
+ * 列表只含元信息（名称 / 类型 / 体积），避免把可能很大的附件字节全量送过 IPC；
+ * 真正的提取在用户点击「另存」时由主进程直接写盘（pdf:extract-attachment）。
+ *
+ * @returns 无返回值
+ */
+async function openAttachments(): Promise<void> {
+  const path = currentFile.value.path;
+  if (!path) return;
+  attachmentsDrawerVisible.value = true;
+  attachmentsLoading.value = true;
+  try {
+    const res = await pdfApi.getAttachments(path);
+    if (!res?.success) {
+      ElMessage.error(`读取附件失败：${res?.error || '未知错误'}`);
+      attachments.value = [];
+      return;
+    }
+    attachments.value = res.attachments || [];
+  } catch (err) {
+    console.error('读取附件异常', err);
+    attachments.value = [];
+  } finally {
+    attachmentsLoading.value = false;
+  }
+}
+
+/**
+ * 另存指定附件到本地：先弹保存对话框，再由主进程从 PDF 中提取并写盘
+ * 按列表序号定位附件（而非文件名），避免同名附件产生歧义。
+ *
+ * @param index - 附件在 attachments 列表中的序号
+ * @returns 无返回值
+ */
+async function onAttachmentDownload(index: number): Promise<void> {
+  const item = attachments.value[index];
+  const path = currentFile.value.path;
+  if (!item || !path) return;
+  const save = await pdfApi.pickSave(item.name || '附件');
+  if (!save?.success || !save.filePath) return;
+  try {
+    const res = await pdfApi.extractAttachment(path, index, save.filePath);
+    if (!res?.success) {
+      ElMessage.error(`导出失败：${res?.error || '未知错误'}`);
+      return;
+    }
+    ElMessage.success(`已保存到 ${save.filePath}`);
+  } catch (err) {
+    console.error('导出附件异常', err);
+    ElMessage.error('导出附件失败');
+  }
+}
+
+/**
  * 阅读区内 A-/A+ 字号快捷调整
  * 接收目标字号并写入 store 持久化（store 变化会同步 props.fontSize → 子组件自动重排）
  *
@@ -1254,6 +1336,9 @@ watch(
     searchResults.value = [];
     searching.value = false;
     searchPanelVisible.value = false;
+    attachments.value = [];
+    attachmentsLoading.value = false;
+    attachmentsDrawerVisible.value = false;
   }
 );
 

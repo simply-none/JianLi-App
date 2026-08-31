@@ -17,6 +17,7 @@ import type {
 const pdfBridge = (window as any).ipcRenderer.pdf as {
   pickFiles(): Promise<{ success: boolean; canceled?: boolean; files?: string[]; error?: string }>;
   pickDir(): Promise<{ success: boolean; canceled?: boolean; dir?: string }>;
+  pickImage(): Promise<{ success: boolean; canceled?: boolean; path?: string }>;
   pickSave(defaultName: string): Promise<{ success: boolean; canceled?: boolean; filePath?: string }>;
   merge(files: string[], outputPath: string): Promise<PdfActionResult>;
   organize(file: string, outputPath: string, pageMap: { index: number; rotation?: number }[]): Promise<PdfActionResult>;
@@ -39,6 +40,10 @@ const pdfBridge = (window as any).ipcRenderer.pdf as {
   decrypt(): Promise<PdfActionResult>;
   pageLabels(file: string, outputPath: string, labels: PageLabelRange[]): Promise<PdfActionResult>;
   attach(file: string, outputPath: string, data: string | Uint8Array, fileName: string, mime?: string): Promise<PdfActionResult>;
+  /** 读取 PDF 内嵌附件列表（阅读器「附件」面板） */
+  getAttachments(file: string): Promise<PdfActionResult>;
+  /** 导出（另存）指定嵌入附件到磁盘（index 为列表序号） */
+  extractAttachment(file: string, index: number, outputPath: string): Promise<PdfActionResult>;
 };
 
 export const pdfApi = {
@@ -46,6 +51,8 @@ export const pdfApi = {
   pickFiles: () => pdfBridge.pickFiles(),
   /** 选择输出目录 */
   pickDir: () => pdfBridge.pickDir(),
+  /** 选择单个图片文件 */
+  pickImage: () => pdfBridge.pickImage(),
   /** 保存对话框 */
   pickSave: (defaultName: string) => pdfBridge.pickSave(defaultName),
   /** 合并 */
@@ -93,4 +100,9 @@ export const pdfApi = {
   /** 嵌入附件 */
   attach: (file: string, outputPath: string, data: string | Uint8Array, fileName: string, mime?: string) =>
     pdfBridge.attach(file, outputPath, data, fileName, mime),
+  /** 读取内嵌附件列表（供 PDF 阅读器附件面板展示/下载） */
+  getAttachments: (file: string) => pdfBridge.getAttachments(file),
+  /** 导出（另存）指定嵌入附件到磁盘 */
+  extractAttachment: (file: string, index: number, outputPath: string) =>
+    pdfBridge.extractAttachment(file, index, outputPath),
 };

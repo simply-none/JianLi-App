@@ -32,6 +32,7 @@
 - `pdf:write-files({ dir, files:[{name,base64}] })` → 批量写文件（导出图片用）
 - 二期：`pdf:insert({file,outputPath,insertFile,atIndex,insertIndices?})` / `pdf:replace({file,outputPath,replaceFile,targetStart,replaceIndices?})` / `pdf:duplicate({file,outputPath,indices})` / `pdf:crop({file,outputPath,margins})` / `pdf:decorate({file,outputPath,opts})` / `pdf:watermark({file,outputPath,opts})` / `pdf:add-cover({file,outputPath,opts})` / `pdf:resize({file,outputPath,size})` / `pdf:flatten({file,outputPath})`
 - 三期：`pdf:compress({file,outputPath})` / `pdf:redact({file,outputPath,opts})` / `pdf:encrypt()`(规划中·诚实提示) / `pdf:decrypt()`(规划中·诚实提示) / `pdf:page-labels({file,outputPath,labels})`(走底层 /Labels 数字树) / `pdf:attach({file,outputPath,data,fileName,mime?})`(pdf-lib attach 嵌入附件)
+- 附件读取/导出（供阅读器「附件」面板）：`pdf:get-attachments({file})` → 返回 `{ attachments:[{name,mime,size}], count }`（**只回元信息、不含字节**，避免大附件全量过 IPC）；`pdf:extract-attachment({file,index,outputPath})` → 按列表**序号**提取并写盘（不用文件名，规避同名附件歧义）
 - 渲染端空格检测复用 `composables/usePdfjs.ts#findBlankPages`（pdf.js 栅格化 + 非白像素占比判定），清理走 `pdf:organize` 删除对应页。
 
 ## 库与架构
@@ -44,8 +45,25 @@
 - **安全默认**：所有写操作「另存为」新文件（`pdf:pick-save` 指定路径），绝不直接覆盖原文件。
 - 主题用自定义 token（`--bg-card`/`--text-*`/`--color-*`），禁硬编码、禁 `--el-*`（见 `references/theme.md`）。
 - 组件原子化、单文件职责单一、带注释（见 `AGENTS.md`）。
+- **⚠️ pdf.js 文档/页面对象禁止进入 Vue 响应式**：`PDFDocumentProxy` 含私有字段，一旦被 `ref`/`reactive`/`Pinia` 包成 Proxy，`getPage`/`destroy` 会抛 `Cannot read from private field`。长期持有文档须 `markRaw(pdf)` 或存局部 `const`（见 `OrganizeTool.vue` 的 `doc.value = markRaw(pdf)`；`CompareTool`/`DetectBlankTool` 用局部 `const doc` 已合规）。
+- **页码范围输入统一用 `RangeInput.vue`**（回车即生成 tag、支持多范围/单页、逗号分隔、非法提示）：拆分 `SplitTool`、导出图片 `ExportImagesTool`、密文整页 `RedactTool` 均复用；解析助手在 `utils/pageRange.ts`（`rangeTagsToRanges`→0 基闭区间、`rangeTagsToIndices`→0 基去重页码）。`Decorate`/`Watermark` 应用到全部页无范围输入；`PageLabels` 的「范围」是标签样式配置行（起始页+样式+前缀），非页码选择，不涉及。
+
+## 多文件导出目录约定
+- 「自动导出一系列文件」的工具（拆分 `pdf:split`、导出图片 `pdf:write-files`）在用户所选目录下**再生成子目录** `<源文件名>-<功能>-<datetime>/`，文件写入该子目录，避免多次导出散落混在一起。例：`path/doing-拆分-2026-08-31-22-57-00/doing_01.pdf`。
+- 实现：渲染端 `utils/exportPath.ts#makeExportSubDir(outDir, baseName, funcLabel)` 生成子目录路径（渲染端无 `node:path`，按 `outDir` 内斜杠推断分隔符拼接；`datetime` 用 `YYYY-MM-DD-HH-mm-ss` 文件系统安全格式），直接作为 `pdf:split` 的 `outputDir` / `pdf:write-files` 的 `dir` 传入；主进程无需改动（`pdf:split` 写入 `args.outputDir`、`pdf:write-files` 已 `mkdirSync(args.dir,{recursive:true})`）。
+- 「另存为」单文件类（合并/组织/压缩/密文/页标签/附件等）不受影响，仍走 `pdf:pick-save`。
 
 ## 二期 / 三期（已实现）
 - 二期（页面修饰处理）：插入页面 / 替换页面 / 复制页面 / 裁剪白边 / 页码·页眉·页脚 / 文字水印 / 添加封面 / 统一尺寸缩放 / 空白页检测（栅格化识别+一键清理）/ 展平标注。
 - 三期（文档级）：压缩减体（best-effort 对象流）/ 密文遮盖（整页或矩形永久涂黑）/ 加密·解密（**规划中**，依赖 qpdf 外部引擎，UI 诚实提示）/ 页面标签（pdf-lib 1.17 无 setPageLabels，走底层 /Labels 数字树手写）/ 嵌入附件（pdf-lib attach）/ 双栏对比（pdf.js 渲染并排）。
 - 诚实边界：`pdf:encrypt`/`pdf:decrypt` 因缺 qpdf 引擎，后端直接返回提示、前端 `SecurityTool` 灰显并透传，不伪造能力。
+
+## ⚠️ pdf-lib 底层操作踩坑（已修，勿回退）
+- **`lookup()` 必须传「键名」，不能传 `get()` 的返回值**：`src.catalog.lookup(src.catalog.get(PDFName.of('Pages')))` 是错的——`get()` 返回的是 `PDFRef` 引用，把它喂给期望 `PDFName` 的 `lookup()` 会解析出 `undefined`，随后 `pages.set(...)` 抛 `Cannot read properties of undefined (reading 'set')`（`pdf:page-labels` 曾因此整体失效）。**正解**：`src.catalog.lookup(PDFName.of('Pages'))` 直接传键名，pdf-lib 会先取键再递归解引用。
+- **嵌入附件流带 FlateDecode，不能直接读原始字节**：`PDFDocument.attach()` 写入的嵌入文件流默认被压缩，`stream.getContents()` 拿到的是压缩后的字节（`78 9c` 开头），且 pdf-lib 1.17 的 `PDFRawStream` **没有 `decode()` 方法**。正解用 `decodePDFRawStream(stream).decode()`（从 `pdf-lib` 根导出），才能得到原始字节。
+- **pdf-lib 1.17 无 `getAttachments()`**：读取内嵌附件须手动遍历 `/Names → /EmbeddedFiles`（可能是 `/Kids` 多叉树，需递归收集含 `/Names` 的叶子）+ 叶子 `/Names` 扁平数组 `[名称, 文件说明, ...]` → Filespec `/EF /F` → 文件流；MIME 取文件流字典的 `/Subtype`，且名称/类型需还原 `#XX` 十六进制转义（如 `text#2Fplain` → `text/plain`）。本项目已封装为 `pdf.ts#readEmbeddedFiles(src)`，供 get-attachments 与 extract-attachment 共用。
+- **`pdf:add-cover` 嵌入封面图的两层坑（已修）**：① 不能靠扩展名判断图片类型——很多图被错命名（如 JPEG 存成 `.png`），按 `.png` 走 `embedPng()` 会报 `The input is not a PNG file!`。正解用 `detectImageFormat(bytes)` 按**文件头魔数**识别（PNG/JPEG/GIF/BMP/WEBP/ICO），真实 PNG/JPEG 直接嵌入保真，其余格式借 `nativeImage.createFromBuffer().toPNG()` 转 PNG 再嵌入（零额外依赖，项目 clipboard/qrcode/screenshot 已用 nativeImage）。② **`fs.readFileSync` 返回的是 Node 缓冲池视图（可能带非 0 byteOffset，底层 ArrayBuffer 比内容大）**，pdf-lib 的 `embedPng/embedJpg` 内部用 `new DataView(imageData.buffer)` 从 buffer 起点读取，会读到池里垃圾字节 → 间歇性报 `SOI not found in JPEG` / `The input is not a PNG file!`（小文件必现、大文件偶现的 heisenbug）。**正解**：嵌入前一律 `Uint8Array.from(bytes)` 转成干净的副本再传给 embedder（nativeImage 输出的 Buffer 同样要转）。已封装为 `pdf.ts#embedImageFromBytes(out, bytes)`。
+
+## 与电子书阅读器的联动（附件面板）
+- `pdf:attach` 的导出**本身是正确且完整的**（已用字节级回环验证：嵌入→重新解析→解码→与原始文件 `Buffer.compare` 完全一致）。用户「看不到附件内容」的根因是**内置阅读器原本没有附件面板**，而非导出失败——排查同类反馈时先确认是「导出坏了」还是「无处可看」。
+- 阅读器侧入口：`src/views/ebookReader/index.vue` 顶部工具栏「附件」按钮（仅 `format==='pdf'`）+ `components/AttachmentsDrawer.vue` 抽屉；打开时调 `pdfApi.getAttachments(path)`，另存走 `pdf:pick-save` → `pdf:extract-attachment`（主进程直接写盘，字节不经过渲染端）。切换文件时在 `watch(currentFile.path)` 里重置附件状态。

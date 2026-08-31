@@ -1,6 +1,6 @@
 <template>
   <div class="tool-panel">
-    <p class="hint">向 PDF 嵌入一个附件文件（如原始素材、说明文档）。嵌入后可在 PDF 阅读器的「附件」面板查看。</p>
+    <p class="hint">向 PDF 嵌入一个附件文件（如原始素材、说明文档）。嵌入后可在 PDF 阅读器工具栏的「附件」面板查看并另存（Adobe、Foxit 等外部阅读器同样支持）。</p>
 
     <div class="field">
       <label>源 PDF</label>

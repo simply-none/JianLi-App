@@ -76,6 +76,20 @@ export interface PdfActionResult {
   pages?: number;
   files?: string[];
   count?: number;
+  /** 附件列表（getAttachments 返回） */
+  attachments?: PdfAttachmentItem[];
+}
+
+/** PDF 内嵌附件条目（供阅读器「附件」面板展示与下载） */
+export interface PdfAttachmentItem {
+  /** 附件文件名（如 说明.txt） */
+  name: string;
+  /** MIME 类型（取自嵌入文件流 /Subtype，可能为空串） */
+  mime: string;
+  /** 原始字节数（解码后） */
+  size: number;
+  /** base64 内容；列表查询不返回字节，仅导出时由主进程直接写盘 */
+  data?: string;
 }
 
 // ============ 二期/三期工具参数类型 ============

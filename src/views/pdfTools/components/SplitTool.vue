@@ -17,9 +17,9 @@
         </el-radio-group>
       </div>
 
-      <div v-if="modeType === 'range'" class="opt-row">
+      <div v-if="modeType === 'range'" class="opt-row range-row">
         <span class="lbl">页码范围</span>
-        <el-input v-model="rangeText" placeholder="如 1-3,5-7（逗号分隔，闭区间）" />
+        <RangeInput v-model="rangeTags" hint="支持多个范围与单页；回车即在下方生成 tag，可点 × 删除" />
       </div>
       <div v-else-if="modeType === 'everyN'" class="opt-row">
         <span class="lbl">每页</span>
@@ -40,6 +40,8 @@
         </el-input>
       </div>
 
+      <p class="subdir-hint">将自动生成「{{ file ? file.name.replace(/\.pdf$/i, '') : '文件名' }}-拆分-时间」子目录存放拆分结果</p>
+
       <div class="actions">
         <el-button type="primary" :loading="loading" :disabled="!canRun" @click="doSplit">开始拆分</el-button>
       </div>
@@ -55,50 +57,37 @@ import { ElMessage } from 'element-plus';
 import LucideIcon from '@/components/LucideIcon.vue';
 import FileDropZone from './FileDropZone.vue';
 import PdfResultBar from './PdfResultBar.vue';
+import RangeInput from './RangeInput.vue';
 import { pdfApi } from '../api/pdfApi';
+import { makeExportSubDir } from '../utils/exportPath';
+import { rangeTagsToRanges } from '../utils/pageRange';
 import { usePdfTools } from '../store/usePdfTools';
 import type { PdfFileItem, PdfActionResult, SplitConfig } from '../types';
 
 const store = usePdfTools();
 const file = ref<PdfFileItem | null>(null);
 const modeType = ref<'range' | 'everyN' | 'oddEven'>('range');
-const rangeText = ref('1-3');
+/** 拆分范围（tag 式）：每个元素是一个已校验的范围文本，如「1-3」「5」 */
+const rangeTags = ref<string[]>([]);
 const everyN = ref(2);
 const outDir = ref('');
 const result = ref<PdfActionResult | null>(null);
 const loading = ref(false);
 
-const canRun = computed(() => !!file.value && !!outDir.value && (modeType.value !== 'range' || parsedRanges.value.length > 0));
+const canRun = computed(() => !!file.value && !!outDir.value && (modeType.value !== 'range' || rangeTags.value.length > 0));
 
 function onSelect(paths: string[]): void {
   if (paths.length) {
     file.value = { path: paths[0], name: paths[0].replace(/^.*[\\/]/, '') };
     result.value = null;
+    rangeTags.value = [];
   }
 }
 
-/** 解析范围文本（1 基闭区间）→ 0 基 [[s,e]] */
-const parsedRanges = computed<Array<[number, number]>>(() => {
-  if (modeType.value !== 'range') return [];
-  const out: Array<[number, number]> = [];
-  for (const part of rangeText.value.split(',')) {
-    const seg = part.trim();
-    if (!seg) continue;
-    const m = seg.match(/^(\d+)\s*-\s*(\d+)$/);
-    if (!m) {
-      const single = seg.match(/^(\d+)$/);
-      if (single) {
-        const n = parseInt(single[1], 10) - 1;
-        out.push([n, n]);
-      }
-      continue;
-    }
-    const s = parseInt(m[1], 10) - 1;
-    const e = parseInt(m[2], 10) - 1;
-    if (e >= s) out.push([s, e]);
-  }
-  return out;
-});
+/** 聚合所有 tag → 0 基 [[s,e]]（闭区间） */
+const parsedRanges = computed<Array<[number, number]>>(() =>
+  modeType.value === 'range' ? rangeTagsToRanges(rangeTags.value) : [],
+);
 
 async function pickDir(): Promise<void> {
   const res = await pdfApi.pickDir();
@@ -114,16 +103,19 @@ function buildMode(): SplitConfig {
 async function doSplit(): Promise<void> {
   result.value = null;
   if (!file.value || !outDir.value) return;
-  if (modeType.value === 'range' && parsedRanges.value.length === 0) {
-    ElMessage.warning('请填写有效的页码范围');
+  if (modeType.value === 'range' && rangeTags.value.length === 0) {
+    ElMessage.warning('请添加至少一个有效的页码范围');
     return;
   }
   const base = file.value.name.replace(/\.pdf$/i, '');
+  // 自动导出到「<源文件名>-拆分-<datetime>」子目录，避免多次拆分文件散落混在一起
+  const subDir = makeExportSubDir(outDir.value, base, '拆分');
   loading.value = true;
   try {
-    const res = await pdfApi.split(file.value.path, outDir.value, base, buildMode());
+    const res = await pdfApi.split(file.value.path, subDir, base, buildMode());
     result.value = res;
-    if (res.success && res.files) res.files.forEach((p) => store.pushOutput(p));
+    // 记录子目录（真实导出地址），PdfResultBar 会按文件定位并可直接打开该目录
+    if (res.success) store.pushOutput(subDir);
   } finally {
     loading.value = false;
   }
@@ -163,6 +155,9 @@ async function doSplit(): Promise<void> {
   align-items: center;
   gap: 12px;
 }
+.range-row {
+  align-items: flex-start;
+}
 .lbl {
   width: 64px;
   flex: none;
@@ -173,6 +168,12 @@ async function doSplit(): Promise<void> {
 .hint {
   color: var(--text-muted);
   font-size: 12px;
+}
+.subdir-hint {
+  margin: -4px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
 }
 .actions {
   margin-top: 4px;

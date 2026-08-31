@@ -13,7 +13,6 @@
         <el-button @click="pickImage">选择图片</el-button>
         <span v-if="imagePath" class="img-name" :title="imagePath">{{ imageName }}</span>
         <el-button v-if="imagePath" text type="danger" @click="imagePath = null">清除</el-button>
-        <input ref="imgInput" type="file" accept="image/*" hidden @change="onImg" />
       </div>
     </div>
 
@@ -62,7 +61,6 @@ const SIZE: Record<string, { w: number; h: number }> = {
 const store = usePdfTools();
 const src = ref<string | null>(null);
 const imagePath = ref<string | null>(null);
-const imgInput = ref<HTMLInputElement | null>(null);
 const title = ref('');
 const sizeKey = ref<'a4' | 'a3' | 'custom'>('a4');
 const cw = ref(595);
@@ -72,13 +70,9 @@ const loading = ref(false);
 
 const imageName = computed(() => (imagePath.value || '').replace(/^.*[\\/]/, ''));
 
-function pickImage(): void {
-  imgInput.value?.click();
-}
-function onImg(e: Event): void {
-  const f = (e.target as HTMLInputElement).files?.[0];
-  if (f) imagePath.value = (f as any).path || null;
-  (e.target as HTMLInputElement).value = '';
+async function pickImage(): Promise<void> {
+  const res = await pdfApi.pickImage();
+  if (res.success && res.path) imagePath.value = res.path;
 }
 
 async function run(): Promise<void> {

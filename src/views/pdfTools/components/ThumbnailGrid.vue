@@ -20,7 +20,7 @@
 
       <div class="thumb-canvas">
         <img v-if="thumbs[p.srcIndex]" :src="thumbs[p.srcIndex]" class="thumb-img" :style="rotStyle(p.rotation)" />
-        <div v-else class="thumb-ph" :ref="(el) => registerObs(el, p.srcIndex)"></div>
+        <div v-else class="thumb-ph"></div>
       </div>
 
       <div class="thumb-ops" @click.stop>
@@ -32,7 +32,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onBeforeUnmount } from 'vue';
+import { reactive, ref, watch, onBeforeUnmount } from 'vue';
 import LucideIcon from '@/components/LucideIcon.vue';
 import { renderPageToImage } from '../composables/usePdfjs';
 import type { OrganizePageState } from '../types';
@@ -51,49 +51,46 @@ const emit = defineEmits<{
 }>();
 
 const thumbs = reactive<Record<number, string>>({});
-const rendered = new Set<number>();
 const dragPos = ref(-1);
-let observer: IntersectionObserver | null = null;
-const pending = new Map<number, Element>();
+/** 记录上次渲染所用文档，文档切换时清空旧缩略图避免串页 */
+let lastDoc: any = null;
 
 function rotStyle(rotation: number): Record<string, string> {
   return rotation ? { transform: `rotate(${rotation}deg)` } : {};
 }
 
-function ensureObserver(): void {
-  if (observer || typeof IntersectionObserver === 'undefined') return;
-  observer = new IntersectionObserver((entries) => {
-    for (const en of entries) {
-      if (!en.isIntersecting) continue;
-      const idx = Number((en.target as HTMLElement).dataset.src);
-      observer?.unobserve(en.target);
-      pending.delete(idx);
-      renderThumb(idx);
-    }
-  });
-}
-
-function registerObs(el: unknown, srcIndex: number): void {
-  if (!el) return;
-  ensureObserver();
-  const node = el as HTMLElement;
-  node.dataset.src = String(srcIndex);
-  if (observer) observer.observe(node);
-  else pending.set(srcIndex, node); // 无 IO 支持时回退：直接渲染
-}
-
-async function renderThumb(srcIndex: number): Promise<void> {
-  if (!props.doc || rendered.has(srcIndex)) return;
-  rendered.add(srcIndex);
-  try {
-    const page = await props.doc.getPage(srcIndex + 1);
-    const url = await renderPageToImage(page, props.thumbWidth ?? 150);
-    if (url) thumbs[srcIndex] = url;
-  } catch (e) {
-    rendered.delete(srcIndex);
-    console.warn('[pdf] thumb render failed', srcIndex, e);
+/** 并发渲染所有页缩略图（避免大文档一次性卡顿） */
+async function renderAll(): Promise<void> {
+  if (!props.doc) return;
+  if (props.doc !== lastDoc) {
+    lastDoc = props.doc;
+    for (const k of Object.keys(thumbs)) delete thumbs[Number(k)];
   }
+  const idxs = props.pages.map((p) => p.srcIndex);
+  const CONCURRENCY = 6;
+  let cursor = 0;
+  const worker = async (): Promise<void> => {
+    while (cursor < idxs.length) {
+      const srcIndex = idxs[cursor++];
+      if (thumbs[srcIndex]) continue;
+      try {
+        const page = await props.doc.getPage(srcIndex + 1);
+        const url = await renderPageToImage(page, props.thumbWidth ?? 150);
+        if (url) thumbs[srcIndex] = url;
+      } catch (e) {
+        console.warn('[pdf] thumb render failed', srcIndex, e);
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
 }
+
+// doc 或「页集合(去重后顺序无关)」变化时重新渲染；仅重排/旋转不触发
+watch(
+  () => [props.doc, props.pages.map((p) => p.srcIndex).sort((a, b) => a - b).join(',')],
+  renderAll,
+  { immediate: true },
+);
 
 function toggle(srcIndex: number): void {
   emit('toggle', srcIndex);
@@ -112,8 +109,7 @@ function onDrop(target: number): void {
 }
 
 onBeforeUnmount(() => {
-  observer?.disconnect();
-  observer = null;
+  lastDoc = null;
 });
 </script>
 

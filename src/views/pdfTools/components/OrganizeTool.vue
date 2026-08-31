@@ -41,7 +41,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onBeforeUnmount } from 'vue';
+import { ref, onBeforeUnmount, markRaw } from 'vue';
 import { ElMessage } from 'element-plus';
 import LucideIcon from '@/components/LucideIcon.vue';
 import FileDropZone from './FileDropZone.vue';
@@ -75,7 +75,9 @@ async function load(path: string): Promise<void> {
       return;
     }
     const pdf: any = await loadPdf(res.base64);
-    doc.value = pdf;
+    // 必须 markRaw：pdf.js 文档含私有字段，一旦被 Vue ref 包成 reactive Proxy，
+    // 访问 getPage/destroy 会因私有字段不可经 Proxy 读取而抛「Cannot read from private field」
+    doc.value = markRaw(pdf);
     file.value = { path, name: path.replace(/^.*[\\/]/, ''), pages: pdf.numPages };
     pages.value = Array.from({ length: pdf.numPages }, (_, i) => ({
       srcIndex: i,
@@ -147,7 +149,15 @@ async function save(onlySelected: boolean): Promise<void> {
 }
 
 onBeforeUnmount(() => {
-  doc.value?.destroy();
+  const d = doc.value;
+  if (d && typeof d.destroy === 'function') {
+    try {
+      d.destroy();
+    } catch {
+      /* pdf.js worker 已释放，忽略 */
+    }
+  }
+  doc.value = null;
 });
 </script>
 

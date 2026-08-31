@@ -9,10 +9,12 @@
  * - 缩略图预览与图片栅格化在渲染端用 pdf.js 完成（见 src/views/pdfTools）。
  */
 
-import { ipcMain, dialog } from 'electron';
+import { ipcMain, dialog, nativeImage } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
-import { PDFDocument, degrees, rgb, StandardFonts, PDFDict, PDFName, PDFString, PDFNumber, PDFArray } from 'pdf-lib';
+import { PDFDocument, PDFImage, degrees, rgb, StandardFonts, PDFDict, PDFName, PDFString, PDFNumber, PDFArray, decodePDFRawStream } from 'pdf-lib';
+import fontkit from '@pdf-lib/fontkit';
+import type { PDFFont } from 'pdf-lib';
 import log from 'electron-log';
 
 /** 单页操作描述：index 为源文件 0 基页码；rotation 为旋转角度(0/90/180/270) */
@@ -27,6 +29,18 @@ export type SplitMode =
   | { type: 'everyN'; n: number } // 每 N 页一份
   | { type: 'oddEven' }; // 奇数页/偶数页各一份
 
+/** 附件条目（PDF 内嵌文件，供阅读器「附件」面板展示与下载） */
+export interface PdfAttachmentItem {
+  /** 附件文件名（如 说明.txt） */
+  name: string;
+  /** MIME 类型，取自嵌入文件流字典的 /Subtype，可能为空串 */
+  mime: string;
+  /** 原始字节数（解码后） */
+  size: number;
+  /** base64 内容；仅内部解析与导出时填充，列表查询（get-attachments）不返回字节 */
+  data?: string;
+}
+
 /** 通用结果：成功返回 success:true，失败返回 success:false + error */
 interface PdfResult {
   success: boolean;
@@ -36,6 +50,8 @@ interface PdfResult {
   pages?: number;
   files?: string[];
   count?: number;
+  /** 附件列表（pdf:get-attachments 返回） */
+  attachments?: PdfAttachmentItem[];
 }
 
 /**
@@ -66,6 +82,45 @@ function safeBaseName(filePath: string): string {
   return base.replace(/[\\/:*?"<>|]/g, '_') || 'document';
 }
 
+/**
+ * 解析一个可用的中文字体用于 pdf-lib 写字（页码 / 页眉页脚 / 水印 / 封面标题）。
+ * pdf-lib 的标准 14 字体（Helvetica 等）使用 WinAnsi 编码，无法编码中文
+ * （报错 WinAnsi cannot encode "测"），因此必须嵌入一个 TrueType 中文字体。
+ * pdf-lib 1.17 自定义字体需先 doc.registerFontkit(fontkit)。
+ * 优先使用系统自带单文件 TTF/OTF（跳过 .ttc 字体集合，pdf-lib 不支持直接嵌入），
+ * 失败则返回 null，由调用方回退标准字体（仅拉丁字符可用）。
+ */
+async function resolveCjkFont(doc: PDFDocument): Promise<PDFFont | null> {
+  try {
+    doc.registerFontkit(fontkit);
+  } catch {
+    /* 已注册则忽略 */
+  }
+  const candidates: string[] = [
+    path.join(process.env.WINDIR || 'C:\\WINDOWS', 'Fonts', 'simhei.ttf'),
+    path.join(process.env.WINDIR || 'C:\\WINDOWS', 'Fonts', 'simkai.ttf'),
+    path.join(process.env.WINDIR || 'C:\\WINDOWS', 'Fonts', 'simfang.ttf'),
+    'C:\\WINDOWS\\Fonts\\SourceHanSansCN-Regular#1.otf',
+    'C:\\WINDOWS\\Fonts\\NotoSansSC-VF.ttf',
+    // macOS
+    '/System/Library/Fonts/STHeiti Light.ttc',
+    '/Library/Fonts/Arial Unicode.ttf',
+    // Linux
+    '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+    '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
+  ].filter((p) => !p.toLowerCase().endsWith('.ttc'));
+  for (const fp of candidates) {
+    try {
+      if (!fs.existsSync(fp)) continue;
+      const bytes = fs.readFileSync(fp);
+      return await doc.embedFont(bytes, { subset: true });
+    } catch (e) {
+      log.warn('[pdf] CJK font embed failed:', fp, String(e).split('\n')[0]);
+    }
+  }
+  return null;
+}
+
 /** 把多个源 PDF 的指定页集合拷入目标文档 */
 async function copyPagesInto(out: PDFDocument, src: PDFDocument, indices: number[]): Promise<void> {
   const pages = await out.copyPages(src, indices);
@@ -84,6 +139,16 @@ export function initPdf(): void {
     const res = await dialog.showOpenDialog({ properties: ['openDirectory'] });
     if (res.canceled || res.filePaths.length === 0) return { success: false, canceled: true };
     return { success: true, dir: res.filePaths[0] };
+  });
+
+  // ---- 选择单个图片文件（封面等），返回绝对路径 ----
+  ipcMain.handle('pdf:pick-image', async () => {
+    const res = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'bmp', 'webp', 'gif'] }],
+    });
+    if (res.canceled || res.filePaths.length === 0) return { success: false, canceled: true };
+    return { success: true, path: res.filePaths[0] };
   });
 
   ipcMain.handle('pdf:pick-save', async (_e, defaultName: string) => {
@@ -165,21 +230,27 @@ export function initPdf(): void {
           groups.push(Array.from({ length: count }, (_, i) => i).filter((i) => i % 2 === 0)); // 奇数页(1基)
           groups.push(Array.from({ length: count }, (_, i) => i).filter((i) => i % 2 === 1)); // 偶数页(1基)
         }
-        const files: string[] = [];
-        // 各分组并行拷页+写盘；逐组分配序号(0基跳过空组)
-        let seq = 0;
-        await Promise.all(
-          groups.map(async (g) => {
-            if (g.length === 0) return;
+      const files: string[] = [];
+      // 先确保输出目录存在（渲染端传入的可能是尚不存在的子目录，如「<源>-拆分-<时间>」）
+      fs.mkdirSync(args.outputDir, { recursive: true });
+      // 并行拷页+写盘；序号在「同步阶段」按分组顺序预分配，避免异步竞态导致文件名与内容错位
+      let seq = 0;
+      await Promise.all(
+        groups.map((g) => {
+          if (g.length === 0) return;
+          const idx = ++seq; // 同步递增（在首个 await 之前），保证后缀序号与分组(内容)顺序一致
+          return (async () => {
             const out = await PDFDocument.create();
             await copyPagesInto(out, src, g);
             const buf = await out.save();
-            const idx = ++seq;
             const p = path.join(args.outputDir, `${args.baseName}_${String(idx).padStart(2, '0')}.pdf`);
             fs.writeFileSync(p, buf);
             files.push(p);
-          }),
-        );
+          })();
+        }),
+      );
+      // files 入序受并行完成先后影响，按文件名(数字)重排，保证返回列表顺序与序号一致
+      files.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
         log.info(`[pdf] split -> ${files.length} files in ${args.outputDir}`);
         return { success: true, files };
       } catch (err) {
@@ -352,7 +423,7 @@ export function initPdf(): void {
       try {
         const src = await PDFDocument.load(fs.readFileSync(args.file));
         const out = await PDFDocument.create();
-        const font = await out.embedFont(StandardFonts.Helvetica);
+        const font = (await resolveCjkFont(out)) || (await out.embedFont(StandardFonts.Helvetica));
         const total = src.getPageCount();
         for (let i = 0; i < total; i++) {
           const [p] = await out.copyPages(src, [i]);
@@ -403,7 +474,7 @@ export function initPdf(): void {
       try {
         const src = await PDFDocument.load(fs.readFileSync(args.file));
         const out = await PDFDocument.create();
-        const font = await out.embedFont(StandardFonts.Helvetica);
+        const font = (await resolveCjkFont(out)) || (await out.embedFont(StandardFonts.Helvetica));
         const col = rgb(args.opts.color[0], args.opts.color[1], args.opts.color[2]);
         const total = src.getPageCount();
         const fs2 = args.opts.fontSize;
@@ -430,6 +501,63 @@ export function initPdf(): void {
     },
   );
 
+  // ---- 图片格式识别与嵌入（pdf-lib 仅支持 PNG/JPEG，故这里兜底自动转换） ----
+  /**
+   * 按文件头魔数识别真实图片格式（与扩展名无关）。
+   * 扩展名不可靠：很多图片被错误命名（如 WebP/JPEG 被存成 .png），
+   * 直接喂给 pdf-lib 的 embedPng/embedJpg 会报 “The input is not a PNG file!” 之类错误。
+   */
+  function detectImageFormat(bytes: Uint8Array): 'png' | 'jpeg' | 'gif' | 'bmp' | 'webp' | 'ico' | 'unknown' {
+    if (!bytes || bytes.length < 12) return 'unknown';
+    const b0 = bytes[0], b1 = bytes[1], b2 = bytes[2], b3 = bytes[3];
+    // PNG: 89 50 4E 47
+    if (b0 === 0x89 && b1 === 0x50 && b2 === 0x4e && b3 === 0x47) return 'png';
+    // JPEG: FF D8 FF
+    if (b0 === 0xff && b1 === 0xd8 && b2 === 0xff) return 'jpeg';
+    // GIF: 47 49 46 38 (GIF8)
+    if (b0 === 0x47 && b1 === 0x49 && b2 === 0x46 && b3 === 0x38) return 'gif';
+    // BMP: 42 4D (BM)
+    if (b0 === 0x42 && b1 === 0x4d) return 'bmp';
+    // ICO: 00 00 01 00
+    if (b0 === 0x00 && b1 === 0x00 && b2 === 0x01 && b3 === 0x00) return 'ico';
+    // WEBP: 52 49 46 46 (RIFF) .... 57 45 42 50 (WEBP) @offset 8
+    if (b0 === 0x52 && b1 === 0x49 && b2 === 0x46 && b3 === 0x46 &&
+        bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) return 'webp';
+    return 'unknown';
+  }
+
+  /**
+   * 将图片字节嵌入 PDF 页面。
+   * - 真实 PNG / JPEG：直接嵌入，不做任何重编码，保真。
+   * - WebP / BMP / GIF / ICO / 其它可解析格式：借 Electron 自带 nativeImage 栅格化为 PNG 再嵌入。
+   *   零额外依赖（本项目 clipboard/qrcode/screenshot 模块已在使用 nativeImage）。
+   * @returns pdf-lib 图像对象，可直接用于 drawImage
+   */
+  async function embedImageFromBytes(out: PDFDocument, bytes: Uint8Array): Promise<PDFImage> {
+    // 关键：fs.readFileSync 返回的是 Node 缓冲池里的视图（可能带非 0 byteOffset，
+    // 底层 ArrayBuffer 比实际内容大）。pdf-lib 的 embedPng/embedJpg 内部用
+    // new DataView(imageData.buffer) 从 buffer 起点读取，会读到池里无关的垃圾字节，
+    // 导致解析失败（报 “The input is not a PNG file!” / “SOI not found in JPEG”）。
+    // 该问题对小文件必现、大文件偶现，是间歇性 heisenbug。这里统一转成干净的 Uint8Array 副本。
+    const clean = Uint8Array.from(bytes);
+    const fmt = detectImageFormat(clean);
+    if (fmt === 'png') return await out.embedPng(clean);
+    if (fmt === 'jpeg') return await out.embedJpg(clean);
+    // 其余格式：nativeImage 转 PNG 后再嵌入
+    const ni = nativeImage.createFromBuffer(Buffer.from(clean));
+    if (ni.isEmpty()) {
+      throw new Error(
+        fmt === 'unknown'
+          ? '无法识别的图片格式，请使用 PNG / JPEG / WebP / BMP / GIF 图片'
+          : `暂不支持的图片格式（${fmt}），请转换为 PNG 或 JPEG 后重试`,
+      );
+    }
+    const png = ni.toPNG();
+    if (!png || png.length === 0) throw new Error('图片转换失败（nativeImage 输出为空）');
+    // nativeImage 输出的 Buffer 同样可能来自缓冲池，转干净副本再嵌入
+    return await out.embedPng(Uint8Array.from(png));
+  }
+
   // ---- 添加封面页（图片铺底 / 标题文字） ----
   ipcMain.handle(
     'pdf:add-cover',
@@ -441,16 +569,16 @@ export function initPdf(): void {
         const h = args.opts.h ?? 841.89;
         const cover = out.addPage([w, h]);
         if (args.opts.imagePath) {
-          const ext = args.opts.imagePath.toLowerCase();
+          // 按文件头魔数识别真实格式并嵌入（扩展名不可靠，见 detectImageFormat 注释）
           const bytes = fs.readFileSync(args.opts.imagePath);
-          const img = ext.endsWith('.png') ? await out.embedPng(bytes) : await out.embedJpg(bytes);
+          const img = await embedImageFromBytes(out, bytes);
           cover.drawImage(img, { x: 0, y: 0, width: w, height: h });
         }
         if (args.opts.title) {
-          const font = await out.embedFont(StandardFonts.HelveticaBold);
+          const titleFont = (await resolveCjkFont(out)) || (await out.embedFont(StandardFonts.HelveticaBold));
           const size = 28;
-          const tw = font.widthOfTextAtSize(args.opts.title, size);
-          cover.drawText(args.opts.title, { x: w / 2 - tw / 2, y: h / 2, size, font, color: rgb(0.2, 0.2, 0.2) });
+          const tw = titleFont.widthOfTextAtSize(args.opts.title, size);
+          cover.drawText(args.opts.title, { x: w / 2 - tw / 2, y: h / 2, size, font: titleFont, color: rgb(0.2, 0.2, 0.2) });
         }
         const total = src.getPageCount();
         for (let i = 0; i < total; i++) {
@@ -592,7 +720,11 @@ export function initPdf(): void {
           upperLetter: 'A',
           lowerLetter: 'a',
         };
-        const pages = src.catalog.lookup(src.catalog.get(PDFName.of('Pages'))) as PDFDict;
+        // 注意：lookup() 必须传「键名(PDFName)」，而不是 get() 的返回值(PDFRef)。
+        // 早期写法 src.catalog.lookup(src.catalog.get(PDFName.of('Pages'))) 把引用喂给 lookup，
+        // 解析结果恒为 undefined，导致下面 pages.set() 抛 "Cannot read properties of undefined (reading 'set')"。
+        const pages = src.catalog.lookup(PDFName.of('Pages')) as PDFDict;
+        if (!pages) throw new Error('未找到页面树 /Pages，无法设置页面标签');
         const nums = PDFArray.withContext(src.context);
         for (const l of args.labels) {
           nums.push(PDFNumber.of(l.start));
@@ -636,7 +768,127 @@ export function initPdf(): void {
     },
   );
 
+  // ---- 读取嵌入附件列表（供 PDF 阅读器「附件」面板展示） ----
+  // 说明：pdf-lib 1.17 无公开的 getAttachments，故走底层 /Names /EmbeddedFiles 名称树解析。
+  // 列表只回传元信息（不含字节内容），避免把可能很大的附件全量送过 IPC；下载另走 pdf:extract-attachment。
+  ipcMain.handle(
+    'pdf:get-attachments',
+    async (_e, args: { file: string }): Promise<PdfResult> => {
+      try {
+        const src = await PDFDocument.load(fs.readFileSync(args.file));
+        const items = readEmbeddedFiles(src);
+        const attachments = items.map(({ name, mime, size }) => ({ name, mime, size }));
+        return { success: true, attachments, count: attachments.length };
+      } catch (err) {
+        log.error('[pdf] get-attachments failed:', err);
+        return { success: false, error: String(err) };
+      }
+    },
+  );
+
+  // ---- 导出（另存）指定嵌入附件到磁盘（按列表索引定位，避免重名附件歧义） ----
+  ipcMain.handle(
+    'pdf:extract-attachment',
+    async (_e, args: { file: string; index: number; outputPath: string }): Promise<PdfResult> => {
+      try {
+        const src = await PDFDocument.load(fs.readFileSync(args.file));
+        const items = readEmbeddedFiles(src);
+        const item = items[args.index];
+        if (!item) return { success: false, error: '未找到指定附件（索引可能已失效）' };
+        fs.writeFileSync(args.outputPath, Buffer.from(item.data || '', 'base64'));
+        return { success: true, outputPath: args.outputPath, count: 1 };
+      } catch (err) {
+        log.error('[pdf] extract-attachment failed:', err);
+        return { success: false, error: String(err) };
+      }
+    },
+  );
+
   log.info('[pdf] PDF 工具箱 IPC 已注册');
+}
+
+/**
+ * 解析 PDF 文档内嵌的附件文件（/Names /EmbeddedFiles 名称树）
+ *
+ * pdf-lib 1.17 未暴露 getAttachments，故直接遍历底层名称树，结构为：
+ *   /Names → /EmbeddedFiles → （可能是 /Kids 多叉树）→ 叶子节点的 /Names 数组
+ *   叶子 /Names 是扁平键值对：[名称1, 文件说明1, 名称2, 文件说明2, ...]
+ *   文件说明(Filespec) → /EF → /F 指向真正的嵌入文件流（通常带 FlateDecode 过滤）
+ *
+ * @param src - 已加载的 PDFDocument
+ * @returns 附件条目数组（顺序稳定，供列表展示与按索引导出）；无嵌入附件时返回空数组
+ */
+function readEmbeddedFiles(src: PDFDocument): PdfAttachmentItem[] {
+  const ctx = src.context;
+  // /Names 或 /EmbeddedFiles 缺失 => 该 PDF 没有嵌入附件，视为空列表而非错误
+  const names = src.catalog.lookup(PDFName.of('Names')) as PDFDict | undefined;
+  const efEntry = names && names.get(PDFName.of('EmbeddedFiles'));
+  if (!efEntry) return [];
+
+  // 递归收集所有含 /Names 的叶子节点（depth 上限防止循环引用导致死循环）
+  const leaves: PDFDict[] = [];
+  const walk = (node: any, depth: number): void => {
+    if (!node || depth > 32) return;
+    const dict = ctx.lookup(node) as PDFDict;
+    if (!dict || typeof dict.get !== 'function') return;
+    const kids = dict.get(PDFName.of('Kids'));
+    if (kids) {
+      const kidsArr = ctx.lookup(kids) as PDFArray;
+      for (let i = 0; i < kidsArr.size(); i += 1) walk(kidsArr.get(i), depth + 1);
+    } else if (dict.get(PDFName.of('Names'))) {
+      leaves.push(dict);
+    }
+  };
+  walk(efEntry, 0);
+
+  const items: PdfAttachmentItem[] = [];
+  for (const leaf of leaves) {
+    const pairs = ctx.lookup(leaf.get(PDFName.of('Names'))) as PDFArray;
+    for (let i = 0; i + 1 < pairs.size(); i += 2) {
+      const name = unescapePdfText(pdfObjectText(ctx.lookup(pairs.get(i))));
+      const filespec = ctx.lookup(pairs.get(i + 1)) as PDFDict;
+      const efDict = ctx.lookup(filespec.get(PDFName.of('EF'))) as PDFDict;
+      const streamRef = efDict && efDict.get(PDFName.of('F'));
+      if (!streamRef) continue;
+      const stream = ctx.lookup(streamRef) as any;
+      // 嵌入文件流通常带 FlateDecode 过滤，必须按过滤器解码后才是原始字节
+      const bytes = decodePDFRawStream(stream).decode();
+      // MIME 取自嵌入文件流字典的 /Subtype（pdf-lib 会写入，如 text/plain）
+      const streamDict = stream && stream.dict;
+      const mime = unescapePdfText(
+        pdfObjectText(streamDict ? ctx.lookup(streamDict.get(PDFName.of('Subtype'))) : null)
+      );
+      items.push({
+        name: name || `附件${items.length + 1}`,
+        mime,
+        size: bytes.length,
+        data: Buffer.from(bytes).toString('base64'),
+      });
+    }
+  }
+  return items;
+}
+
+/**
+ * 取 PDF 字符串 / 名称对象的文本内容（兼容 PDFString 与 PDFName）
+ * @param obj - 可能为 PDFString / PDFName / null 的对象
+ * @returns 文本；无法识别时返回空串
+ */
+function pdfObjectText(obj: unknown): string {
+  if (!obj) return '';
+  const o = obj as { decodeText?: () => string; asString?: () => string };
+  if (typeof o.decodeText === 'function') return o.decodeText();
+  if (typeof o.asString === 'function') return o.asString().replace(/^\//, '');
+  return '';
+}
+
+/**
+ * 还原 PDF 名称中的 #XX 十六进制转义（如 text#2Fplain → text/plain）
+ * @param s - 可能含 #XX 转义的文本
+ * @returns 还原后的文本
+ */
+function unescapePdfText(s: string): string {
+  return (s || '').replace(/#([0-9A-Fa-f]{2})/g, (_m, hex) => String.fromCharCode(parseInt(hex, 16)));
 }
 
 /** 阿拉伯数字转罗马数字 */

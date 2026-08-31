@@ -30,3 +30,4 @@ EPUB / TXT / PDF 三格式阅读：进度保存、书架、分类、笔记与划
 - **pdf.js v6 worker**：必须经 `workers/pdfWorker.ts` 用 `GlobalWorkerOptions.workerPort` 注入 `pdf.worker.min.mjs`（异步加载）。PDF 用**区间加载**（`ebook:read-file-range` + `PDFDataRangeTransport`），按字节按需拉取，切勿整文件读入内存，否则大文件初始化极慢。
 - **content_hash 身份**：换路径重新导入按 `sha256` 复用同内容的标注/书签/进度（多副本共享）；但书架行各路径独立，删除某副本只删其书架引用、不删共享数据。书架徽标计数依赖 `get-annotation-counts` 传 `contentHashes`。
 - TXT 编码自动检测（GB2312/GBK→GB18030），并去除首部 BOM。
+- **附件抽屉（PDF 专用）**：`components/AttachmentsDrawer.vue` + 工具栏「附件」按钮（`v-if="currentFile.format === 'pdf'"`）。读取/另存复用 PDF 工具箱已封装的 `pdfApi.getAttachments / extractAttachment`（即 `pdf:get-attachments` / `pdf:extract-attachment`，主进程 `pdf.ts#readEmbeddedFiles` 解析 `/Names /EmbeddedFiles` 名称树）。**列表只回元信息（name/mime/size），附件字节由主进程直接写盘、不经过渲染端 IPC**，避免大附件卡顿。切换文件时在 `watch(currentFile.path)` 里重置附件状态。踩坑细节见 `modules/pdf-tools.md`。

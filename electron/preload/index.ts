@@ -397,6 +397,10 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     pickDir() {
       return ipcRenderer.invoke('pdf:pick-dir');
     },
+    /** 选择单个图片文件，返回绝对路径；取消返回 { success:false, canceled:true } */
+    pickImage() {
+      return ipcRenderer.invoke('pdf:pick-image');
+    },
     /** 弹出保存对话框，defaultName 为建议文件名；返回 { success:true, filePath } 或取消 */
     pickSave(defaultName: string) {
       return ipcRenderer.invoke('pdf:pick-save', defaultName);
@@ -497,6 +501,14 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     /** 嵌入附件（data 为 base64 或 Uint8Array） */
     attach(file: string, outputPath: string, data: string | Uint8Array, fileName: string, mime?: string) {
       return ipcRenderer.invoke('pdf:attach', { file, outputPath, data, fileName, mime });
+    },
+    /** 读取 PDF 内嵌附件列表（供阅读器「附件」面板展示 / 下载） */
+    getAttachments(file: string) {
+      return ipcRenderer.invoke('pdf:get-attachments', { file });
+    },
+    /** 导出（另存）指定嵌入附件到磁盘（index 为列表序号） */
+    extractAttachment(file: string, index: number, outputPath: string) {
+      return ipcRenderer.invoke('pdf:extract-attachment', { file, index, outputPath });
     },
   },
   scraper: {
