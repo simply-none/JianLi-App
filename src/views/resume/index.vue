@@ -9,24 +9,63 @@
         @create="handleCreate"
         @rename="handleRename"
         @remove="handleRemove"
+        @save-as="handleSaveAs"
       />
       <div class="toolbar-right">
         <span v-if="dirty" class="dirty-dot" title="有未保存的更改"></span>
-        <!-- 选择排版：应用已保存的命名排版预设 -->
-        <el-dropdown class="preset-dropdown" trigger="click" @command="handleApplyPreset" @visible-change="loadPresets">
-          <el-button size="small" :loading="presetsLoading">
-            <LucideIcon name="LayoutTemplate" :size="14" />
-            <span>选择排版</span>
-          </el-button>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item v-for="p in presets" :key="p.id" :command="p">
-                {{ p.name }}
-              </el-dropdown-item>
-              <el-dropdown-item v-if="presets.length === 0" disabled>暂无保存的排版</el-dropdown-item>
-            </el-dropdown-menu>
+        <!-- 选择排版：el-popover 弹框，支持搜索 + 删除管理 -->
+        <el-popover
+          v-model:visible="presetPopoverVisible"
+          placement="bottom-end"
+          :width="300"
+          trigger="click"
+          popper-class="resume-preset-popper"
+          @show="loadPresets"
+        >
+          <template #reference>
+            <el-button size="small" :loading="presetsLoading" :class="{ 'is-active': !!activePresetName }">
+              <LucideIcon name="LayoutTemplate" :size="14" />
+              <span class="preset-trigger-label">{{ activePresetName || '选择排版' }}</span>
+            </el-button>
           </template>
-        </el-dropdown>
+          <div class="preset-pop">
+            <el-input
+              v-model="presetSearch"
+              size="small"
+              placeholder="搜索排版名称"
+              clearable
+            >
+              <template #prefix>
+                <LucideIcon name="Search" :size="13" />
+              </template>
+            </el-input>
+            <div class="preset-list">
+              <div
+                v-for="p in filteredPresets"
+                :key="p.id"
+                class="preset-item"
+                :class="{ 'is-active': p.id === activePresetId }"
+                @click="handleApplyPreset(p)"
+              >
+                <LucideIcon
+                  v-if="p.id === activePresetId"
+                  name="Check"
+                  :size="13"
+                  class="preset-check"
+                />
+                <span class="preset-name">{{ p.name }}</span>
+                <el-tooltip content="删除排版" placement="top">
+                  <button class="preset-del" @click.stop="deletePreset(p)">
+                    <LucideIcon name="Trash2" :size="13" />
+                  </button>
+                </el-tooltip>
+              </div>
+              <div v-if="filteredPresets.length === 0" class="preset-empty">
+                {{ presets.length === 0 ? '暂无保存的排版' : '无匹配的排版' }}
+              </div>
+            </div>
+          </div>
+        </el-popover>
         <el-button size="small" :disabled="!activeRecord" @click="handleFillMock">
           <LucideIcon name="Wand2" :size="14" />
           <span>填充示例</span>
@@ -75,13 +114,13 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import LucideIcon from '@/components/LucideIcon.vue'
 import ResumeSelect from './components/ResumeSelect.vue'
 import ResumeEditor from './components/ResumeEditor.vue'
 import ResumePreview from './components/ResumePreview.vue'
 import StyleDialog from './components/styleDrawer/StyleDialog.vue'
-import { listResumes, createResume, updateResume, deleteResume, getResumeById, getLayoutByResumeId, saveLayout, listLayoutPresets, type LayoutPresetRecord } from './db'
+import { listResumes, createResume, updateResume, deleteResume, getResumeById, getLayoutByResumeId, saveLayout, listLayoutPresets, deleteLayoutPreset, type LayoutPresetRecord } from './db'
 import { getTemplate, DEFAULT_TEMPLATE_ID } from './templates'
 import { createMockResumeData } from './mock'
 import { defaultLayoutConfig, createCustomModuleStyle } from './engine/defaultConfig'
@@ -113,6 +152,23 @@ const innerSplit = ref(true)
 const presets = ref<LayoutPresetRecord[]>([])
 /** 预设列表加载中 */
 const presetsLoading = ref(false)
+/** 排版选择弹框（el-popover）显隐 */
+const presetPopoverVisible = ref(false)
+/** 排版搜索关键字（按名称过滤） */
+const presetSearch = ref('')
+/** 当前预览所应用的排版预设 id（null 表示未套用预设/已手动编辑，用于删除时判断是否为当前预览项） */
+const activePresetId = ref<number | null>(null)
+/** 当前预览所应用排版预设的名称（选中后替代「选择排版」按钮文字） */
+const activePresetName = ref('')
+
+/**
+ * 按搜索关键字过滤后的排版预设（名称包含匹配，大小写不敏感）
+ */
+const filteredPresets = computed<LayoutPresetRecord[]>(() => {
+  const kw = presetSearch.value.trim().toLowerCase()
+  if (!kw) return presets.value
+  return presets.value.filter((p) => p.name.toLowerCase().includes(kw))
+})
 
 /** 当前选中的记录（来自列表，仅用于判断存在性） */
 const activeRecord = computed(() => records.value.find((r) => r.id === activeId.value) || null)
@@ -173,6 +229,9 @@ async function loadResume(id: number) {
   localData.value = rec.data
   // 加载该简历的排版配置（无则回退默认）
   layoutConfig.value = await getLayoutByResumeId(id)
+  // 切换简历后，当前预览脱离了任何预设关联
+  activePresetId.value = null
+  activePresetName.value = ''
   dirty.value = false
 }
 
@@ -222,6 +281,9 @@ function handleAddCustom(sec: CustomSectionData) {
     ...layoutConfig.value,
     modules: [...layoutConfig.value.modules, createCustomModuleStyle(sec.id, sec.title)],
   }
+  // 已偏离所套用预设，解除关联
+  activePresetId.value = null
+  activePresetName.value = ''
   dirty.value = true
   ElMessage.success(`已添加自定义模块「${sec.title}」，可在「排版」中调整其样式`)
 }
@@ -239,6 +301,9 @@ function handleRemoveCustom(id: string) {
     ...layoutConfig.value,
     modules: layoutConfig.value.modules.filter((m) => m.id !== `custom:${id}`),
   }
+  // 已偏离所套用预设，解除关联
+  activePresetId.value = null
+  activePresetName.value = ''
   dirty.value = true
   ElMessage.success('自定义模块已删除')
 }
@@ -259,16 +324,17 @@ function handleFillMock() {
  */
 function applyLayout(value: ResumeLayoutConfig) {
   layoutConfig.value = value
+  // 手动改过排版，已不再等同于任何预设
+  activePresetId.value = null
+  activePresetName.value = ''
   dirty.value = true
   ElMessage.success('排版已应用，点击保存可写入')
 }
 
 /**
- * 拉取排版预设列表（选择排版下拉展开时）
- * @param visible 下拉展开状态
+ * 拉取排版预设列表（选择排版弹框展开时）
  */
-async function loadPresets(visible: boolean) {
-  if (!visible) return
+async function loadPresets() {
   presetsLoading.value = true
   try {
     presets.value = await listLayoutPresets()
@@ -285,8 +351,79 @@ async function loadPresets(visible: boolean) {
  */
 function handleApplyPreset(preset: LayoutPresetRecord) {
   layoutConfig.value = JSON.parse(JSON.stringify(preset.config))
+  // 记录当前预览所套用的预设，供删除时判断；按钮文字改用预设名
+  activePresetId.value = preset.id
+  activePresetName.value = preset.name
   dirty.value = true
+  presetPopoverVisible.value = false
   ElMessage.success(`已应用排版「${preset.name}」，点击保存可写入当前简历`)
+}
+
+/**
+ * 删除排版预设（二次确认后移除）
+ * @param preset 目标预设
+ */
+async function deletePreset(preset: LayoutPresetRecord) {
+  try {
+    await ElMessageBox.confirm(`确定删除排版「${preset.name}」？该操作不可恢复。`, '删除排版', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+    })
+    await deleteLayoutPreset(preset.id)
+    // 记录被删项在原列表中的位置，用于回退「上一个排版」
+    const idx = presets.value.findIndex((p) => p.id === preset.id)
+    presets.value = presets.value.filter((p) => p.id !== preset.id)
+    // 若删除的是当前预览的排版，自动切换预览目标
+    if (activePresetId.value === preset.id) {
+      // 优先取被删项的前一个；删的是第一项时退化为剩余的第一个
+      const fallback = idx > 0 ? presets.value[idx - 1] : presets.value[0]
+      if (fallback) {
+        // 有剩余预设 → 预览切到上一个（或剩余首项）
+        layoutConfig.value = JSON.parse(JSON.stringify(fallback.config))
+        activePresetId.value = fallback.id
+        activePresetName.value = fallback.name
+        dirty.value = true
+        ElMessage.success(`已删除「${preset.name}」，预览切换至「${fallback.name}」`)
+      } else {
+        // 全部删完 → 回退默认排版
+        layoutConfig.value = JSON.parse(JSON.stringify(defaultLayoutConfig))
+        activePresetId.value = null
+        activePresetName.value = ''
+        dirty.value = true
+        ElMessage.success(`已删除「${preset.name}」，已回退默认排版`)
+      }
+    } else {
+      ElMessage.success(`已删除排版「${preset.name}」`)
+    }
+  } catch (e: any) {
+    if (e === 'cancel') return
+    ElMessage.error(`删除失败：${e?.message || e}`)
+  }
+}
+
+/**
+ * 另存为：将当前简历（内容 + 排版）复制成一份新简历并切换
+ * @param name 新简历名称
+ */
+async function handleSaveAs(name: string) {
+  if (!activeId.value) return
+  saving.value = true
+  try {
+    const id = await createResume(
+      name,
+      JSON.parse(JSON.stringify(localData.value)),
+      activeRecord.value?.templateId || DEFAULT_TEMPLATE_ID
+    )
+    await saveLayout(id, JSON.parse(JSON.stringify(layoutConfig.value)))
+    await refreshList()
+    await loadResume(id)
+    ElMessage.success(`已另存为「${name}」`)
+  } catch (e: any) {
+    ElMessage.error(/UNIQUE/i.test(String(e?.message)) ? '已存在同名简历，请换个名称' : `另存为失败：${e?.message || e}`)
+  } finally {
+    saving.value = false
+  }
 }
 
 /**
@@ -474,6 +611,16 @@ async function handleExport() {
   align-items: center;
   gap: 4px;
 }
+/* 选择排版按钮：选中预设后文字显示预设名，并用主题主色强调 */
+.preset-trigger-label {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+:deep(.el-button.is-active) .preset-trigger-label {
+  color: var(--color-primary, #6366f1);
+}
 .main-area {
   flex: 1;
   min-height: 0;
@@ -489,5 +636,77 @@ async function handleExport() {
   gap: 10px;
   color: #999;
   font-size: 13px;
+}
+</style>
+
+<!-- 排版选择弹框内容（el-popover 默认 teleport 到 body，scoped 样式无法命中，故用非 scoped） -->
+<style>
+.resume-preset-popper .preset-pop {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.resume-preset-popper .preset-list {
+  max-height: 260px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 -4px;
+  padding: 0 4px;
+}
+.resume-preset-popper .preset-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--skin-text-primary, #333);
+}
+.resume-preset-popper .preset-item:hover {
+  background: var(--skin-border, #e4e4e7);
+}
+/* 当前预览所套用的排版：跟随主题主色高亮，使「当前预览项」在 UI 上可见 */
+.resume-preset-popper .preset-item.is-active {
+  background: var(--color-primary-light, rgba(99, 102, 241, 0.12));
+  color: var(--color-primary, #6366f1);
+}
+.resume-preset-popper .preset-item.is-active .preset-name {
+  color: var(--color-primary, #6366f1);
+  font-weight: 600;
+}
+.resume-preset-popper .preset-check {
+  flex-shrink: 0;
+  color: var(--color-primary, #6366f1);
+}
+.resume-preset-popper .preset-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.resume-preset-popper .preset-del {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #999;
+  padding: 2px;
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.resume-preset-popper .preset-del:hover {
+  color: #e34d59;
+  background: rgba(227, 77, 89, 0.1);
+}
+.resume-preset-popper .preset-empty {
+  font-size: 12px;
+  color: #999;
+  text-align: center;
+  padding: 16px 0;
 }
 </style>

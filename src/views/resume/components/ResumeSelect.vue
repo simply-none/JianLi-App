@@ -3,55 +3,88 @@
     <!-- 标题 -->
     <span class="page-title">简历</span>
 
-    <!-- 简历选择框：切换 + 悬停操作（重命名/删除） -->
-    <el-select
-      :model-value="activeId"
-      class="select"
-      placeholder="选择简历"
-      :popper-class="'resume-select-popper'"
-      @change="$emit('select', $event as number)"
+    <!-- 简历选择：el-popover 弹框，支持搜索 + 重命名/删除/新建/另存为 -->
+    <el-popover
+      v-model:visible="popVisible"
+      placement="bottom-start"
+      :width="300"
+      trigger="click"
+      popper-class="resume-select-popper"
     >
-      <template #label="{ value }">
-        <span class="select-label">{{ labelOf(value as number) }}</span>
+      <template #reference>
+        <el-button size="small" class="select-trigger">
+          <LucideIcon name="FileText" :size="14" />
+          <span class="trigger-label">{{ activeName || '选择简历' }}</span>
+          <LucideIcon name="ChevronDown" :size="13" class="caret" />
+        </el-button>
       </template>
-      <el-option v-for="item in records" :key="item.id" :value="item.id" :label="item.name">
-        <div class="option-row">
-          <span class="opt-name">{{ item.name }}</span>
-          <span class="opt-time">{{ formatTime(item.updatedAt) }}</span>
-          <span class="opt-ops" @click.stop>
-            <el-tooltip content="重命名" placement="top">
-              <button class="icon-btn" @click="handleRename(item)">
-                <LucideIcon name="Pencil" :size="13" />
-              </button>
-            </el-tooltip>
-            <el-tooltip content="删除" placement="top">
-              <button class="icon-btn is-danger" @click="handleDelete(item)">
-                <LucideIcon name="Trash2" :size="13" />
-              </button>
-            </el-tooltip>
-          </span>
-        </div>
-      </el-option>
-    </el-select>
 
-    <!-- 新建 -->
-    <el-tooltip content="新建简历" placement="top">
-      <button class="icon-btn" @click="handleCreate">
-        <LucideIcon name="FilePlus" :size="15" />
-      </button>
-    </el-tooltip>
+      <div class="rs-pop">
+        <el-input
+          v-model="search"
+          size="small"
+          placeholder="搜索简历名称"
+          clearable
+        >
+          <template #prefix>
+            <LucideIcon name="Search" :size="13" />
+          </template>
+        </el-input>
+
+        <div class="rs-list">
+          <div
+            v-for="item in filtered"
+            :key="item.id"
+            class="rs-item"
+            :class="{ 'is-active': item.id === activeId }"
+            @click="onSelect(item)"
+          >
+            <LucideIcon v-if="item.id === activeId" name="Check" :size="13" class="rs-check" />
+            <span class="rs-name">{{ item.name }}</span>
+            <span class="rs-time">{{ formatTime(item.updatedAt) }}</span>
+            <span class="rs-ops" @click.stop>
+              <el-tooltip content="重命名" placement="top">
+                <button class="icon-btn" @click="handleRename(item)">
+                  <LucideIcon name="Pencil" :size="13" />
+                </button>
+              </el-tooltip>
+              <el-tooltip content="删除" placement="top">
+                <button class="icon-btn is-danger" @click="handleDelete(item)">
+                  <LucideIcon name="Trash2" :size="13" />
+                </button>
+              </el-tooltip>
+            </span>
+          </div>
+          <div v-if="filtered.length === 0" class="rs-empty">
+            {{ records.length === 0 ? '暂无简历' : '无匹配的简历' }}
+          </div>
+        </div>
+
+        <div class="rs-foot">
+          <el-button size="small" @click="handleCreate">
+            <LucideIcon name="FilePlus" :size="13" />
+            <span>新建</span>
+          </el-button>
+          <el-button size="small" :disabled="!activeId" @click="handleSaveAs">
+            <LucideIcon name="Copy" :size="13" />
+            <span>另存为</span>
+          </el-button>
+        </div>
+      </div>
+    </el-popover>
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref, computed } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import LucideIcon from '@/components/LucideIcon.vue'
 import type { ResumeRecord } from '../types'
 
 /**
  * 顶部简历选择器
- * 以下拉框替代原左侧列表：切换选中、悬停条目可重命名/删除，尾部新建按钮。
- * 弹窗交互（输入名称/删除确认）在本组件完成，数据操作经事件交父组件执行。
+ * 改用 el-popover 弹框（与「选择排版」一致）：支持按名称搜索、悬停条目可重命名/删除，
+ * 底部提供新建/另存为。弹窗交互（输入名称/删除确认）在本组件完成，数据操作经事件交父组件执行。
  */
 const props = defineProps<{
   /** 全部简历记录（按更新时间倒序） */
@@ -69,15 +102,34 @@ const emit = defineEmits<{
   (e: 'rename', id: number, name: string): void
   /** 删除 */
   (e: 'remove', id: number): void
+  /** 另存为（复制当前简历，携带新名称） */
+  (e: 'saveAs', name: string): void
 }>()
 
+/** 弹框显隐 */
+const popVisible = ref(false)
+/** 搜索关键字（按名称过滤） */
+const search = ref('')
+
+/** 触发按钮展示的当前简历名 */
+const activeName = computed(
+  () => props.records.find((r) => r.id === props.activeId)?.name || ''
+)
+
+/** 按搜索关键字过滤后的简历（名称包含匹配，大小写不敏感） */
+const filtered = computed<ResumeRecord[]>(() => {
+  const kw = search.value.trim().toLowerCase()
+  if (!kw) return props.records
+  return props.records.filter((r) => r.name.toLowerCase().includes(kw))
+})
+
 /**
- * 按已选 id 取显示名称（用于选择框收起态标签）
- * @param id 记录 id
- * @returns 简历名称；未命中返回空串
+ * 选中某项：通知父组件切换并收起弹框
+ * @param item 目标记录
  */
-function labelOf(id: number): string {
-  return props.records.find((r) => r.id === id)?.name || ''
+function onSelect(item: ResumeRecord) {
+  emit('select', item.id)
+  popVisible.value = false
 }
 
 /**
@@ -148,6 +200,26 @@ async function handleDelete(item: ResumeRecord) {
     /* 用户取消，不处理 */
   }
 }
+
+/**
+ * 另存为：复制当前简历为新简历，弹窗输入新名称（默认「当前名 副本」）
+ */
+async function handleSaveAs() {
+  try {
+    const base = props.records.find((r) => r.id === props.activeId)?.name || '我的简历'
+    const { value } = await ElMessageBox.prompt('请输入新简历名称', '另存为', {
+      inputValue: `${base} 副本`,
+      inputPlaceholder: '如：Java 后端岗 - 副本',
+      inputPattern: /\S+/,
+      inputErrorMessage: '名称不能为空',
+      confirmButtonText: '另存为',
+      cancelButtonText: '取消',
+    })
+    emit('saveAs', value.trim())
+  } catch {
+    /* 用户取消，不处理 */
+  }
+}
 </script>
 
 <style scoped>
@@ -163,43 +235,92 @@ async function handleDelete(item: ResumeRecord) {
   color: var(--skin-text-primary, #333);
   flex-shrink: 0;
 }
-.select {
-  width: 220px;
+.select-trigger {
+  max-width: 220px;
 }
-.select-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.option-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-.opt-name {
+.trigger-label {
   flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.opt-time {
+.caret {
+  flex-shrink: 0;
+}
+</style>
+
+<!-- 弹框内容（el-popover 默认 teleport 到 body，scoped 样式无法命中，故用非 scoped） -->
+<style>
+.resume-select-popper .rs-pop {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.resume-select-popper .rs-list {
+  max-height: 260px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 -4px;
+  padding: 0 4px;
+}
+.resume-select-popper .rs-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--skin-text-primary, #333);
+}
+.resume-select-popper .rs-item:hover {
+  background: var(--skin-border, #e4e4e7);
+}
+/* 当前选中的简历：跟随主题主色高亮 */
+.resume-select-popper .rs-item.is-active {
+  background: var(--color-primary-light, rgba(99, 102, 241, 0.12));
+  color: var(--color-primary, #6366f1);
+}
+.resume-select-popper .rs-check {
+  flex-shrink: 0;
+  color: var(--color-primary, #6366f1);
+}
+.resume-select-popper .rs-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.resume-select-popper .rs-item.is-active .rs-name {
+  font-weight: 600;
+}
+.resume-select-popper .rs-time {
   font-size: 11px;
   color: #999;
   flex-shrink: 0;
 }
-.opt-ops {
+.resume-select-popper .rs-ops {
   display: flex;
   gap: 2px;
-  opacity: 0;
-  transition: opacity 0.15s;
   flex-shrink: 0;
 }
-.option-row:hover .opt-ops {
-  opacity: 1;
+.resume-select-popper .rs-empty {
+  font-size: 12px;
+  color: #999;
+  text-align: center;
+  padding: 16px 0;
 }
-.icon-btn {
+.resume-select-popper .rs-foot {
+  display: flex;
+  gap: 8px;
+  border-top: 1px solid var(--skin-border, #e4e4e7);
+  padding-top: 8px;
+}
+.resume-select-popper .icon-btn {
   border: none;
   background: transparent;
   cursor: pointer;
@@ -209,10 +330,10 @@ async function handleDelete(item: ResumeRecord) {
   display: inline-flex;
   align-items: center;
 }
-.icon-btn:hover {
+.resume-select-popper .icon-btn:hover {
   background: var(--skin-border, #e4e4e7);
 }
-.icon-btn.is-danger:hover {
+.resume-select-popper .icon-btn.is-danger:hover {
   color: #e34d59;
 }
 </style>

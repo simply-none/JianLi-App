@@ -122,22 +122,32 @@ export function renderResume(data: ResumeData, config: ResumeLayoutConfig): stri
     'print-color-adjust:exact',
   ].join(';')
 
-  // 按配置顺序渲染模块（隐藏/空内容跳过）；模块间距用 padding-bottom（进入高度测量）
-  const sectionsHtml = config.modules
-    .map((ms) => {
-      if (!ms.visible) return ''
-      // 自定义模块：按数据层 customSections 分发渲染
-      if (ms.id.startsWith(CUSTOM_PREFIX)) {
-        const secId = ms.id.slice(CUSTOM_PREFIX.length)
-        const sec = (data.customSections || []).find((s) => s.id === secId)
-        const html = sec ? renderCustomSection(sec, ms, page) : ''
-        return html ? `<div class="rfs-module" style="padding-bottom:${page.sectionGap}px">${html}</div>` : ''
-      }
+  // 按配置顺序渲染模块（隐藏/空内容跳过）
+  const rendered: string[] = []
+  config.modules.forEach((ms) => {
+    if (!ms.visible) return
+    let html = ''
+    // 自定义模块：按数据层 customSections 分发渲染
+    if (ms.id.startsWith(CUSTOM_PREFIX)) {
+      const secId = ms.id.slice(CUSTOM_PREFIX.length)
+      const sec = (data.customSections || []).find((s) => s.id === secId)
+      html = sec ? renderCustomSection(sec, ms, page) : ''
+    } else {
       const renderer = RENDERERS[ms.id as ModuleId]
-      const html = renderer ? renderer(data, ms, page) : ''
-      return html ? `<div class="rfs-module" style="padding-bottom:${page.sectionGap}px">${html}</div>` : ''
-    })
-    .filter(Boolean)
+      html = renderer ? renderer(data, ms, page) : ''
+    }
+    if (html) rendered.push(`<div class="rfs-module">${html}</div>`)
+  })
+  // 模块间距用独立的间隔元素（rfs-gap）实现，而非 .rfs-module 的 padding-bottom：
+  // 原方案在开启「模块内切断」时，分页会把单子节点的 .rfs-module 展平、其 padding-bottom 被
+  // 内层容器克隆覆盖丢弃，导致「页面全局-模块间距」设置无效；独立间隔元素可被分页原样保留。
+  // 仅在相邻可见模块之间插入，避免末尾多余空白。
+  const sectionsHtml = rendered
+    .map((h, i) =>
+      i < rendered.length - 1
+        ? `${h}<div class="rfs-gap" style="height:${page.sectionGap}px"></div>`
+        : h
+    )
     .join('')
 
   return `<!DOCTYPE html>

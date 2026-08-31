@@ -15,7 +15,7 @@
       <el-button
         text
         size="small"
-        :type="innerSplit ? 'primary' : ''"
+        :style="{ color: splitBtnColor }"
         title="开启后切页允许在模块内部切断，消除页尾大空白"
         @click="$emit('update:innerSplit', !innerSplit)"
       >
@@ -43,7 +43,7 @@ import ResumePaper from './ResumePaper.vue'
  * 默认按容器宽度自适应缩放（fit-width），支持 ± 手动微调与「适应宽度」重置；
  * 「排版」按钮经 open-style 事件交父组件打开排版弹窗。
  */
-defineProps<{
+const props = defineProps<{
   /** 模板渲染的完整 HTML 文档字符串 */
   html: string
   /** 模块内切断开关（默认开启） */
@@ -67,6 +67,13 @@ const zoom = ref<'fit' | number>('fit')
 
 /** 工具条展示用的百分比（fit 模式按 100% 近似展示） */
 const currentZoom = computed(() => (typeof zoom.value === 'number' ? zoom.value : 1))
+
+/** 模块内切断开关颜色：关闭=同色系淡紫（浅），开启=同色系浓紫（深），均跟随主题主色 */
+const splitBtnColor = computed(() =>
+  props.innerSplit
+    ? 'var(--color-primary)'
+    : 'color-mix(in srgb, var(--color-primary) 60%, white)'
+)
 
 /**
  * 步进缩放（±10%），并退出 fit 模式
