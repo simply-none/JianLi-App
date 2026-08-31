@@ -53,7 +53,7 @@ const isHiddenHomeBtns = ref(false)
 const { homeModeC, isIdleNow } = storeToRefs(useGlobalSetting());
 const { currentStateKey } = storeToRefs(useTipsRuntime());
 const { startScreenSaverFn, closeScreenSaverFn, injectState, endInjectedState } = useTipsActions();
-const { isPwdSame, isStoredPasswordDecryptable } = useSafetyProtection();
+const { verifyPassword } = useSafetyProtection();
 const curComponent = shallowRef(custom)
 
 watch(() => (homeModeC.value[isIdleNow.value ? 'idle' : currentStateKey.value] || {}), (n, o) => {
@@ -143,8 +143,8 @@ function closeLockedFn() {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
     inputType: 'password',
-  }).then(({ value }) => {
-    const same = isPwdSame(value);
+  }).then(async ({ value }) => {
+    const same = await verifyPassword(value);
     if (same) {
       closeScreenSaverFn()
       // 让主进程状态机解除「强制锁屏」非序列状态：
@@ -153,17 +153,8 @@ function closeLockedFn() {
       closeHomeBtnsFn()
     }
     else {
-      // 已存密文无法解密（RSAKey 被历史异常覆盖 / 密文损坏）：专属提示并直接去重置密码，
-      // 不再走密保问题流程，避免用户被永久卡在锁屏界面。
-      if (!isStoredPasswordDecryptable()) {
-        ElMessage.error('密码解密失败，请重新设置密码')
-        // closeScreenSaverFn()
-        endInjectedState()
-        closeHomeBtnsFn()
-        router.push('/safetyProtection')
-        return
-      }
-      // 密码输入错误（密文可解密但不匹配）：提供密保问题重置密码的出口
+      // 密码校验失败（新架构下密钥本机存在即可解密，失败即密码不匹配）：
+      // 提供密保问题重置密码的出口
       ElMessageBox.confirm(
         '密码校验失败。可通过密保问题重置密码后重新设置。是否前往安全防护页重置密码？',
         '密码错误',

@@ -59,6 +59,7 @@ export const RouteNames = {
   STICKER: "sticker",
   STOCK: "stock",
   STOCK_MINI: "stockMini",
+  EARNING: "earning",
   DOWNLOADER: "downloader",
   COLOR_PALETTE: "colorPalette",
   DATA_ACQUISITION: "dataAcquisition",
@@ -304,6 +305,14 @@ export const layoutRouters: RouteRecordRaw[] = [
     component: () => import("@/views/stock/index.vue"),
     meta: {
       title: "股票查询分析",
+    },
+  },
+  {
+    path: "/earning",
+    name: RouteNames.EARNING,
+    component: () => import("@/views/earning/index.vue"),
+    meta: {
+      title: "收益看板",
     },
   },
   {

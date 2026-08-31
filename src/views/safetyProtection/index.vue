@@ -16,19 +16,8 @@
         </h3>
       </div>
 
-      <!-- 密文解密失败提示条：RSAKey 不匹配 / 密文损坏时引导直接重置密码（不删任何数据） -->
-      <el-alert
-        v-if="pwdDecryptFailed"
-        title="密码解密失败，请重新设置密码"
-        description="检测到已存储的密码密文无法解密（密钥不匹配或密文损坏），请直接在此重新设置密码。"
-        type="error"
-        :closable="false"
-        show-icon
-        class="decrypt-failed-alert"
-      />
-
       <div class="security-card">
-        <div class="form-group" v-if="passwordC">
+        <div class="form-group" v-if="hasPassword">
           <label class="form-label">
             <LucideIcon class="label-icon" name="Lock" :size="16" />
             当前密码状态
@@ -41,7 +30,7 @@
           </div>
         </div>
 
-        <div class="form-group" v-if="!passwordC">
+        <div class="form-group" v-if="!hasPassword">
           <label class="form-label">
             <LucideIcon class="label-icon" name="Lock" :size="16" />
             当前密码状态
@@ -55,13 +44,13 @@
           </div>
         </div>
 
-        <div class="form-group" v-if="passwordC && !pwdDecryptFailed">
+        <div class="form-group" v-if="hasPassword">
           <label class="form-label">
             <LucideIcon class="label-icon" name="Lock" :size="16" />
             原密码校验
           </label>
           <el-input 
-            v-model="verifyPassword" 
+            v-model="verifyPasswordInput" 
             type="password" 
             placeholder="请输入原密码进行校验"
             class="form-input"
@@ -77,7 +66,7 @@
           <div v-if="showValidatePwdQuestionBtn" class="validate-hint">
             <LucideIcon class="hint-icon" name="CircleAlert" :size="16" />
             密码校验失败，是否通过密保问题重置密码？
-            <el-button link @click="showValidatePwdQuestion = true">校验密保问题</el-button>
+            <el-button link @click="openRecovery">校验密保问题</el-button>
           </div>
         </div>
 
@@ -160,7 +149,7 @@
 
       <div class="security-card">
         <!-- 修改密保需先验证密码（密文损坏时跳过校验入口，仅可查看） -->
-        <div class="form-group" v-if="!isQuestionPwdVerified && !pwdDecryptFailed">
+        <div class="form-group" v-if="!isQuestionPwdVerified">
           <label class="form-label">
             <LucideIcon class="label-icon" name="Lock" :size="16" />
             查看或修改密保需验证密码
@@ -302,67 +291,28 @@ import { ref, watch, toRaw, onMounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import { ElMessage } from 'element-plus';
 import useSafetyProtection from '@/store/useSafetyProtection';
-import { sendSync } from '@/utils/common';
 import LucideIcon from '@/components/LucideIcon.vue';
 
-const { passwordC, pwdQuestionListC } = storeToRefs(useSafetyProtection());
-const { setPassword, isPwdSame, isStoredPasswordDecryptable, setPwdQuestionList } = useSafetyProtection();
-const passwordCc = ref(passwordC.value);
+const { hasPassword, hasQuestions } = storeToRefs(useSafetyProtection());
+const { setPassword, setPwdQuestionList, verifyPassword, unlockQuestions, getRecoveryQuestions, verifyAnswer, init } = useSafetyProtection();
 const ischeckPassword = ref(false);
 const activeAnswer = ref(0);
 const showValidatePwdQuestion = ref(false);
 const showValidatePwdQuestionBtn = ref(false);
 const showValidatePwdQuestionList = ref(false);
-// 已存密文是否无法解密（RSAKey 不匹配 / 密文损坏），用于引导直接重置
-const pwdDecryptFailed = ref(false);
+// 密保问题列表（编辑/恢复共用，按需从主进程取回明文，不在渲染端存储）
+const pwdQuestionListCc = ref<ObjectType[]>([]);
 
-watch(() => passwordC.value, (newVal) => {
-  passwordCc.value = newVal;
-  ischeckPassword.value = passwordCc.value ? false : true;
-}, { immediate: true, deep: true });
-
-// 进入页面检测：若已设密码但密文无法解密，提示并允许直接重置（不删任何数据）
 onMounted(() => {
-  if (passwordCc.value && !isStoredPasswordDecryptable()) {
-    pwdDecryptFailed.value = true;
-    // 解密失败：直接展开「新密码 / 确认密码」表单，跳过原密码校验框
-    ischeckPassword.value = true;
-    ElMessage.warning('密码解密失败，请重新设置密码');
-  }
+  init();
 });
 
-// 密保答案在存储层为密文，进入编辑/展示前解密为明文供用户查看与修改；
-// answerEnc 保留原始密文，专供「密保重置密码」流程的 isPwdSame 比对（compare-pwd 需传入密文）。
-function decryptAnswer(enc: string): string {
-  if (!enc) return '';
-  try {
-    const res = sendSync('decrypt-pwd', { text: enc });
-    if (res && res.ok) return res.decrypted ?? '';
-    return enc; // 解密失败（密钥不匹配/密文损坏）时保留原密文，避免崩溃
-  } catch (e) {
-    return enc;
-  }
-}
-
-function buildPwdQuestionList(src: any[]) {
-  return (src || []).map((item) => {
-    const answerEnc = (item && item.answer) || '';
-    return {
-      ...item,
-      answerEnc,
-      answer: decryptAnswer(answerEnc),
-    };
-  });
-}
-
-const pwdQuestionListCc = ref(buildPwdQuestionList(pwdQuestionListC.value));
-watch(() => pwdQuestionListC.value, (newVal) => {
-  pwdQuestionListCc.value = buildPwdQuestionList(newVal);
-});
+// 密保问题列表在存储层为密文，进入编辑/恢复流程时由主进程解密后按需取回明文，
+// 渲染端不保存任何密文或明文副本（仅本组件内存态用于展示/编辑）。
 
 const newPassword = ref('');
 const confirmPassword = ref('');
-const verifyPassword = ref('');
+const verifyPasswordInput = ref('');
 // 密保修改专用：校验密码后解锁编辑（与密码设置区的校验相互独立，避免耦合）
 const verifyQuestionPwd = ref('');
 const isQuestionPwdVerified = ref(false);
@@ -426,31 +376,19 @@ function getStrengthClass(password: string, index: number) {
   return '';
 }
 
-function checkPassword() {
-  if (!passwordCc.value) {
-    ElMessage.error('当前系统无原密码，校验通过');
+async function checkPassword() {
+  // 未设置密码：无需校验，直接展开设置表单
+  if (!hasPassword.value) {
     ischeckPassword.value = true;
     return;
   }
-
-  // 密文无法解密（密钥不匹配 / 密文损坏）：直接展示重置表单，跳过原密码校验与密保问题，
-  // 让用户「直接重置密码」，且全程不删除任何数据。
-  if (!isStoredPasswordDecryptable()) {
-    ElMessage.warning('密码解密失败，请重新设置密码');
-    pwdDecryptFailed.value = true;
-    ischeckPassword.value = true;
-    return;
-  }
-
-  const hasSame = isPwdSame(verifyPassword.value, passwordCc.value)
-  if (hasSame) {
+  const matched = await verifyPassword(verifyPasswordInput.value);
+  if (matched) {
     ElMessage.success('密码校验成功');
     ischeckPassword.value = true;
-    return;
   } else {
     ElMessage.error('密码校验失败');
     showValidatePwdQuestionBtn.value = true;
-    return;
   }
 }
 
@@ -458,21 +396,22 @@ function addPwdQuestion() {
   pwdQuestionListCc.value.push({ question: '', answer: '', isAdd: true });
 }
 
-// 进入密保修改前校验密码：正确则解锁编辑，错误提示；无密码/密文损坏时按既有策略处理
-function verifyQuestionPwdFn() {
+// 进入密保修改前校验密码：正确则解锁编辑（并取回明文答案），错误提示；无密码时直接放行
+async function verifyQuestionPwdFn() {
   // 系统未设置密码：直接放行（与 checkPassword 一致）
-  if (!passwordCc.value) {
+  if (!hasPassword.value) {
     isQuestionPwdVerified.value = true;
     showQuestionPwdFailed.value = false;
-    ElMessage.success('校验通过，可修改密保问题');
+    ElMessage.success('未设置密码，可直接新增密保问题');
     return;
   }
-  // 已存密文无法解密（密钥不匹配 / 密文损坏）：交由顶部重置提示引导，此处不解锁
-  if (!isStoredPasswordDecryptable()) {
-    ElMessage.warning('密码解密失败，请先在上方重新设置密码');
-    return;
-  }
-  if (isPwdSame(verifyQuestionPwd.value, passwordCc.value)) {
+  const matched = await verifyPassword(verifyQuestionPwd.value);
+  if (matched) {
+    // 校验通过：取回明文问题 + 答案供编辑
+    const list = await unlockQuestions(verifyQuestionPwd.value);
+    if (list) {
+      pwdQuestionListCc.value = list.map((item: ObjectType) => ({ ...item, isAdd: false }));
+    }
     isQuestionPwdVerified.value = true;
     showQuestionPwdFailed.value = false;
     ElMessage.success('校验通过，可修改密保问题');
@@ -489,14 +428,8 @@ function cancelQuestionPwdVerify() {
   showQuestionPwdFailed.value = false;
 }
 
-// 显示/收起密保问题：查看也需先验证密码（密文损坏无法校验时，仅可查看不可修改）
+// 显示/收起密保问题：查看需先验证密码
 function toggleShowPwdQuestion() {
-  // 密文损坏无法解密：无密码可校验，允许直接查看（只读态）
-  if (pwdDecryptFailed.value) {
-    showValidatePwdQuestionList.value = !showValidatePwdQuestionList.value;
-    return;
-  }
-  // 未验证密码：拦截查看，提示先校验
   if (!isQuestionPwdVerified.value) {
     ElMessage.warning('查看密保问题需先验证密码');
     return;
@@ -534,11 +467,23 @@ function savePwdQuestion() {
   ElMessage.success('密保修改成功');
 }
 
-function validatePwdQuestion() {
+// 打开「忘记密码 → 密保找回」流程：拉取仅含问题的列表（无答案），并展开验证弹窗
+async function openRecovery() {
+  const questions = await getRecoveryQuestions();
+  if (!questions || questions.length === 0) {
+    ElMessage.warning('尚未设置密保问题，无法使用密保找回');
+    return;
+  }
+  pwdQuestionListCc.value = questions.map((q: { question: string }) => ({ question: q.question, answerValid: '' }));
+  activeAnswer.value = 0;
+  showValidatePwdQuestion.value = true;
+}
+
+// 逐步校验密保答案（恢复流程）；全部通过则允许重置密码
+async function validatePwdQuestion() {
   const item = pwdQuestionListCc.value[activeAnswer.value];
-  // 比对必须用原始密文 answerEnc（compare-pwd 内部会先解密再与明文 answerValid 比较）
-  const hasSame = isPwdSame(item.answerValid, item.answerEnc)
-  if (hasSame) {
+  const matched = await verifyAnswer(activeAnswer.value, item?.answerValid || '');
+  if (matched) {
     activeAnswer.value = activeAnswer.value + 1;
 
     if (activeAnswer.value == pwdQuestionListCc.value?.length) {

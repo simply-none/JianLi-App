@@ -8,7 +8,10 @@ import colors from "colors";
 export let store = new ElectronStore();
 
 export const tableName = "basic_info";
-const disabledShowKeys = ["RSAKey", "password"];
+// 设备绑定主密钥（vault/deviceKey.ts 写入 electron-store），属敏感密钥，需从调试视图隐藏
+// 并在 replace-store / clear-store 时保留，避免被误清空导致已加密保险库无法解密。
+// 旧架构遗留的 RSAKey / password 已随 legacy crypto.ts 移除，不再隐藏。
+const disabledShowKeys = ["_device_master_key"];
 
 // 获取所有的store数据，同时过滤掉disabledShowKeys中的key
 export function getAllStore(): ObjectType {

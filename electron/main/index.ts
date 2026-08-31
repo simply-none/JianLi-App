@@ -3,7 +3,6 @@ import os from "node:os";
 import { initJob } from "./module/job.ts";
 import { initRecurrence } from "./module/recurrence.ts";
 import { initFile } from "./module/dialog.ts";
-import { initCrypto } from "./module/crypto.ts";
 import { initStore } from "./module/store.ts";
 import { initBackup } from "./module/backup.ts";
 import { initAppLock } from "./module/appLock.ts";
@@ -33,6 +32,7 @@ import { initTTS } from "./module/tts.ts";
 import { initEbook } from "./module/ebook.ts";
 import { initScreenshot } from "./module/screenshot.ts";
 import { initStock } from "./module/stock.ts";
+import { initSinaFinance } from "./module/sinaFinance.ts";
 import { initBrowserDownload } from "./module/browserDownload.ts";
 import { initBrowserSniffer } from "./module/browserSniffer.ts";
 import { initBrowserYtDlp } from "./module/browserYtDlp.ts";
@@ -43,6 +43,7 @@ import { initResume } from "./module/resume.ts";
 import { initQrCode } from "./module/qrcode.ts";
 import { initTwoFactor } from "./module/twoFactor.ts";
 import { initPasswordVault } from "./module/passwordVault.ts";
+import { initSafetyProtection } from "./module/safetyProtection.ts";
 
 registerJlocalProtocolBefore()
 
@@ -101,10 +102,10 @@ async function createWindow() {
   initFile();
   // 资源管理（文本预览读取 + 物理文件删除）
   initResource();
-  // 数据加密解密
-  initCrypto();
-  // 应用锁 / 隐私模式（依赖 DB 与加密密钥，须在 initCrypto 之后）
+  // 应用锁 / 隐私模式（依赖 DB）
   initAppLock();
+  // 安全保护（密保）：与 2FA/应用锁共用 vault/crypto 加密架构，密钥来源为设备绑定主密钥
+  initSafetyProtection();
   // 托盘图标
   initTray();
   // 系统信息监控
@@ -139,6 +140,8 @@ async function createWindow() {
   initScreenshot();
   // 股票查询模块（TickFlow，主进程查询，依赖数据库基础表）
   initStock();
+  // 新浪财经数据源模块（收益看板 earning：实时行情 / 净值 / 估值，免费无需 Key）
+  initSinaFinance();
   // 内置浏览器下载管理（拦截 webview 会话的 will-download）
   initBrowserDownload();
   // 内置浏览器资源嗅探（webRequest 挂钩 persist:browser 会话）

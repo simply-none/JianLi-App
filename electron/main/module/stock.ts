@@ -4,8 +4,9 @@
  * 合并自原 src/stock/{types,client,index}.ts，统一放在主进程模块下。
  *
  * - 通过 8 个 IPC 通道暴露图中接口，实际网络请求在主进程完成（绕开 CORS、保护 API Key）。
- * - API Key 加密后存入数据库基础表 basic_info（key = tickflow_api_key），读取后缓存到内存。
- * - 加密复用项目的 crypto 模块（RSA 公钥加密 / 私钥解密），与密码存储方式一致。
+ * - API Key 经 vault/crypto.ts（AES-256-GCM + PBKDF2）以「设备绑定主密钥」加密后，
+ *   信封存于基础表 basic_info（key = stockVault），明文仅驻留主进程内存，读取后缓存到内存。
+ * - 与 2FA / 应用锁 / 密保共用同一套密钥安全架构（详见 ./vault/crypto.ts）。
  * - 网络请求使用 Node 22 自带的全局 fetch，零额外依赖。
  *
  * 文档参考：https://docs.tickflow.org/zh-Hans/api-reference
@@ -36,7 +37,9 @@ import {
   getWatchlist,
 } from './stockCache.ts'
 import { tableName as basicInfoTable } from './store.ts'
-import { encrypt, decrypt, generateRSAKeyPair } from './crypto.ts'
+import { del } from './newSql.ts'
+import { encryptVault, decryptVault, type VaultEnvelope } from './vault/crypto.ts'
+import { getDeviceMasterKey } from './vault/deviceKey.ts'
 
 /* ===================== 类型定义 ===================== */
 
@@ -448,16 +451,24 @@ function getUniverseDetail(apiKey: string, params: { id: string }): Promise<Univ
   return tickflowRequest<UniverseDetail>(apiKey, `/universes/${encodeURIComponent(id)}`)
 }
 
-/* ===================== API Key 管理（基础表） ===================== */
+/* ===================== API Key 管理（基础表，设备绑定密钥加密） ===================== */
 
-/** 基础表中存储 API Key 的键名 */
-const API_KEY_DB_KEY = 'tickflow_api_key'
+/**
+ * 股票 API Key 保险库在 basic_info 中的存储键。
+ *
+ * 与 2FA / 应用锁 / 密保共用同一套 vault/crypto 加密架构（AES-256-GCM + PBKDF2），
+ * 密钥来源为「设备绑定主密钥」（deviceKey.ts），明文仅驻留主进程内存。
+ *
+ * 旧实现用 legacy crypto.ts 的 RSA + 硬编码口令，密文存 basic_info(tickflow_api_key)。
+ * 本项目采用「强制重新录入」：initStock 启动时清理旧的 tickflow_api_key 行，旧密文不再被读取。
+ */
+const API_KEY_DB_KEY = 'stockVault'
 
 /** 内存缓存（解密后的明文 Key），避免每次请求都读库解密 */
 let cachedApiKey = ''
 
 /** 查询基础表某 key 的 value（已 JSON.parse），不存在返回 null */
-function queryBasicInfoValue(key: string): Promise<string | null> {
+function queryBasicInfoValue(key: string): Promise<unknown | null> {
   return new Promise((resolve) => {
     queryByConditions({
       db: myDb.db,
@@ -479,7 +490,7 @@ function queryBasicInfoValue(key: string): Promise<string | null> {
 }
 
 /** 写入基础表（value 以 JSON 字符串存储，与现有约定一致） */
-function upsertBasicInfo(key: string, value: string): Promise<void> {
+function upsertBasicInfo(key: string, value: unknown): Promise<void> {
   return new Promise((resolve, reject) => {
     upsertData({
       db: myDb.db,
@@ -491,47 +502,29 @@ function upsertBasicInfo(key: string, value: string): Promise<void> {
   })
 }
 
-/** 获取 RSA 密钥对：已存在则读取，不存在则用项目 crypto 模块生成并落库 */
-async function getRsaKeyPair(): Promise<{ publicKey: string; privateKey: string }> {
-  const raw = await queryBasicInfoValue('RSAKey')
-  // queryBasicInfoValue 内部已 JSON.parse 一次：正常落库为 JSON 字符串化的对象，
-  // 故此处 raw 已是 { publicKey, privateKey } 对象；兜底兼容 raw 仍为字符串的情况
-  if (raw) {
-    try {
-      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
-      if (parsed && parsed.publicKey && parsed.privateKey) {
-        return parsed
-      }
-    } catch {
-      // 解析失败则重新生成
-    }
-  }
-  // generateRSAKeyPair 内部会把新密钥对落库，保证加密/解密复用同一对密钥
-  return generateRSAKeyPair()
-}
-
 /** 读取并解密 API Key（带内存缓存） */
 async function getDecryptedApiKey(): Promise<string> {
   if (cachedApiKey) return cachedApiKey
-  const encrypted = await queryBasicInfoValue(API_KEY_DB_KEY)
-  if (!encrypted) return ''
+  const raw = await queryBasicInfoValue(API_KEY_DB_KEY)
+  // 旧版密文为 RSA 加密的 base64 字符串，缺少 vault 信封结构 → 视为未配置，强制重新录入
+  if (!raw || typeof raw !== 'object' || !('ct' in raw)) {
+    cachedApiKey = ''
+    return cachedApiKey
+  }
   try {
-    const { privateKey } = await getRsaKeyPair()
-    cachedApiKey = decrypt(encrypted, privateKey)
-    // 解密结果与密文相同（无法还原）视为未正确配置，强制 UI 重新录入
-    if (cachedApiKey === encrypted) cachedApiKey = ''
+    const arr = decryptVault<string>(raw as VaultEnvelope, getDeviceMasterKey())
+    cachedApiKey = arr[0] ?? ''
   } catch {
-    // 解密失败：密文与当前密钥对不匹配（如历史覆盖留下的脏数据），视为未配置
+    // GCM 认证失败（设备密钥不匹配 / 信封损坏）→ 视为未配置，强制重新录入
     cachedApiKey = ''
   }
   return cachedApiKey
 }
 
-/** 加密并保存 API Key */
+/** 加密并保存 API Key（信封落 basic_info，明文仅留内存） */
 async function setApiKey(plain: string): Promise<void> {
-  const { publicKey } = await getRsaKeyPair()
-  const encrypted = encrypt(plain, publicKey)
-  await upsertBasicInfo(API_KEY_DB_KEY, encrypted)
+  const env = encryptVault<string>([plain], getDeviceMasterKey())
+  await upsertBasicInfo(API_KEY_DB_KEY, env)
   cachedApiKey = plain
 }
 
@@ -586,6 +579,9 @@ async function cachedHandler<T, P>(
 export function initStock() {
   // 预热内存缓存（不阻塞，失败静默）
   getDecryptedApiKey().catch(() => {})
+
+  // 清理遗留的旧版 RSA 加密 API Key（tickflow_api_key，强制重新录入，旧密文不再读取）
+  del({ tableName: basicInfoTable, condition: { key: 'tickflow_api_key' } }).catch(() => {})
 
   // 加载缓存 TTL 覆盖配置（失败静默，回退到元数据默认值）
   loadTtlOverrides().catch(() => {})

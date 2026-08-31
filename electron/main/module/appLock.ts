@@ -3,27 +3,34 @@
  *
  * 功能：
  * 1. 应用锁：锁定时主窗口显示锁屏遮罩（渲染端 AppLock.vue），所有小窗/贴纸窗临时隐藏，
- *    输入密码解锁后恢复。密码经 RSA 公钥加密落 basic_info（appLockPassword），明文不经过渲染端。
+ *    输入密码解锁后恢复。密码经 vault/crypto.ts（AES-256-GCM + PBKDF2）以「用户口令」为密钥
+ *    加密一个哨兵串后存 basic_info(appLockVault)，明文密码绝不存储、绝不进渲染端。
  * 2. 锁定触发（均需用户在设置页开启对应开关，默认不触发）：
- *    - 手动锁定：快捷键（register_shortcut 表 lock_app 动作）/ 设置页按钮 / 命令面板
+ *    - 手动锁定：快捷键 / 设置页按钮 / 命令面板
  *    - 启动时锁定：应用启动后自动进入锁定态
  *    - 最小化恢复时锁定：主窗口 restore/show 回前台时自动锁定
- * 3. 隐私模式（老板键）：快捷键（privacy_hide 动作）一键隐藏全部窗口，再按恢复；
+ * 3. 隐私模式（老板键）：快捷键一键隐藏全部窗口，再按恢复；
  *    锁定态下恢复时不还原小窗（保持锁定隐私）。
  *
- * 安全设计：
- * - 校验/解密全部在本模块完成，用异步 ipcMain.handle（避开 decrypt-pwd 同步通道阻塞渲染线程的坑）
- * - 复用 crypto.ts 的同一对 RSAKey（basic_info），密钥不落地渲染端
+ * 安全设计（与 2FA / 密码管理统一）：
+ * - 复用 vault/crypto.ts 的同一套 AES-256-GCM + PBKDF2 原语，密钥由用户口令派生；
+ * - 明文（哨兵串）仅驻留主进程内存，加密信封存于 basic_info，绝不进业务数据库；
+ * - 校验/解密全部在本模块完成，用异步 ipcMain.handle（避开同步通道阻塞渲染线程的坑）。
+ *
+ * 迁移说明：旧实现用 legacy crypto.ts 的 RSA + 硬编码口令，密码存于 basic_info(appLockPassword)。
+ * 本项目采用「强制重新录入」，initAppLock 启动时清理遗留的 RSAKey / appLockPassword / electron-store
+ * 的 password / pwdQuestionList，旧密文不再被读取。
  */
 import { ipcMain, BrowserWindow } from "electron";
-import crypto from "node:crypto";
 import { query, upsert, del } from "./newSql.ts";
-import { tableName } from "./store.ts";
-import { safePrivateDecrypt } from "./crypto.ts";
+import { tableName, store } from "./store.ts";
 import { win } from "./mainWindow.ts";
+import { encryptVault, decryptVault, type VaultEnvelope } from "./vault/crypto.ts";
 
-/** 密码密文在 basic_info 中的存储键 */
-const PASSWORD_KEY = "appLockPassword";
+/** 保险库在 basic_info 中的存储键 */
+const PASSWORD_KEY = "appLockVault";
+/** 加密哨兵：解密成功且包含该串即代表口令正确（明文密码永不存储） */
+const SENTINEL = "__app_lock_sentinel__";
 /** 启动时锁定配置键（bool，默认 false） */
 const LOCK_ON_STARTUP_KEY = "appLockOnStartup";
 /** 最小化恢复时锁定配置键（bool，默认 false） */
@@ -39,50 +46,17 @@ let isLocked = false;
 let hiddenWindows: BrowserWindow[] = [];
 
 /**
- * 从 basic_info 读取 RSA 密钥对（复用 crypto.ts 首次生成的密钥，绝不在此重新生成）
+ * 从 basic_info 读取应用锁保险库信封；不存在或损坏返回 null
  *
- * @returns {Promise<{ publicKey: string; privateKey: string } | null>} 密钥对；读取失败返回 null
+ * @returns {Promise<VaultEnvelope | null>} 信封；缺失/损坏返回 null
  */
-async function getRSAKeyPair(): Promise<{ publicKey: string; privateKey: string } | null> {
-  try {
-    const data = await query({ tableName, conditions: { key: "RSAKey" } });
-    if (!data || data.length === 0) return null;
-    return JSON.parse(data[0].value);
-  } catch (err) {
-    console.error("[appLock] 读取 RSAKey 失败:", err);
-    return null;
-  }
-}
-
-/**
- * 读取 basic_info 布尔配置（appLockOnStartup / appLockOnRestore）
- *
- * @param {string} key - 配置键
- * @returns {Promise<boolean>} 配置值；缺失或解析失败返回 false（默认不触发）
- */
-async function readBoolConfig(key: string): Promise<boolean> {
-  try {
-    const data = await query({ tableName, conditions: { key } });
-    if (!data || data.length === 0) return false;
-    const value = data[0].value;
-    return value === true || value === "true" || value === 1 || value === "1";
-  } catch {
-    return false;
-  }
-}
-
-/**
- * 读取存储的密码密文
- *
- * @returns {Promise<string|null>} 密文；未设置或读取失败返回 null
- */
-async function getStoredPassword(): Promise<string | null> {
+async function readVaultEnvelope(): Promise<VaultEnvelope | null> {
   try {
     const data = await query({ tableName, conditions: { key: PASSWORD_KEY } });
-    if (!data || data.length === 0 || !data[0].value) return null;
-    return data[0].value;
+    if (!data || data.length === 0) return null;
+    return JSON.parse(data[0].value) as VaultEnvelope;
   } catch (err) {
-    console.error("[appLock] 读取密码密文失败:", err);
+    console.error("[appLock] 读取保险库信封失败:", err);
     return null;
   }
 }
@@ -94,15 +68,15 @@ async function getStoredPassword(): Promise<string | null> {
  * @returns {Promise<boolean>} 是否匹配；未设置密码返回 false
  */
 async function verifyPassword(text: string): Promise<boolean> {
-  const stored = await getStoredPassword();
-  if (!stored) return false;
-  const keyPair = await getRSAKeyPair();
-  if (!keyPair) return false;
-  // 必须走 crypto.ts 的 safePrivateDecrypt：私钥生成时带了 aes-256-cbc 口令加密，
-  // 此处若自行调用 privateDecrypt 漏传 passphrase 会必然抛错（表现为正确密码也解锁失败）。
-  // 该函数同时兼容历史密文外层 JSON 引号、并兜底异常不让其冒泡。
-  const res = safePrivateDecrypt(stored, keyPair.privateKey);
-  return res.ok && res.decrypted === text;
+  const env = await readVaultEnvelope();
+  if (!env) return false;
+  try {
+    const arr = decryptVault<string>(env, text);
+    return arr.includes(SENTINEL);
+  } catch {
+    // GCM 认证失败（口令错误 / 信封损坏）→ 视为不匹配
+    return false;
+  }
 }
 
 /**
@@ -227,8 +201,50 @@ async function shouldLockOnRestore(): Promise<boolean> {
   if (isLocked) return false;
   if (Date.now() - initializedAt < STARTUP_GUARD_MS) return false;
   if (!(await readBoolConfig(LOCK_ON_RESTORE_KEY))) return false;
-  const stored = await getStoredPassword();
-  return !!stored;
+  return (await readVaultEnvelope()) !== null;
+}
+
+/**
+ * 读取 basic_info 布尔配置（appLockOnStartup / appLockOnRestore）
+ *
+ * @param {string} key - 配置键
+ * @returns {Promise<boolean>} 配置值；缺失或解析失败返回 false（默认不触发）
+ */
+async function readBoolConfig(key: string): Promise<boolean> {
+  try {
+    const data = await query({ tableName, conditions: { key } });
+    if (!data || data.length === 0) return false;
+    const value = data[0].value;
+    return value === true || value === "true" || value === 1 || value === "1";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 启动时清理遗留的旧密钥（强制重新录入策略）
+ *
+ * 旧实现用 legacy crypto.ts 的 RSA + 硬编码口令，相关密文存于 basic_info(RSAKey / appLockPassword)
+ * 与 electron-store(password / pwdQuestionList)。新架构不读取这些旧密文，直接清理避免误导。
+ *
+ * @returns {Promise<void>}
+ */
+async function migrateLegacySecrets(): Promise<void> {
+  const legacyKeys = ["RSAKey", "appLockPassword"];
+  for (const key of legacyKeys) {
+    try {
+      await del({ tableName, condition: { key } });
+    } catch (err) {
+      console.error(`[appLock] 清理遗留键 ${key} 失败:`, err);
+    }
+  }
+  for (const key of ["password", "pwdQuestionList"]) {
+    try {
+      store.delete(key);
+    } catch (err) {
+      console.error(`[appLock] 清理 electron-store ${key} 失败:`, err);
+    }
+  }
 }
 
 /**
@@ -245,20 +261,18 @@ async function shouldLockOnRestore(): Promise<boolean> {
 export function initAppLock() {
   initializedAt = Date.now();
 
+  // 启动即清理遗留旧密钥（不阻塞）
+  migrateLegacySecrets().catch((err) => console.error("[appLock] 迁移清理异常:", err));
+
   // 设置密码（首次开启或修改）：主进程内加密落库，明文不经过渲染端存储
   ipcMain.handle("app-lock:set-password", async (_e, params: { text: string }) => {
     try {
       const { text } = params || ({} as any);
       if (!text || typeof text !== "string") return { ok: false, error: "密码不能为空" };
-      const keyPair = await getRSAKeyPair();
-      if (!keyPair) return { ok: false, error: "加密密钥未就绪，请稍后重试" };
-      const encrypted = crypto.publicEncrypt(
-        { key: keyPair.publicKey, padding: crypto.constants.RSA_PKCS1_OAEP_PADDING, oaepHash: "sha256" },
-        Buffer.from(text)
-      );
+      const env = encryptVault<string>([SENTINEL], text);
       await upsert({
         tableName,
-        data: { key: PASSWORD_KEY, value: encrypted.toString("base64") },
+        data: { key: PASSWORD_KEY, value: JSON.stringify(env) },
         config: { primaryKey: "key" },
       });
       return { ok: true };
@@ -303,10 +317,10 @@ export function initAppLock() {
 
   // 状态快照（渲染端初始化用：锁定态 + 是否已设密码 + 两个开关）
   ipcMain.handle("app-lock:get-state", async () => {
-    const stored = await getStoredPassword();
+    const env = await readVaultEnvelope();
     return {
       locked: isLocked,
-      hasPassword: !!stored,
+      hasPassword: !!env,
       onStartup: await readBoolConfig(LOCK_ON_STARTUP_KEY),
       onRestore: await readBoolConfig(LOCK_ON_RESTORE_KEY),
     };
@@ -336,8 +350,7 @@ export function initAppLock() {
     try {
       const enabled = await readBoolConfig(LOCK_ON_STARTUP_KEY);
       if (!enabled) return;
-      const stored = await getStoredPassword();
-      if (!stored) return;
+      if (!(await readVaultEnvelope())) return;
       lockAppNow();
     } catch (err) {
       console.error("[appLock] 启动锁定检查异常:", err);

@@ -1,126 +1,125 @@
-import { computed, onMounted, ref, toRaw } from "vue";
-import { defineStore, storeToRefs } from "pinia";
-import { getStore, sendSync, setStore } from "../utils/common";
-import { initPiniaStatus, type defaultField } from "@/utils/store";
-import { ElMessage } from "element-plus";
+import { defineStore } from "pinia";
+import { ref } from "vue";
 
+/**
+ * 安全保护（密保）store
+ *
+ * 安全设计（与 2FA / 应用锁统一）：
+ * - 所有加解密、明文比对均在主进程完成（safetyProtection.ts），
+ *   渲染端只持有「是否已设密码 / 是否已有密保」状态标志与按需取回的明文。
+ * - 不再使用 legacy crypto.ts 的 RSA + 硬编码口令，也不再把密文写进 electron-store。
+ * - 设备绑定主密钥（deviceKey）在主进程持有，渲染端永不接触密钥本身。
+ */
 export default defineStore("safety-protection", () => {
-  // 密码
-  const password = ref();
-  const passwordC = computed(() => password.value);
+  /** 是否已设置防护密码 */
+  const hasPassword = ref(false);
+  /** 是否已有密保问题 */
+  const hasQuestions = ref(false);
 
-  function setPassword(value: string) {
-    const encryText = sendSync("encrypt-pwd", { text: value });
-    password.value = encryText;
-    setStore("password", encryText);
-  }
-
-  // 新旧密码验证是否相同,给下面的函数名称 重新语义化命名
-  function isPwdSame(value: string, oldValue?: string) {
-    console.log(passwordC.value, 'passwordC.value')
-    const encryText = sendSync("compare-pwd", {
-      text: value,
-      encryptText: oldValue || passwordC.value,
-    });
-    return encryText;
-  }
-
-  // 检测已存储的密码密文是否可被当前 RSAKey 解密成功。
-  // 用于区分「解密失败（密钥不匹配/密文损坏）」与「密码输入错误」，
-  // 解密失败时应引导用户直接重置密码，而非困在密保流程。
-  function isStoredPasswordDecryptable(): boolean {
-    // 未设置密码时无需解密，视为可解密
-    if (!passwordC.value) return true;
+  /**
+   * 初始化：拉取状态快照（是否已设密码 / 是否已有密保）
+   *
+   * @returns {Promise<void>}
+   */
+  async function init(): Promise<void> {
     try {
-      const res = sendSync("decrypt-pwd", { text: passwordC.value });
-      return !!(res && res.ok);
-    } catch (error) {
-      // 接口异常时保守按「可解密」处理，避免误触发重置流程
-      console.error("[safety-protection] 检测密码可解密性失败:", error);
-      return true;
+      const state = await window.ipcRenderer.handlePromise("safety:get-state", {});
+      hasPassword.value = !!state?.hasPassword;
+      hasQuestions.value = !!state?.hasQuestions;
+    } catch (err) {
+      console.error("[safety-protection] 初始化状态失败:", err);
     }
   }
 
-  // 密保问题，总共有3个问题
-  const pwdQuestionList = ref();
-  const pwdQuestionListC = computed(() => pwdQuestionList.value);
-
-  function setPwdQuestionList(value: ObjectType[] = []) {
-    // 先加密
-    try {
-      const newValue = value.map((item) => {
-        const answer = sendSync("encrypt-pwd", { text: item.answer });
-        return {
-          question: item.question,
-          answer: answer,
-        }
-      });
-      // 整体覆盖（修改原有项 / 新增项都以传入的完整列表替换存储，避免追加造成重复）
-      pwdQuestionList.value = toRaw(newValue);
-      setStore("pwdQuestionList", pwdQuestionList.value);
-    } catch (error) {
-      ElMessage.error(error + '');
-    }
+  /** 重新拉取状态快照 */
+  async function refresh(): Promise<void> {
+    await init();
   }
 
-  // pinia状态初始化
-  function init() {
-    // 布尔值变量
-    const boolVars: defaultField[] = [];
-    // 数字值变量
-    const numberVars: defaultField[] = [];
-    // 字符串值变量
-    const stringVars: defaultField[] = [
-      { field: "password", default: "", map: password },
-    ];
-    // 颜色值变量
-    const colorVars: defaultField[] = [];
-    // 字体值变量
-    const fontVars: defaultField[] = [];
-
-    // 对象值变量
-    const objectVars: defaultField[] = [
-      {
-        field: "pwdQuestionList",
-        default: [],
-        map: pwdQuestionList, 
-      }
-    ];
-
-    // 所有的变量集合
-    const allVars: defaultField[] = [
-      ...boolVars,
-      ...numberVars,
-      ...stringVars,
-      ...colorVars,
-      ...fontVars,
-      ...objectVars,
-    ];
-
-    // 默认值赋值
-    initPiniaStatus(allVars);
+  /**
+   * 设置/修改防护密码（主进程加密落库，明文不经过渲染端存储）
+   *
+   * @param {string} text - 新密码明文（仅经 IPC 传给主进程加密）
+   * @returns {Promise<boolean>} 是否成功
+   */
+  async function setPassword(text: string): Promise<boolean> {
+    const res = await window.ipcRenderer.handlePromise("safety:set-password", { text });
+    if (res?.ok) hasPassword.value = true;
+    return !!res?.ok;
   }
 
-  function $reset() {
-    init();
+  /**
+   * 设置密保问题（主进程加密落库，明文不经过渲染端存储）
+   *
+   * @param {ObjectType[]} list - 问题列表 [{ question, answer }]
+   * @returns {Promise<boolean>} 是否成功
+   */
+  async function setPwdQuestionList(list: ObjectType[]): Promise<boolean> {
+    const questions = (list || []).map((item) => ({
+      question: (item.question || "").trim(),
+      answer: (item.answer || "").trim(),
+    }));
+    const res = await window.ipcRenderer.handlePromise("safety:set-questions", { questions });
+    if (res?.ok) hasQuestions.value = true;
+    return !!res?.ok;
   }
 
-  onMounted(() => {
-    init();
-  });
+  /**
+   * 校验防护密码（不改变任何状态）
+   *
+   * @param {string} text - 待校验明文密码
+   * @returns {Promise<boolean>} 是否匹配；未设置密码时返回 false（无密文可比）
+   */
+  async function verifyPassword(text: string): Promise<boolean> {
+    if (!hasPassword.value) return false;
+    const res = await window.ipcRenderer.handlePromise("safety:verify-password", { text });
+    return !!res?.matched;
+  }
+
+  /**
+   * 校验密码后取回明文问题+答案（供编辑查看）
+   *
+   * @param {string} text - 防护密码（用于校验）
+   * @returns {Promise<ObjectType[] | null>} 明文问题列表；校验失败返回 null
+   */
+  async function unlockQuestions(text: string): Promise<ObjectType[] | null> {
+    const res = await window.ipcRenderer.handlePromise("safety:unlock-questions", { text });
+    if (!res?.ok) return null;
+    return (res.questions || []) as ObjectType[];
+  }
+
+  /**
+   * 取回仅含问题的列表（无答案），供「忘记密码」恢复流程
+   *
+   * @returns {Promise<{ question: string }[]>}
+   */
+  async function getRecoveryQuestions(): Promise<{ question: string }[]> {
+    const res = await window.ipcRenderer.handlePromise("safety:get-recovery-questions", {});
+    return (res?.questions || []) as { question: string }[];
+  }
+
+  /**
+   * 校验指定序号的密保答案（恢复流程）
+   *
+   * @param {number} index - 问题序号
+   * @param {string} text - 用户填写的答案
+   * @returns {Promise<boolean>} 是否匹配
+   */
+  async function verifyAnswer(index: number, text: string): Promise<boolean> {
+    const res = await window.ipcRenderer.handlePromise("safety:verify-answer", { index, text });
+    return !!res?.matched;
+  }
 
   return {
-    // 变量
-    password,
-    passwordC,
-    pwdQuestionList,
-    pwdQuestionListC,
-    // 方法
+    hasPassword,
+    hasQuestions,
+    init,
+    refresh,
     setPassword,
-    isPwdSame,
-    isStoredPasswordDecryptable,
     setPwdQuestionList,
-    // 其他
-    $reset,
+    verifyPassword,
+    unlockQuestions,
+    getRecoveryQuestions,
+    verifyAnswer,
   };
 });
