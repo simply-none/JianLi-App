@@ -16,6 +16,7 @@
     <div v-if="!rows.length" class="empty">
       <LucideIcon name="Wallet" :size="32" />
       <p>还没有持仓，点击右上角「添加持仓」开始记录</p>
+      <p class="empty-sub">数据由新浪财经免费接口提供，请勿高频刷新以免被限流</p>
     </div>
 
     <!-- 数据行 -->
@@ -237,6 +238,11 @@ async function onRemove(row: HoldingRow) {
     p {
       margin: 0;
       font-size: 0.85rem;
+    }
+    .empty-sub {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      opacity: 0.85;
     }
   }
 

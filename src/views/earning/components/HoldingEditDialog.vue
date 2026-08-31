@@ -40,6 +40,13 @@
       </div>
 
       <div class="form-row">
+        <label class="form-label">所属组合</label>
+        <el-select v-model="form.portfolioId" class="form-control" :disabled="!portfolios.length">
+          <el-option v-for="p in portfolios" :key="p.id" :label="p.name" :value="p.id" />
+        </el-select>
+      </div>
+
+      <div class="form-row">
         <label class="form-label">买入日期</label>
         <el-date-picker v-model="form.buyDate" type="date" value-format="YYYY-MM-DD" placeholder="可选" />
       </div>
@@ -59,9 +66,12 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from 'vue'
 import AppDialog from '@/components/AppDialog.vue'
+import { useEarningStore } from '../store'
 import type { Holding, HoldingType } from '../types'
 
-const props = defineProps<{ modelValue: boolean; edit?: Holding | null }>()
+const props = defineProps<{ modelValue: boolean; edit?: Holding | null; portfolioId?: string }>()
+const store = useEarningStore()
+const portfolios = store.portfolios
 const emit = defineEmits<{
   (e: 'update:modelValue', v: boolean): void
   (e: 'submit', form: Omit<Holding, 'key' | 'created_at'> & { key?: string }): void
@@ -80,6 +90,7 @@ const form = reactive<{
   shares: number
   costPrice: number
   buyDate: string
+  portfolioId: string
 }>({
   type: 'stock',
   code: '',
@@ -87,6 +98,7 @@ const form = reactive<{
   shares: 0,
   costPrice: 0,
   buyDate: '',
+  portfolioId: 'default',
 })
 const error = ref('')
 
@@ -104,6 +116,7 @@ watch(
       form.shares = e.shares
       form.costPrice = e.costPrice
       form.buyDate = e.buyDate || ''
+      form.portfolioId = e.portfolioId || 'default'
     } else {
       form.type = 'stock'
       form.code = ''
@@ -111,6 +124,7 @@ watch(
       form.shares = 0
       form.costPrice = 0
       form.buyDate = ''
+      form.portfolioId = props.portfolioId || 'default'
     }
   },
   { immediate: true },
@@ -137,6 +151,7 @@ function onSubmit() {
     shares: form.shares,
     costPrice: form.costPrice,
     buyDate: form.buyDate || undefined,
+    portfolioId: form.portfolioId || 'default',
   }
   if (props.edit) payload.key = props.edit.key
   emit('submit', payload)

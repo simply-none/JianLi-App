@@ -57,7 +57,7 @@ let ro: ResizeObserver | null = null
 async function load() {
   loading.value = true
   try {
-    const r = await store.portfolioCurve(days.value)
+    const r = await store.portfolioCurve(days.value, store.currentPortfolioId.value)
     dates.value = r.dates
     returns.value = r.returns
     await nextTick()
@@ -166,9 +166,9 @@ onBeforeUnmount(() => {
   chart = null
 })
 
-// 持仓变化后刷新曲线
+// 持仓变化或切换组合后刷新曲线
 watch(
-  () => store.holdings.value.length,
+  [() => store.holdings.value.length, () => store.currentPortfolioId.value],
   () => load(),
 )
 </script>

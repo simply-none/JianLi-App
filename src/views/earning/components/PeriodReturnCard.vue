@@ -17,7 +17,7 @@
 
     <!-- 组合总收益 -->
     <div class="total-box" :class="cls(total)">
-      <span class="total-label">组合 {{ currentLabel }} 收益率</span>
+      <span class="total-label">{{ portfolioName }} · {{ currentLabel }} 收益率</span>
       <span class="total-value">{{ sign(total) }}{{ total.toFixed(2) }}%</span>
     </div>
 
@@ -44,7 +44,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useEarningStore } from '../store'
 
 const store = useEarningStore()
@@ -72,6 +72,11 @@ const loading = ref(false)
 function currentLabel(): string {
   return periodOptions.find((p) => p.days === days.value)?.label || ''
 }
+/** 当前组合名称（用于展示） */
+const portfolioName = computed(() => {
+  if (store.currentPortfolioId.value === 'all') return '全部组合'
+  return store.portfolios.value.find((p) => p.id === store.currentPortfolioId.value)?.name || '组合'
+})
 function sign(v: number): string {
   return v > 0 ? '+' : ''
 }
@@ -89,7 +94,7 @@ function barWidth(pct: number): number {
 async function load() {
   loading.value = true
   try {
-    const r = await store.periodReturns(days.value)
+    const r = await store.periodReturns(days.value, store.currentPortfolioId.value)
     total.value = r.total
     items.value = r.items
   } catch (e) {
@@ -105,6 +110,11 @@ function select(d: number) {
 }
 
 onMounted(() => load())
+// 切换组合后重载区间收益
+watch(
+  () => store.currentPortfolioId.value,
+  () => load(),
+)
 </script>
 
 <style scoped lang="scss">

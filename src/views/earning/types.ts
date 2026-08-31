@@ -23,6 +23,8 @@ export interface Holding {
   costPrice: number
   /** 买入日期 yyyy-MM-dd（可选） */
   buyDate?: string
+  /** 所属组合 id（落库列名为 portfolio_id）；缺省归入默认组合 */
+  portfolioId?: string
   /** 创建时间（落库自动写入） */
   created_at?: string
 }
@@ -133,4 +135,16 @@ export interface SinaBatchItem {
   quote?: SinaStockQuote
   nav?: SinaFundNav
   estimate?: SinaFundEstimate | null
+}
+
+/** 组合（收益分组） */
+export interface Portfolio {
+  /** 主键 id（如 p_<时间戳>，默认组合固定为 default） */
+  id: string
+  /** 组合名称 */
+  name: string
+  /** 排序权重（升序） */
+  sort?: number
+  /** 创建时间 */
+  created_at?: string
 }

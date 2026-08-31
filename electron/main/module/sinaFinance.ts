@@ -12,7 +12,10 @@
  *  - 基金盘中估值：       https://app.xincai.com/.../XinCaiFundService.getFundYuCeNav （新浪系）
  *    兜底（可开关，默认关）：天天基金 https://fundgz.1234567.com.cn/js/{code}.js
  *
- * 缓存策略：进程内 Map + TTL（行情 5s / K线 1h / 净值 24h），避免频繁回源。
+ * 缓存策略：进程内 Map + 动态 TTL。
+ *  - 交易时段：实时类 5s、缓变类（K线/净值）1h。
+ *  - 非交易时段（收盘后~开盘前、周末、节假日）：缓存到下一交易开盘（封顶 6h/12h），
+ *    保证收盘后仅回源一次，避免频繁调用接口。
  *
  * ⚠️ 本文件属主进程（electron/**），改动后必须重启 Electron 才生效。
  */
@@ -121,10 +124,59 @@ async function withCache<T>(key: string, ttl: number, fetcher: () => Promise<T>)
   return data
 }
 
-const TTL = {
-  realtime: 5_000,
-  kline: 3_600_000,
-  nav: 86_400_000,
+/** 实时类缓存封顶（非交易时段） */
+const REALTIME_CAP = 6 * 3600_000
+/** 缓变类缓存封顶（非交易时段） */
+const SLOW_CAP = 12 * 3600_000
+
+/* ===================== 市场时段（A 股） ===================== */
+
+/**
+ * 判断当前是否 A 股交易时段（本地时间）。
+ * 周一~周五，且处于 09:30-11:30 或 13:00-15:00。
+ * 注：不含法定节假日（节假日盘中无数据，回源取到的是上一交易日收盘值，无害）。
+ */
+function isMarketOpen(now = new Date()): boolean {
+  const day = now.getDay()
+  if (day === 0 || day === 6) return false
+  const mins = now.getHours() * 60 + now.getMinutes()
+  const morning = mins >= 9 * 60 + 30 && mins <= 11 * 60 + 30
+  const afternoon = mins >= 13 * 60 && mins <= 15 * 60
+  return morning || afternoon
+}
+
+/** 下一个交易日 09:30（跳过周末） */
+function nextTradingOpen(target = new Date()): Date {
+  const d = new Date(target)
+  d.setSeconds(0, 0)
+  // 若已越过今日 15:00，从明日算起
+  const mins = d.getHours() * 60 + d.getMinutes()
+  if (mins >= 15 * 60) d.setDate(d.getDate() + 1)
+  let guard = 0
+  while (guard++ < 10) {
+    const day = d.getDay()
+    if (day !== 0 && day !== 6) break
+    d.setDate(d.getDate() + 1)
+  }
+  d.setHours(9, 30, 0, 0)
+  return d
+}
+
+/** 距下一交易开盘的毫秒数 */
+function remainingToNextOpen(now = new Date()): number {
+  return Math.max(0, nextTradingOpen(now).getTime() - now.getTime())
+}
+
+/** 实时类（行情 / 估值）缓存 TTL：交易中 5s，非交易时段缓存到下一开盘（封顶 REALTIME_CAP） */
+function realtimeTtl(now = new Date()): number {
+  if (isMarketOpen(now)) return 5_000
+  return Math.min(remainingToNextOpen(now), REALTIME_CAP) || REALTIME_CAP
+}
+
+/** 缓变类（K线 / 净值）缓存 TTL：交易中 1h，非交易时段到下一开盘（封顶 SLOW_CAP） */
+function slowTtl(now = new Date()): number {
+  if (isMarketOpen(now)) return 3_600_000
+  return Math.min(remainingToNextOpen(now), SLOW_CAP) || SLOW_CAP
 }
 
 /* ===================== HTTP 基础 ===================== */
@@ -376,7 +428,14 @@ export async function getBatchQuote(
   const out: SinaBatchItem[] = []
 
   if (stocks.length) {
-    const quotes = await getStockQuotes(stocks.map((s) => s.symbol))
+    // 批量行情同样走进程缓存（动态 TTL：交易中 5s / 非交易时段到下一开盘）
+    const key = stocks
+      .map((s) => s.symbol.toLowerCase())
+      .sort()
+      .join(',')
+    const quotes = await withCache(`bq:stocks:${key}`, realtimeTtl(), () =>
+      getStockQuotes(stocks.map((s) => s.symbol)),
+    )
     const bySymbol = new Map(quotes.map((q) => [q.symbol.toLowerCase(), q]))
     for (const s of stocks) {
       out.push({ type: 'stock', symbol: s.symbol, quote: bySymbol.get(s.symbol.toLowerCase()) })
@@ -385,9 +444,15 @@ export async function getBatchQuote(
 
   for (const f of funds) {
     const code = f.symbol
-    const navList = await getFundNav(code)
+    // 净值按 code 缓存（动态 TTL）；非交易时段仅回源一次
+    const navList = await withCache(`bq:nav:${code}`, slowTtl(), () => getFundNav(code))
     const nav = navList[navList.length - 1]
-    const estimate = await getFundEstimate(code, estimateFallback)
+    // 估值短缓存（动态 TTL）
+    const estimate = await withCache(
+      `bq:est:${code}:${estimateFallback ? 'em' : 'sina'}`,
+      realtimeTtl(),
+      () => getFundEstimate(code, estimateFallback),
+    )
     out.push({ type: 'fund', symbol: code, nav, estimate: estimate || undefined })
   }
   return out
@@ -409,7 +474,7 @@ export function initSinaFinance() {
     try {
       const data = await withCache(
         `quotes:${Array.isArray(p?.codes) ? p.codes.join(',') : ''}`,
-        TTL.realtime,
+        realtimeTtl(),
         () => getStockQuotes(p?.codes || []),
       )
       return ok(data)
@@ -426,7 +491,7 @@ export function initSinaFinance() {
         if (!p?.symbol) return fail('缺少 symbol')
         const data = await withCache(
           `kline:${p.symbol}:${p.scale || 240}:${p.datalen || 320}`,
-          TTL.kline,
+          slowTtl(),
           () => getStockKline(p.symbol, p.scale, p.datalen),
         )
         return ok(data)
@@ -444,7 +509,7 @@ export function initSinaFinance() {
         if (!p?.code) return fail('缺少 code')
         const data = await withCache(
           `nav:${p.code}:${p.from || ''}:${p.to || ''}`,
-          TTL.nav,
+          slowTtl(),
           () => getFundNav(p.code, p.from, p.to),
         )
         return ok(data)
@@ -462,7 +527,7 @@ export function initSinaFinance() {
         if (!p?.code) return fail('缺少 code')
         const data = await withCache(
           `estimate:${p.code}:${p.fallback ? 'em' : 'sina'}`,
-          TTL.realtime,
+          realtimeTtl(),
           () => getFundEstimate(p.code, p.fallback),
         )
         return ok(data)
