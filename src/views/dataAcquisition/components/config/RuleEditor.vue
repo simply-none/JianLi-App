@@ -149,11 +149,11 @@ function removeRule(index: number): void {
 .header-tip {
   flex: 1;
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--text-muted);
 }
 .empty-tip {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--text-muted);
   padding: 8px 0;
 }
 .rule-row {
@@ -161,7 +161,7 @@ function removeRule(index: number): void {
   flex-direction: column;
   gap: 4px;
   padding: 8px;
-  border: 1px solid var(--el-border-color-lighter);
+  border: 1px solid var(--border-subtle);
   border-radius: 6px;
 }
 .rule-main {

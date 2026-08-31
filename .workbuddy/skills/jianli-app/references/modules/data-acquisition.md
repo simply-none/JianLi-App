@@ -43,3 +43,4 @@
 - 变换下拉仅 3 个预设（trim/number/date），replace/split 需走「JSON 配置（高级）」面板手工编辑
 - ResultView JSON 视图超 20 万字符截断；历史 data 超 2MB 不落库
 - 代理/无头设置变化时共享浏览器自动关闭重建（签名比对），进行中任务不受影响（各自上下文）
+- **UI 颜色必须走主题 token**：渲染端所有背景/文字/边框统一用自定义主题变量（`--bg-card`/`--bg-hover`/`--text-primary`/`--text-secondary`/`--text-muted`/`--border-subtle`/`--color-primary`/`--color-warning`/`--color-error` 等，每套主题都定义），派生色阶用 `color-mix(in srgb, var(--color-primary) N%, transparent)` 从基准变量算出。**禁止**直接用 Element Plus 的 `--el-*` 变量（如 `--el-fill-color-extra-light`、`--el-color-primary-light-9` 等）——部分主题并未定义这些 token，会回退到浅色 `:root` 值，导致该区域在深色/非默认主题下「不跟随系统主题变化」。

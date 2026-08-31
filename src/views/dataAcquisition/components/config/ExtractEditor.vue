@@ -119,20 +119,20 @@ function removeGroup(index: number): void {
 }
 .scope-chip {
   padding: 3px 12px;
-  border: 1px solid var(--el-border-color);
+  border: 1px solid var(--border-subtle);
   border-radius: 12px;
   font-size: 12px;
   cursor: pointer;
   user-select: none;
-  color: var(--el-text-color-regular);
+  color: var(--text-secondary);
 }
 .scope-chip:hover {
-  border-color: var(--el-color-primary-light-5);
+  border-color: color-mix(in srgb, var(--color-primary) 45%, transparent);
 }
 .scope-chip.active {
-  border-color: var(--el-color-primary);
-  color: var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
 }
 .scope-body {
   padding: 8px 0 0;

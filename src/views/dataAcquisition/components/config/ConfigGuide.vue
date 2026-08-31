@@ -208,23 +208,23 @@
 
 <style scoped>
 .config-guide {
-  border: 1px dashed var(--el-border-color);
+  border: 1px dashed var(--border-subtle);
   border-radius: 8px;
 }
 .guide-title {
   font-size: 13px;
   font-weight: 600;
-  color: var(--el-color-primary);
+  color: var(--color-primary);
 }
 .guide-body {
   font-size: 13px;
   line-height: 1.8;
-  color: var(--el-text-color-regular);
+  color: var(--text-secondary);
 }
 .guide-body h4 {
   margin: 14px 0 4px;
   font-size: 13px;
-  color: var(--el-text-color-primary);
+  color: var(--text-primary);
 }
 .guide-body ul {
   margin: 4px 0;
@@ -234,16 +234,16 @@
   margin: 2px 0;
 }
 .guide-body code {
-  background: var(--el-fill-color-light);
+  background: var(--bg-hover);
   padding: 1px 5px;
   border-radius: 4px;
   font-family: Consolas, Monaco, monospace;
   font-size: 12px;
-  color: var(--el-color-danger);
+  color: var(--color-error);
 }
 .tip {
   font-size: 12px;
-  color: var(--el-color-warning);
+  color: var(--color-warning);
   margin: 4px 0;
 }
 .selector-table {
@@ -254,15 +254,15 @@
 }
 .selector-table th,
 .selector-table td {
-  border: 1px solid var(--el-border-color-lighter);
+  border: 1px solid var(--border-subtle);
   padding: 4px 8px;
   text-align: left;
 }
 .selector-table th {
-  background: var(--el-fill-color-light);
+  background: var(--bg-hover);
 }
 .code-block {
-  background: var(--el-fill-color-light);
+  background: var(--bg-hover);
   border-radius: 6px;
   padding: 10px;
   font-family: Consolas, Monaco, monospace;

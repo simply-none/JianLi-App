@@ -179,7 +179,7 @@ async function onClear(): Promise<void> {
 }
 .history-empty {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--text-muted);
   padding: 20px 0;
   text-align: center;
 }

@@ -151,7 +151,7 @@ const elapsedText = computed(() => {
 }
 .status-meta {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--text-muted);
 }
 .error-detail {
   font-size: 12px;
@@ -162,7 +162,7 @@ const elapsedText = computed(() => {
 .run-logs {
   max-height: 260px;
   overflow-y: auto;
-  background: var(--el-fill-color-lighter);
+  background: var(--bg-hover);
   border-radius: 6px;
   padding: 8px;
   font-family: Consolas, Monaco, monospace;
@@ -173,11 +173,11 @@ const elapsedText = computed(() => {
   word-break: break-all;
 }
 .log-empty {
-  color: var(--el-text-color-secondary);
+  color: var(--text-muted);
 }
 .run-empty {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--text-muted);
   padding: 16px 0;
 }
 </style>

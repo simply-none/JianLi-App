@@ -193,7 +193,7 @@ onMounted(refreshProfiles)
   width: 100%;
   margin-top: 6px;
   font-size: 12px;
-  color: var(--el-color-warning);
+  color: var(--color-warning);
 }
 .login-actions {
   margin-top: 4px;
@@ -206,6 +206,6 @@ onMounted(refreshProfiles)
   gap: 6px;
 }
 .delay-sep {
-  color: var(--el-text-color-secondary);
+  color: var(--text-muted);
 }
 </style>

@@ -327,9 +327,9 @@ onMounted(async () => {
   width: 230px;
   flex-shrink: 0;
   padding: 10px;
-  border: 1px solid var(--el-border-color-lighter);
+  border: 1px solid var(--border-subtle);
   border-radius: 8px;
-  background: var(--el-bg-color);
+  background: var(--bg-card);
 }
 .main-panel {
   flex: 1;
@@ -358,7 +358,7 @@ onMounted(async () => {
 }
 .toolbar-tip {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--text-muted);
 }
 .empty-guide {
   display: flex;
@@ -370,10 +370,10 @@ onMounted(async () => {
 .guide-title {
   font-size: 16px;
   font-weight: 600;
-  color: var(--el-text-color-primary);
+  color: var(--text-primary);
 }
 .guide-tip {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--text-muted);
 }
 </style>

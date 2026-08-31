@@ -232,9 +232,9 @@ watch(() => props.config, syncJson, { immediate: true, deep: false })
   flex-direction: column;
   gap: 8px;
   padding: 10px 12px;
-  border: 1px solid var(--el-border-color-lighter);
+  border: 1px solid var(--border-subtle);
   border-radius: 6px;
-  background: var(--el-fill-color-extra-light);
+  background: var(--bg-hover);
 }
 .step-title {
   font-weight: 600;
@@ -242,7 +242,7 @@ watch(() => props.config, syncJson, { immediate: true, deep: false })
 }
 .step-hint {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--text-muted);
   line-height: 1.6;
 }
 .base-form {
@@ -271,7 +271,7 @@ watch(() => props.config, syncJson, { immediate: true, deep: false })
 }
 .json-tip {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--text-muted);
 }
 .json-editor {
   font-family: Consolas, Monaco, monospace;

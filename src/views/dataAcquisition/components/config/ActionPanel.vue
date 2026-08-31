@@ -195,11 +195,11 @@ function removeStep(index: number): void {
 .panel-tip {
   flex: 1;
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--text-muted);
 }
 .empty-tip {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--text-muted);
 }
 .action-row {
   display: flex;

@@ -16,7 +16,8 @@
 - `src/utils/notify.ts` 的 `sysNotify` / `appNotify` 支持可选 `onClick`（习惯打卡点通知再唤小窗即复用）。
 
 ## 主题 token
-- 用 CSS 变量（`--bg-base/card`、`--text-primary|secondary|muted`、`--border-subtle`、`--color-primary` 等）而非硬编码色；25 套主题。改 UI 颜色一律走 token。
+- **完整约定见 `references/theme.md`**（token 清单、严禁硬编码、禁用未全覆盖的 `--el-*`、派生色用 `color-mix`）。
+- 要点：自定义 UI 的背景/文字/边框/主色一律走**自定义主题 token**（如 `--bg-card`/`--bg-hover`/`--text-primary`/`--text-secondary`/`--text-muted`/`--border-subtle`/`--color-primary`/`--color-warning`/`--color-error`），**禁止**硬编码 hex/rgb，也**禁止**直接用 Element Plus 的 `--el-*` 变量（尤其 `light-N`/`extra-light` 系列在部分主题未定义，会回退浅色 `:root` 导致不跟随主题）；派生色阶用 `color-mix(in srgb, var(--color-primary) N%, transparent)`。
 
 ## 渲染端陷阱
 - 函数 ref（`:ref="fn"`）每次 patch 调用，回调写响应式会无限递归；同元素 `return` / `nextTick` / 复用引用。

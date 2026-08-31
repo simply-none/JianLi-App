@@ -92,27 +92,28 @@ async function confirmDelete(task: TaskItem): Promise<void> {
 }
 .empty-tip {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--text-muted);
   padding: 12px 0;
   text-align: center;
 }
 .task-item {
   padding: 8px;
-  border: 1px solid var(--el-border-color-lighter);
+  border: 1px solid var(--border-subtle);
   border-radius: 6px;
   cursor: pointer;
   transition: background 0.15s;
 }
 .task-item:hover {
-  background: var(--el-fill-color-light);
+  background: var(--bg-hover);
 }
 .task-item.is-active {
-  border-color: var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
 }
 .task-name {
   font-size: 13px;
   font-weight: 600;
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -125,7 +126,7 @@ async function confirmDelete(task: TaskItem): Promise<void> {
 }
 .task-url {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

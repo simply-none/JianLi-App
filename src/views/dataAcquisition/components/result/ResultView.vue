@@ -271,11 +271,11 @@ async function revealFile(filePath: string): Promise<void> {
 .result-count {
   flex: 1;
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--text-muted);
 }
 .result-empty {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--text-muted);
   padding: 20px 0;
   text-align: center;
 }
@@ -290,7 +290,7 @@ async function revealFile(filePath: string): Promise<void> {
 .section-title {
   font-size: 13px;
   font-weight: 600;
-  color: var(--el-text-color-primary);
+  color: var(--text-primary);
   padding-left: 2px;
 }
 .result-json {
@@ -302,7 +302,7 @@ async function revealFile(filePath: string): Promise<void> {
 <style>
 /* 导出提示中的文件链接（ElMessage 挂载于 body，需全局样式） */
 .export-tip .export-link {
-  color: var(--el-color-primary);
+  color: var(--color-primary);
   cursor: pointer;
   text-decoration: underline;
   margin-left: 4px;
