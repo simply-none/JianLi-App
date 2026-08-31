@@ -388,6 +388,117 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     },
   },
   // 数据获取（Puppeteer 任务化采集）API
+  pdf: {
+    /** 选择多个 PDF 文件，返回绝对路径数组；取消返回 { success:false, canceled:true } */
+    pickFiles() {
+      return ipcRenderer.invoke('pdf:pick-files');
+    },
+    /** 选择输出目录，返回绝对路径；取消返回 { success:false, canceled:true } */
+    pickDir() {
+      return ipcRenderer.invoke('pdf:pick-dir');
+    },
+    /** 弹出保存对话框，defaultName 为建议文件名；返回 { success:true, filePath } 或取消 */
+    pickSave(defaultName: string) {
+      return ipcRenderer.invoke('pdf:pick-save', defaultName);
+    },
+    /**
+     * 合并多个 PDF 为一个
+     * @param files 源文件路径数组（按顺序合并）
+     * @param outputPath 另存为路径
+     */
+    merge(files: string[], outputPath: string) {
+      return ipcRenderer.invoke('pdf:merge', { files, outputPath });
+    },
+    /**
+     * 组织页面：按 pageMap 描述的最终页序构建新 PDF（重排/删除/旋转/提取统一表达）
+     * @param file 源文件路径
+     * @param outputPath 另存为路径
+     * @param pageMap 每页 { index:源0基页码, rotation?:0|90|180|270 }
+     */
+    organize(file: string, outputPath: string, pageMap: { index: number; rotation?: number }[]) {
+      return ipcRenderer.invoke('pdf:organize', { file, outputPath, pageMap });
+    },
+    /**
+     * 拆分 PDF
+     * @param file 源文件路径
+     * @param outputDir 输出目录
+     * @param baseName 文件名基（不含扩展名）
+     * @param mode 拆分模式：range / everyN / oddEven
+     */
+    split(file: string, outputDir: string, baseName: string, mode: any) {
+      return ipcRenderer.invoke('pdf:split', { file, outputDir, baseName, mode });
+    },
+    /**
+     * 批量写入文件（渲染端已栅格化的图片等）
+     * @param dir 输出目录
+     * @param files [{ name, base64 }]
+     */
+    writeFiles(dir: string, files: { name: string; base64: string }[]) {
+      return ipcRenderer.invoke('pdf:write-files', { dir, files });
+    },
+    // ---- 二期 ----
+    /** 在指定位置插入另一文件的页面 */
+    insert(file: string, outputPath: string, insertFile: string, atIndex: number, insertIndices?: number[]) {
+      return ipcRenderer.invoke('pdf:insert', { file, outputPath, insertFile, atIndex, insertIndices });
+    },
+    /** 用另一文件替换源文件一段页面 */
+    replace(file: string, outputPath: string, replaceFile: string, targetStart: number, replaceIndices?: number[]) {
+      return ipcRenderer.invoke('pdf:replace', { file, outputPath, replaceFile, targetStart, replaceIndices });
+    },
+    /** 复制选中页（在其后追加副本） */
+    duplicate(file: string, outputPath: string, indices: number[]) {
+      return ipcRenderer.invoke('pdf:duplicate', { file, outputPath, indices });
+    },
+    /** 裁剪白边（四边边距，pt） */
+    crop(file: string, outputPath: string, margins: { left: number; right: number; top: number; bottom: number }) {
+      return ipcRenderer.invoke('pdf:crop', { file, outputPath, margins });
+    },
+    /** 页码 / 页眉 / 页脚 */
+    decorate(file: string, outputPath: string, opts: any) {
+      return ipcRenderer.invoke('pdf:decorate', { file, outputPath, opts });
+    },
+    /** 水印（平铺文字） */
+    watermark(file: string, outputPath: string, opts: { text: string; color: [number, number, number]; angle: number; fontSize: number }) {
+      return ipcRenderer.invoke('pdf:watermark', { file, outputPath, opts });
+    },
+    /** 添加封面页 */
+    addCover(file: string, outputPath: string, opts: { title?: string; imagePath?: string; w?: number; h?: number }) {
+      return ipcRenderer.invoke('pdf:add-cover', { file, outputPath, opts });
+    },
+    /** 统一页面尺寸 */
+    resize(file: string, outputPath: string, size: { w: number; h: number }) {
+      return ipcRenderer.invoke('pdf:resize', { file, outputPath, size });
+    },
+    /** 展平标注 */
+    flatten(file: string, outputPath: string) {
+      return ipcRenderer.invoke('pdf:flatten', { file, outputPath });
+    },
+    // ---- 三期 ----
+    /** 压缩减体（best-effort） */
+    compress(file: string, outputPath: string) {
+      return ipcRenderer.invoke('pdf:compress', { file, outputPath });
+    },
+    /** 密文遮盖（整页或矩形） */
+    redact(file: string, outputPath: string, opts: { mode: 'whole' | 'rects'; pages?: number[]; rects?: number[][] }) {
+      return ipcRenderer.invoke('pdf:redact', { file, outputPath, opts });
+    },
+    /** 加密（需外部引擎 qpdf，当前返回提示） */
+    encrypt() {
+      return ipcRenderer.invoke('pdf:encrypt');
+    },
+    /** 解密（需外部引擎 qpdf，当前返回提示） */
+    decrypt() {
+      return ipcRenderer.invoke('pdf:decrypt');
+    },
+    /** 页面标签（底层 /Labels 数字树） */
+    pageLabels(file: string, outputPath: string, labels: any[]) {
+      return ipcRenderer.invoke('pdf:page-labels', { file, outputPath, labels });
+    },
+    /** 嵌入附件（data 为 base64 或 Uint8Array） */
+    attach(file: string, outputPath: string, data: string | Uint8Array, fileName: string, mime?: string) {
+      return ipcRenderer.invoke('pdf:attach', { file, outputPath, data, fileName, mime });
+    },
+  },
   scraper: {
     /**
      * 启动采集任务（异步执行，进度/结果经 scraper:task-progress / task-result 推送）

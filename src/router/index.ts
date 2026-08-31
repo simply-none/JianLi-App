@@ -67,6 +67,7 @@ export const RouteNames = {
   RESUME: "resume",
   QR_CODE: "qrCode",
   TWO_FACTOR: "twoFactor",
+  PDF_TOOLS: "pdfTools",
   PASSWORD_VAULT: "passwordVault",
 } as const;
 
@@ -401,6 +402,14 @@ export const layoutRouters: RouteRecordRaw[] = [
     component: () => import("@/views/passwordVault/index.vue"),
     meta: {
       title: "账号密码管理",
+    },
+  },
+  {
+    path: "/pdfTools",
+    name: RouteNames.PDF_TOOLS,
+    component: () => import("@/views/pdfTools/index.vue"),
+    meta: {
+      title: "PDF 工具箱",
     },
   },
 ];

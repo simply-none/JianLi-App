@@ -43,6 +43,7 @@ import { initResume } from "./module/resume.ts";
 import { initQrCode } from "./module/qrcode.ts";
 import { initTwoFactor } from "./module/twoFactor.ts";
 import { initPasswordVault } from "./module/passwordVault.ts";
+import { initPdf } from "./module/pdf.ts";
 import { initSafetyProtection } from "./module/safetyProtection.ts";
 
 registerJlocalProtocolBefore()
@@ -161,6 +162,8 @@ async function createWindow() {
   initTwoFactor();
   // 密码保险库模块（与 2FA 共用同一套 AES-256-GCM + PBKDF2 加密架构）
   initPasswordVault();
+  // PDF 工具箱模块（本地离线 PDF 合并/拆分/组织/导出）
+  initPdf();
 }
 
 app.whenReady().then(async () => {

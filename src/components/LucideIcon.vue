@@ -118,6 +118,13 @@ import { AlarmClock, AlarmClockCheck, AlarmClockMinus, AlarmClockPlus, ArrowDown
   Grid2x2,
   Mail,
   ImagePlus,
+  // —— PDF 工具箱用图标 ——
+  Crop,
+  Scaling,
+  Highlighter,
+  Paperclip,
+  GitCompare,
+  Replace,
 } from '@lucide/vue';
 import { ref } from 'vue';
 import { getLightColor } from '@/utils';
@@ -426,6 +433,13 @@ let nameMap = ref<Record<any, any>>({
   Grid2x2,
   Mail,
   ImagePlus,
+  // —— PDF 工具箱用图标 ——
+  Crop,
+  Scaling,
+  Highlighter,
+  Paperclip,
+  GitCompare,
+  Replace,
 })
 
 function getPadding(padding: string | number): string {
