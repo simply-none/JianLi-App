@@ -110,7 +110,15 @@ import { AlarmClock, AlarmClockCheck, AlarmClockMinus, AlarmClockPlus, ArrowDown
   SaveAll,
   LockKeyhole,
   KeyRound,
- } from '@lucide/vue';
+  // —— 二维码功能用图标 ——
+  QrCode,
+  ScanQrCode,
+  ScanLine,
+  Contact,
+  Grid2x2,
+  Mail,
+  ImagePlus,
+} from '@lucide/vue';
 import { ref } from 'vue';
 import { getLightColor } from '@/utils';
 withDefaults(
@@ -410,6 +418,14 @@ let nameMap = ref<Record<any, any>>({
   MonitorSmartphone,
   // —— 网络请求工作台用图标 ——
   Braces,
+  // —— 二维码功能用图标 ——
+  QrCode,
+  ScanQrCode,
+  ScanLine,
+  Contact,
+  Grid2x2,
+  Mail,
+  ImagePlus,
 })
 
 function getPadding(padding: string | number): string {

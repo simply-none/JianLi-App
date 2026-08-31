@@ -40,6 +40,7 @@ import { initBrowserPermission, setPermissionWindowGetter } from "./module/brows
 import { initDownloader } from "./module/download/index.ts";
 import { initResource } from "./module/resource.ts";
 import { initResume } from "./module/resume.ts";
+import { initQrCode } from "./module/qrcode.ts";
 
 registerJlocalProtocolBefore()
 
@@ -149,6 +150,8 @@ async function createWindow() {
   await initDownloader();
   // 简历模块（printToPDF 导出）
   initResume();
+  // 二维码能力层（保存/复制/打包 IPC + 安全建表 qr_history / qr_template）
+  await initQrCode();
 }
 
 app.whenReady().then(async () => {

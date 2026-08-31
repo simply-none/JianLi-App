@@ -63,6 +63,7 @@ export const RouteNames = {
   DATA_ACQUISITION: "dataAcquisition",
   DEV_TOOLBOX: "devToolbox",
   RESUME: "resume",
+  QR_CODE: "qrCode",
 } as const;
 
 export type RouteNameType = typeof RouteNames[keyof typeof RouteNames];
@@ -364,6 +365,14 @@ export const layoutRouters: RouteRecordRaw[] = [
     component: () => import("@/views/resume/index.vue"),
     meta: {
       title: "简历",
+    },
+  },
+  {
+    path: "/qrCode",
+    name: RouteNames.QR_CODE,
+    component: () => import("@/views/qrCode/index.vue"),
+    meta: {
+      title: "二维码",
     },
   },
 ];

@@ -165,6 +165,7 @@ export const iconMap: Record<string, string> = {
   dataAcquisition: 'Radar',
   devToolbox: 'Wrench',
   resume: 'FileUser',
+  qrCode: 'QrCode',
 };
 
 export { getLightColor, getDarkColor } from './color';
