@@ -42,6 +42,7 @@ import { initResource } from "./module/resource.ts";
 import { initResume } from "./module/resume.ts";
 import { initQrCode } from "./module/qrcode.ts";
 import { initTwoFactor } from "./module/twoFactor.ts";
+import { initPasswordVault } from "./module/passwordVault.ts";
 
 registerJlocalProtocolBefore()
 
@@ -155,6 +156,8 @@ async function createWindow() {
   await initQrCode();
   // 2FA 动态验证码模块（保险库在内存 + 用户加密文件，密钥不进应用数据库）
   initTwoFactor();
+  // 密码保险库模块（与 2FA 共用同一套 AES-256-GCM + PBKDF2 加密架构）
+  initPasswordVault();
 }
 
 app.whenReady().then(async () => {
