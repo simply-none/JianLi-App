@@ -1,5 +1,7 @@
 @use "@/styles/themes/index.scss" as themes;
 @use "@/styles/skins/index.scss" as skins;
+/* 将 Element Plus 的 --el-* 设计变量集中重映射到应用主题 token，使 EP 组件跟随主题切换 */
+@use "@/styles/element-plus-theme.scss";
 
 html,
 body {

@@ -218,10 +218,4 @@ function changeHomeMode(key: StatusMode) {
     flex: 0 0 calc(50% - 7px);
   }
 }
-
-// hover 聚焦：悬停某卡片时，其余卡片背景变暗（对应 demo 的
-// .card-grid:hover > .card:not(:hover) .card__background 效果）
-.mode-options:hover .mode-option-slot:not(:hover) :deep(.mode-option-card__bg) {
-  filter: brightness(0.5) saturate(0.6) contrast(1.1);
-}
 </style>

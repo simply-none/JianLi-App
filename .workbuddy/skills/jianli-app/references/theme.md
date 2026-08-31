@@ -42,6 +42,24 @@
 4. **新增颜色语义时**：优先复用既有 token；确需新语义，必须在 `src/styles/themes/` **每套主题文件 + `light.scss` 的 `:root`**
    同时补定义，保持 26 处一致，否则会出现"某主题缺变量 → 回退浅色"。
 
+## Element Plus 变量集中重映射（统一跟随主题）
+为避免在 25+ 套主题里逐个补 `--el-*`（且极易遗漏），本应用在
+`src/styles/element-plus-theme.scss` 用一个 `:root` 块把 Element Plus 的全部设计变量
+（`--el-color-*` / `--el-bg-color*` / `--el-text-color-*` / `--el-border-color*` / `--el-fill-color*` /
+`--el-mask-color` / `--el-box-shadow*`）**统一重映射到自定义 token**：
+- 基础色：`--el-color-primary → var(--color-primary)`；状态色 `success / warning / danger / info`
+  → `var(--color-success / --color-warning / --color-error / --color-info)`（`danger` 对应 `--color-error`）。
+- 派生色阶（`light-3 / 5 / 7 / 8 / 9`、`dark-2`）：用 `color-mix(in srgb, var(--主题色) X%, var(--bg-card))`
+  以主题表面色为锚点派生，浅色 / 深色主题下都得到合适色阶。
+- 背景 / 文字 / 边框 / 填充 / 阴影：分别指向 `--bg-card` / `--bg-base` / `--text-*` / `--border-subtle` / `--bg-hover` 等。
+
+该文件已在 `src/style.scss` 中于 `@use themes / @use skins` 之后 `@use` 引入。
+因 `main.ts` 先 import Element Plus 的 css、后 import `style.scss`，此 `:root` 会覆盖 EP 自带默认值，
+**所有 EP 组件随主题切换自动联动**，业务侧一般不再需要为 EP 组件写 `--el-*` 覆写。
+
+> 注意：各主题文件（如 `cobalt.scss`）里手写的 `--el-*` 仍保留作为兜底，但会被本文件覆盖；
+> 新增主题时**无需再手写 `--el-*`**，本文件已统一覆盖。
+
 ## 正例 / 反例
 反例（数据获取页旧写法，部分主题不跟随主题）：
 ```scss

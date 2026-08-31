@@ -1,0 +1,108 @@
+/*
+ * element-plus-theme.scss
+ * ----------------------------------------------------------------------------
+ * 目标：把 Element Plus 的设计变量(--el-*) 统一重映射到应用主题 token，
+ *       让所有 EP 组件在切换主题时跟随主题变化，无需在每个组件里逐个写 !important。
+ *
+ * 机制：
+ *   Element Plus 组件内部使用 --el-* 变量（如 --el-color-primary、--el-bg-color、
+ *   --el-text-color-primary 等）来上色。本文件在 :root 层把这些变量重新指向应用
+ *   主题 token（--color-primary / --bg-card / --text-primary ...）。因为这些 token
+ *   在每一套主题（[data-theme="x"]）中都有定义，所以主题一切换，EP 变量会自动跟随，
+ *   不必再为 25+ 套主题逐个补 --el-*。
+ *
+ * 派生色策略（v2 — 优化对比度）：
+ *   EP 的 light-3/5/7/8/9 与 dark-2 等色阶，由主题色派生得到。
+ *   - light-3~8（中等/深色阶）：以 --bg-card 为锚点混合，保持与卡片底色的协调。
+ *   - light-9（最浅底色，用于激活项背景等）：改用 transparent 作锚点，
+ *     避免 bg-card 把主色 tint "吃掉"，保证在任何主题下都能看到淡淡的色彩。
+ *   - 边框系列：以 --text-muted 为锚点（而非 --bg-card），确保边框在浅色/深色
+ *     主题下都足够可见、不会和背景糊在一起。
+ *   - 填充系列：直接复用 --bg-hover 或提高混合比例，拉开与 bg-card 的差距。
+ *   - 文字占位符：直接用 --text-muted，不再额外淡化。
+ *
+ * 加载顺序：在 src/style.scss 中，于 @use themes / @use skins 之后引入本文件。
+ *   由于 main.ts 先 import element-plus 的 css、后 import style.scss，本文件的
+ *   :root 声明会覆盖 EP 自带的 :root 默认值；同时也会覆盖各主题里手写的 --el-*，
+ *   实现"集中管理、统一跟随主题"。
+ * ----------------------------------------------------------------------------
+ */
+
+:root {
+  /* ===================== 主色 Primary ===================== */
+  --el-color-primary: var(--color-primary);
+  /* 中深色阶：以 bg-card 为锚，协调卡片底色 */
+  --el-color-primary-light-3: color-mix(in srgb, var(--color-primary) 70%, var(--bg-card));
+  --el-color-primary-light-5: color-mix(in srgb, var(--color-primary) 50%, var(--bg-card));
+  --el-color-primary-light-7: color-mix(in srgb, var(--color-primary) 30%, var(--bg-card));
+  --el-color-primary-light-8: color-mix(in srgb, var(--color-primary) 20%, var(--bg-card));
+  /* 最浅底色：用 transparent 锚，避免被 bg-card 吃掉 */
+  --el-color-primary-light-9: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  /* 按下态加深 */
+  --el-color-primary-dark-2:  color-mix(in srgb, var(--color-primary) 80%, #000000);
+
+  /* ============ 状态色 success / warning / danger / info ============ */
+  /* 说明：danger 对应应用 token --color-error；info / success / warning 一一对应。 */
+  @each $name, $token in (
+    success: --color-success,
+    warning: --color-warning,
+    danger:  --color-error,
+    info:    --color-info
+  ) {
+    --el-color-#{$name}: var(#{$token});
+    /* 中深色阶：bg-card 锚 */
+    --el-color-#{$name}-light-3: color-mix(in srgb, var(#{$token}) 70%, var(--bg-card));
+    --el-color-#{$name}-light-5: color-mix(in srgb, var(#{$token}) 50%, var(--bg-card));
+    --el-color-#{$name}-light-7: color-mix(in srgb, var(#{$token}) 30%, var(--bg-card));
+    --el-color-#{$name}-light-8: color-mix(in srgb, var(#{$token}) 20%, var(--bg-card));
+    /* 最浅底色：transparent 锚，保证可见 */
+    --el-color-#{$name}-light-9: color-mix(in srgb, var(#{$token}) 12%, transparent);
+    --el-color-#{$name}-dark-2:  color-mix(in srgb, var(#{$token}) 80%, #000000);
+  }
+
+  /* EP 内部常量 */
+  --el-color-white: #ffffff;
+  --el-color-black: #000000;
+  --el-color-error: var(--color-error);
+
+  /* ===================== 背景 Background ===================== */
+  --el-bg-color: var(--bg-card);
+  --el-bg-color-page: var(--bg-base);
+  --el-bg-color-overlay: var(--bg-card);
+
+  /* ===================== 文字 Text ===================== */
+  --el-text-color-primary: var(--text-primary);
+  --el-text-color-regular: var(--text-secondary);
+  --el-text-color-secondary: var(--text-muted);
+  /* 占位符：直接用 muted，不再淡化（之前 88%+bg-card 导致太淡看不清） */
+  --el-text-color-placeholder: var(--text-muted);
+  /* 禁用态：保留一定可读性（从 55% 提升到 70%） */
+  --el-text-color-disabled: color-mix(in srgb, var(--text-muted) 70%, var(--bg-card));
+
+  /* ===================== 边框 Border ===================== */
+  /* 基础边框 */
+  --el-border-color: var(--border-subtle);
+  /* 浅色阶：改用 --text-muted 作锚点（而非 --bg-card），确保在任何主题下都可见 */
+  --el-border-color-light:      color-mix(in srgb, var(--border-subtle) 70%, var(--text-muted));
+  --el-border-color-lighter:    color-mix(in srgb, var(--border-subtle) 50%, var(--text-muted));
+  --el-border-color-extra-light: color-mix(in srgb, var(--border-subtle) 30%, var(--text-muted));
+  /* 深色阶（focus / hover 边框）：向主色靠拢 */
+  --el-border-color-dark:       color-mix(in srgb, var(--color-primary) 50%, var(--text-muted));
+  --el-border-color-darker:     color-mix(in srgb, var(--color-primary) 70%, var(--text-muted));
+
+  /* ===================== 填充 Fill ===================== */
+  /* 基础填充：直接用悬停色，不稀释 */
+  --el-fill-color:         var(--bg-hover);
+  --el-fill-color-light:   var(--bg-hover);
+  /* 更浅填充：保留更多 bg-hover 的 tint（从 40% 提升到 65%） */
+  --el-fill-color-lighter: color-mix(in srgb, var(--bg-hover) 65%, var(--bg-card));
+  --el-fill-color-blank:   var(--bg-card);
+  /* 深色填充（暗色主题下拉菜单等）：向 page 底色靠 */
+  --el-fill-color-dark:    color-mix(in srgb, var(--bg-hover) 40%, var(--bg-base));
+  --el-fill-color-darker:  color-mix(in srgb, var(--bg-hover) 65%, var(--bg-base));
+
+  /* ===================== 遮罩 / 阴影 Mask & Shadow ===================== */
+  --el-mask-color:        color-mix(in srgb, var(--bg-base) 65%, transparent);
+  --el-box-shadow:        0 2px 12px color-mix(in srgb, var(--bg-base) 45%, transparent);
+  --el-box-shadow-light:  0 1px 4px color-mix(in srgb, var(--bg-base) 35%, transparent);
+}

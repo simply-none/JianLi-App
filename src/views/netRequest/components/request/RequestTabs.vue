@@ -124,7 +124,6 @@ function enabledCount(items: KeyValueItem[]): number {
 @use '../../styles/shared' as *;
 
 .request-tabs {
-  width: 100%;
   flex-shrink: 0;
   padding: 0 10px;
   @include nr-panel;

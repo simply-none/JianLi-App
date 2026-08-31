@@ -322,6 +322,8 @@ function modeTagText(mode?: string): string {
 .reminder-title {
   font-weight: 600;
   font-size: 14px;
+  // 标题文字跟随主题主色（--color-primary 各主题均定义，随主题切换联动）
+  color: var(--color-primary);
 }
 .reminder-rule {
   font-size: 12px;

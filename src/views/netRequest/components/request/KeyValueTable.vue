@@ -225,17 +225,17 @@ function toggleBatch(): void {
     background: var(--el-fill-color-lighter);
   }
 
-  :deep(.el-input__wrapper) {
-    box-shadow: 0 0 0 1px transparent inset;
+  // :deep(.el-input__wrapper) {
+  //   box-shadow: 0 0 0 1px transparent inset;
 
-    &:hover {
-      box-shadow: 0 0 0 1px var(--el-border-color-lighter) inset;
-    }
+  //   &:hover {
+  //     box-shadow: 0 0 0 1px var(--el-border-color-lighter) inset;
+  //   }
 
-    &.is-focus {
-      box-shadow: 0 0 0 1px var(--el-color-primary) inset;
-    }
-  }
+  //   &.is-focus {
+  //     box-shadow: 0 0 0 1px var(--el-color-primary) inset;
+  //   }
+  // }
 
   :deep(.el-input__inner) {
     font-family: $nr-mono;
