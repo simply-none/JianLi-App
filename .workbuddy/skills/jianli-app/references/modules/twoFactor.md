@@ -1,0 +1,67 @@
+# 2FA 动态验证码（two-factor）
+
+## 职责
+本地 TOTP 验证器（对标 Google Authenticator / 1Password / Bitwarden 的 2FA 模块）：录入账户 → 本地按时间生成 6/8 位动态码 → 倒计时展示 → 一键复制。密钥**只**存在于用户自持的加密保险库文件 + 主进程内存，绝不进入应用数据库。
+
+## 关键设计决策（与用户确认）
+- **密钥不进应用数据库**：用 `AES-256-GCM`（PBKDF2 派生口令）加密保存在一个用户自持的保险库文件（`.json` 信封）。应用 `basic_info` 只记录非机密的「上次路径」偏好。
+- **扫码添加 + 导出二维码**：复用项目二维码能力层（`@/components/qrcode`、`@/utils/qrcode`）。
+- **增删改回写同一文件**：保险库文件始终是唯一真相源；解析/导入时不落库、不自动缓存。
+- **锁屏不清空内存**：复用应用锁，锁屏只隐藏窗口，解锁后保险库仍可用（摩擦最小）。
+
+## 文件结构（原子化拆分）
+### 主进程（改完需重启 Electron）
+- `electron/main/module/twoFactor/otp.ts` — base32 解码 + HMAC TOTP + `buildOtpauthUri`（纯函数，零依赖）
+- `electron/main/module/twoFactor/vault.ts` — `AES-256-GCM` 加解密 + 文件读写（`encryptVault`/`decryptVault`/`writeVaultFile`/`readVaultFile`）
+- `electron/main/module/twoFactor/types.ts` — `TwoFactorAccount` / `TwoFactorAccountMeta`
+- `electron/main/module/twoFactor.ts` — `initTwoFactor()` 注册全部 IPC + 内存保险库
+- 注册：已在 `electron/main/index.ts` 的 `createWindow()` 末尾 `initTwoFactor()`
+
+### 渲染端
+- `src/store/useTwoFactor.ts` — Pinia store（状态 + 动作封装）
+- `src/views/twoFactor/index.vue` — 主视图（空态 / 列表 / 工具条）
+- `src/views/twoFactor/types.ts` — 类型
+- `src/views/twoFactor/utils/otpauth.ts` — `parseOtpauthUri` 纯函数
+- `src/views/twoFactor/api/twoFactorApi.ts` — IPC 封装
+- `src/views/twoFactor/composables/useTwoFactorCodes.ts` — 每秒倒计时，周期边界才重取码
+- `src/views/twoFactor/components/`：`CountdownRing` `SecretInput` `AccountCard` `AccountList` `VaultGate` `AddAccountDialog` `ExportVaultDialog`
+
+### 路由 / 菜单
+- `src/router/index.ts` — `RouteNames.TWO_FACTOR` + `layoutRouters`（`/twoFactor`）
+- `src/layout/index.vue` — 「效率工具」组 `names` 加 `twoFactor`（侧边栏入口）
+- `src/utils/index.ts` — `iconMap.twoFactor = 'KeyRound'`
+- `routeSetting` 可见开关由 `layoutRouters` 自动接管
+
+## IPC 通道（全部 `two-factor:*`）
+| 通道 | 类型 | 用途 |
+|---|---|---|
+| `two-factor:pick-open` | handle | 原生对话框选已有文件 |
+| `two-factor:pick-save` | handle | 原生对话框选保存路径 |
+| `two-factor:open-vault` | handle | 导入并解密（返回脱敏列表） |
+| `two-factor:create-vault` | handle | 新建保险库 |
+| `two-factor:list` | handle | 状态快照 + 脱敏账户列表 |
+| `two-factor:get-codes` | handle | 取全部验证码（**无 secret**） |
+| `two-factor:add-account` | handle | 新增（回写文件） |
+| `two-factor:update-account` | handle | 编辑（回写文件） |
+| `two-factor:delete-account` | handle | 删除（回写文件） |
+| `two-factor:export` | handle | 导出/另存为（可换口令） |
+| `two-factor:export-uri` | handle | 生成 otpauth URI（含密钥，仅用于展示二维码） |
+| `two-factor:close` | handle | 清空内存保险库与口令 |
+
+## 二维码复用点
+- **扫码添加**：`AddAccountDialog` 的「扫码录入」用全局 `QrDropZone`（`@decoded` → `decodeQr` 已多尺度重试）；结果 `data` 以 `otpauth://` 开头时 `parseOtpauthUri` 预填表单。`decodeQr` 返回的 `data` 已是 UTF-8 字符串，**禁止二次解码**。
+- **导出二维码**：`AccountCard`「二维码」按钮调 `showQrCode({ content: otpauthUri })`（命令式服务）展示该账户 `otpauth://` 二维码，供其他验证器扫码迁移。
+
+## 安全红线
+- 密钥明文仅主进程内存 + 加密文件；`get-codes` 只回传 `code/nextCode/remaining`，绝不回传 `secret`。
+- **禁止把 `otpauth://` URI 写入 `qr_history`**（其文本含密钥，会经 `history.ts` 落 `qr_history` 表 → 泄漏）。扫码解析后只取字段，不落历史。
+- 复用应用锁：锁屏隐藏全部窗口，2FA 视图随之隐藏。
+
+## 特有坑 / 注意
+- 改主进程必须重启 Electron。
+- 渲染端禁 `import electron/*`；所有库/磁盘操作走 IPC。
+- TOTP：`base32` 大小写/空格清洗；`algorithm` SHA1/256/512；`digits` 6/8；`period` 30/60；动态截断取末尾字节低 4 位；依赖本机系统时间（UI 已提示保持时间同步）。
+- `otpauth://`：`label` 可能是 `issuer:account` 且 URL-encoded；`issuer` 查询参数优先于 label。
+- 计时：每秒只更新本地 `remaining`，周期边界才重算（避免无谓 HMAC/IPC）。
+- 主题色走 CSS token（`--bg-base/card`、`--color-primary` 等），适配 25 套主题。
+- 与既有架构一致：菜单入口 + 路由可见开关（routeSetting 自动接管），遵循「新需求落地清单」。

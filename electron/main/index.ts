@@ -41,6 +41,7 @@ import { initDownloader } from "./module/download/index.ts";
 import { initResource } from "./module/resource.ts";
 import { initResume } from "./module/resume.ts";
 import { initQrCode } from "./module/qrcode.ts";
+import { initTwoFactor } from "./module/twoFactor.ts";
 
 registerJlocalProtocolBefore()
 
@@ -152,6 +153,8 @@ async function createWindow() {
   initResume();
   // 二维码能力层（保存/复制/打包 IPC + 安全建表 qr_history / qr_template）
   await initQrCode();
+  // 2FA 动态验证码模块（保险库在内存 + 用户加密文件，密钥不进应用数据库）
+  initTwoFactor();
 }
 
 app.whenReady().then(async () => {

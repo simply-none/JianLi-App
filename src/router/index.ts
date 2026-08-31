@@ -64,6 +64,7 @@ export const RouteNames = {
   DEV_TOOLBOX: "devToolbox",
   RESUME: "resume",
   QR_CODE: "qrCode",
+  TWO_FACTOR: "twoFactor",
 } as const;
 
 export type RouteNameType = typeof RouteNames[keyof typeof RouteNames];
@@ -373,6 +374,14 @@ export const layoutRouters: RouteRecordRaw[] = [
     component: () => import("@/views/qrCode/index.vue"),
     meta: {
       title: "二维码",
+    },
+  },
+  {
+    path: "/twoFactor",
+    name: RouteNames.TWO_FACTOR,
+    component: () => import("@/views/twoFactor/index.vue"),
+    meta: {
+      title: "2FA 验证器",
     },
   },
 ];
