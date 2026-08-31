@@ -46,6 +46,7 @@ export const RouteNames = {
   TODO_MINI_WINDOW: "todoMiniWindow",
   CLIPBOARD_MINI_WINDOW: "clipboardMiniWindow",
   HABIT_MINI_WINDOW: "habitMiniWindow",
+  APP_TWO_FACTOR_MINI: "appTwoFactorMiniWindow",
   // 命令面板小窗：路由名必须与主进程 createOtherWindow 的 arg 一致，
   // 因为 createOtherWindow 直接用 arg 拼 hash 路由（#${arg}?isSecondWindow=true）
   COMMAND_PALETTE: "commandPaletteMiniWindow",
@@ -454,6 +455,12 @@ const routers: RouteRecordRaw[] = [
     path: "/commandPaletteMiniWindow",
     name: RouteNames.COMMAND_PALETTE,
     component: () => import("@/views/commandPalette/index.vue"),
+  },
+  {
+    // 2FA 测试小窗：路径必须与主进程 createOtherWindow 的 arg（appTwoFactorMiniWindow）一致
+    path: "/appTwoFactorMiniWindow",
+    name: RouteNames.APP_TWO_FACTOR_MINI,
+    component: () => import("@/views/appTwoFactorMiniWindow/index.vue"),
   },
   {
     path: "/accountingMini",

@@ -55,4 +55,16 @@ export const twoFactorApi = {
   exportUri: (key: string) => invoke<{ ok: boolean; error?: string; uri: string }>('two-factor:export-uri', { key }),
   /** 退出保险库：清空主进程内存中的密钥与口令 */
   closeVault: () => invoke<{ ok: boolean }>('two-factor:close'),
+
+  // —— 本应用 2FA（测试小窗验证用）——
+  /** 注册本应用 2FA，返回 otpauth URI（供手机/外部验证器扫码） */
+  enrollApp: () =>
+    invoke<{ ok: boolean; error?: string; uri?: string; enrolled?: boolean }>('app-2fa:enroll'),
+  /** 校验动态码（本应用密钥，±1 步容错） */
+  verifyApp: (code: string) =>
+    invoke<{ ok: boolean; error?: string }>('app-2fa:verify', { code }),
+  /** 本应用 2FA 是否已注册 */
+  appStatus: () => invoke<{ ok: boolean; enrolled: boolean }>('app-2fa:status'),
+  /** 让主窗口聚焦并跳转到 2FA 页面（测试小窗按钮调用） */
+  openTwoFactorPage: () => invoke<{ ok: boolean; error?: string }>('app-2fa:open-page'),
 };

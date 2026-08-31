@@ -15,6 +15,7 @@ export type WindowKey =
   | 'commandPalette'
   | 'habit'
   | 'countdown'
+  | 'appTwoFactor'
 
 /** 通用可选项（皮肤、排版等） */
 export interface NamedOption {
@@ -154,6 +155,12 @@ const COUNTDOWN_SIZE_OPTIONS: SizeOption[] = [
   { label: '360×460', width: 360, height: 460 },
 ]
 
+const APP_TWO_FACTOR_SIZE_OPTIONS: SizeOption[] = [
+  { label: '320×480', width: 320, height: 480 },
+  { label: '360×520', width: 360, height: 520 },
+  { label: '420×600', width: 420, height: 600 },
+]
+
 // —— 各小窗的排版预设 ——
 const POMODORO_LAYOUT_OPTIONS: NamedOption[] = [
   { label: '默认', value: 'default' },
@@ -278,6 +285,15 @@ export const WINDOW_SECTIONS: WindowSection[] = [
     storeKey: 'countdownMiniWindow',
     fields: { position: true, size: true, gap: true, skin: true, layout: false },
     sizeOptions: COUNTDOWN_SIZE_OPTIONS,
+    skinOptions: SKIN_OPTIONS,
+  },
+  {
+    key: 'appTwoFactor',
+    title: '2FA 测试小窗口',
+    icon: 'KeyRound',
+    storeKey: 'appTwoFactorMiniWindow',
+    fields: { position: true, size: true, gap: true, skin: true, layout: false },
+    sizeOptions: APP_TWO_FACTOR_SIZE_OPTIONS,
     skinOptions: SKIN_OPTIONS,
   },
 ]

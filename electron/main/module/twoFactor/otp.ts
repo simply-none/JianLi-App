@@ -42,6 +42,39 @@ export function base32Decode(input: string): Buffer {
   return Buffer.from(bytes);
 }
 
+/** base32 字母表（RFC 4648，无填充） */
+const BASE32_ALPHABET_ARR = BASE32_ALPHABET.split('');
+
+/**
+ * 字节数组编码为 base32 字符串（RFC 4648，无填充）。
+ * 用于生成随机 TOTP 密钥。
+ */
+export function base32Encode(bytes: Buffer | Uint8Array): string {
+  let bits = 0;
+  let value = 0;
+  let out = '';
+  for (const b of bytes) {
+    value = (value << 8) | b;
+    bits += 8;
+    while (bits >= 5) {
+      bits -= 5;
+      out += BASE32_ALPHABET_ARR[(value >>> bits) & 0x1f];
+    }
+  }
+  if (bits > 0) {
+    out += BASE32_ALPHABET_ARR[(value << (5 - bits)) & 0x1f];
+  }
+  return out;
+}
+
+/**
+ * 生成随机 base32 密钥（默认 20 字节 = 160 bit，编码后 32 字符）。
+ * 用于「本应用 2FA」注册时产生一次性密钥。
+ */
+export function randomBase32Secret(byteLength = 20): string {
+  return base32Encode(crypto.randomBytes(byteLength));
+}
+
 /**
  * 生成指定时刻的 TOTP 码（动态截断算法，RFC 6238）。
  */

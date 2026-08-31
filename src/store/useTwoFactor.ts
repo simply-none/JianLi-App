@@ -16,6 +16,8 @@ export default defineStore('two-factor', () => {
   const accounts = ref<TwoFactorAccountMeta[]>([]);
   const loading = ref(false);
   const error = ref('');
+  /** 本应用 2FA（测试小窗）是否已注册 */
+  const appEnrolled = ref(false);
 
   /** 拉取当前状态 + 账户列表（脱敏） */
   async function refresh(): Promise<void> {
@@ -126,6 +128,36 @@ export default defineStore('two-factor', () => {
     await refresh();
   }
 
+  // —— 本应用 2FA（测试小窗验证用）——
+  /** 注册本应用 2FA，返回 otpauth URI；失败返回 null */
+  async function enrollApp(): Promise<string | null> {
+    error.value = '';
+    const res = await twoFactorApi.enrollApp();
+    if (!res.ok || !res.uri) {
+      error.value = res.error || '注册失败';
+      return null;
+    }
+    appEnrolled.value = true;
+    return res.uri;
+  }
+
+  /** 校验动态码，成功返回 true */
+  async function verifyApp(code: string): Promise<boolean> {
+    error.value = '';
+    const res = await twoFactorApi.verifyApp(code);
+    if (!res.ok) {
+      error.value = res.error || '验证失败';
+      return false;
+    }
+    return true;
+  }
+
+  /** 拉取本应用 2FA 注册状态 */
+  async function refreshAppStatus(): Promise<void> {
+    const res = await twoFactorApi.appStatus();
+    appEnrolled.value = !!res?.enrolled;
+  }
+
   return {
     hasVault,
     vaultPath,
@@ -133,6 +165,7 @@ export default defineStore('two-factor', () => {
     accounts,
     loading,
     error,
+    appEnrolled,
     init,
     refresh,
     openVault,
@@ -143,5 +176,8 @@ export default defineStore('two-factor', () => {
     exportVault,
     getCodes,
     closeVault,
+    enrollApp,
+    verifyApp,
+    refreshAppStatus,
   };
 });

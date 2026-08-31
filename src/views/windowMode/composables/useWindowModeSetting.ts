@@ -28,6 +28,7 @@ export function useWindowModeSetting() {
     commandPalette: refs.commandPaletteWindowConfig,
     habit: refs.habitWindowConfig,
     countdown: refs.countdownWindowConfig,
+    appTwoFactor: refs.appTwoFactorMiniWindowConfig,
   }
 
   const showSetterMap: Record<WindowKey, (val: boolean) => void> = {
@@ -42,6 +43,7 @@ export function useWindowModeSetting() {
     commandPalette: store.setShowCommandPaletteWindow,
     habit: store.setShowHabitWindow,
     countdown: store.setShowCountdownWindow,
+    appTwoFactor: store.setShowAppTwoFactorMiniWindow,
   }
 
   const storeVisibleMap: Record<WindowKey, Ref<any>> = {
@@ -56,6 +58,7 @@ export function useWindowModeSetting() {
     commandPalette: refs.showCommandPaletteWindowC,
     habit: refs.showHabitWindowC,
     countdown: refs.showCountdownWindowC,
+    appTwoFactor: refs.showAppTwoFactorMiniWindowC,
   }
 
   // —— 页面侧本地副本：store 变化时同步，避免直接改 store 引起连锁更新 ——

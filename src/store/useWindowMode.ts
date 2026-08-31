@@ -249,6 +249,45 @@ export default defineStore("window-mode", () => {
     });
   }, { deep: true });
 
+  // ============ 2FA 测试小窗 ============
+  const showAppTwoFactorMiniWindow = ref();
+  const showAppTwoFactorMiniWindowC = computed(() => showAppTwoFactorMiniWindow.value);
+  function setShowAppTwoFactorMiniWindow(value: boolean) {
+    showAppTwoFactorMiniWindow.value = value;
+    setStore("showAppTwoFactorMiniWindow", value);
+  }
+  /**
+   * 打开 2FA 测试小窗（供 2FA 页面按钮 / 快捷键复用）。
+   * 已开启时上面的 watch 不会触发，这里直接下发一次 open-new-window。
+   */
+  function openAppTwoFactorMiniWindow() {
+    if (showAppTwoFactorMiniWindow.value === true) {
+      send("open-new-window", "appTwoFactorMiniWindow", appTwoFactorMiniWindowConfig.value);
+      return;
+    }
+    showAppTwoFactorMiniWindow.value = true;
+    setStore("showAppTwoFactorMiniWindow", true);
+  }
+  const appTwoFactorMiniWindowConfig = ref({
+    position: 'bottom-right',
+    width: 360,
+    height: 520,
+    gap: 30,
+    x: 0,
+    y: 0,
+    skin: 'white',
+    // 常驻捕获态小窗，必须显式开启鼠标事件，否则进入穿透态点不动拖不动
+    mouseEvents: true,
+  });
+  watch(showAppTwoFactorMiniWindow, (newValue) => {
+    if (newValue == true) {
+      send("open-new-window", "appTwoFactorMiniWindow", appTwoFactorMiniWindowConfig.value);
+    } else {
+      // 用 hide 而不是 close：窗口留着复用，下次唤出直接 show
+      send("hide-new-window", "appTwoFactorMiniWindow");
+    }
+  });
+
   const showThemeConversationMiniWindow = ref();
   const showThemeConversationMiniWindowC = computed(() => showThemeConversationMiniWindow.value);
   function setShowThemeConversationMiniWindow(value: boolean) {
@@ -578,6 +617,21 @@ export default defineStore("window-mode", () => {
         },
         map: commandPaletteWindowConfig,
       },
+      {
+        field: "window-mode:appTwoFactorMiniWindow",
+        default: {
+          position: 'bottom-right',
+          width: 360,
+          height: 520,
+          gap: 30,
+          x: 0,
+          y: 0,
+          skin: 'white',
+          // 见上方说明：必须显式开启鼠标事件，否则窗口进入穿透态
+          mouseEvents: true,
+        },
+        map: appTwoFactorMiniWindowConfig,
+      },
     ];
 
     const allVars: defaultField[] = [
@@ -696,6 +750,11 @@ export default defineStore("window-mode", () => {
     showCommandPaletteWindowC,
     setShowCommandPaletteWindow,
     commandPaletteWindowConfig,
+    showAppTwoFactorMiniWindow,
+    showAppTwoFactorMiniWindowC,
+    setShowAppTwoFactorMiniWindow,
+    openAppTwoFactorMiniWindow,
+    appTwoFactorMiniWindowConfig,
     $reset,
   };
 });

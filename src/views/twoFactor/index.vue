@@ -35,6 +35,9 @@
           <button class="tf-btn" @click="showExport = true">
             <LucideIcon name="Download" :size="16" /> 导出备份
           </button>
+          <button class="tf-btn" @click="winMode.openAppTwoFactorMiniWindow()">
+            <LucideIcon name="QrCode" :size="16" /> 2FA 测试小窗
+          </button>
           <button class="tf-btn" @click="exitVault">
             <LucideIcon name="LogOut" :size="16" /> 退出保险库
           </button>
@@ -61,6 +64,7 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import LucideIcon from '@/components/LucideIcon.vue';
 import useTwoFactor from '@/store/useTwoFactor';
+import useWindowMode from '@/store/useWindowMode';
 import { useTwoFactorCodes } from './composables/useTwoFactorCodes';
 import AccountList from './components/AccountList.vue';
 import VaultGate from './components/VaultGate.vue';
@@ -69,6 +73,7 @@ import ExportVaultDialog from './components/ExportVaultDialog.vue';
 import type { TwoFactorAccountMeta } from './types';
 
 const store = useTwoFactor();
+const winMode = useWindowMode();
 const { codes: codeMap, start, stop, refresh } = useTwoFactorCodes();
 
 const showGate = ref(false);

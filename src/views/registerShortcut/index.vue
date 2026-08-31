@@ -286,6 +286,13 @@ const originShortcuts = ref([
     shortcut: ['', '', ''],
   },
   {
+    type: 'open_app_2fa_window',
+    url: '',
+    name: '2FA 测试小窗口',
+    key: 'appTwoFactorWindowShortcut',
+    shortcut: ['', '', ''],
+  },
+  {
     type: 'lock_app',
     url: '',
     name: '锁定应用',

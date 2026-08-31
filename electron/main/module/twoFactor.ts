@@ -18,7 +18,8 @@ import crypto from 'node:crypto';
 import { query, upsert } from './newSql.ts';
 import { tableName } from './store.ts';
 import { readVaultFile, writeVaultFile } from './twoFactor/vault.ts';
-import { generateTotpWithMeta, buildOtpauthUri } from './twoFactor/otp.ts';
+import { generateTotp, generateTotpWithMeta, buildOtpauthUri, randomBase32Secret } from './twoFactor/otp.ts';
+import { win } from './mainWindow.ts';
 import type { TwoFactorAccount, TwoFactorAccountMeta } from './twoFactor/types.ts';
 
 /** basic_info 中记录“上次保险库路径”的键（非机密偏好） */
@@ -205,5 +206,81 @@ export function initTwoFactor() {
     vaultPath = null;
     vaultPass = null;
     return { ok: true };
+  });
+
+  // —— 本应用 2FA（测试小窗验证用）——
+  // 固定 key，便于 verify/enroll 定位；同时会在 2FA 页面以「渐离App·本机」展示其动态码。
+  const APP_SELF_KEY = 'app:self';
+
+  // 注册本应用 2FA：生成密钥、写入保险库、返回 otpauth URI（供手机/外部验证器扫码）
+  ipcMain.handle('app-2fa:enroll', async () => {
+    if (!vault) return { ok: false, error: '请先导入或新建保险库' };
+    let acc = vault.find((a) => a.key === APP_SELF_KEY);
+    if (!acc) {
+      const secret = randomBase32Secret();
+      const now = new Date().toISOString();
+      acc = {
+        key: APP_SELF_KEY,
+        issuer: '渐离App',
+        account: '本机',
+        secret,
+        algorithm: 'SHA1',
+        digits: 6,
+        period: 30,
+        createdAt: now,
+        updatedAt: now,
+      };
+      vault.push(acc);
+      const wb = safeWriteBack();
+      if (!wb.ok) return { ok: false, error: wb.error };
+    }
+    const uri = buildOtpauthUri({
+      issuer: acc.issuer,
+      account: acc.account,
+      secret: acc.secret,
+      algorithm: acc.algorithm,
+      digits: acc.digits,
+      period: acc.period,
+    });
+    return { ok: true, uri, enrolled: true };
+  });
+
+  // 校验动态码：用本应用 secret 计算当前及前后各一步，命中即过（±1 步容错）
+  ipcMain.handle('app-2fa:verify', async (_e, { code }: { code: string }) => {
+    if (!vault) return { ok: false, error: '未导入保险库' };
+    const acc = vault.find((a) => a.key === APP_SELF_KEY);
+    if (!acc) return { ok: false, error: '尚未注册本机 2FA，请先注册' };
+    const clean = (code || '').replace(/\D/g, '');
+    if (!clean) return { ok: false, error: '请输入动态码' };
+    const period = acc.period || 30;
+    const now = Date.now();
+    for (let offset = -1; offset <= 1; offset++) {
+      const candidate = generateTotp(acc.secret, {
+        algorithm: acc.algorithm,
+        digits: acc.digits,
+        period,
+        atTime: now + offset * period * 1000,
+      });
+      if (candidate === clean) return { ok: true };
+    }
+    return { ok: false, error: '动态码不正确' };
+  });
+
+  // 是否已注册本应用 2FA
+  ipcMain.handle('app-2fa:status', async () => {
+    return { ok: true, enrolled: !!vault?.find((a) => a.key === APP_SELF_KEY) };
+  });
+
+  // 让主窗口聚焦并跳转到 2FA 页面（测试小窗“打开 2FA 页面”按钮调用）
+  ipcMain.handle('app-2fa:open-page', async () => {
+    try {
+      if (win && !win.isDestroyed()) {
+        win.show();
+        win.webContents.send('open-match-page', 'twoFactor');
+      }
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: err?.message || String(err) };
+    }
   });
 }

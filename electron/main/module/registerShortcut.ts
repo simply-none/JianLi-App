@@ -40,6 +40,16 @@ const DEFAULT_COUNTDOWN_CONFIG = {
   skin: "white",
 };
 
+const DEFAULT_APP_2FA_CONFIG = {
+  position: "bottom-right",
+  width: 360,
+  height: 520,
+  gap: 30,
+  x: 0,
+  y: 0,
+  skin: "white",
+};
+
 function openMatchPage(url: string) {
   win.show();
   win.webContents.send("open-match-page", url);
@@ -337,6 +347,45 @@ function getCountdownWindow() {
   });
 }
 
+function toggleAppTwoFactorWindow() {
+  const a2fWin = getAppTwoFactorWindow();
+  if (a2fWin && a2fWin.isVisible()) {
+    hideOtherWindow("appTwoFactorMiniWindow");
+  } else {
+    queryByConditions({
+      db: myDb.db,
+      tableName: "basic_info",
+      conditions: {
+        whereStr: "key = 'window-mode:appTwoFactorMiniWindow'",
+      },
+      callback: (err, data) => {
+        if (err) {
+          console.log(err, "err");
+          createOtherWindow("appTwoFactorMiniWindow", { ...DEFAULT_APP_2FA_CONFIG, mouseEvents: true });
+          return;
+        }
+        let config = { ...DEFAULT_APP_2FA_CONFIG };
+        if (data && data.length > 0) {
+          try {
+            config = { ...config, ...JSON.parse(data[0].value) };
+          } catch (e) {
+            console.log(e, "parse error");
+          }
+        }
+        createOtherWindow("appTwoFactorMiniWindow", { ...config, mouseEvents: true });
+      },
+    });
+  }
+}
+
+function getAppTwoFactorWindow() {
+  const allWindows = BrowserWindow.getAllWindows();
+  return allWindows.find((w) => {
+    const url = w.webContents.getURL();
+    return url.includes("appTwoFactorMiniWindow") && url.includes("isSecondWindow=true");
+  });
+}
+
 function getPomodoroWindow() {
   const allWindows = BrowserWindow.getAllWindows();
   return allWindows.find((w) => {
@@ -409,6 +458,9 @@ function globalShortcutFn(item) {
     }
     else if (item.type == 'open_countdown_window') {
       toggleCountdownWindow();
+    }
+    else if (item.type == 'open_app_2fa_window') {
+      toggleAppTwoFactorWindow();
     }
     else if (item.type == 'lock_app') {
       lockAppNow();
