@@ -100,7 +100,7 @@
  */
 import { ref, computed, watch } from 'vue';
 import { Play, Trash2 } from '@lucide/vue';
-import ToolHint from '../../components/ToolHint.vue';
+import ToolHint from '@/components/ToolHint.vue';
 import type { RegexMatch } from '../../shared/types';
 import { debounce } from '@/utils';
 

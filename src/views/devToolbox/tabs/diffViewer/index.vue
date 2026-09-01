@@ -122,7 +122,7 @@
 import { ref, computed, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { ArrowLeftRight, Eraser, Download, Upload, Terminal } from '@lucide/vue';
-import ToolHint from '../../components/ToolHint.vue';
+import ToolHint from '@/components/ToolHint.vue';
 import SplitView from './SplitView.vue';
 import UnifiedView from './UnifiedView.vue';
 import InlineView from './InlineView.vue';

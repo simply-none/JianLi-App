@@ -14,9 +14,10 @@
 
 <script setup lang="ts">
 /**
- * 开发工具箱 - 通用操作提示组件
- * 在每个功能面板顶部展示使用说明，降低「输入格式不对 / 不知道怎么用」的困惑。
+ * 通用操作提示组件（跨模块共享）
+ * 在功能页面 / 面板顶部展示使用说明，降低「输入格式不对 / 不知道怎么用」的困惑。
  * 视觉沿用主题变量（--bg-base / --text-muted 等），随明暗主题自动切换。
+ * 使用方：开发工具箱各面板、快捷键注册页等。
  */
 import { computed } from 'vue';
 import LucideIcon from '@/components/LucideIcon.vue';

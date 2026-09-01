@@ -117,7 +117,7 @@
 import { ref, onUnmounted, computed } from 'vue';
 import { ElMessage } from 'element-plus';
 import TopTabs, { type TopTabItem } from '@/components/TopTabs.vue';
-import ToolHint from '../../components/ToolHint.vue';
+import ToolHint from '@/components/ToolHint.vue';
 import { Play, Square, Trash2 } from '@lucide/vue';
 import { PORT_SERVICES } from '../../shared/types';
 import TerminalOutput from './components/TerminalOutput.vue';

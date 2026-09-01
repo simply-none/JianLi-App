@@ -123,7 +123,7 @@
 import { ref, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
 import TopTabs, { type TopTabItem } from '@/components/TopTabs.vue';
-import ToolHint from '../../components/ToolHint.vue';
+import ToolHint from '@/components/ToolHint.vue';
 import {
   Wand2, Minimize2, Lock, Unlock, CircleCheck, ArrowLeftRight,
   Clipboard, Play, ArrowRight, ArrowLeft,

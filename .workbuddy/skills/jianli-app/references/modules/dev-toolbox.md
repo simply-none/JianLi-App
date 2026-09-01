@@ -7,7 +7,7 @@
 - 页面壳：`src/views/devToolbox/index.vue`（`LayoutVue` 壳 + **两态布局**：仪表盘态=页头大标题（渐变下划线）+ `DevToolCard` 卡片网格；工具态=页头返回按钮 + 二级标题 `tool-head`（工具名 + 描述，主色竖条）+ 内容区渲染子页面。`activeTool` 为本地 `ref`，无 Pinia store）
 - 工具清单目录：`src/views/devToolbox/catalog.ts`（`DevToolMeta` 接口 + `DEV_TOOL_CATALOG` 6 项：key/title/desc/icon/accent/**tip**，与 pdfTools 的 TOOL_CATALOG 模式一致；`tip` 为进入工具后二级标题下展示的操作提示）
 - 工具卡片：`src/views/devToolbox/components/DevToolCard.vue`（结构复用 pdfTools 的 PdfToolCard：accent 竖条 + 图标 + 标题/描述 + 箭头）
-- **操作提示组件**：`src/views/devToolbox/components/ToolHint.vue`（通用轻量提示条，props：`text: string | string[]`、`type: 'info' | 'warn' | 'tip'`，图标 Info/TriangleAlert/Lightbulb；用于在每个功能面板顶部说明用法/输入格式）。工具级 tip 由 index.vue 在二级标题下渲染；面板级 tip 各 tab 内直接放 `<ToolHint text="..." />`。
+- **操作提示组件**：`src/components/ToolHint.vue`（**跨模块共享组件**，已从 devToolbox 内部提升到全局 components；props：`text: string | string[]`、`type: 'info' | 'warn' | 'tip'`，图标 Info/TriangleAlert/Lightbulb；用于在每个功能面板顶部说明用法/输入格式）。工具级 tip 由 index.vue 在二级标题下渲染；面板级 tip 各 tab 内直接放 `<ToolHint text="..." />`。快捷键注册页也复用此组件展示使用说明。
 - 共享：
   - `src/views/devToolbox/shared/types.ts`（`HashAlgorithm` / `RegexMatch` 类型、`PORT_SERVICES` 端口服务名映射）
   - `src/views/devToolbox/shared/hash.ts`（`computeHash(text, algo, key?)`：md5/sha1/sha256/sha384/sha512/hmac-sha256，经主进程 IPC）

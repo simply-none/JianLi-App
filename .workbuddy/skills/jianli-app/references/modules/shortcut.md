@@ -4,7 +4,7 @@
 配置并注册全局快捷键（globalShortcut），把组合键绑定到「显示应用 / 打开某路由 / 打开某小窗 / 打开命令面板」等动作；落库后通知主进程注册。
 
 ## 关键文件
-- 页面：`src/views/registerShortcut/index.vue`（卡片列表 + 注册逻辑；`shortcutGroups` 为 computed 引用合并后的列表，页面进入即直接渲染，右上角「刷新」按钮调 `getShortcut()` 从库重拉）
+- 页面：`src/views/registerShortcut/index.vue`（卡片列表 + 注册逻辑；`shortcutGroups` 为 computed 引用合并后的列表，页面进入即直接渲染，右上角「刷新」按钮调 `getShortcut()` 从库重拉）。**页头与开发工具箱对齐**：`.head`（标题渐变淡出下划线 + 副标题 + 右侧刷新按钮，无卡片底、无图标块），使用说明用共享组件 `@/components/ToolHint.vue` 放在**标题下方**（`usageTips` 字符串数组），原底部 tips 卡片已删除；卡片样式保持不变
 - 输入组件：`src/views/registerShortcut/shortcut.vue`（键盘捕获/下拉）
 - 懒挂载：`src/views/registerShortcut/lazyMount.vue`（IntersectionObserver 视口内才挂载卡片内容，摊平渲染成本）
 - 主进程：`electron/main/module/registerShortcut.ts`（`ipcMain.on('register-shortcut'):327`、`globalShortcutFn():333`）

@@ -72,7 +72,7 @@
  */
 import { ref, computed, watch, reactive } from 'vue';
 import TopTabs, { type TopTabItem } from '@/components/TopTabs.vue';
-import ToolHint from '../../components/ToolHint.vue';
+import ToolHint from '@/components/ToolHint.vue';
 import { ArrowLeftRight, Trash2, Plus } from '@lucide/vue';
 
 // ============== 单位类别配置 ==============

@@ -60,7 +60,7 @@ import { computed, ref } from 'vue';
 import LayoutVue from '@/components/layout.vue';
 import LucideIcon from '@/components/LucideIcon.vue';
 import DevToolCard from './components/DevToolCard.vue';
-import ToolHint from './components/ToolHint.vue';
+import ToolHint from '@/components/ToolHint.vue';
 import JsonHashConverter from './tabs/jsonHashConverter/index.vue';
 import RegexTester from './tabs/regexTester/index.vue';
 import DiffViewer from './tabs/diffViewer/index.vue';

@@ -121,7 +121,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import moment from 'moment';
 import TopTabs, { type TopTabItem } from '@/components/TopTabs.vue';
-import ToolHint from '../../components/ToolHint.vue';
+import ToolHint from '@/components/ToolHint.vue';
 import { ArrowLeftRight } from '@lucide/vue';
 
 /** 子工具 Tab 数据源（纯文字，不强配色，回退主题主色） */

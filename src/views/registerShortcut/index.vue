@@ -1,22 +1,19 @@
 <template>
   <div class="shortcut-page">
-    <header class="page-header">
-      <div class="header-content">
-        <div class="header-icon">
-          <LucideIcon name="Keyboard" :size="24" />
-        </div>
-        <div class="header-text">
-          <h1 class="page-title">快捷键注册</h1>
-          <p class="page-subtitle">配置全局快捷键，快速访问各项功能</p>
-        </div>
-      </div>
+    <!-- 页头：与开发工具箱布局对齐（标题渐变下划线 + 副标题，右侧操作按钮） -->
+    <header class="head">
       <div>
-        <el-button title="从数据库重新拉取已注册的快捷键" size="large" type="primary" @click="getShortcut">
-          <LucideIcon name="RefreshCw" :size="18" />
-          刷新
-        </el-button>
+        <h2 class="page-title">快捷键注册</h2>
+        <p class="sub">配置全局快捷键，快速访问各项功能</p>
       </div>
+      <el-button title="从数据库重新拉取已注册的快捷键" @click="getShortcut">
+        <LucideIcon name="RefreshCw" :size="15" />
+        刷新
+      </el-button>
     </header>
+
+    <!-- 使用说明：紧跟标题下方（与开发工具箱操作提示样式统一） -->
+    <ToolHint class="usage-hint" :text="usageTips" />
 
     <main class="page-content">
       <section v-for="group in shortcutGroups" :key="group.title" class="shortcut-section">
@@ -57,21 +54,6 @@
         </div>
       </section>
     </main>
-
-    <footer class="tips-section">
-      <div class="tips-card">
-        <div class="tips-header">
-          <LucideIcon name="Info" :size="18" />
-          <span>使用说明</span>
-        </div>
-        <ul class="tips-list">
-          <li>⌨️ <strong>键盘输入</strong>：点击按键区域后直接按下键盘上的键</li>
-          <li>📋 <strong>下拉选择</strong>：点击按键区域也可以从下拉列表中选择</li>
-          <li>⚠️ <strong>快捷键要求</strong>：必须至少选择 2 个按键组合</li>
-          <li>🔄 <strong>重复检测</strong>：同一快捷键组合中不允许重复的键</li>
-        </ul>
-      </div>
-    </footer>
   </div>
 </template>
 
@@ -84,11 +66,19 @@ import LucideIcon from '@/components/LucideIcon.vue';
 import moment from 'moment';
 import shortcut from './shortcut.vue';
 import lazyMount from './lazyMount.vue';
+import ToolHint from '@/components/ToolHint.vue';
 import { mergeShortcuts } from '@/utils';
 
 const route = useRoute();
 
 const tableName = ref('register_shortcut')
+
+/** 使用说明（展示在页头标题下方，与开发工具箱 ToolHint 排版一致） */
+const usageTips = [
+  '键盘输入：点击按键区域后直接按下键盘上的键；也可以从下拉列表中选择',
+  '快捷键要求：必须至少选择 2 个按键组合，且同一组合中不允许重复的键',
+  '注册后立即生效（全局）；「重置」清空当前组合，「刷新」从数据库重新拉取已注册结果',
+]
 
 watch(() => route.path, (newPath) => {
   if (newPath === '/registerShortcut') {
@@ -385,56 +375,46 @@ async function getShortcut() {
   background: var(--bg-base);
 }
 
-.page-header {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-card);
-  padding: 20px 24px;
-  margin: 20px 24px;
+/* 页头：与开发工具箱布局对齐（两端对齐，标题渐变淡出下划线 + 副标题） */
+.head {
   display: flex;
-  flex-direction: row;
+  align-items: flex-start;
   justify-content: space-between;
+  flex-shrink: 0;
+  padding: 20px 24px 0;
+}
+.page-title {
+  margin: 0;
+  font-size: 20px;
+  color: var(--text-primary);
+  position: relative;
+  display: inline-block;
+  padding-bottom: 8px;
+}
+.page-title::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 120px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--color-primary), color-mix(in srgb, var(--color-primary) 0%, transparent));
+}
+.sub {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
 
-  .header-content {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-  }
-
-  .header-icon {
-    width: 48px;
-    height: 48px;
-    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    .el-icon {
-      font-size: 24px;
-      color: #fff;
-    }
-  }
-
-  .header-text {
-    .page-title {
-      font-size: 20px;
-      font-weight: 600;
-      color: var(--text-primary);
-      margin: 0 0 4px;
-    }
-
-    .page-subtitle {
-      font-size: 14px;
-      color: var(--text-secondary);
-      margin: 0;
-    }
-  }
+/* 使用说明提示条：紧跟页头下方 */
+.usage-hint {
+  margin: 14px 24px 0;
 }
 
 .page-content {
   flex: 1;
-  padding: 0 24px 24px;
+  padding: 16px 24px 24px;
   width: 100%;
   box-sizing: border-box;
   overflow-y: auto;
@@ -603,78 +583,25 @@ async function getShortcut() {
   }
 }
 
-.tips-section {
-  padding: 24px;
-  width: 100%;
-  box-sizing: border-box;
-  border-top: 1px solid var(--border-subtle);
-
-  .tips-card {
-    background: var(--bg-card);
-    border-radius: var(--radius-card);
-    padding: 20px 24px;
-    box-shadow: var(--shadow-card);
-    border-left: 4px solid var(--color-primary);
-
-    .tips-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 16px;
-
-      .el-icon {
-        font-size: 18px;
-        color: var(--color-primary);
-      }
-
-      span {
-        font-size: 16px;
-        font-weight: 600;
-        color: var(--text-primary);
-      }
-    }
-
-    .tips-list {
-      margin: 0;
-      padding-left: 20px;
-
-      li {
-        font-size: 14px;
-        color: var(--text-regular);
-        margin-bottom: 8px;
-
-        &:last-child {
-          margin-bottom: 0;
-        }
-
-        strong {
-          color: var(--text-primary);
-        }
-      }
-    }
-  }
-}
-
 @media (max-width: 768px) {
   .shortcuts-grid {
     grid-template-columns: 1fr;
   }
 
-  .page-header {
-    padding: 16px;
-    margin: 12px;
+  .head {
+    padding: 12px 12px 0;
+  }
+
+  .usage-hint {
+    margin: 12px 12px 0;
   }
 
   .page-content {
-    padding: 0 12px 12px;
+    padding: 12px 12px 12px;
   }
 
   .shortcut-card {
     padding: 20px;
-  }
-
-  .tips-section {
-    padding: 16px;
   }
 }
 </style>
