@@ -9,6 +9,7 @@
 
     <!-- 日期差 -->
     <div v-show="subTab === 'diff'" class="panel">
+      <ToolHint text="选择开始与结束日期，自动算出相差时长、总天数/小时与工作日数；点圆形按钮可交换两端" />
       <div class="input-row">
         <el-date-picker v-model="diffStart" type="datetime" placeholder="开始" style="width:220px;" />
         <span class="icon-arrow">→</span>
@@ -38,6 +39,7 @@
 
     <!-- 日期加减 -->
     <div v-show="subTab === 'offset'" class="panel">
+      <ToolHint text="选基准日期后填写年/月/日等偏移量，得到目标日期；支持负数向前推算" />
       <div class="input-row">
         <el-date-picker v-model="offsetBase" type="datetime" placeholder="基准日期" style="width:220px;" />
       </div>
@@ -56,6 +58,7 @@
 
     <!-- 工作日 -->
     <div v-show="subTab === 'workday'" class="panel">
+      <ToolHint text="统计区间内的总天数、工作日与周末数；关闭「排除周末」则周六周日计入工作日" />
       <div class="input-row">
         <el-date-picker v-model="wdStart" type="date" placeholder="开始" />
         <span>→</span>
@@ -71,6 +74,7 @@
 
     <!-- 倒计时 -->
     <div v-show="subTab === 'countdown'" class="panel">
+      <ToolHint text="选择目标时间后实时倒计时；目标已过则切换为正计时（距目标已过去多久）" />
       <div class="input-row">
         <el-date-picker v-model="cdTarget" type="datetime" placeholder="目标日期" style="width:240px;" />
         <el-switch v-model="cdIsFuture" active-text="倒计时 (目标在未来)" inactive-text="正计时 (目标已过)" />
@@ -88,6 +92,7 @@
 
     <!-- 时间戳 -->
     <div v-show="subTab === 'ts'" class="panel">
+      <ToolHint text="Unix 秒/毫秒与日期字符串双向换算：修改任意一格，其余自动同步；可点按钮快速填入当前时间" />
       <div class="ts-row">
         <span class="lbl">Unix 秒</span>
         <el-input v-model="tsSec" @input="onTsInput('sec')" />
@@ -116,6 +121,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import moment from 'moment';
 import TopTabs, { type TopTabItem } from '@/components/TopTabs.vue';
+import ToolHint from '../../components/ToolHint.vue';
 import { ArrowLeftRight } from '@lucide/vue';
 
 /** 子工具 Tab 数据源（纯文字，不强配色，回退主题主色） */

@@ -9,6 +9,23 @@ import { win } from "./mainWindow.ts";
 import dns from 'node:dns';
 import net from 'node:net';
 import crypto from 'node:crypto';
+import iconv from 'iconv-lite';
+
+/**
+ * 为子进程的 stdout/stderr 挂载 GBK 流式解码并推送数据
+ * Windows 中文系统下 ping/tracert 输出为 GBK (CP936) 编码，直接 toString 会乱码；
+ * 使用 iconv.decodeStream 保证跨 chunk 的多字节 GBK 字符不会被截断产生乱码。
+ * @param child 子进程
+ * @param onChunk 收到解码后文本片段的回调
+ */
+function wireGbkStream(child: ChildProcess, onChunk: (str: string) => void): void {
+  for (const stream of [child.stdout, child.stderr]) {
+    if (!stream) continue;
+    const decoder = iconv.decodeStream('gbk');
+    stream.pipe(decoder);
+    decoder.on('data', (str: string) => onChunk(str));
+  }
+}
 
 // 活动中的子进程 Map：taskId → ChildProcess，用于取消
 const activeTasks = new Map<string, ChildProcess>();
@@ -200,14 +217,12 @@ $result | Where-Object { $_.Name -and -not $_.IsSystemComponent } | ConvertTo-Js
       activeTasks.set(taskKey, child);
       let output = '';
 
-      const push = (data: Buffer) => {
-        const str = data.toString();
+      // GBK 流式解码：实时推送 + 全量拼接（防止多字节字符跨 chunk 截断乱码）
+      wireGbkStream(child, (str) => {
         output += str;
         win.webContents.send('sys:ping-data', { taskId: taskKey, data: str });
-      };
+      });
 
-      child.stdout.on('data', push);
-      child.stderr.on('data', push);
       child.on('close', (code) => {
         activeTasks.delete(taskKey);
         resolve({ ok: code === 0, raw: output, exitCode: code });
@@ -229,14 +244,12 @@ $result | Where-Object { $_.Name -and -not $_.IsSystemComponent } | ConvertTo-Js
       activeTasks.set(taskKey, child);
       let output = '';
 
-      const push = (data: Buffer) => {
-        const str = data.toString();
+      // GBK 流式解码：实时推送 + 全量拼接（防止多字节字符跨 chunk 截断乱码）
+      wireGbkStream(child, (str) => {
         output += str;
         win.webContents.send('sys:traceroute-data', { taskId: taskKey, data: str });
-      };
+      });
 
-      child.stdout.on('data', push);
-      child.stderr.on('data', push);
       child.on('close', (code) => {
         activeTasks.delete(taskKey);
         resolve({ ok: code === 0, raw: output, exitCode: code });

@@ -2,7 +2,7 @@
   <div class="net-diagnostic">
     <!-- 目标输入 -->
     <div class="target-bar">
-      <el-input v-model="host" placeholder="输入域名或 IP，如 google.com / 8.8.8.8" class="host-input" @keyup.enter="runActive" />
+      <el-input v-model="host" placeholder="输入域名或 IP（粘贴完整网址会自动提取主机名），如 baidu.com / 8.8.8.8" class="host-input" @blur="normalizeHostInput" @keyup.enter="runActive" />
       <el-select v-model="preset" placeholder="常用" style="width:160px;" @change="applyPreset">
         <el-option label="baidu.com" value="baidu.com" />
         <el-option label="github.com" value="github.com" />
@@ -22,6 +22,7 @@
 
     <!-- Ping -->
     <div v-show="activeSub === 'ping'" class="diag-panel">
+      <ToolHint text="向目标主机发送 ICMP 回显包，测试连通性与延迟；目标填域名或 IP，粘贴完整网址会自动提取主机名" />
       <div class="options-row">
         <span>次数:</span>
         <el-radio-group v-model="pingCount" size="small">
@@ -29,8 +30,8 @@
           <el-radio-button :value="4">4</el-radio-button>
           <el-radio-button :value="8">8</el-radio-button>
         </el-radio-group>
-        <el-button type="primary" :icon="Play" :loading="running" @click="runPing" :disabled="!host">▶ 开始</el-button>
-        <el-button v-if="running" :icon="Square" type="danger" @click="cancelCurrent">⏹ 停止</el-button>
+        <el-button type="primary" :icon="Play" :loading="running" @click="runPing" :disabled="!host">开始</el-button>
+        <el-button v-if="running" :icon="Square" type="danger" @click="cancelCurrent">停止</el-button>
         <el-button :icon="Trash2" @click="clearPing">清空</el-button>
       </div>
       <el-table v-if="pingPackets.length" :data="pingPackets" size="small" stripe height="200">
@@ -53,11 +54,12 @@
 
     <!-- Traceroute -->
     <div v-show="activeSub === 'trace'" class="diag-panel">
+      <ToolHint text="逐跳追踪到目标主机的路由路径，可定位中间节点故障；最大跳数一般 20-30 足够" />
       <div class="options-row">
         <span>最大跳数:</span>
         <el-input-number v-model="traceHop" :min="3" :max="30" size="small" />
-        <el-button type="primary" :icon="Play" :loading="running" @click="runTraceroute" :disabled="!host">▶ 开始</el-button>
-        <el-button v-if="running" :icon="Square" type="danger" @click="cancelCurrent">⏹ 停止</el-button>
+        <el-button type="primary" :icon="Play" :loading="running" @click="runTraceroute" :disabled="!host">开始</el-button>
+        <el-button v-if="running" :icon="Square" type="danger" @click="cancelCurrent">停止</el-button>
         <el-button :icon="Trash2" @click="traceRaw = ''">清空</el-button>
       </div>
       <TerminalOutput :raw="traceRaw" />
@@ -65,8 +67,9 @@
 
     <!-- DNS 查询 -->
     <div v-show="activeSub === 'dns'" class="diag-panel">
+      <ToolHint text="解析域名的 A/AAAA/CNAME/NS/TXT/MX/SOA 等记录；输入 IP 时额外返回 PTR 反向解析" />
       <div class="options-row">
-        <el-button type="primary" :icon="Play" :loading="running" @click="runDns" :disabled="!host">▶ 查询</el-button>
+        <el-button type="primary" :icon="Play" :loading="running" @click="runDns" :disabled="!host">查询</el-button>
         <el-button :icon="Trash2" @click="dnsResults = {}">清空</el-button>
       </div>
       <div v-if="Object.keys(dnsResults).length" class="dns-grid">
@@ -80,12 +83,13 @@
 
     <!-- 端口检测 -->
     <div v-show="activeSub === 'port'" class="diag-panel">
+      <ToolHint text="批量探测目标主机的 TCP 端口连通性；端口支持单个、逗号分隔与范围写法（如 3000-4000），可点「常用端口」快速填入" />
       <div class="options-row">
         <el-input v-model="portInput" size="small" placeholder="如 80,443,3000-4000,8080" style="width:320px;" />
         <el-button size="small" @click="useCommon">常用端口</el-button>
-        <el-button type="primary" :icon="Play" :loading="running" @click="runPortCheck" :disabled="!host || !portInput">▶ 扫描</el-button>
+        <el-button type="primary" :icon="Play" :loading="running" @click="runPortCheck" :disabled="!host || !portInput">扫描</el-button>
       </div>
-      <el-progress v-if="running || portResults.length" :percentage="Math.round((portDone / portTotal) * 100)" :show-text="true" style="margin:6px 0;" />
+      <el-progress v-if="running || portResults.length" :percentage="portPercent" :show-text="true" style="margin:6px 0;" />
       <el-table v-if="portResults.length" :data="portResults" size="small" stripe height="260">
         <el-table-column prop="port" label="端口" width="80" />
         <el-table-column prop="service" label="常见服务" width="110">
@@ -113,12 +117,40 @@
 import { ref, onUnmounted, computed } from 'vue';
 import { ElMessage } from 'element-plus';
 import TopTabs, { type TopTabItem } from '@/components/TopTabs.vue';
+import ToolHint from '../../components/ToolHint.vue';
 import { Play, Square, Trash2 } from '@lucide/vue';
 import { PORT_SERVICES } from '../../shared/types';
 import TerminalOutput from './components/TerminalOutput.vue';
 
 const host = ref('');
 const preset = ref('');
+
+/**
+ * 清洗目标输入：用户常粘贴完整 URL（如 https://www.baidu.com/），
+ * 而 ping/tracert 只接受纯主机名或 IP。此函数剥离协议、路径、查询串、
+ * 片段与端口，并去除首尾空白。
+ * @param raw 原始输入（域名 / IP / 完整 URL 均可）
+ * @returns 纯主机名或 IP；无法提取时返回空字符串
+ */
+function sanitizeHost(raw: string): string {
+  let s = (raw || '').trim();
+  if (!s) return '';
+  // 含协议前缀时优先用 URL 解析取 hostname
+  if (/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(s)) {
+    try { return new URL(s).hostname; } catch { /* 解析失败则走手工剥离 */ }
+  }
+  // 手工剥离：协议（无 // 的情况）→ 路径/查询/片段 → 端口
+  s = s.replace(/^[a-zA-Z][a-zA-Z\d+\-.]*:(\/\/)?/i, '');
+  s = s.split(/[/?#]/)[0];
+  s = s.replace(/:\d+$/, '');
+  return s.trim();
+}
+
+/** 输入框失焦时自动清洗 host，避免把 URL 直接传给 ping/tracert 报「找不到主机」 */
+function normalizeHostInput(): void {
+  const cleaned = sanitizeHost(host.value);
+  if (cleaned && cleaned !== host.value) host.value = cleaned;
+}
 /** 子工具 Tab 数据源（纯文字，不强配色，回退主题主色） */
 const subTabs: TopTabItem[] = [
   { key: 'ping', label: 'Ping' },
@@ -142,15 +174,20 @@ function parsePingPackets(raw: string) {
   const packets: any[] = [];
   const lines = raw.split('\n');
   for (const line of lines) {
+    // 英文输出：Reply from x.x.x.x: bytes=32 time=25ms TTL=115
     const m = line.match(/Reply from\s+[\d.]+\s*:\s*bytes=(\d+)\s*Time[=<](\d+)\s*ms\s*TTL=(\d+)/i);
-    if (m) packets.push({ bytes: +m[1], time: +m[2], ttl: +m[3] });
+    if (m) { packets.push({ bytes: +m[1], time: +m[2], ttl: +m[3] }); continue; }
+    // 中文输出：来自 x.x.x.x 的回复: 字节=32 时间=25ms TTL=115（时间可能为 <1ms）
+    const c = line.match(/来自\s+[\d.]+\s*的回复[:：]\s*字节=(\d+)\s*时间[=<](\d+)\s*ms\s*TTL=(\d+)/i);
+    if (c) packets.push({ bytes: +c[1], time: +c[2], ttl: +c[3] });
   }
-  // Windows ping 汇总
-  const mRaw = raw.match(/(\d+)\s+sent[,\s]+(\d+)\s+received[,\s]+([\d.]+)%\s+loss/);
+  // Windows ping 汇总（英文 / 中文两种格式）
+  const mRaw = raw.match(/(\d+)\s+sent[,\s]+(\d+)\s+received[,\s]+([\d.]+)%\s+loss/)
+    || raw.match(/已发送\s*=\s*(\d+)[，,]已接收\s*=\s*(\d+)[，,]丢失\s*=\s*(\d+)\s*\(([\d.]+)%丢失\)/);
   if (mRaw) {
     const times = packets.map(p => p.time).filter((x): x is number => x !== undefined);
     pingStats.value = {
-      sent: +mRaw[1], received: +mRaw[2], loss: +mRaw[3],
+      sent: +mRaw[1], received: +mRaw[2], loss: +(mRaw[4] ?? mRaw[3]),
       min: times.length ? Math.min(...times) : 0,
       max: times.length ? Math.max(...times) : 0,
       avg: times.length ? Math.round(times.reduce((a, b) => a + b, 0) / times.length) : 0,
@@ -160,6 +197,7 @@ function parsePingPackets(raw: string) {
 }
 
 async function runPing() {
+  normalizeHostInput();
   pingPackets.value = []; pingRaw.value = '';
   running.value = true;
   currentTaskId.value = crypto.randomUUID();
@@ -174,8 +212,9 @@ async function runPing() {
     pingRaw.value = r.raw;
     parsePingPackets(r.raw);
   } finally {
-    (window as any).ipcRenderer.removeListener('sys:ping-data', onData);
+    // 先复位运行状态再解绑监听，避免解绑异常导致按钮永久 loading
     running.value = false;
+    try { (window as any).ipcRenderer.removeListener('sys:ping-data', onData); } catch {}
   }
 }
 
@@ -198,8 +237,9 @@ async function runTraceroute() {
     const r = await (window as any).ipcRenderer.invoke('sys:traceroute', host.value, traceHop.value, currentTaskId.value);
     traceRaw.value = r.raw;
   } finally {
-    (window as any).ipcRenderer.removeListener('sys:traceroute-data', onData);
+    // 先复位运行状态再解绑监听，避免解绑异常导致按钮永久 loading
     running.value = false;
+    try { (window as any).ipcRenderer.removeListener('sys:traceroute-data', onData); } catch {}
   }
 }
 
@@ -207,6 +247,7 @@ async function runTraceroute() {
 const dnsResults = ref<Record<string, any>>({});
 
 async function runDns() {
+  normalizeHostInput();
   running.value = true;
   try {
     const r = await (window as any).ipcRenderer.invoke('sys:dns-lookup', host.value);
@@ -234,6 +275,10 @@ const portInput = ref('80,443,8080,3000,3306,6379,8888');
 const portResults = ref<{ port: number; status: string; duration: number; service?: string }[]>([]);
 const portTotal = ref(0);
 const portDone = ref(0);
+/** 进度百分比（0-100 整数）：portTotal 为 0 时返回 0，避免 NaN 触发 ElProgress 校验告警 */
+const portPercent = computed(() =>
+  portTotal.value ? Math.min(100, Math.round((portDone.value / portTotal.value) * 100)) : 0
+);
 
 function useCommon() {
   portInput.value = '21,22,23,25,53,80,110,143,443,3306,3389,5432,6379,8080,8443,27017';

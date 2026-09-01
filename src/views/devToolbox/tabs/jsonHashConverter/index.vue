@@ -9,6 +9,7 @@
 
     <!-- JSON 格式化 -->
     <div v-show="subTab === 'json'" class="panel json-panel">
+      <ToolHint text="粘贴 JSON 后点击「格式化 / 压缩 / 校验」；解析失败时右上角标签会显示具体错误原因" />
       <div class="toolbar">
         <el-radio-group v-model="indentSize" size="small">
           <el-radio-button :value="2">2 空格</el-radio-button>
@@ -54,6 +55,7 @@
 
     <!-- Hash 计算 -->
     <div v-show="subTab === 'hash'" class="panel hash-panel">
+      <ToolHint text="输入任意文本，勾选算法后点「计算」；开启 HMAC-SHA256 需同时填写密钥" />
       <div class="hash-input">
         <el-input
           v-model="hashInput"
@@ -87,6 +89,7 @@
 
     <!-- 编码转换 -->
     <div v-show="subTab === 'encode'" class="panel">
+      <ToolHint text="「全部编码」把输入转为 Base64/URL/Unicode 等；「全部解码」尝试逆向还原，也可用行尾按钮把某条结果回填为输入" />
       <div class="encode-input-row">
         <el-input
           v-model="encodeInput"
@@ -120,6 +123,7 @@
 import { ref, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
 import TopTabs, { type TopTabItem } from '@/components/TopTabs.vue';
+import ToolHint from '../../components/ToolHint.vue';
 import {
   Wand2, Minimize2, Lock, Unlock, CircleCheck, ArrowLeftRight,
   Clipboard, Play, ArrowRight, ArrowLeft,

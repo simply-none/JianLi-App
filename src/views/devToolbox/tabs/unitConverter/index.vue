@@ -7,6 +7,8 @@
       @update:modelValue="(k: string | number) => (activeCat = k as string)"
     />
 
+    <ToolHint text="输入数值并选源单位，结果实时换算；圆形按钮可交换上下单位，下方表格一次列出该类全部单位" />
+
     <!-- 转换主区 -->
     <div class="convert-main">
       <div class="convert-row">
@@ -70,6 +72,7 @@
  */
 import { ref, computed, watch, reactive } from 'vue';
 import TopTabs, { type TopTabItem } from '@/components/TopTabs.vue';
+import ToolHint from '../../components/ToolHint.vue';
 import { ArrowLeftRight, Trash2, Plus } from '@lucide/vue';
 
 // ============== 单位类别配置 ==============

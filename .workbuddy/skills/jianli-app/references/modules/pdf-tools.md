@@ -4,7 +4,7 @@
 渐离App 新增的**独立 PDF 文件级操作模块**（对标 Smallpdf / Acrobat「组织页面」，但本地离线、文件不出本机）。与电子书阅读器（`ebookReader`）解耦：阅读器负责「读 PDF」，本模块负责「改 PDF」。一期提供：合并 / 拆分 / 组织页面(重排·删除·旋转·提取) / 导出图片。
 
 ## 关键文件
-- 入口视图：`src/views/pdfTools/index.vue`（卡片仪表盘 + 工具切换）
+- 入口视图：`src/views/pdfTools/index.vue`（卡片仪表盘 + 工具切换；容器**左对齐**不居中，`margin:0 auto` 已移除；打开工具时在 `tool-head` 区显示二级标题 = 当前工具 title + desc，元信息来自 store `tools` 按 `activeTool` 匹配）
 - 子工具组件（原子化）：
   - 一期：`MergeTool.vue` / `SplitTool.vue` / `OrganizeTool.vue` / `ExportImagesTool.vue`
   - 二期：`InsertTool.vue` / `ReplaceTool.vue` / `DuplicateTool.vue` / `CropTool.vue` / `DecorateTool.vue` / `WatermarkTool.vue` / `CoverTool.vue` / `ResizeTool.vue` / `DetectBlankTool.vue` / `FlattenTool.vue`

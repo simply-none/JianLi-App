@@ -554,8 +554,8 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     },
   },
   on(...args: Parameters<typeof ipcRenderer.on>) {
-    const [channel, listener] = args as [string, (event: any, ...rest: any[]) => void]
-    return ipcRenderer.on(channel, (event, ...rest) => listener(event, ...rest))
+    // 直接透传监听器，保证渲染端用同一函数引用调用 off/removeListener 时可正确解绑
+    return ipcRenderer.on(...args)
   },
   once(...args: Parameters<typeof ipcRenderer.once>) {
     const [channel, listener] = args as [string, (event: any, ...rest: any[]) => void]
@@ -564,6 +564,11 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
   off(...args: Parameters<typeof ipcRenderer.off>) {
     const [channel, ...omit] = args
     return ipcRenderer.off(channel, ...omit)
+  },
+  removeListener(...args: Parameters<typeof ipcRenderer.removeListener>) {
+    // 与 off 等价的直通方法，兼容使用 removeListener 命名的调用方
+    const [channel, ...omit] = args
+    return ipcRenderer.removeListener(channel, ...omit)
   },
   send(...args: Parameters<typeof ipcRenderer.send>) {
     const [channel, ...omit] = args

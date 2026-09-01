@@ -38,6 +38,11 @@
 
     <!-- 具体工具 -->
     <template v-else>
+      <!-- 二级标题：当前工具名称与描述 -->
+      <div class="tool-head">
+        <h3 class="tool-title">{{ activeMeta?.title }}</h3>
+        <p v-if="activeMeta?.desc" class="tool-desc">{{ activeMeta.desc }}</p>
+      </div>
       <component :is="currentComponent" />
     </template>
   </div>
@@ -97,6 +102,8 @@ const compMap: Record<PdfToolKey, any> = {
   compare: CompareTool,
 };
 const currentComponent = computed(() => (store.activeTool ? compMap[store.activeTool] : null));
+/** 当前工具的元信息（标题/描述），用于二级标题展示 */
+const activeMeta = computed(() => store.tools.find((t) => t.key === store.activeTool));
 
 function short(p: string): string {
   return p.length > 52 ? '…' + p.slice(p.length - 50) : p;
@@ -110,8 +117,6 @@ function openFolder(p: string): void {
 <style scoped>
 .pdf-tools-view {
   padding: 20px 24px;
-  max-width: 1080px;
-  margin: 0 auto;
 }
 .head {
   display: flex;
@@ -142,6 +147,32 @@ function openFolder(p: string): void {
   margin: 6px 0 0;
   color: var(--text-muted);
   font-size: 13px;
+}
+/* 二级标题：当前打开工具的名称与描述 */
+.tool-head {
+  margin-bottom: 14px;
+}
+.tool-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* 标题左侧的竖向强调条，标识当前工具 */
+.tool-title::before {
+  content: '';
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--color-primary);
+}
+.tool-desc {
+  margin: 4px 0 0 9px;
+  color: var(--text-muted);
+  font-size: 12px;
 }
 .cards {
   display: grid;

@@ -1,5 +1,6 @@
 <template>
   <div class="regex-tester">
+    <ToolHint text="填写正则本体（无需 / 斜杠包裹）与待匹配文本，点「测试」查看高亮与捕获组；语法错误会即时红条提示" />
     <!-- 正则输入行 -->
     <div class="regex-input-row">
       <div class="pattern-wrap">
@@ -18,7 +19,7 @@
         </el-checkbox-group>
       </div>
       <div class="actions">
-        <el-button type="primary" :icon="Play" :disabled="!pattern" @click="runTest">▶ 测试</el-button>
+        <el-button type="primary" :icon="Play" :disabled="!pattern" @click="runTest">测试</el-button>
         <el-button :icon="Trash2" @click="resetAll">清空</el-button>
       </div>
     </div>
@@ -99,6 +100,7 @@
  */
 import { ref, computed, watch } from 'vue';
 import { Play, Trash2 } from '@lucide/vue';
+import ToolHint from '../../components/ToolHint.vue';
 import type { RegexMatch } from '../../shared/types';
 import { debounce } from '@/utils';
 

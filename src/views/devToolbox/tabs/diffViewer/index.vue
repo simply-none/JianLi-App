@@ -1,5 +1,6 @@
 <template>
   <div class="diff-viewer">
+    <ToolHint text="左右两栏分别粘贴文本即自动对比；可切换视图（并排/合并/内联）与算法（行/词/字符/JSON/CSS），差异块支持逐个或全部应用" />
     <!-- ========== 工具栏 ========== -->
     <div class="toolbar">
       <!-- 第一行：视图 + 算法 -->
@@ -121,6 +122,7 @@
 import { ref, computed, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { ArrowLeftRight, Eraser, Download, Upload, Terminal } from '@lucide/vue';
+import ToolHint from '../../components/ToolHint.vue';
 import SplitView from './SplitView.vue';
 import UnifiedView from './UnifiedView.vue';
 import InlineView from './InlineView.vue';
