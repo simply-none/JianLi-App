@@ -22,9 +22,12 @@
           placeholder="" 
           class="key-select"
           filterable
+          :persistent="false"
           @change="(val: string) => handleSelectChange(val, index)"
           @visible-change="(visible: boolean) => handleSelectVisible(visible, index)"
         >
+          <!-- 选项列表随下拉展开才渲染（persistent=false 时收起即销毁）。
+               整页上百张卡片 × 3 个选择器 × ~70 个选项，若常驻渲染会产生上万个组件实例，导致页面卡顿 -->
           <el-option 
             v-for="op in ops" 
             :key="op.value" 
@@ -44,7 +47,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, onUnmounted } from 'vue'
 
 const props = defineProps({
   shortcut: {
@@ -101,11 +104,14 @@ const keyMap: Record<string, string> = {
 const activateInput = (index: number) => {
   activeIndex.value = index
   document.addEventListener('keydown', handleKeyDown)
+  // 仅在处于「等待按键输入」时才监听全局点击，避免上百个实例常驻监听
+  document.addEventListener('click', handleClickOutside)
 }
 
 const deactivateInput = () => {
   activeIndex.value = null
   document.removeEventListener('keydown', handleKeyDown)
+  document.removeEventListener('click', handleClickOutside)
 }
 
 const handleKeyDown = (event: KeyboardEvent) => {
@@ -150,8 +156,13 @@ const handleSelectChange = (val: string, index: number) => {
 }
 
 const handleSelectVisible = (visible: boolean, index: number) => {
+  // 展开时高亮当前按键位；收起时彻底反激活（清理高亮 + 可能残留的按键捕获监听，
+  // 防止 handleKeyDown 的 preventDefault 影响正常输入）。
+  // 选项列表由 el-select 的 persistent=false 自动懒渲染/销毁
   if (visible) {
     activeIndex.value = index
+  } else {
+    deactivateInput()
   }
 }
 
@@ -162,7 +173,11 @@ const handleClickOutside = (event: MouseEvent) => {
   }
 }
 
-document.addEventListener('click', handleClickOutside)
+// 组件卸载时兜底清理，防止激活状态下销毁导致监听器泄漏
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeyDown)
+  document.removeEventListener('click', handleClickOutside)
+})
 </script>
 
 <style lang="scss" scoped>

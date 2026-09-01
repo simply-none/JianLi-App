@@ -11,24 +11,21 @@
         </div>
       </div>
       <div>
-        <el-button title="获取快捷键" size="large" type="primary" @click="getShortcuts">
-          <LucideIcon name="Keyboard" :size="18" />
-          获取注册快捷键
+        <el-button title="从数据库重新拉取已注册的快捷键" size="large" type="primary" @click="getShortcut">
+          <LucideIcon name="RefreshCw" :size="18" />
+          刷新
         </el-button>
       </div>
     </header>
 
     <main class="page-content">
-      <div v-if="!shortcutGroups || shortcutGroups.length == 0" class="result-empty">
-        <LucideIcon name="Crop" :size="40" />
-        <p>点击右上角「获取注册快捷键」按钮 即可开始</p>
-        <p class="tip">提示：点击右上角「获取注册快捷键」按钮 即可开始</p>
-      </div>
-      <template v-else>
-        <section v-for="group in shortcutGroups" :key="group.title" class="shortcut-section">
-          <h2 class="section-title">{{ group.title }}</h2>
-          <div class="shortcuts-grid">
-            <div v-for="item in group.items" :key="item.key" class="shortcut-card">
+      <section v-for="group in shortcutGroups" :key="group.title" class="shortcut-section">
+        <h2 class="section-title">{{ group.title }}</h2>
+        <div class="shortcuts-grid">
+          <div v-for="item in group.items" :key="item.key" class="shortcut-card">
+            <!-- 懒挂载：整页 78 张卡片（18 常用 + 全部路由），一次性全量挂载仍偏重，
+                 滚动接近视口才实例化卡片内部（图标/选择器/按钮），把渲染摊平到多帧 -->
+            <lazy-mount :min-height="277">
               <div class="card-icon" :class="getIconClass(item.key)">
                 <LucideIcon :name="getIcon(item.key)" :size="24" />
               </div>
@@ -55,10 +52,10 @@
                   重置
                 </el-button>
               </div>
-            </div>
+            </lazy-mount>
           </div>
-        </section>
-      </template>
+        </div>
+      </section>
     </main>
 
     <footer class="tips-section">
@@ -86,6 +83,7 @@ import { ElMessage } from 'element-plus';
 import LucideIcon from '@/components/LucideIcon.vue';
 import moment from 'moment';
 import shortcut from './shortcut.vue';
+import lazyMount from './lazyMount.vue';
 import { mergeShortcuts } from '@/utils';
 
 const route = useRoute();
@@ -325,14 +323,11 @@ const allCommonShortcuts = ref(JSON.parse(JSON.stringify(originShortcuts.value))
 const allRouteShortcuts = ref(JSON.parse(JSON.stringify(routeShortcuts.value)))
 
 // 分类分组：常用功能（既有列表） + 路由功能（layoutRouters 全量）
-const shortcutGroups = ref([])
-
-const getShortcuts = () => {
-  shortcutGroups.value = [
-    { title: '常用功能', items: originShortcuts.value },
-    { title: '路由功能', items: allRouteShortcuts.value },
-  ]
-}
+// 用 computed 引用合并后的列表，数据库拉取完成后自动更新视图（修复原 getShortcuts 误用未合并数据源的 bug）
+const shortcutGroups = computed(() => [
+  { title: '常用功能', items: allCommonShortcuts.value },
+  { title: '路由功能', items: allRouteShortcuts.value },
+])
 
 const resetShortcut = (item) => {
   item.shortcut = ['', '', '']
@@ -680,29 +675,6 @@ async function getShortcut() {
 
   .tips-section {
     padding: 16px;
-  }
-}
-
-.result-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-muted);
-  text-align: center;
-  height: 100%;
-  display: flex;
-  justify-content: center;
-
-  p {
-    margin: 0;
-    font-size: 13px;
-  }
-
-  .tip {
-    font-size: 12px;
-    color: var(--text-muted);
-    opacity: 0.8;
   }
 }
 </style>
