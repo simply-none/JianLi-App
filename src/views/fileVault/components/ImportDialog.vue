@@ -6,6 +6,11 @@
         <span>{{ picked.length ? `已选择 ${picked.length} 个文件` : '选择要加密的文件…' }}</span>
       </button>
 
+      <label class="imp-opt">
+        <input type="checkbox" v-model="deleteSource" />
+        <span>导入后删除原文件（安全删除，防止明文残留在原位置）</span>
+      </label>
+
       <div v-if="picked.length" class="imp-list">
         <div v-for="p in picked" :key="p" class="imp-item" :title="p">
           {{ basename(p) }}
@@ -38,6 +43,7 @@ import { ElMessage } from 'element-plus';
 import AppDialog from '@/components/AppDialog.vue';
 import LucideIcon from '@/components/LucideIcon.vue';
 import { fileVaultApi } from '../api/fileVaultApi';
+import { suspendAutoLockForNative, resumeAutoLockForNative } from '@/composables/useAutoLock';
 
 const visible = defineModel<boolean>({ default: false });
 const emit = defineEmits<{ (e: 'done', result: { ok: number; fail: number }): void }>();
@@ -46,14 +52,22 @@ const picked = ref<string[]>([]);
 const importing = ref(false);
 const error = ref('');
 const progress = reactive({ done: 0, total: 0 });
+/** 导入后是否安全删除原文件（避免明文残留在原位置）；保险箱语义下默认开启 */
+const deleteSource = ref(true);
 
 function basename(p: string): string {
   return p.split(/[\\/]/).pop() || p;
 }
 
 async function choose() {
-  const paths = await fileVaultApi.pickImport();
-  if (paths && paths.length) picked.value = paths;
+  // 原生多选对话框会让渲染窗口失焦，挂起自动锁定避免误触发
+  suspendAutoLockForNative();
+  try {
+    const paths = await fileVaultApi.pickImport();
+    if (paths && paths.length) picked.value = paths;
+  } finally {
+    resumeAutoLockForNative();
+  }
 }
 
 async function run() {
@@ -64,14 +78,20 @@ async function run() {
   progress.done = 0;
   let ok = 0;
   let fail = 0;
+  let deleted = 0;
   for (const p of picked.value) {
-    const res = await fileVaultApi.importFile(p);
-    if (res.ok) ok++;
-    else fail++;
+    const res = await fileVaultApi.importFile(p, undefined, deleteSource.value);
+    if (res.ok) {
+      ok++;
+      if (res.sourceDeleted) deleted++;
+    } else fail++;
     progress.done++;
   }
   importing.value = false;
-  if (ok) ElMessage.success(`已加密导入 ${ok} 个文件`);
+  if (ok)
+    ElMessage.success(
+      `已加密导入 ${ok} 个文件${deleted ? `，已安全删除原文件 ${deleted} 个` : ''}`,
+    );
   if (fail) ElMessage.warning(`${fail} 个文件导入失败`);
   picked.value = [];
   progress.total = 0;
@@ -110,6 +130,21 @@ async function run() {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+.imp-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+  input {
+    width: 15px;
+    height: 15px;
+    accent-color: var(--color-primary);
+    cursor: pointer;
+  }
 }
 .imp-item {
   padding: 6px 8px;

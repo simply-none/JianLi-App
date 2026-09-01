@@ -37,7 +37,7 @@
 | `file-vault:status` | 返回 `{hasVault, isUnlocked}` |
 | `file-vault:list` | 解锁后主进程用 dataKey 解密文件名，返回脱敏元数据列表 |
 | `file-vault:pick-import` | 原生多选对话框，返回源文件路径数组 |
-| `file-vault:import` `{sourcePath, name?}` | 读源文件→加密落盘→写脱敏元数据（原名加密） |
+| `file-vault:import` `{sourcePath, name?, deleteSource?}` | 读源文件→加密落盘→写脱敏元数据（原名加密）；`deleteSource=true` 时再安全删除原文件（随机覆盖 + unlink），避免明文原文件残留在原位置 |
 | `file-vault:pick-export-dir` | 原生目录选择，返回导出目录 |
 | `file-vault:export` `{id, destDir}` | 解密写出目标目录 |
 | `file-vault:decrypt-temp` `{id}` | 解密到临时目录，返回 `tempPath`（渲染端用 `jlocal:///` 预览） |
@@ -65,5 +65,6 @@
 - 渲染端禁 `import electron/*`；所有库 / 磁盘操作走 IPC。
 - **忘记密码 = 不可恢复**（无后门，设计如此，UI 需显著提示）。
 - 密文目录 Windows 下权限；导出后明文及时清理；预览临时文件及时删。
+- **导入即「移入」语义**：加密副本落盘后默认安全删除原文件（`ImportDialog` 开关「导入后删除原文件」默认勾选），否则明文原文件仍躺在原位置会被误认为「加密未生效」。
 - 主题色走 CSS token（`--bg-base/card`、`--color-primary` 等），适配 25 套主题。
 - 与既有架构一致：侧边栏入口 + 路由可见开关（routeSetting 自动接管），遵循「新需求落地清单」红线 8。

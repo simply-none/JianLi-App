@@ -29,9 +29,13 @@ export const fileVaultApi = {
   list: () => invoke<{ ok: boolean; error?: string; files?: VaultFileMeta[] }>('file-vault:list'),
   /** 原生对话框：选择要加密的文件（支持多选） */
   pickImport: () => invoke<string[] | null>('file-vault:pick-import'),
-  /** 加密导入单个文件 */
-  importFile: (sourcePath: string, name?: string) =>
-    invoke<{ ok: boolean; error?: string; file?: VaultFileMeta }>('file-vault:import', { sourcePath, name }),
+  /** 加密导入单个文件；deleteSource=true 时主进程安全删除原文件 */
+  importFile: (sourcePath: string, name?: string, deleteSource?: boolean) =>
+    invoke<{ ok: boolean; error?: string; file?: VaultFileMeta; sourceDeleted?: boolean }>('file-vault:import', {
+      sourcePath,
+      name,
+      deleteSource,
+    }),
   /** 原生对话框：选择导出目录 */
   pickExportDir: () => invoke<string | null>('file-vault:pick-export-dir'),
   /** 解密导出到目标目录 */

@@ -81,6 +81,33 @@ function decryptName(b64: string): string {
   return decryptBytes({ iv, ct }, dataKey!).toString('utf8');
 }
 
+/** 安全删除：随机覆盖一遍后 unlink（个人保险箱场景下的尽力而为，加大 casual 恢复难度） */
+function secureDeleteFile(p: string): boolean {
+  try {
+    const st = fs.statSync(p);
+    if (st.isFile()) {
+      const size = st.size;
+      const fh = fs.openSync(p, 'r+');
+      try {
+        const unit = 1024 * 1024; // 1MB 分块覆盖，避免大文件一次性占内存
+        let written = 0;
+        while (written < size) {
+          const remain = size - written;
+          const n = Math.min(unit, remain);
+          fs.writeSync(fh, crypto.randomBytes(n), 0, n, written);
+          written += n;
+        }
+      } finally {
+        fs.closeSync(fh);
+      }
+    }
+    fs.unlinkSync(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function mimeFromExt(ext: string): string {
   const map: Record<string, string> = {
     '.pdf': 'application/pdf',
@@ -202,10 +229,10 @@ export function initFileVault() {
     return r && r.length ? r : null;
   });
 
-  /** 加密导入：读源文件 → 加密落盘 → 写脱敏元数据（原文件名加密存储） */
+  /** 加密导入：读源文件 → 加密落盘 → 写脱敏元数据（原文件名加密存储）；按 deleteSource 安全删除原文件 */
   ipcMain.handle(
     'file-vault:import',
-    async (_e, { sourcePath, name }: { sourcePath: string; name?: string }) => {
+    async (_e, { sourcePath, name, deleteSource }: { sourcePath: string; name?: string; deleteSource?: boolean }) => {
       if (!dataKey) return { ok: false, error: '未解锁' };
       try {
         const buf = fs.readFileSync(sourcePath);
@@ -225,7 +252,14 @@ export function initFileVault() {
           created_at: new Date().toISOString(),
         };
         await upsert({ tableName: FILES_TABLE, data: row, config: { primaryKey: 'id' } });
-        return { ok: true, file: { id, name: displayName, mime: row.mime, ext, size: row.size, createdAt: row.created_at } };
+        // 加密副本已落盘，按用户选择安全删除原文件（避免明文原文件残留在原位置）
+        let sourceDeleted = false;
+        if (deleteSource) sourceDeleted = secureDeleteFile(sourcePath);
+        return {
+          ok: true,
+          file: { id, name: displayName, mime: row.mime, ext, size: row.size, createdAt: row.created_at },
+          sourceDeleted,
+        };
       } catch (err: any) {
         return { ok: false, error: err?.message || String(err) };
       }

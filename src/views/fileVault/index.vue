@@ -64,7 +64,7 @@
 import { ref, watch, onMounted, onUnmounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import LucideIcon from '@/components/LucideIcon.vue';
-import { useAutoLock } from '@/composables/useAutoLock';
+import { useAutoLock, suspendAutoLockForNative, resumeAutoLockForNative } from '@/composables/useAutoLock';
 import useFileVault from './store/useFileVault';
 import { fileVaultApi } from './api/fileVaultApi';
 import UnlockView from './components/UnlockView.vue';
@@ -155,11 +155,17 @@ function onPreview(file: VaultFileMeta) {
 
 async function onExport(file: VaultFileMeta | null) {
   if (!file) return;
-  const dir = await fileVaultApi.pickExportDir();
-  if (!dir) return;
-  const ok = await store.exportFile(file.id, dir);
-  if (ok) ElMessage.success('已导出解密文件');
-  else ElMessage.error(store.error || '导出失败');
+  // 原生文件夹选择器会让渲染窗口失焦，挂起自动锁定避免误触发（从卡片或预览导出都覆盖）
+  suspendAutoLockForNative();
+  try {
+    const dir = await fileVaultApi.pickExportDir();
+    if (!dir) return;
+    const ok = await store.exportFile(file.id, dir);
+    if (ok) ElMessage.success('已导出解密文件');
+    else ElMessage.error(store.error || '导出失败');
+  } finally {
+    resumeAutoLockForNative();
+  }
 }
 
 async function onDelete(file: VaultFileMeta) {

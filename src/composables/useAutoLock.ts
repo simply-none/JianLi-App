@@ -11,6 +11,20 @@
  */
 import { onUnmounted, unref, type Ref } from 'vue';
 
+/**
+ * 原生对话框（文件/文件夹选择器）进行中会临时挂起自动锁定。
+ * 这类系统对话框会让渲染窗口失焦/隐藏，若按正常规则会误触发锁定，
+ * 因此在打开前 +1、关闭后 -1，期间任何 blur/visibility 锁定都被忽略。
+ * 这是模块级计数，fileVault 等安全模块页面同时只存在一个实例，共享即可。
+ */
+let _nativeDialogs = 0;
+export function suspendAutoLockForNative() {
+  _nativeDialogs++;
+}
+export function resumeAutoLockForNative() {
+  _nativeDialogs = Math.max(0, _nativeDialogs - 1);
+}
+
 export interface AutoLockOptions {
   /** 空闲多少分钟触发锁定（默认 5，可为 ref） */
   idleMinutes?: number | Ref<number>;
@@ -41,6 +55,7 @@ export function useAutoLock(options: AutoLockOptions) {
 
   function triggerLock() {
     if (!enabled || paused) return;
+    if (_nativeDialogs > 0) return; // 原生对话框进行中，忽略失焦/隐藏误触发
     enabled = false; // 防止重复触发
     options.onLock();
   }

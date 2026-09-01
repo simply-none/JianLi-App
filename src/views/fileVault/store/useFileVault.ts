@@ -85,17 +85,20 @@ export default defineStore('file-vault', () => {
     await refresh();
   }
 
-  /** 批量加密导入（原生多选 → 逐文件导入） */
-  async function importFiles(paths: string[]): Promise<{ ok: number; fail: number }> {
+  /** 批量加密导入（原生多选 → 逐文件导入）；deleteSource=true 时安全删除原文件 */
+  async function importFiles(paths: string[], deleteSource = true): Promise<{ ok: number; fail: number; deleted: number }> {
     let ok = 0;
     let fail = 0;
+    let deleted = 0;
     for (const p of paths) {
-      const res = await fileVaultApi.importFile(p);
-      if (res.ok) ok++;
-      else fail++;
+      const res = await fileVaultApi.importFile(p, undefined, deleteSource);
+      if (res.ok) {
+        ok++;
+        if (res.sourceDeleted) deleted++;
+      } else fail++;
     }
     if (ok) await refresh();
-    return { ok, fail };
+    return { ok, fail, deleted };
   }
 
   /** 解密导出到目标目录 */
