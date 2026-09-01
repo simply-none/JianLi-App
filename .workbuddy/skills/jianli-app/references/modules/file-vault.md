@@ -21,7 +21,7 @@
 - `src/views/fileVault/api/fileVaultApi.ts` — `file-vault:*` IPC 封装（薄封装 `window.ipcRenderer.handlePromise`）
 - `src/views/fileVault/store/useFileVault.ts` — Pinia store（状态 + 动作，委托 api，不持明文）
 - `src/views/fileVault/index.vue` — 主视图（未建库 / 未解锁 / 已解锁三态 + 自动锁定 UI）
-- `src/views/fileVault/components/`：`UnlockView`（首次设密·解锁）· `FileGrid`（VirtualList 虚拟化卡片）· `ImportDialog`（原生多选→逐文件加密）· `PreviewDialog`（解密临时文件经 `jlocal:///` 预览，关闭即清临时明文）
+- `src/views/fileVault/components/`：`UnlockView`（首次设密·解锁）· `FileGrid`（VirtualList 虚拟化卡片）· `ImportDialog`（原生多选→逐文件加密）· `PreviewDialog`（解密临时文件经 `jlocal:///` 预览，关闭即清临时明文）· `DecryptImportDialog`（拖拽/选择 `.jlv` → 已解锁时解密 → 内嵌预览 → 另存为明文）
 
 ### 路由 / 菜单
 - `src/router/index.ts` — `RouteNames.FILE_VAULT` + `layoutRouters`（`/fileVault`）
@@ -43,6 +43,11 @@
 | `file-vault:decrypt-temp` `{id}` | 解密到临时目录，返回 `tempPath`（渲染端用 `jlocal:///` 预览） |
 | `file-vault:cleanup-temp` | 清空预览临时目录（防磁盘残留明文） |
 | `file-vault:delete` `{id}` | 删元数据 + 删密文 |
+| `file-vault:pick-import-decrypt` | 原生多选对话框（过滤 `.jlv`），返回源文件路径数组 |
+| `file-vault:import-decrypt` `{sourcePath}` | **导入解密（路径通道）**：要求已解锁；读 `.jlv` → 用内存 `dataKey` 解密到临时目录（明文不过 IPC），返回 `{tempPath, ext}`；非本保险箱/损坏会 GCM 失败报错 |
+| `file-vault:import-decrypt-bytes` `{name, buffer}` | **导入解密（字节通道）**：渲染端读文件字节后传入（绕开本地路径依赖），主进程解密写临时目录，返回 `{tempPath, ext, name}`；用于打包后 `file://` 页面拖拽导致 `File.path` 为空的环境（见「导入解密」小节的拖拽取路径坑） |
+| `file-vault:save-plain` `{tempPath, destDir, name}` | 把解密后的临时明文另存到目标目录（主进程落盘，文件名防穿越清洗） |
+| `file-vault:cleanup-import-decrypt` | 清空导入解密临时目录 |
 
 ## 安全红线
 - 明文文件内容绝不写应用数据库（newSql / basic_info 只读写 vault 配置与脱敏元数据）。
@@ -59,6 +64,16 @@
 
 ## 命令面板入口
 - `FILE_VAULT` 路由已在 `layoutRouters` 内，命令面板 `routeSource` 自动派生该入口——搜「保险箱 / fileVault」即可直达，无需在 `actionSource.ts` 重复登记。
+
+## 导入解密（拖拽 / 选择 .jlv）
+- **定位**：「导出解密」的逆通路——把磁盘上的 `.jlv`（来自本保险箱的导出 / 备份 / 另存）恢复为明文。
+- **入口**：解锁后工具栏「导入解密」按钮 → 原生选择器（过滤 `.jlv`，走路径通道）或把 `.jlv` 拖入对话框的拖拽区（`@drop`）。
+- **拖拽取路径（关键坑与回退）**：拖拽时优先用 `File.path` 走路径通道（dev/部分环境可用）；**打包后 `file://` 页面下 Chromium 安全限制会让 `DataTransfer.files[i].path` / `.name` 为空**，导致无法识别 `.jlv` 而误报「仅支持 .jlv」。故 `onDrop` 在拿不到 path 时自动回退「读 `File.arrayBuffer()` → `import-decrypt-bytes` 字节通道」，**任何环境拖拽都能解密**。按钮选择始终走 path 通道（100% 可靠）。
+- **权限**：主进程 `import-decrypt` 首行 `if (!dataKey) return {ok:false, error:'未解锁'}`；未解锁时入口不可达，且 UI 提示先解锁。对应「在有权限的情况下解密该文件」。
+- **解密与预览**：主进程解密到 `temp/渐离App保险箱导入解密/<uuid>.<ext>`，临时路径经 `jlocal:///` 内嵌预览（图片 / PDF / 音频 / 文本；其他类型提示「另存后查看」）；`.jlv` 无类型信息，靠文件头魔数 `guessExt()` 推断扩展名用于预览与默认文件名。
+- **另存为明文**：逐项「另存为」→ 原生目录选择 → 主进程 `save-plain` 复制到目标（文件名做 `\/?:*?"<>|` 清洗防穿越）。明文只在用户指定目录落地，符合预期。
+- **非本保险箱**：用其它保险箱 `dataKey` 加密的 `.jlv` 解码时 GCM 认证失败，返回「解密失败：该文件不属于当前保险箱或已损坏」。
+- **彻底清理**：对话框关闭 / 页面卸载均调用 `cleanup-import-decrypt`，清空临时明文目录，防磁盘残留。
 
 ## 特有坑 / 注意
 - 改主进程（fileVault.ts / crypto.ts）**必须重启 Electron**。

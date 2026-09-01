@@ -30,6 +30,9 @@
               <option :value="30">30 分钟</option>
             </select>
           </div>
+          <button class="fv-btn" @click="showDecrypt = true">
+            <LucideIcon name="FileBox" :size="16" /> 导入解密
+          </button>
           <button class="fv-btn fv-btn--primary" @click="showImport = true">
             <LucideIcon name="Upload" :size="16" /> 导入加密
           </button>
@@ -50,6 +53,7 @@
 
     <ImportDialog v-model="showImport" @done="onImported" />
     <PreviewDialog v-model="showPreview" :file="previewFile" @export="onExport" @closed="onPreviewClosed" />
+    <DecryptImportDialog v-model="showDecrypt" />
   </div>
 </template>
 
@@ -71,11 +75,13 @@ import UnlockView from './components/UnlockView.vue';
 import FileGrid from './components/FileGrid.vue';
 import ImportDialog from './components/ImportDialog.vue';
 import PreviewDialog from './components/PreviewDialog.vue';
+import DecryptImportDialog from './components/DecryptImportDialog.vue';
 import type { VaultFileMeta } from './types';
 
 const store = useFileVault();
 const showImport = ref(false);
 const showPreview = ref(false);
+const showDecrypt = ref(false);
 const previewFile = ref<VaultFileMeta | null>(null);
 /** 解锁门（创建/解锁弹窗）显隐：锁定态显示、解锁态隐藏；由 isUnlocked 同步 */
 const showUnlock = ref(true);
@@ -98,9 +104,9 @@ watch(
   { immediate: true },
 );
 
-/** 打开原生文件对话框（导入/导出）前暂停，关闭后恢复，避免失焦误触发锁定 */
-watch([showImport, showPreview], ([imp, prev]) => {
-  if (imp || prev) autoLock.pause();
+/** 打开原生文件对话框（导入/导出/导入解密）前暂停，关闭后恢复，避免失焦误触发锁定 */
+watch([showImport, showPreview, showDecrypt], ([imp, prev, dec]) => {
+  if (imp || prev || dec) autoLock.pause();
   else autoLock.resume();
 });
 
@@ -114,8 +120,9 @@ onMounted(async () => {
   }
 });
 onUnmounted(() => {
-  // 离开页面清理预览临时文件与自动锁定监听（锁定态另有主进程清理）
+  // 离开页面清理预览/导入解密临时文件与自动锁定监听（锁定态另有主进程清理）
   store.cleanupTemp();
+  store.cleanupImportDecryptTemp();
   autoLock.stop();
 });
 

@@ -34,3 +34,17 @@ export interface DecryptTempResult extends VaultResult {
 export interface ExportResult extends VaultResult {
   path?: string;
 }
+
+/** 导入解密（拖拽/选择 .jlv → 解密到临时目录）结果 */
+export interface ImportDecryptResult extends VaultResult {
+  tempPath?: string;
+  /** 推断出的扩展名（.jlv 不含类型信息，按文件头魔数猜测），用于默认文件名 */
+  ext?: string;
+  /** 原始文件名去掉 .jlv 后的基础名（字节通道会从拖入文件名还原；路径通道为空） */
+  name?: string;
+}
+
+/** 另存明文结果 */
+export interface SavePlainResult extends VaultResult {
+  path?: string;
+}

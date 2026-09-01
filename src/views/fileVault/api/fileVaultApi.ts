@@ -5,7 +5,7 @@
  * 所有通道名均为 'file-vault:*'，对应主进程 initFileVault() 注册的 handle。
  * 渲染端不持有明文内容与密钥；加解密、磁盘读写全部在主进程完成。
  */
-import type { VaultFileMeta, VaultStatus, DecryptTempResult, ExportResult } from '../types';
+import type { VaultFileMeta, VaultStatus, DecryptTempResult, ExportResult, ImportDecryptResult, SavePlainResult, VaultResult } from '../types';
 
 /** 薄封装：渲染端统一 IPC 调用 */
 function invoke<T = any>(channel: string, args?: any): Promise<T> {
@@ -47,4 +47,17 @@ export const fileVaultApi = {
   cleanupTemp: () => invoke<{ ok: boolean; error?: string }>('file-vault:cleanup-temp'),
   /** 删除文件（元数据 + 密文） */
   deleteFile: (id: string) => invoke<{ ok: boolean; error?: string }>('file-vault:delete', { id }),
+  /** 原生对话框：选择要解密的 .jlv 文件（多选） */
+  pickImportDecrypt: () => invoke<string[] | null>('file-vault:pick-import-decrypt'),
+  /** 导入解密单个 .jlv：要求已解锁，解密到临时目录，返回临时路径与推断扩展名 */
+  importDecrypt: (sourcePath: string) =>
+    invoke<ImportDecryptResult>('file-vault:import-decrypt', { sourcePath }),
+  /** 导入解密（字节通道）：渲染端读文件字节后传入，主进程解密写临时文件；用于拿不到本地路径的环境 */
+  importDecryptBytes: (name: string, buffer: ArrayBuffer) =>
+    invoke<ImportDecryptResult>('file-vault:import-decrypt-bytes', { name, buffer }),
+  /** 把解密后的临时明文另存到目标目录 */
+  savePlain: (tempPath: string, destDir: string, name: string) =>
+    invoke<SavePlainResult>('file-vault:save-plain', { tempPath, destDir, name }),
+  /** 清理导入解密临时目录 */
+  cleanupImportDecrypt: () => invoke<VaultResult>('file-vault:cleanup-import-decrypt'),
 };

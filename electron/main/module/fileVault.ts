@@ -55,6 +55,26 @@ function tempDir(): string {
   return d;
 }
 
+/** 导入解密临时目录（用完即清） */
+function importDecryptTempDir(): string {
+  const d = path.resolve(app.getPath('temp'), '渐离App保险箱导入解密');
+  fs.mkdirSync(d, { recursive: true });
+  return d;
+}
+
+/** 根据文件头魔数推断扩展名（.jlv 不含类型信息，用于预览与默认文件名） */
+function guessExt(buf: Buffer): string {
+  if (buf.length >= 4) {
+    if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return '.png';
+    if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return '.jpg';
+    if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) return '.gif';
+    if (buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46) return '.pdf';
+    if (buf[0] === 0x50 && buf[1] === 0x4b && buf[2] === 0x03 && buf[3] === 0x04) return '.zip';
+    if (buf[0] === 0x49 && buf[1] === 0x44 && buf[2] === 0x33) return '.mp3';
+  }
+  return '.bin';
+}
+
 async function getConfig(): Promise<VaultConfig | null> {
   try {
     const rows = await query({ tableName: CONFIG_TABLE, conditions: { key: CONFIG_KEY } });
@@ -341,6 +361,85 @@ export function initFileVault() {
         }
       }
       await del({ tableName: FILES_TABLE, condition: { id } });
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  /** 原生对话框：选择要解密的 .jlv 文件（多选） */
+  ipcMain.handle('file-vault:pick-import-decrypt', async () => {
+    const r = dialog.showOpenDialogSync({
+      title: '选择要解密的文件（.jlv）',
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: '加密文件', extensions: ['jlv'] }],
+    });
+    return r && r.length ? r : null;
+  });
+
+  /** 导入解密：要求已解锁；读 .jlv → 解密到临时目录，明文不过 IPC（避免大文件占用通道） */
+  ipcMain.handle('file-vault:import-decrypt', async (_e, { sourcePath }: { sourcePath: string }) => {
+    if (!dataKey) return { ok: false, error: '未解锁' };
+    try {
+      const buf = fs.readFileSync(sourcePath);
+      if (buf.length < 12 + 16) return { ok: false, error: '文件不是有效的加密文件' };
+      const iv = buf.subarray(0, 12).toString('base64');
+      const ct = buf.subarray(12).toString('base64');
+      const plain = decryptBytes({ iv, ct }, dataKey); // 非本保险箱会抛错（GCM 认证失败）
+      const ext = guessExt(plain);
+      const outName = `${crypto.randomUUID()}${ext}`;
+      const outPath = path.resolve(importDecryptTempDir(), outName);
+      fs.writeFileSync(outPath, plain);
+      return { ok: true, tempPath: outPath, ext };
+    } catch {
+      return { ok: false, error: '解密失败：该文件不属于当前保险箱或已损坏' };
+    }
+  });
+
+  /** 导入解密（字节通道）：渲染端读文件字节后传入，主进程用 dataKey 解密并写临时文件。
+   *  用于渲染端拿不到本地文件路径的环境（如打包后 file:// 页面拖拽，Chromium 安全限制导致 File.path 为空），
+   *  彻底绕开 File.path 依赖。buffer 经 IPC 结构化克隆（小/中文件安全；超大文件建议用「选择 .jlv」按钮走路径通道）。 */
+  ipcMain.handle(
+    'file-vault:import-decrypt-bytes',
+    async (_e, { name, buffer }: { name: string; buffer: ArrayBuffer | Buffer | Uint8Array }) => {
+      if (!dataKey) return { ok: false, error: '未解锁' };
+      try {
+        const buf = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer as ArrayBuffer);
+        if (buf.length < 12 + 16) return { ok: false, error: '文件不是有效的加密文件' };
+        const iv = buf.subarray(0, 12).toString('base64');
+        const ct = buf.subarray(12).toString('base64');
+        const plain = decryptBytes({ iv, ct }, dataKey); // 非本保险箱会抛错（GCM 认证失败）
+        const ext = guessExt(plain);
+        const base = (name || '').replace(/\.jlv$/i, '');
+        const outName = `${crypto.randomUUID()}_${base}${ext}`;
+        const outPath = path.resolve(importDecryptTempDir(), outName);
+        fs.writeFileSync(outPath, plain);
+        return { ok: true, tempPath: outPath, ext, name: base };
+      } catch {
+        return { ok: false, error: '解密失败：该文件不属于当前保险箱或已损坏' };
+      }
+    },
+  );
+
+  /** 把解密后的临时明文另存到目标目录（主进程落盘，守安全边界；文件名做防穿越清洗） */
+  ipcMain.handle(
+    'file-vault:save-plain',
+    async (_e, { tempPath, destDir, name }: { tempPath: string; destDir: string; name: string }) => {
+      try {
+        const safeName = (name || '').replace(/[\\/:*?"<>|]/g, '_').trim() || 'decrypted-file';
+        const outPath = path.resolve(destDir, safeName);
+        fs.copyFileSync(tempPath, outPath);
+        return { ok: true, path: outPath };
+      } catch (err: any) {
+        return { ok: false, error: err?.message || String(err) };
+      }
+    },
+  );
+
+  /** 清理导入解密临时目录 */
+  ipcMain.handle('file-vault:cleanup-import-decrypt', async () => {
+    try {
+      fs.rmSync(importDecryptTempDir(), { recursive: true, force: true });
       return { ok: true };
     } catch (err: any) {
       return { ok: false, error: err?.message || String(err) };

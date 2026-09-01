@@ -132,6 +132,65 @@ export default defineStore('file-vault', () => {
     await fileVaultApi.cleanupTemp();
   }
 
+  /** 导入解密：逐文件解密 .jlv 到临时目录（要求已解锁）；返回每个文件的结果 */
+  async function decryptImportFiles(paths: string[]): Promise<{
+    ok: number;
+    fail: number;
+    items: { source: string; tempPath?: string; ext?: string; error?: string }[];
+  }> {
+    let ok = 0;
+    let fail = 0;
+    const items: { source: string; tempPath?: string; ext?: string; error?: string }[] = [];
+    for (const p of paths) {
+      const res = await fileVaultApi.importDecrypt(p);
+      if (res.ok && res.tempPath) {
+        ok++;
+        items.push({ source: p, tempPath: res.tempPath, ext: res.ext });
+      } else {
+        fail++;
+        items.push({ source: p, error: res.error || '解密失败' });
+      }
+    }
+    return { ok, fail, items };
+  }
+
+  /** 导入解密（字节通道）：渲染端已读文件字节，主进程解密写临时文件；用于无法获取本地路径的环境 */
+  async function decryptImportBytes(items: { name: string; buffer: ArrayBuffer }[]): Promise<{
+    ok: number;
+    fail: number;
+    items: { source: string; tempPath?: string; ext?: string; name?: string; error?: string }[];
+  }> {
+    let ok = 0;
+    let fail = 0;
+    const out: { source: string; tempPath?: string; ext?: string; name?: string; error?: string }[] = [];
+    for (const it of items) {
+      const res = await fileVaultApi.importDecryptBytes(it.name, it.buffer);
+      if (res.ok && res.tempPath) {
+        ok++;
+        out.push({ source: it.name, tempPath: res.tempPath, ext: res.ext, name: res.name || it.name });
+      } else {
+        fail++;
+        out.push({ source: it.name, error: res.error || '解密失败' });
+      }
+    }
+    return { ok, fail, items: out };
+  }
+
+  /** 把解密后的临时明文另存到目标目录 */
+  async function savePlainFile(tempPath: string, destDir: string, name: string): Promise<boolean> {
+    const res = await fileVaultApi.savePlain(tempPath, destDir, name);
+    if (!res.ok) {
+      error.value = res.error || '保存失败';
+      return false;
+    }
+    return true;
+  }
+
+  /** 清理导入解密临时目录 */
+  async function cleanupImportDecryptTemp() {
+    await fileVaultApi.cleanupImportDecrypt();
+  }
+
   return {
     hasVault,
     isUnlocked,
@@ -149,5 +208,9 @@ export default defineStore('file-vault', () => {
     deleteFile,
     decryptTemp,
     cleanupTemp,
+    decryptImportFiles,
+    decryptImportBytes,
+    savePlainFile,
+    cleanupImportDecryptTemp,
   };
 });
