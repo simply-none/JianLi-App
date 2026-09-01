@@ -77,3 +77,45 @@ export function readVaultFile<T>(filePath: string, passphrase: string): T[] {
   const env = JSON.parse(raw) as VaultEnvelope;
   return decryptVault<T>(env, passphrase);
 }
+
+/**
+ * 二进制文件加密原语（供 fileVault 加密任意文件字节）
+ * ------------------------------------------------------------------
+ * 与 JSON 信封接口（encryptVault/decryptVault）共用同一套算法参数
+ * （AES-256-GCM / PBKDF2-SHA256 / 200000 迭代），仅操作原始 Buffer，
+ * 不包裹 JSON，避免 base64 体积膨胀，适合任意大小的文件。
+ */
+export interface EncryptedBytes {
+  /** 12 字节随机 IV，base64 */
+  iv: string;
+  /** 密文 + 16 字节 GCM 认证标签，base64 */
+  ct: string;
+}
+
+/** 用给定密钥加密任意字节；iv 随机，GCM tag 附在 ct 尾部。 */
+export function encryptBytes(plain: Buffer, key: Buffer): EncryptedBytes {
+  const iv = crypto.randomBytes(IV_BYTES);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const encrypted = Buffer.concat([cipher.update(plain), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return {
+    iv: iv.toString('base64'),
+    ct: Buffer.concat([encrypted, tag]).toString('base64'),
+  };
+}
+
+/** 解密字节；密钥错误或文件损坏会抛错（GCM 认证失败）。 */
+export function decryptBytes(env: EncryptedBytes, key: Buffer): Buffer {
+  const iv = Buffer.from(env.iv, 'base64');
+  const ct = Buffer.from(env.ct, 'base64');
+  const tag = ct.subarray(ct.length - GCM_TAG_BYTES);
+  const data = ct.subarray(0, ct.length - GCM_TAG_BYTES);
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+  decipher.setAuthTag(tag);
+  return Buffer.concat([decipher.update(data), decipher.final()]);
+}
+
+/** 由口令派生 KEK（与 VaultEnvelope 同参数：PBKDF2-SHA256 / 200000 迭代） */
+export function deriveKey(passphrase: string, salt: Buffer): Buffer {
+  return crypto.pbkdf2Sync(passphrase, salt, PBKDF2_ITERATIONS, KEY_BYTES, 'sha256');
+}

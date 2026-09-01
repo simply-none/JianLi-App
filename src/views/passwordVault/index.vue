@@ -96,7 +96,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import LucideIcon from '@/components/LucideIcon.vue';
 import usePasswordVault from './store/usePasswordVault';
-import { useAutoLock } from './composables/useAutoLock';
+import { useAutoLock } from '@/composables/useAutoLock';
 import AccountList from './components/AccountList.vue';
 import VaultGate from './components/VaultGate.vue';
 import AddEditDialog from './components/AddEditDialog.vue';

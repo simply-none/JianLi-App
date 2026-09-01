@@ -64,6 +64,17 @@ const TABLE_LABELS: Record<string, string> = EXPORT_GROUPS.reduce((map, group) =
   return map;
 }, {} as Record<string, string>);
 
+/**
+ * 导出黑名单前缀：以这些前缀开头的表属于敏感加密模块（私密文件保险箱 fileVault），
+ * 即便文件名已用 dataKey 加密，也不应在「数据导出中心」被批量枚举/导出，避免元数据外泄。
+ * 注意：数据库级备份（.jlbak 整库快照）仍会包含这些表，但它们由口令派生的 KEK 保护
+ * （wrapped_key/salt），无口令无法解开 dataKey，符合方案 A 的「强隐私」前提。
+ */
+const EXPORT_EXCLUDE_PREFIXES = ["file_vault_"];
+function isExportExcluded(table: string): boolean {
+  return EXPORT_EXCLUDE_PREFIXES.some((p) => table.startsWith(p));
+}
+
 /** 常见日期列名（用于导出时的日期范围过滤探测） */
 const DATE_COLUMNS = ["create_time", "createTime", "created_at", "date", "updateTime"];
 
@@ -628,7 +639,8 @@ async function getExportModules() {
 
     const otherTables = [];
     for (const t of allTables) {
-      if (!groupedNames.has(t)) otherTables.push(await buildTableInfo(t));
+      // 导出黑名单：敏感加密模块表不进入导出中心枚举
+      if (!groupedNames.has(t) && !isExportExcluded(t)) otherTables.push(await buildTableInfo(t));
     }
 
     return { ok: true, groups, otherTables };
@@ -707,6 +719,11 @@ async function runExport(options: { tables: string[]; format: "csv" | "json"; da
       // 表名来自本模块 getExportModules 动态枚举，仍做白名单校验防注入
       const allTables = await getAllTables(conn);
       if (!allTables.includes(table)) continue;
+      // 导出黑名单：拒绝敏感加密模块表（私密文件保险箱）
+      if (isExportExcluded(table)) {
+        console.warn(`导出被拒绝：表 ${table} 属于敏感加密模块，不在数据导出范围内`);
+        continue;
+      }
 
       // 日期范围过滤（仅当表存在日期列且用户填了范围）
       const dateColumn = await getDateColumn(conn, table);

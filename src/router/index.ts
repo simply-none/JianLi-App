@@ -69,6 +69,7 @@ export const RouteNames = {
   TWO_FACTOR: "twoFactor",
   PDF_TOOLS: "pdfTools",
   PASSWORD_VAULT: "passwordVault",
+  FILE_VAULT: "fileVault",
 } as const;
 
 export type RouteNameType = typeof RouteNames[keyof typeof RouteNames];
@@ -402,6 +403,14 @@ export const layoutRouters: RouteRecordRaw[] = [
     component: () => import("@/views/passwordVault/index.vue"),
     meta: {
       title: "账号密码管理",
+    },
+  },
+  {
+    path: "/fileVault",
+    name: RouteNames.FILE_VAULT,
+    component: () => import("@/views/fileVault/index.vue"),
+    meta: {
+      title: "私密文件保险箱",
     },
   },
   {

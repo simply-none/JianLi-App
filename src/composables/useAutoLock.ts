@@ -1,10 +1,13 @@
 /**
- * 自动锁定组合式函数
+ * 自动锁定组合式函数（共享）
  * ------------------------------------------------------------------
  * 对标 1Password / Bitwarden 的「失焦 + 空闲」自动锁定策略：
  * - 窗口失焦（window blur）或页面隐藏（visibilitychange -> hidden）即触发锁定；
  * - 无操作达到 idleMinutes 分钟后触发锁定（按用户活动时间重置计时）。
  * 仅当保险库处于「已解锁」状态时启用；锁定回调由调用方提供（清空内存）。
+ *
+ * 注：本文件原为 passwordVault 私有，现提升为共享 composable，供 fileVault 等
+ *     安全模块复用，避免重复实现。
  */
 import { onUnmounted, unref, type Ref } from 'vue';
 
@@ -16,11 +19,13 @@ export interface AutoLockOptions {
 }
 
 export function useAutoLock(options: AutoLockOptions) {
-  let idleMs = (unref(options.idleMinutes) ?? 5) * 60_000;
   let lastActivity = Date.now();
   let tickTimer: number | null = null;
   let enabled = false;
   let paused = false;
+  /** 启动时刻；解锁弹窗关闭会带来一次短暂失焦，需忽略启动后极短时间内的失焦/隐藏 */
+  let startedAt = 0;
+  const GRACE_MS = 500;
 
   function markActivity() {
     lastActivity = Date.now();
@@ -28,7 +33,8 @@ export function useAutoLock(options: AutoLockOptions) {
 
   function checkIdle() {
     if (!enabled || paused) return;
-    if (Date.now() - lastActivity >= idleMs) {
+    const ms = (unref(options.idleMinutes) ?? 5) * 60_000;
+    if (Date.now() - lastActivity >= ms) {
       triggerLock();
     }
   }
@@ -40,11 +46,12 @@ export function useAutoLock(options: AutoLockOptions) {
   }
 
   function onBlur() {
+    if (Date.now() - startedAt < GRACE_MS) return;
     triggerLock();
   }
 
   function onVisibility() {
-    if (document.hidden) triggerLock();
+    if (document.hidden && Date.now() - startedAt >= GRACE_MS) triggerLock();
   }
 
   /** 启动自动锁定监听（保险库解锁后调用） */
@@ -52,8 +59,8 @@ export function useAutoLock(options: AutoLockOptions) {
     if (enabled) return;
     enabled = true;
     paused = false;
-    idleMs = (unref(options.idleMinutes) ?? 5) * 60_000;
     lastActivity = Date.now();
+    startedAt = Date.now();
     window.addEventListener('blur', onBlur);
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('mousemove', markActivity);
