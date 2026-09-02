@@ -38,7 +38,7 @@
  * 导入加密对话框：原生多选 → 逐文件加密落盘。
  * 主进程负责读取源文件、加密、写元数据；本组件只管选文件与进度。
  */
-import { ref, reactive } from 'vue';
+import { ref, reactive, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import AppDialog from '@/components/AppDialog.vue';
 import LucideIcon from '@/components/LucideIcon.vue';
@@ -47,6 +47,8 @@ import { suspendAutoLockForNative, resumeAutoLockForNative } from '@/composables
 
 const visible = defineModel<boolean>({ default: false });
 const emit = defineEmits<{ (e: 'done', result: { ok: number; fail: number }): void }>();
+/** 右键菜单预填的文件路径（来自资源管理器「加密到保险箱」）；为空时走原生选择 */
+const props = defineProps<{ initialFiles?: string[] }>();
 
 const picked = ref<string[]>([]);
 const importing = ref(false);
@@ -58,6 +60,15 @@ const deleteSource = ref(true);
 function basename(p: string): string {
   return p.split(/[\\/]/).pop() || p;
 }
+
+/** 右键预填：把 initialFiles 直接填入待加密列表；为空则清空（走原生选择） */
+watch(
+  () => props.initialFiles,
+  (v) => {
+    picked.value = v && v.length ? v : [];
+  },
+  { immediate: true },
+);
 
 async function choose() {
   // 原生多选对话框会让渲染窗口失焦，挂起自动锁定避免误触发

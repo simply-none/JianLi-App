@@ -1,4 +1,4 @@
-import { app, BrowserWindow, crashReporter } from "electron";
+import { app, BrowserWindow, crashReporter, ipcMain } from "electron";
 import os from "node:os";
 import { initJob } from "./module/job.ts";
 import { initRecurrence } from "./module/recurrence.ts";
@@ -44,6 +44,12 @@ import { initQrCode } from "./module/qrcode.ts";
 import { initTwoFactor } from "./module/twoFactor.ts";
 import { initPasswordVault } from "./module/passwordVault.ts";
 import { initFileVault } from "./module/fileVault.ts";
+import {
+  registerShellMenu,
+  parseCliFiles,
+  queueCli,
+  flushPending,
+} from "./module/shellMenu.ts";
 import { initPdf } from "./module/pdf.ts";
 import { initSafetyProtection } from "./module/safetyProtection.ts";
 
@@ -52,6 +58,17 @@ registerJlocalProtocolBefore()
 
 app.setName(appName);
 app.commandLine.appendSwitch("lang", "zh-CN");
+
+// 处理右键菜单提权注册：命中 --register-shell-menu-elevated 时只写注册表然后退出，
+// 不进入正常 App 生命周期，避免单实例锁与窗口初始化。
+const elevatedIdx = process.argv.indexOf('--register-shell-menu-elevated');
+if (elevatedIdx !== -1) {
+  const next = process.argv[elevatedIdx + 1];
+  const appDir = next && !next.startsWith('-') ? next.replace(/^"|"$/g, '') : undefined;
+  registerShellMenu({ packaged: !appDir, appDir });
+  app.quit();
+  process.exit(0);
+}
 
 crashReporter.start({ submitURL: "", uploadToServer: false });
 
@@ -165,19 +182,32 @@ async function createWindow() {
   initPasswordVault();
   // 私密文件保险箱模块（复用 2FA / 密码保险库的 AES-256-GCM + PBKDF2 安全架构）
   initFileVault();
+  // 资源管理器右键菜单（Windows 专属）：注册「通过渐离App打开」折叠子菜单
+  registerShellMenu();
   // PDF 工具箱模块（本地离线 PDF 合并/拆分/组织/导出）
   initPdf();
 }
 
 app.whenReady().then(async () => {
+  // 首次启动：若通过资源管理器右键带文件参数启动，解析并入队，待渲染端就绪后下发
+  queueCli(parseCliFiles(process.argv));
   createWindow();
 });
 
-app.on("second-instance", () => {
+// 渲染端主窗口就绪后，把排队的右键文件参数发给它（解决首启「发早于监听注册」的竞态）
+ipcMain.on('app:cli-ready', () => {
+  if (win) flushPending(win);
+});
+
+app.on("second-instance", (_e, argv) => {
+  // 资源管理器右键多选会多次触发本事件，聚合后一次性下发
+  const items = parseCliFiles(argv);
+  if (items.length) queueCli(items);
   if (win) {
     // 只允许打开一个窗口
     if (win.isMinimized()) win.restore();
     win.focus();
+    flushPending(win);
   }
 });
 

@@ -48,6 +48,7 @@
 | `file-vault:import-decrypt-bytes` `{name, buffer}` | **导入解密（字节通道）**：渲染端读文件字节后传入（绕开本地路径依赖），主进程解密写临时目录，返回 `{tempPath, ext, name}`；用于打包后 `file://` 页面拖拽导致 `File.path` 为空的环境（见「导入解密」小节的拖拽取路径坑） |
 | `file-vault:save-plain` `{tempPath, destDir, name}` | 把解密后的临时明文另存到目标目录（主进程落盘，文件名防穿越清洗） |
 | `file-vault:cleanup-import-decrypt` | 清空导入解密临时目录 |
+| `file-vault:secure-delete` `{paths}` | 安全删除（碎纸机）：遍历 `paths` 调 `secureDeleteFile`（随机覆盖 + unlink）后返回 `{ok, deleted}`；**无需解锁**，供资源管理器右键「安全删除」调用 |
 
 ## 安全红线
 - 明文文件内容绝不写应用数据库（newSql / basic_info 只读写 vault 配置与脱敏元数据）。
@@ -64,6 +65,23 @@
 
 ## 命令面板入口
 - `FILE_VAULT` 路由已在 `layoutRouters` 内，命令面板 `routeSource` 自动派生该入口——搜「保险箱 / fileVault」即可直达，无需在 `actionSource.ts` 重复登记。
+
+## 资源管理器右键菜单（③ 新增）
+- **目标**：Windows 资源管理器右键任意文件出现「通过渐离App打开」菜单，把文件交给保险箱对应流程，无需手动打开 App 再导入。
+- **注册（Windows 专属）**：新增主进程模块 `electron/main/module/shellMenu.ts`（`registerShellMenu()`），在 `createWindow()` + `initFileVault()` 之后调用。
+  - **Windows 11 真正支持折叠子菜单的唯一纯注册表方案是 `SubCommands` + `HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Explorer\CommandStore\shell`（需管理员）**；per-user 本地 `shell\<id>` 只能得到箭头却无法展开（已踩坑）。
+  - `registerShellMenu()` 逻辑：**先尝试 HKLM CommandStore 级联**（父菜单 `HKCU\*\shell\JianliApp` 的 `MUIVerb`=「通过渐离App打开」+ `SubCommands`=`JianliApp.Encrypt;JianliApp.Decrypt;JianliApp.SecureDelete` 引用 HKLM 子命令）；**无权限则自动 fallback 为三个独立 HKCU 一级菜单**（`HKCU\*\shell\JianliApp.JianliApp.Encrypt|Decrypt|SecureDelete`，显示名「通过渐离App打开：加密到保险箱」等），功能等价但无折叠。
+  - 命令格式：`"<exe>" [<仓库目录>] --vault-encrypt/--vault-decrypt/--vault-secure-delete "%1"`（dev 下 `process.execPath` 是 electron.exe，需额外传仓库目录）。
+  - `registerShellMenuElevated()`：用 `PowerShell Start-Process -Verb runAs` 提权启动自身 `--register-shell-menu-elevated` 参数；`index.ts` 在 `requestSingleInstanceLock` 之前拦截该参数，仅执行 `registerShellMenu()` 然后 `app.quit()`，不进入正常 App 生命周期。
+  - **dev / 打包模式均自动注册**；`scripts/register-shell-menu-dev.cjs` 作为手动兜底：`--cascading`（UAC 提权 HKLM 级联）/ 默认（HKCU 扁平三项）/ `--unregister`。
+- **启动参数路由**：`app.on('second-instance')` 改造为解析 argv 里的 `--vault-*` 标志（`parseCliFiles`），连同首次启动的 `process.argv` 一起入队 `queueCli`；渲染端主窗口就绪后主进程 `flushPending(win)` 经 `app:cli-open` 逐条下发。多选文件会多次触发 `second-instance` → 队列聚合成一批，规避「`%1` 只传首文件」的坑。
+  - **首启竞态**：渲染端 `App.vue` 挂载后 `send('app:cli-ready')`，主进程 `ipcMain.on('app:cli-ready')` 时再 `flushPending(win)`，避免「消息早于监听注册」丢失。
+- **渲染端接线**：`App.vue` 常驻监听 `app:cli-open` → `router.push(FILE_VAULT)` + `store.setPendingCli(item)`；`index.vue` 在 `onMounted`（`store.init()` 之后）与 `watch(pendingCli)` 两处消费 `applyPending()`；未解锁先弹解锁门，解锁完成后由 `pendingAfterUnlock` 自动打开对应对话框。
+  - `encrypt` → `ImportDialog`（传 `initialFiles` 预填，复用 `importFiles` + 默认安全删除源文件）；
+  - `decrypt` → `DecryptImportDialog`（传 `initialFiles` 预填，复用 `import-decrypt*`）；
+  - `secure-delete` → 弹确认后调 `file-vault:secure-delete`（**无需解锁**，复用 `secureDeleteFile`）。
+- **新增主进程文件**：`electron/main/module/shellMenu.ts`（HKLM 级联注册 + HKCU 扁平 fallback + UAC 提权 + 启动参数解析/队列；dev / 打包均自动注册）；`fileVault.ts` 仅新增 `file-vault:secure-delete` 一个 IPC。
+- **改动文件**：`electron/main/index.ts`（注册 + `--register-shell-menu-elevated` 拦截 + second-instance + cli-ready + 首启 argv）、`api/fileVaultApi.ts`（secureDelete）、`store/useFileVault.ts`（pendingCli/setPendingCli/clearPendingCli/secureDeleteFiles）、`index.vue`（applyPending + initialFiles 预填）、`App.vue`（cli-open 监听 + cli-ready 握手）、`ImportDialog.vue`/`DecryptImportDialog.vue`（initialFiles prop）。
 
 ## 导入解密（拖拽 / 选择 .jlv）
 - **定位**：「导出解密」的逆通路——把磁盘上的 `.jlv`（来自本保险箱的导出 / 备份 / 另存）恢复为明文。

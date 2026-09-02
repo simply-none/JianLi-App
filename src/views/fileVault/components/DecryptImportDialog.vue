@@ -91,6 +91,8 @@ import { suspendAutoLockForNative, resumeAutoLockForNative } from '@/composables
 
 const visible = defineModel<boolean>({ default: false });
 const store = useFileVault();
+/** 右键菜单预填的 .jlv 路径（来自资源管理器「解密(.jlv)」）；为空时走拖拽/原生选择 */
+const props = defineProps<{ initialFiles?: string[] }>();
 
 interface DecryptedItem {
   source: string;
@@ -110,6 +112,17 @@ interface PickedItem {
 }
 const picked = ref<PickedItem[]>([]);
 const decrypted = ref<DecryptedItem[]>([]);
+
+/** 右键预填：把 initialFiles（本地 .jlv 路径）直接填入待解密列表；为空则清空 */
+watch(
+  () => props.initialFiles,
+  (v) => {
+    picked.value = v && v.length
+      ? v.map((p) => ({ kind: 'path', name: basename(p), path: p }) as PickedItem)
+      : [];
+  },
+  { immediate: true },
+);
 const dragOver = ref(false);
 const busy = ref(false);
 const error = ref('');

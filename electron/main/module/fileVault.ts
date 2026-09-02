@@ -445,4 +445,13 @@ export function initFileVault() {
       return { ok: false, error: err?.message || String(err) };
     }
   });
+
+  /** 安全删除（碎纸机）：随机覆盖 + unlink，无需解锁；供资源管理器右键「安全删除」调用 */
+  ipcMain.handle('file-vault:secure-delete', async (_e, { paths }: { paths: string[] }) => {
+    let deleted = 0;
+    for (const p of paths || []) {
+      if (secureDeleteFile(p)) deleted++;
+    }
+    return { ok: true, deleted };
+  });
 }

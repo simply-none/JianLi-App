@@ -11,6 +11,7 @@ import { ElMessageBox } from 'element-plus';
 import { sysNotify, appNotify } from '@/utils/notify';
 import useWindowMode from '@/store/useWindowMode';
 import { isHabitReminderId } from '@/store/useHabit';
+import useFileVault, { type CliPendingItem } from '@/views/fileVault/store/useFileVault';
 
 const router = useRouter()
 const route = useRoute()
@@ -99,6 +100,14 @@ if (!isSecondWindow) {
     sysNotify(title, content, '', 3, openCountdown);
     appNotify(title, content, 5000, openCountdown);
   });
+
+  // 资源管理器右键菜单：接收文件参数并转发到文件保险箱
+  window.ipcRenderer.on('app:cli-open', (_e, item: CliPendingItem) => {
+    router.push({ name: RouteNames.FILE_VAULT }).catch(() => {});
+    useFileVault().setPendingCli(item);
+  });
+  // 告知主进程渲染端已就绪，可下发排队中的右键文件参数（解决首启竞态）
+  window.ipcRenderer.send('app:cli-ready');
 }
 
 // 监听事件

@@ -60,4 +60,7 @@ export const fileVaultApi = {
     invoke<SavePlainResult>('file-vault:save-plain', { tempPath, destDir, name }),
   /** 清理导入解密临时目录 */
   cleanupImportDecrypt: () => invoke<VaultResult>('file-vault:cleanup-import-decrypt'),
+  /** 安全删除（碎纸机）：随机覆盖 + unlink，无需解锁；供资源管理器右键「安全删除」调用 */
+  secureDelete: (paths: string[]) =>
+    invoke<{ ok: boolean; deleted: number; error?: string }>('file-vault:secure-delete', { paths }),
 };

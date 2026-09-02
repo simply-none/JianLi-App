@@ -9,12 +9,20 @@ import { ref } from 'vue';
 import { fileVaultApi } from '../api/fileVaultApi';
 import type { VaultFileMeta } from '../types';
 
+/** 资源管理器右键启动参数（与 shellMenu.ts 的 CliItem 对齐；渲染端本地定义避免引入主进程模块/electron） */
+export interface CliPendingItem {
+  action: 'encrypt' | 'decrypt' | 'secure-delete';
+  files: string[];
+}
+
 export default defineStore('file-vault', () => {
   const hasVault = ref(false);
   const isUnlocked = ref(false);
   const files = ref<VaultFileMeta[]>([]);
   const loading = ref(false);
   const error = ref('');
+  /** 右键菜单待处理项（App.vue 接收 app:cli-open 后写入，index.vue 挂载/监听后消费） */
+  const pendingCli = ref<CliPendingItem | null>(null);
 
   /** 拉取状态（不拉列表） */
   async function refreshStatus(): Promise<void> {
@@ -191,12 +199,27 @@ export default defineStore('file-vault', () => {
     await fileVaultApi.cleanupImportDecrypt();
   }
 
+  /** 写入右键待处理项（App.vue 在 app:cli-open 时调用） */
+  function setPendingCli(item: CliPendingItem) {
+    pendingCli.value = item;
+  }
+  /** 清空右键待处理项（消费后调用，避免重复触发） */
+  function clearPendingCli() {
+    pendingCli.value = null;
+  }
+
+  /** 安全删除（碎纸机）：调用主进程 file-vault:secure-delete，无需解锁 */
+  async function secureDeleteFiles(paths: string[]) {
+    return await fileVaultApi.secureDelete(paths);
+  }
+
   return {
     hasVault,
     isUnlocked,
     files,
     loading,
     error,
+    pendingCli,
     refresh,
     refreshStatus,
     init,
@@ -212,5 +235,8 @@ export default defineStore('file-vault', () => {
     decryptImportBytes,
     savePlainFile,
     cleanupImportDecryptTemp,
+    setPendingCli,
+    clearPendingCli,
+    secureDeleteFiles,
   };
 });
