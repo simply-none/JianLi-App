@@ -19,8 +19,8 @@
 
 ## 路由 / 入口
 - `RouteNames.PDF_TOOLS` → `/pdfTools`
-- 侧边栏 `src/layout/index.vue` 的「效率工具」分组加入 `'pdfTools'`；`src/utils/index.ts` 的 `iconMap` 加 `pdfTools: 'FileBox'`
-- 可见开关：`src/views/routeSetting/index.vue` 自动从 `layoutRouters` 生成（无需额外改动）
+- 侧边栏：`src/constants/menu.ts` 的「效率工具」分组加入 `'pdfTools'`；`src/utils/index.ts` 的 `iconMap` 加 `pdfTools: 'FileBox'`
+- 可见开关：路由配置页与侧边栏同源于 `constants/menu.ts`，自动带开关（无需额外改动）
 
 ## 用到的 IPC 通道（preload `pdf.*`）
 - `pdf:pick-files` → 多文件选择，返回 `{ files: string[] }`

@@ -18,7 +18,7 @@
 4. `src/router/index.ts`：新增路由（path + `import` 组件 + `RouteNames` 枚举项），**路径名必须与主进程 `arg` 一致**（见 `router/index.ts:47-49` 注释）。
 
 ## 可选增强
-- `electron/main/module/registerShortcut.ts` 的 `globalShortcutFn` 增加 `open_xxx_window` 分支 + `src/views/registerShortcut/index.vue` 常用功能列表加项；侧边栏 `src/layout/index.vue` 与 `src/views/routeSetting/index.vue` 的 `names` 数组加名。
+- `electron/main/module/registerShortcut.ts` 的 `globalShortcutFn` 增加 `open_xxx_window` 分支 + `src/views/registerShortcut/index.vue` 常用功能列表加项；菜单入口：只改 `src/constants/menu.ts` 的 `menuGroupDefs` 分组 `names`（侧边栏与路由配置页自动同步，不再分别改两个 vue）。
 
 ## 何时读本文档
 需要新增任何「小窗」形态功能时（打卡窗、待办窗、快速记录等）。

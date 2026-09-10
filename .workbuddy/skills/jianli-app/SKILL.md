@@ -25,7 +25,7 @@ agent_created: true
 6. 小窗路由 path 名**必须**与主进程 `createOtherWindow` 的 `arg` 一致。
 7. 新需求开发/功能重构采用**原子化、组件化、功能化**拆解构建：单文件职责单一、体量可控，禁止把一堆功能堆成一个超大文件（与项目 `AGENTS.md`「功能注意分割，防止代码文件过大」一致）；每个功能 / 组件需带注释。
 8. 新需求开发落地清单（接入菜单与小窗）：
-   - **必备**：① 在侧边栏 `src/layout/index.vue` 添加菜单入口；② 在路由配置页 `src/views/routeSetting/index.vue` 添加该菜单的「可见开关」，让用户在设置里可隐藏 / 显示该菜单。
+   - **必备**：① `src/router/index.ts` 的 `RouteNames` 加 key + `layoutRouters` 注册路由；② **`src/constants/menu.ts` 的 `menuGroupDefs` 对应分组 `names` 加名**（菜单分组唯一数据源，侧边栏 `src/layout/index.vue` 与路由配置页 `src/views/routeSetting/index.vue` 自动同步，❌ **严禁分别去这两个文件里加名单**——2026-09-10 已因两份名单漂移导致 6 个功能在配置页没有开关）；③ 可选：`src/utils` 的 `iconMap` 加图标。
    - **可选**：若需常驻浮动交互，再按小窗四件套加一个小窗（见 `references/mini-window.md` / `references/modules/small-window.md`），且必须 `mouseEvents:true` 并遵循路径一致性红线（第 6 条）。
 9. 每次修改都必须同步更新对应模块的文档 `references/modules/<模块>.md`
 10. **导出统一规范（见 `references/export.md`，新增导出功能前必读）**：所有「导出 / 保存文件到磁盘」走统一入口 `src/utils/exportToFile.ts`（`exportTextToCache` / `exportBufferToCache`）；**不弹系统保存框、默认直写缓存目录 `fileCachePath`、成功用 `src/utils/fileNotify.ts` 的 `fileNotify` 提示（蓝色可点击路径）**；安全敏感导出（2FA 密钥库 / 文件保险库解密）保留用户选位置，仅把成功提示换成 `fileNotify`。

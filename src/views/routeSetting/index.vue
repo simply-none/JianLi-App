@@ -6,7 +6,7 @@
     </div>
 
     <div class="config-container">
-      <div v-for="group in menuGroupDefs" :key="group.label" class="config-group">
+      <div v-for="group in menuGroups" :key="group.label" class="config-group">
         <h3 class="group-title">{{ group.label }}</h3>
         <div class="route-list">
           <div
@@ -43,62 +43,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
-import { layoutRouters, RouteNames } from '@/router';
 import { getStore, setStore } from '@/utils/common';
 import { RouteRecordNameGeneric } from 'vue-router';
 import LucideIcon from '@/components/LucideIcon.vue';
-import { iconMap } from '@/utils';
-
-// 为每个路由注入图标到 meta
-const enrichedRouters = layoutRouters.map(r => ({
-  ...r,
-  meta: { ...r.meta, icon: iconMap[r.name as string] || 'settings' },
-}));
-
-// 不可配置的路由（始终显示）
-const lockedRoutes = ['setting', 'systemInfo', 'routeSetting'];
-
-// 菜单分组定义
-interface MenuGroup {
-  label: string;
-  names: string[];
-}
-
-const groupDefs: MenuGroup[] = [
-  { label: '通用', names: ['setting', 'newTips', 'homeMode', 'windowMode'] },
-  { label: '系统与资源', names: ['systemInfo', 'routeSetting', 'appCache', 'backup', 'fileRela', 'resourceManage', 'safetyProtection', 'sync', 'fileTransfer', 'ferry'] },
-  { label: '效率工具', names: ['pomodoroRecord', 'clipboard', 'notebookApp', 'categorizableNotes', 'todoList', 'habit', 'countdown', 'accounting', 'stock', 'earning', 'resume', 'registerShortcut', 'function', 'weather', 'browser', 'ebookReader', 'screenshot', 'downloader', 'qrCode'] },
-  { label: '开发工具', names: ['netRequest', 'flow', 'highPerfSql', 'ttsTest', 'dataAcquisition', 'devToolbox'] },
-  { label: '关于', names: ['about'] },
-];
+import { isLockedRoute, resolveMenuGroups } from '@/constants/menu';
 
 // 用户配置
 const routeConfig = ref<Record<string, boolean>>({});
 const saving = ref(false);
 
-// 菜单分组（带路由详情）
-const menuGroupDefs = computed(() => {
-  return groupDefs.map(g => ({
-    label: g.label,
-    items: g.names
-      .map(name => enrichedRouters.find(r => r.name === name))
-      .filter(Boolean) as typeof enrichedRouters,
-  }));
-});
-
-// 判断路由是否锁定
-function isLockedRoute(name: string | RouteRecordNameGeneric): boolean {
-  if (!name) {
-    return false;
-  }
-  // 修复：确保 name 是 string 类型后再进行 includes 判断
-  if (typeof name !== 'string') {
-    return false;
-  }
-  return lockedRoutes.includes(name);
-}
+// 菜单分组（带路由详情）：数据源与侧边栏同一份，收口在 @/constants/menu
+const menuGroups = resolveMenuGroups();
 
 // 判断路由是否可见
 function isRouteVisible(name: string | RouteRecordNameGeneric): boolean {

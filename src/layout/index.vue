@@ -108,62 +108,37 @@ import Header from '@/components/header.vue';
 import LucideIcon from '@/components/LucideIcon.vue';
 import AppLock from '@/layout/AppLock.vue';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { useRoute, useRouter, type RouteRecordNameGeneric, type RouteRecordRaw } from 'vue-router';
+import { useRoute, useRouter, type RouteRecordNameGeneric } from 'vue-router';
 import { layoutRouters } from '@/router';
 import { storeToRefs } from 'pinia';
 import useRuntimeVariables from '@/store/useRuntimeVariables';
 import useTheme, { themeOptions, type ThemeName } from '@/store/useTheme';
 import { watch } from 'vue';
 import { getStore } from '@/utils/common';
-import { iconMap } from '@/utils';
+import { isLockedRoute, resolveMenuGroups, type MenuRouteItem } from '@/constants/menu';
 import { fileNotify } from '@/utils/fileNotify';
 import useGlobalSetting from '@/store/useGlobalSetting';
-
-// 为每个路由注入图标到 meta
-const enrichedRouters = layoutRouters.map(r => ({
-  ...r,
-  meta: { ...r.meta, icon: iconMap[r.name as string] || 'settings' },
-}));
-
-// 菜单分组定义
-interface MenuGroup {
-  label: string;
-  names: string[];
-}
-
-const groupDefs: MenuGroup[] = [
-  { label: '通用', names: ['setting', 'newTips', 'homeMode', 'windowMode'] },
-  { label: '系统与资源', names: ['systemInfo', 'routeSetting', 'appCache', 'backup', 'fileRela', 'resourceManage', 'safetyProtection', 'sync', 'fileTransfer', 'ferry'] },
-  { label: '效率工具', names: ['pomodoroRecord', 'clipboard', 'notebookApp', 'categorizableNotes', 'themeConversation', 'todoList', 'habit', 'countdown', 'accounting', 'stock', 'earning', 'resume', 'registerShortcut', 'function', 'weather', 'browser', 'ebookReader', 'screenshot', 'downloader', 'colorPalette', 'qrCode', 'twoFactor', 'passwordVault', 'pdfTools', 'fileVault'] },
-  { label: '开发工具', names: ['netRequest', 'highPerfSql', 'flow', 'ttsTest', 'dataAcquisition', 'devToolbox'] },
-  { label: '关于', names: ['about'] },
-];
-
-// 不可配置的路由（始终显示）
-const lockedRoutes = ['setting', 'systemInfo', 'routeSetting'];
 
 // 响应式刷新 key，用于强制更新菜单
 const menuRefreshKey = ref(0);
 
+// 分组 / 图标 / 锁定名单统一由 @/constants/menu 提供，新增菜单项改那里即可
 const menuGroups = computed(() => {
   menuRefreshKey.value; // 依赖刷新 key，使 computed 响应式
   const savedConfig = getStore('routeSetting') || {};
   const visibleRoutes: Record<string, boolean> = savedConfig;
 
-  return groupDefs
+  return resolveMenuGroups()
     .map(g => ({
       label: g.label,
-      items: g.names
-        .filter(name => {
-          // 始终显示的路由（不可配置）
-          if (lockedRoutes.includes(name)) {
-            return true;
-          }
-          // 检查用户配置，未配置的默认显示
-          return visibleRoutes[name] !== false;
-        })
-        .map(name => enrichedRouters.find(r => r.name === name))
-        .filter(Boolean) as RouteRecordRaw[],
+      items: g.items.filter(item => {
+        // 始终显示的路由（不可配置）
+        if (isLockedRoute(item.name)) {
+          return true;
+        }
+        // 检查用户配置，未配置的默认显示
+        return visibleRoutes[item.name as string] !== false;
+      }),
     }))
     .filter(g => g.items.length > 0); // 过滤空分组
 });
@@ -228,7 +203,7 @@ watch(activeRouteName, (newVal: string) => {
   deep: true,
 });
 
-const toggleRoute = (item: RouteRecordRaw) => {
+const toggleRoute = (item: MenuRouteItem) => {
   activeIndex.value = item.name;
   title.value = item.meta?.title || '占位';
   router.push({ name: activeIndex.value });
