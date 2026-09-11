@@ -76,28 +76,82 @@ if (!app.requestSingleInstanceLock()) {
   process.exit(0);
 }
 
+/** 启动性能埋点：包裹一次 init 调用并打印耗时（P0 启动优化，用于定位冷启动瓶颈） */
+async function timeInit(name: string, fn: () => void | Promise<void>): Promise<void> {
+  const t = Date.now();
+  try {
+    await fn();
+  } catch (e) {
+    console.error(`[init] ${name} 失败 (${Date.now() - t}ms):`, e);
+    throw e;
+  }
+  console.log(`[init] ${name}: ${Date.now() - t}ms`);
+}
+
+/** 让出事件循环一帧，使主窗口有机会绘制 / 响应用户输入（P1 启动优化） */
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((r) => setTimeout(r, 0));
+}
+
+/**
+ * 非关键模块初始化：延迟到首屏之后分批执行（P1 启动优化）。
+ * 这些模块仅注册 IPC / 启动可选引擎，不阻塞首屏；每个之间让出事件循环，
+ * 使主窗口启动后即可交互，避免原先 ~5s 的主线程冻结。
+ * 任一模块失败仅跳过该模块（与原行为一致：多数 init 内部已 try/catch），不中断其余初始化。
+ */
+async function runDeferredInits(): Promise<void> {
+  const steps: [string, () => void | Promise<void>][] = [
+    ['ebook', initEbook],
+    ['ebookTransfer', initEbookTransfer],
+    ['screenshot', initScreenshot],
+    ['sys', initSys],
+    ['stock', initStock],
+    ['sinaFinance', initSinaFinance],
+    ['browserDownload', initBrowserDownload],
+    ['browserSniffer', initBrowserSniffer],
+    ['browserYtDlp', initBrowserYtDlp],
+    ['browserPermission', initBrowserPermission],
+    ['downloader', initDownloader],
+    ['resume', initResume],
+    ['qrCode', initQrCode],
+    ['sync', initSync],
+    ['transfer', initTransfer],
+    ['ferry', initFerry],
+    ['shellMenuIpc', initShellMenu],
+    ['pdf', initPdf],
+  ];
+  for (const [name, fn] of steps) {
+    try {
+      await timeInit(name, fn);
+    } catch (e) {
+      console.error(`[deferredInits] ${name} 初始化异常，已跳过:`, e);
+    }
+    await yieldToEventLoop();
+  }
+}
+
 async function createWindow() {
   // 注册自定义协议处理器（必须在创建窗口前完成，否则打包后页面加载时
   // jlocal:// 请求会因 handler 未注册而报 ERR_UNKNOWN_URL_SCHEME）
   registerJlocalProtocol();
-  // 主窗口
+  // 主窗口（创建并 show）；随后立即让出一帧，确保首屏先绘制，再开始后续初始化
   initMainWindow();
+  await yieldToEventLoop();
   // 日志
-  initLog();
+  await timeInit('log', initLog);
   // 数据库（统一由 newSql 初始化，包含 db.sqlite 与打包宋词库 shiciDb）
-  await initNewSqlite();
+  await timeInit('newSqlite', initNewSqlite);
   // 全新提醒引擎（定点/周期/多状态），依赖 newSql
-  await initNewReminder();
+  await timeInit('newReminder', initNewReminder);
   // 倒计时模块（独立调度 + 自有表 countdown）
-  await initCountdown();
+  await timeInit('countdown', initCountdown);
   // 诗词数据
-  initPoetData();
+  await timeInit('poetData', initPoetData);
   // 定时任务（番茄钟）
-  initJob();
+  await timeInit('job', initJob);
   // 重复任务引擎（启动扫描 + 每日 00:00 生成实例）
-  initRecurrence();
-  // 修复历史数据：确保待办表 key 列具备唯一索引，并清理重构前遗留的重复记录
-  // （旧表常出现「key 列已存在但无唯一约束」，导致 upsert 退化为重复 INSERT —— 编辑变新增）
+  await timeInit('recurrence', initRecurrence);
+  // 修复历史数据：确保待办表 key 列具备唯一索引（不阻塞）
   ensureTableExists('todo_list', undefined, 'key', { primaryKeyType: 'TEXT' }).catch((e) =>
     console.warn('ensure todo_list key index failed:', e),
   );
@@ -105,88 +159,75 @@ async function createWindow() {
     console.warn('ensure todo_tags id index failed:', e),
   );
   // 数据缓存
-  initStore();
+  await timeInit('store', initStore);
   // 备份与恢复 + 数据导出中心（依赖 newSql 连接池，须在其后初始化）
-  initBackup();
+  await timeInit('backup', initBackup);
   // 文件相关
-  initFile();
+  await timeInit('file', initFile);
   // 资源管理（文本预览读取 + 物理文件删除）
-  initResource();
+  await timeInit('resource', initResource);
   // 应用锁 / 隐私模式（依赖 DB）
-  initAppLock();
+  await timeInit('appLock', initAppLock);
   // 安全保护（密保）：与 2FA/应用锁共用 vault/crypto 加密架构，密钥来源为设备绑定主密钥
-  initSafetyProtection();
+  await timeInit('safetyProtection', initSafetyProtection);
+  // ===== 安全/锁类 IPC 提前注册（P1 启动优化·修复回归）=====
+  // 渲染端启动即查询保险箱/锁状态（file-vault:status 等）。P1 让主线程变自由后，
+  // 渲染端会提前发 IPC，若 handler 注册太晚会报 "No handler registered"。
+  // 故紧跟 DB 之后立即注册这些安全类 handler，确保渲染端挂载前已就绪。
+  await timeInit('twoFactor', initTwoFactor);
+  await timeInit('passwordVault', initPasswordVault);
+  await timeInit('fileVault', initFileVault);
   // 托盘图标
-  initTray();
+  await timeInit('tray', initTray);
   // 系统信息监控
-  initSystemInfo();
+  await timeInit('systemInfo', initSystemInfo);
   // 网络请求工作台（Postman 风格）
-  initNetRequest();
+  await timeInit('netRequest', initNetRequest);
   // 新窗口相关
-  initNewWindow();
-  // 剪贴板（异步：需先补齐新增列，失败不应阻塞启动）
-  initClipboard().catch((err) => console.error("initClipboard error:", err));
-  // 快捷键注册
-  initRegisterShortcut();
-  // 系统相关
-  initSys();
-  // 自动更新
-  initAutoUpdate();
-  // 天气模块
-  initWeather();
-  // 新爬虫工具（通用网页爬取）
-  initCrawler();
-  // 数据获取模块（Puppeteer 任务化采集引擎，独立于天气爬虫）
-  initDataAcquisition();
-  // 定位模块
-  initLocation();
-  // Bing 图片模块
-  initBing();
-  // TTS 语音合成模块
-  initTTS();
-  // 电子书阅读模块
-  await initEbook();
-  // 电子书跨端传书（/ebook/* 数据面路由，依赖同步模块的数据面注册接口）
-  initEbookTransfer();
-  // 截图模块
-  initScreenshot();
-  // 股票查询模块（TickFlow，主进程查询，依赖数据库基础表）
-  initStock();
-  // 新浪财经数据源模块（收益看板 earning：实时行情 / 净值 / 估值，免费无需 Key）
-  initSinaFinance();
-  // 内置浏览器下载管理（拦截 webview 会话的 will-download）
-  initBrowserDownload();
-  // 内置浏览器资源嗅探（webRequest 挂钩 persist:browser 会话）
-  initBrowserSniffer();
-  // 内置浏览器 yt-dlp 视频解析/下载引擎
-  initBrowserYtDlp();
-  // 内置浏览器站点权限管理（persist:browser 会话权限请求拦截）
+  await timeInit('newWindow', initNewWindow);
+  // 内置浏览器站点权限管理依赖的窗口 getter（轻量，提前设置）
   setPermissionWindowGetter(() => win);
-  initBrowserPermission();
-  // 系统级下载器（多线程分段引擎，接管浏览器下载 + 剪贴板监视）
-  await initDownloader();
-  // 简历模块（printToPDF 导出）
-  initResume();
-  // 二维码能力层（保存/复制/打包 IPC + 安全建表 qr_history / qr_template）
-  await initQrCode();
-  // 2FA 动态验证码模块（保险库在内存 + 用户加密文件，密钥不进应用数据库）
-  initTwoFactor();
-  // 密码保险库模块（与 2FA 共用同一套 AES-256-GCM + PBKDF2 加密架构）
-  initPasswordVault();
-  // 私密文件保险箱模块（复用 2FA / 密码保险库的 AES-256-GCM + PBKDF2 安全架构）
-  initFileVault();
-  // 局域网同步模块（LocalSend-like：UDP 发现 + HTTP 数据面，与 Flutter 移动端同协议）
-  initSync();
-  // 文件互传模块（与移动端 feature/file_transfer 同协议，复用 47124 数据面，不新开端口）
-  initTransfer();
-  // 隔空互传模块（QRFerry 本地集成：屏幕二维码 → 摄像头直传，独立窗口 + 本地静态服务）
-  initFerry();
-  // 资源管理器右键菜单（Windows 专属）：注册「通过渐离App打开」菜单（按扩展名限定 + 打开方式 ProgID）
-  registerShellMenu();
-  // 右键菜单管理 IPC（启用集合 / 默认打开 / 重新注册）
-  initShellMenu();
-  // PDF 工具箱模块（本地离线 PDF 合并/拆分/组织/导出）
-  initPdf();
+  // 剪贴板（异步：需先补齐新增列，失败不应阻塞启动）
+  await timeInit('clipboard', () => initClipboard().catch((err) => console.error('initClipboard error:', err)));
+  // 快捷键注册
+  await timeInit('registerShortcut', initRegisterShortcut);
+  // 系统相关（字体枚举等较重，移出关键路径延迟到首屏之后；见 runDeferredInits）
+  // 自动更新
+  await timeInit('autoUpdate', initAutoUpdate);
+  // 天气模块
+  await timeInit('weather', initWeather);
+  // 新爬虫工具（通用网页爬取）
+  await timeInit('crawler', initCrawler);
+  // 数据获取模块（Puppeteer 任务化采集引擎，独立于天气爬虫）
+  await timeInit('dataAcquisition', initDataAcquisition);
+  // 定位模块
+  await timeInit('location', initLocation);
+  // Bing 图片模块
+  await timeInit('bing', initBing);
+  // TTS 语音合成模块
+  await timeInit('tts', initTTS);
+  // ===== 非关键模块：延迟到首屏之后分批初始化（P1 启动优化）=====
+  // 下列模块仅注册 IPC / 启动可选引擎，不阻塞首屏；延迟到下一 tick 执行，
+  // 且每个初始化之间让出事件循环，使主窗口启动后即可交互，消除原先 ~5s 的主线程冻结。
+  // 改主进程须重启 Electron 才能生效。
+  setTimeout(() => {
+    runDeferredInits().catch((e) => console.error('[deferredInits] 执行异常:', e));
+  }, 0);
+  // ===== 资源管理器右键菜单注册：延迟到系统打开后的空闲期，由 Worker 线程静默执行（方案 B）=====
+  // 注册表写入（reg/powershell，约上百次子进程调用）全部交给 shellMenuWorker 在 worker_threads 异步跑，
+  // 主线程事件循环全程不被冻结，彻底消除右键菜单注册导致的鼠标/窗口卡顿；因此每次启动都跑也无害，
+  // 无需 basic_info 的「已注册」marker 跳过逻辑（那套 DB 跳过逻辑已移除）。
+  setTimeout(() => {
+    void (async () => {
+      try {
+        console.log('[shellMenu] 空闲期静默注册右键菜单（Worker）...');
+        await registerShellMenu();
+        console.log('[shellMenu] 右键菜单注册完成');
+      } catch (e) {
+        console.error('[shellMenu] 空闲期注册异常（已跳过，不影响启动）:', e);
+      }
+    })();
+  }, 3000);
 }
 
 app.whenReady().then(async () => {

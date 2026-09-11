@@ -22,10 +22,12 @@
  * ⚠️ 改动本文件后必须重启 Electron 才生效。
  */
 import { execFileSync } from 'node:child_process';
+import { Worker } from 'worker_threads';
 import fs from 'node:fs';
 import path from 'node:path';
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { myDb } from './newSql.ts';
+import { shellMenuWorkerPath } from '../variables.ts';
 
 /** 动作类型（与注册表子命令名称、渲染端 action 对齐） */
 export type CliAction =
@@ -59,7 +61,6 @@ export interface CliItem {
   files: string[];
 }
 
-const HKCU_ROOT = 'HKCU\\Software\\Classes\\*\\shell\\JianliApp';
 const HKLM_COMMANDSTORE = 'HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\CommandStore\\shell';
 const PARENT_NAME = '通过渐离App打开';
 const SUB_COMMANDS: SubCommand[] = [
@@ -67,49 +68,36 @@ const SUB_COMMANDS: SubCommand[] = [
   { id: 'JianliApp.Decrypt', name: '解密(.jlv)', action: 'decrypt', flag: '--vault-decrypt', exts: ['.jlv'] },
   { id: 'JianliApp.SecureDelete', name: '安全删除', action: 'secure-delete', flag: '--vault-secure-delete', exts: ['*'] },
   { id: 'JianliApp.OpenReader', name: '用渐离阅读', action: 'open-reader', flag: '--open-reader', exts: ['.epub', '.pdf', '.txt'] },
-  // ===== PDF 右键菜单（已禁用：仅注释，未删除） =====
-  // 2026-09-06：这 5 条 .pdf 右键命令会在 registerShellMenu() 启动期各触发多次注册表写入，
-  // 严重拖慢启动速度。经确认仅临时关闭右键菜单；App 内「PDF 工具箱」页(pdf.ts initPdf)保持可用。
-  // 恢复方法：取消下列注释即可（cleanupLegacy 中对 DISABLED_PDF_IDS 的清理可一并移回 SUB_COMMANDS）。
-  // { id: 'JianliApp.PdfCompress', name: 'PDF 压缩', action: 'pdf-compress', flag: '--pdf-compress', exts: ['.pdf'] },
-  // { id: 'JianliApp.PdfSplit', name: 'PDF 拆分', action: 'pdf-split', flag: '--pdf-split', exts: ['.pdf'] },
-  // { id: 'JianliApp.PdfMerge', name: 'PDF 合并', action: 'pdf-merge', flag: '--pdf-merge', exts: ['.pdf'] },
-  // { id: 'JianliApp.PdfExtractAttach', name: 'PDF 提取附件', action: 'pdf-extract-attach', flag: '--pdf-extract-attach', exts: ['.pdf'] },
-  // { id: 'JianliApp.PdfToImage', name: 'PDF 转图片', action: 'pdf-to-image', flag: '--pdf-to-image', exts: ['.pdf'] },
+  // PDF 工具箱（2026-09-11 重新启用）：注册表写入已改由 Worker 线程异步执行、不阻塞主线程，
+  // 原先因拖慢启动而临时注释的 5 条 .pdf 命令现与其他右键命令一起正常注册（菜单显示「通过渐离App打开：PDF xxx」）。
+  { id: 'JianliApp.PdfCompress', name: 'PDF 压缩', action: 'pdf-compress', flag: '--pdf-compress', exts: ['.pdf'] },
+  { id: 'JianliApp.PdfSplit', name: 'PDF 拆分', action: 'pdf-split', flag: '--pdf-split', exts: ['.pdf'] },
+  { id: 'JianliApp.PdfMerge', name: 'PDF 合并', action: 'pdf-merge', flag: '--pdf-merge', exts: ['.pdf'] },
+  { id: 'JianliApp.PdfExtractAttach', name: 'PDF 提取附件', action: 'pdf-extract-attach', flag: '--pdf-extract-attach', exts: ['.pdf'] },
+  { id: 'JianliApp.PdfToImage', name: 'PDF 转图片', action: 'pdf-to-image', flag: '--pdf-to-image', exts: ['.pdf'] },
   { id: 'JianliApp.BatchRename', name: '批量重命名', action: 'batch-rename', flag: '--batch-rename', exts: ['*'] },
 ];
 
-/** 2026-09-06 起禁用的 PDF 右键命令 id（仅注释未删除）：registerShellMenu 不再注册它们，
- *  但 cleanupLegacy 仍需清理其在注册表的残留，否则已安装机器的右键菜单不会消失。恢复 PDF 右键时此数组可删。 */
-const DISABLED_PDF_IDS = [
-  'JianliApp.PdfCompress',
-  'JianliApp.PdfSplit',
-  'JianliApp.PdfMerge',
-  'JianliApp.PdfExtractAttach',
-  'JianliApp.PdfToImage',
-];
+// ============ 注册表操作规划（实际执行搬到 Worker 线程，避免阻塞主线程） ============
+// 主线程只负责「规划」要执行的注册表操作（RegOp 列表），由 shellMenuWorker 在 worker_threads 里
+// 用 execFile 异步执行；主线程事件循环全程不被冻结，彻底消除右键菜单注册导致的鼠标/窗口卡顿。
 
-// ============ 注册表写入（execFile 避免 shell 引号转义问题） ============
+/** 一条注册表写入操作（纯数据，可序列化后发给 Worker 执行） */
+export type RegOp = { cmd: 'reg' | 'powershell'; args: string[] };
 
 /** 写入默认值（/ve） */
-function regAddDefault(key: string, value: string): void {
-  execFileSync('reg', ['add', key, '/ve', '/t', 'REG_SZ', '/d', value, '/f'], {
-    windowsHide: true,
-    stdio: 'ignore',
-  });
+function regAddDefault(ops: RegOp[], key: string, value: string): void {
+  ops.push({ cmd: 'reg', args: ['add', key, '/ve', '/t', 'REG_SZ', '/d', value, '/f'] });
 }
 
 /** 写入具名值（/v name） */
-function regSet(key: string, name: string, value: string): void {
-  execFileSync('reg', ['add', key, '/v', name, '/t', 'REG_SZ', '/d', value, '/f'], {
-    windowsHide: true,
-    stdio: 'ignore',
-  });
+function regSet(ops: RegOp[], key: string, name: string, value: string): void {
+  ops.push({ cmd: 'reg', args: ['add', key, '/v', name, '/t', 'REG_SZ', '/d', value, '/f'] });
 }
 
 /** 删除整棵键（含子键） */
-function regDeleteTree(key: string): void {
-  execFileSync('reg', ['delete', key, '/f'], { windowsHide: true, stdio: 'ignore' });
+function regDeleteTree(ops: RegOp[], key: string): void {
+  ops.push({ cmd: 'reg', args: ['delete', key, '/f'] });
 }
 
 /** 业务 exe 路径（打包后为真实渐离App.exe） */
@@ -143,7 +131,13 @@ function regGetValue(key: string, name = ''): string | null {
       encoding: 'utf8',
     }).toString();
     const m = out.match(/REG_SZ\s+(.+)/);
-    return m ? m[1].trim() : null;
+    if (!m) return null;
+    const val = m[1].trim();
+    // reg 在「默认值未设置」时会输出本地化占位符（中文“(默认值未设置)”/英文“(value not set)”），
+    // 这并非真实值，必须当作 null——否则会被误当成 ProgID 拼进注册表路径，产生
+    // `HKCU\Software\Classes\(默认值未设置)\shell\...` 之类垃圾键。
+    if (val === '(默认值未设置)' || val === '(value not set)' || val === '(未设置)') return null;
+    return val;
   } catch {
     return null;
   }
@@ -155,8 +149,10 @@ function regGetDefault(key: string): string | null {
 }
 
 // 启用集合 schema 版本：每当 SUB_COMMANDS 新增命令时 +1，用于一次性迁移旧存档。
-// 1 = 初始仅 3 个保险箱命令；2 = 加入 open-reader / pdf-* / batch-rename 之后。
-const SHELL_MENU_SCHEMA = 2;
+// 1 = 初始仅 3 个保险箱命令；2 = 加入 open-reader / pdf-* / batch-rename 之后；
+// 3 = 2026-09-11 重新启用 PDF 工具箱 5 条命令（此前临时注释，旧存档可能不含其 id，
+//     故 +1 触发一次迁移让它们默认启用；迁移只重置「非传统命令」，3 个保险箱命令仍尊重用户旧开关）。
+const SHELL_MENU_SCHEMA = 3;
 /** 初始版本就存在的「传统」命令；其启用状态严格遵循用户旧存档。其余命令为后续新增，默认启用。 */
 const LEGACY_IDS = new Set<string>([
   'JianliApp.Encrypt',
@@ -164,13 +160,31 @@ const LEGACY_IDS = new Set<string>([
   'JianliApp.SecureDelete',
 ]);
 
-/** 只读取出原始 shellMenuEnabled 数组（无则返回 null） */
-function readEnabledRaw(): string[] | null {
-  try {
-    const row = myDb.db?.get?.(
+/**
+ * 异步读取 basic_info 单行（node-sqlite3 的 db.get 是回调式，必须用 callback 收行，不能同步返回）。
+ * 原实现用 myDb.db?.get?.(...) 同步取值：在 node-sqlite3 下 get 返回的是 Database 实例（链式调用），
+ * 既类型报错（row.value 不存在于 Database）又运行时取不到行，导致 isShellMenuUpToDate 恒为 false、
+ * 每次启动都重写注册表，并让启用集合持久化形同虚设。这里改为 Promise 包裹 callback，与 newSql 异步风格一致。
+ */
+function getBasicInfoRow(key: string): Promise<{ value: string } | undefined> {
+  const db = myDb.db;
+  if (!db) return Promise.resolve(undefined);
+  return new Promise((resolve, reject) => {
+    db.get(
       'SELECT value FROM basic_info WHERE key = ?',
-      ['shellMenuEnabled']
+      [key],
+      (err: Error | null, row: any) => {
+        if (err) reject(err);
+        else resolve(row);
+      }
     );
+  });
+}
+
+/** 只读取出原始 shellMenuEnabled 数组（无则返回 null） */
+async function readEnabledRaw(): Promise<string[] | null> {
+  try {
+    const row = await getBasicInfoRow('shellMenuEnabled');
     if (row && row.value) {
       const arr = JSON.parse(row.value);
       if (Array.isArray(arr)) return arr as string[];
@@ -179,12 +193,9 @@ function readEnabledRaw(): string[] | null {
   return null;
 }
 /** 读出当前存档的 schema 版本（缺省 0 = 升级前旧存档） */
-function readEnabledSchema(): number {
+async function readEnabledSchema(): Promise<number> {
   try {
-    const row = myDb.db?.get?.(
-      'SELECT value FROM basic_info WHERE key = ?',
-      ['shellMenuSchema']
-    );
+    const row = await getBasicInfoRow('shellMenuSchema');
     if (row && row.value) {
       const n = Number(row.value);
       if (!Number.isNaN(n)) return n;
@@ -215,12 +226,12 @@ function persistEnabledIds(ids: Iterable<string>): void {
 
 // 启用集合（缓存；null 时按 basic_info 读取，缺省全部启用）
 let enabledIds: Set<string> | null = null;
-function getEnabledIds(): Set<string> {
+async function getEnabledIds(): Promise<Set<string>> {
   if (enabledIds) return enabledIds;
   const all = new Set(SUB_COMMANDS.map((s) => s.id));
 
-  const schema = readEnabledSchema();
-  const raw = readEnabledRaw();
+  const schema = await readEnabledSchema();
+  const raw = await readEnabledRaw();
 
   // 已迁移过的完整存档（schema 达标）：完全信任用户开关，含其手动关闭的新命令
   if (raw && raw.length && schema >= SHELL_MENU_SCHEMA) {
@@ -245,13 +256,10 @@ function getEnabledIds(): Set<string> {
   enabledIds = result;
   return enabledIds;
 }
-/** 同步读取「已设为默认打开」的扩展名集合 */
-function readDefaultOpenSync(): string[] {
+/** 异步读取「已设为默认打开」的扩展名集合 */
+async function readDefaultOpen(): Promise<string[]> {
   try {
-    const row = myDb.db?.get?.(
-      'SELECT value FROM basic_info WHERE key = ?',
-      ['shellMenuDefaultOpen']
-    );
+    const row = await getBasicInfoRow('shellMenuDefaultOpen');
     if (row && row.value) {
       const arr = JSON.parse(row.value);
       if (Array.isArray(arr)) return arr as string[];
@@ -260,36 +268,53 @@ function readDefaultOpenSync(): string[] {
   return [];
 }
 
-/** 清理所有历史结构（* 父菜单 / 扁平项 / HKLM CommandStore / 按扩展名叶子 / 阅读器 ProgID） */
-function cleanupLegacy(): void {
+/**
+ * 清理注册表残留。
+ * - 不传 enabled（undefined）：删除全部（用于「反注册 / 卸载」场景）。
+ * - 传入 enabled：删除「被用户禁用」的命令；
+ *   启用的命令靠 registerCommandLeaf 的 idempotent `reg add /f` 覆盖，不删其正确键。
+ * - **无论启用与否，始终清掉「历史双前缀」孤儿键**（早期版本误写 `JianliApp.JianliApp.x`）：
+ *   该形态是纯历史 bug 残留，新版只写单前缀 `JianliApp.x`；若不清掉，两者并存会让
+ *   资源管理器右键菜单出现「同名重复项」。
+ * 这样把「每次启动全量 delete + 重建」降为「仅覆盖写」，省掉最贵的 tree 删除。
+ */
+function cleanupLegacy(ops: RegOp[], enabled?: Set<string>): void {
   if (process.platform !== 'win32') return;
-  try { regDeleteTree(HKCU_ROOT); } catch {}
-  for (const s of SUB_COMMANDS) {
-    try { regDeleteTree(`${HKCU_ROOT}.${s.id}`); } catch {}
-    try { regDeleteTree(`${HKLM_COMMANDSTORE}\\${s.id}`); } catch {}
-    const targets = s.exts.includes('*') ? ['*'] : s.exts;
-    for (const ext of targets) {
+  const shouldDelete = (id: string): boolean =>
+    enabled === undefined ? true : !enabled.has(id);
+  const targetsOf = (s: SubCommand): string[] => (s.exts.includes('*') ? ['*'] : s.exts);
+
+  /**
+   * 删除某命令在指定扩展名各 shell 父键下的动词键。
+   * legacyOnly=true 时只删「历史双前缀」形态（早期版本误写 `JianliApp.JianliApp.x`）；
+   * 否则同时删「正确单前缀」与「历史双前缀」两种残留（reg delete /f 删不存在的键静默失败、无副作用）。
+   */
+  const deleteVerb = (id: string, exts: string[], legacyOnly: boolean): void => {
+    for (const ext of exts) {
       for (const parent of shellParentsFor(ext)) {
-        const leaf = `${parent}\\JianliApp.${s.id}`;
-        try { regDeleteTree(leaf); } catch {}
+        if (!legacyOnly) regDeleteTree(ops, `${parent}\\${id}`);
+        regDeleteTree(ops, `${parent}\\JianliApp.${id}`);
       }
     }
-  }
-  // 清理已禁用的 PDF 右键命令残留（它们已从 SUB_COMMANDS 注释掉，但注册表可能仍有旧键；
-  // 不清理则已安装机器的右键菜单不会消失）。恢复 PDF 右键时此块可删除。
-  for (const id of DISABLED_PDF_IDS) {
-    try { regDeleteTree(`${HKCU_ROOT}.${id}`); } catch {}
-    try { regDeleteTree(`${HKLM_COMMANDSTORE}\\${id}`); } catch {}
-    for (const parent of shellParentsFor('.pdf')) {
-      const leaf = `${parent}\\JianliApp.${id}`;
-      try { regDeleteTree(leaf); } catch {}
+  };
+
+  for (const s of SUB_COMMANDS) {
+    const targets = targetsOf(s);
+    if (shouldDelete(s.id)) {
+      // 被禁用：单前缀与历史双前缀都删，并清 HKLM CommandStore 旧方案残留
+      deleteVerb(s.id, targets, false);
+      regDeleteTree(ops, `${HKLM_COMMANDSTORE}\\${s.id}`);
+    } else {
+      // 已启用：**必须**清掉历史双前缀孤儿键——新版只写单前缀，两者并存会让右键菜单出现重复项
+      deleteVerb(s.id, targets, true);
     }
   }
+  // 阅读器 ProgID / OpenWithProgids：仅当 open-reader 被禁用时才清理
   const reader = SUB_COMMANDS.find((s) => s.action === 'open-reader');
-  if (reader) {
+  if (reader && shouldDelete(reader.id)) {
     for (const ext of reader.exts) {
-      try { regDeleteTree(`HKCU\\Software\\Classes\\JianliApp.${ext}`); } catch {}
-      try { regDeleteTree(`HKCU\\Software\\Classes\\${ext}\\OpenWithProgids`); } catch {}
+      regDeleteTree(ops, `HKCU\\Software\\Classes\\JianliApp.${ext}`);
+      regDeleteTree(ops, `HKCU\\Software\\Classes\\${ext}\\OpenWithProgids`);
     }
   }
 }
@@ -319,52 +344,50 @@ function shellParentsFor(ext: string): string[] {
   return parents;
 }
 
-/** 注册单条命令到目标扩展名（ext='*' 表示所有文件） */
-function registerCommandLeaf(s: SubCommand, opts: RegisterOptions): void {
+/** 注册单条命令到目标扩展名（ext='*' 表示所有文件）；仅把操作推入 ops，由 Worker 执行 */
+function registerCommandLeaf(ops: RegOp[], s: SubCommand, opts: RegisterOptions): void {
   if (process.platform !== 'win32') return;
   const exe = exePath();
   const icon = `"${exe}",0`;
   const targets = s.exts.includes('*') ? ['*'] : s.exts;
   for (const ext of targets) {
     for (const parent of shellParentsFor(ext)) {
-      const base = `${parent}\\JianliApp.${s.id}`;
-      try { regDeleteTree(base); } catch {}
-      regAddDefault(base, `${PARENT_NAME}：${s.name}`);
-      regSet(base, 'Icon', icon);
-      regAddDefault(`${base}\\command`, buildCommand(exe, s.flag, opts));
+      const base = `${parent}\\${s.id}`;
+      regDeleteTree(ops, base);
+      regAddDefault(ops, base, `${PARENT_NAME}：${s.name}`);
+      regSet(ops, base, 'Icon', icon);
+      regAddDefault(ops, `${base}\\command`, buildCommand(exe, s.flag, opts));
     }
   }
 }
 
 /** 注册「用渐离阅读」的打开方式 ProgID（仅出现在「打开方式」列表，不抢占系统默认） */
-function registerDefaultOpenProgIds(opts: RegisterOptions): void {
+function registerDefaultOpenProgIds(ops: RegOp[], opts: RegisterOptions): void {
   if (process.platform !== 'win32') return;
   const reader = SUB_COMMANDS.find((s) => s.action === 'open-reader');
   if (!reader) return;
   const exe = exePath();
   for (const ext of reader.exts) {
     const progKey = `HKCU\\Software\\Classes\\JianliApp.${ext}`;
-    try { regDeleteTree(progKey); } catch {}
-    regAddDefault(progKey, '渐离App');
-    regAddDefault(`${progKey}\\shell\\open\\command`, buildCommand(exe, reader.flag, opts));
+    // 幂等覆盖，无需先删
+    regAddDefault(ops, progKey, '渐离App');
+    regAddDefault(ops, `${progKey}\\shell\\open\\command`, buildCommand(exe, reader.flag, opts));
     // 加入「打开方式」推荐列表（不写扩展名默认值，避免抢占系统默认）
-    regSet(`HKCU\\Software\\Classes\\${ext}\\OpenWithProgids`, `JianliApp.${ext}`, '');
+    regSet(ops, `HKCU\\Software\\Classes\\${ext}\\OpenWithProgids`, `JianliApp.${ext}`, '');
   }
 }
 
-/** 设 / 撤某扩展名的「默认打开」关联（可撤销，不破坏其它程序） */
-function setDefaultOpen(ext: string, enabled: boolean): void {
+/** 设 / 撤某扩展名的「默认打开」关联（可撤销，不破坏其它程序）；仅把操作推入 ops */
+function setDefaultOpen(ops: RegOp[], ext: string, enabled: boolean): void {
   const reader = SUB_COMMANDS.find((s) => s.action === 'open-reader');
   if (!reader || !reader.exts.includes(ext)) return;
   const progId = `JianliApp.${ext}`;
   const extKey = `HKCU\\Software\\Classes\\${ext}`;
   if (enabled) {
-    regAddDefault(extKey, progId);
-    regSet(`${extKey}\\OpenWithProgids`, progId, '');
+    regAddDefault(ops, extKey, progId);
+    regSet(ops, `${extKey}\\OpenWithProgids`, progId, '');
   } else if (regGetDefault(extKey) === progId) {
-    try {
-      execFileSync('reg', ['delete', extKey, '/ve', '/f'], { windowsHide: true, stdio: 'ignore' });
-    } catch {}
+    ops.push({ cmd: 'reg', args: ['delete', extKey, '/ve', '/f'] });
   }
 }
 
@@ -372,51 +395,86 @@ function setDefaultOpen(ext: string, enabled: boolean): void {
  * 注册右键菜单：先清理历史，再按启用集合逐条注册（支持按扩展名限定），
  * 最后注册「用渐离阅读」的打开方式 ProgID；并按持久化的默认打开集合恢复双击默认。
  */
-/** 通知 Explorer 刷新外壳关联缓存，否则新注册/取消的菜单项需重启资源管理器才生效（SHCNE_ASSOCCHANGED） */
-function notifyShellRefresh(): void {
+/** 通知 Explorer 刷新外壳关联缓存，否则新注册/取消的菜单项需重启资源管理器才生效（SHCNE_ASSOCCHANGED）；仅把操作推入 ops */
+function notifyShellRefresh(ops: RegOp[]): void {
   if (process.platform !== 'win32') return;
-  try {
-    execFileSync(
-      'powershell',
-      [
-        '-NoProfile',
-        '-NonInteractive',
-        '-Command',
-        'Add-Type -MemberDefinition \'[DllImport("shell32.dll")] public static extern void SHChangeNotify(int wEventId,int uFlags,int dwItem1,int dwItem2);\' -Name SHN -Namespace Win32 -PassThru | ForEach-Object { $_.GetMethod("SHChangeNotify").Invoke($null, @(0x08000000,0,0,0)) }',
-      ],
-      { windowsHide: true, stdio: 'ignore' }
-    );
-  } catch {
-    // 刷新失败不影响菜单写入，用户手动重启资源管理器亦可
-  }
+  ops.push({
+    cmd: 'powershell',
+    args: [
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      'Add-Type -MemberDefinition \'[DllImport("shell32.dll")] public static extern void SHChangeNotify(int wEventId,int uFlags,int dwItem1,int dwItem2);\' -Name SHN -Namespace Win32 -PassThru | ForEach-Object { $_.GetMethod("SHChangeNotify").Invoke($null, @(0x08000000,0,0,0)) }',
+    ],
+  });
 }
 
-export function registerShellMenu(opts: RegisterOptions = {}): void {
-  cleanupLegacy();
-  const enabled = getEnabledIds();
+/**
+ * 把规划好的注册表操作交给 Worker 线程执行（不阻塞主线程）。
+ * 注册表写入（reg/powershell，约上百次子进程调用）在 worker_threads 里异步跑，主线程事件循环
+ * 全程不被冻结，彻底消除右键菜单注册导致的鼠标/窗口卡顿。每次启动都跑也无害。
+ */
+function runShellMenuWorker(ops: RegOp[]): Promise<void> {
+  return new Promise((resolve) => {
+    if (process.platform !== 'win32' || ops.length === 0) {
+      resolve();
+      return;
+    }
+    try {
+      const worker = new Worker(shellMenuWorkerPath);
+      worker.on('message', (msg: unknown) => {
+        if (msg === 'done') {
+          worker.terminate();
+          resolve();
+        }
+      });
+      worker.on('error', (err) => {
+        console.error('[shellMenu] Worker 执行异常:', err);
+        worker.terminate();
+        resolve(); // 不阻断主流程
+      });
+      worker.postMessage(ops);
+    } catch (e) {
+      console.error('[shellMenu] 启动 Worker 失败，降级为主线程执行:', e);
+      // 兜底：Worker 起不来时回退主线程（保留原行为）
+      for (const op of ops) {
+        try { execFileSync(op.cmd, op.args, { windowsHide: true, stdio: 'ignore' }); } catch {}
+      }
+      resolve();
+    }
+  });
+}
+
+export async function registerShellMenu(opts: RegisterOptions = {}): Promise<void> {
+  const enabled = await getEnabledIds();
+  const ops: RegOp[] = [];
+  // 仅清理「被禁用 / 已移除」命令的残留；启用的命令走幂等覆盖，不再全量删除重建
+  cleanupLegacy(ops, enabled);
   for (const s of SUB_COMMANDS) {
     if (!enabled.has(s.id)) continue;
-    registerCommandLeaf(s, opts);
+    registerCommandLeaf(ops, s, opts);
   }
-  registerDefaultOpenProgIds(opts);
-  for (const ext of readDefaultOpenSync()) {
-    setDefaultOpen(ext, true);
+  registerDefaultOpenProgIds(ops, opts);
+  for (const ext of await readDefaultOpen()) {
+    setDefaultOpen(ops, ext, true);
   }
-  notifyShellRefresh();
+  notifyShellRefresh(ops);
+  // 不再写「已注册」marker：注册表写入已由 Worker 线程异步执行，每次启动都跑也不阻塞主线程，
+  // 因此无需 basic_info 的 shellMenuRegistered / shellMenuSchema 跳过逻辑。
+  await runShellMenuWorker(ops);
 }
 
 /** 反注册（清理 HKCU 命令叶子、HKLM CommandStore、阅读器 ProgID 与默认值） */
-export function unregisterShellMenu(): void {
+export async function unregisterShellMenu(): Promise<void> {
   if (process.platform !== 'win32') return;
-  cleanupLegacy();
+  const ops: RegOp[] = [];
+  cleanupLegacy(ops);
   const reader = SUB_COMMANDS.find((s) => s.action === 'open-reader');
   if (reader) {
-    for (const ext of [...reader.exts, ...readDefaultOpenSync()]) {
+    for (const ext of [...reader.exts, ...(await readDefaultOpen())]) {
       const extKey = `HKCU\\Software\\Classes\\${ext}`;
       if (regGetDefault(extKey) === `JianliApp.${ext}`) {
-        try {
-          execFileSync('reg', ['delete', extKey, '/ve', '/f'], { windowsHide: true, stdio: 'ignore' });
-        } catch {}
+        ops.push({ cmd: 'reg', args: ['delete', extKey, '/ve', '/f'] });
       }
     }
   }
@@ -426,9 +484,9 @@ export function unregisterShellMenu(): void {
  * 以管理员身份重新注册（历史方案写入 HKLM 需要提权；现行方案注册到 HKCU 无需管理员，
  * 此处保留入口并直接调用 registerShellMenu，供设置页「重新注册」按钮复用）。
  */
-export function registerShellMenuElevated(): void {
+export async function registerShellMenuElevated(): Promise<void> {
   if (process.platform !== 'win32') return;
-  registerShellMenu();
+  await registerShellMenu();
 }
 
 let shellMenuIpcReady = false;
@@ -441,8 +499,8 @@ export function initShellMenu(): void {
   shellMenuIpcReady = true;
 
   ipcMain.handle('shell-menu:get-state', async () => {
-    const enabled = getEnabledIds();
-    const defaultOpen = readDefaultOpenSync();
+    const enabled = await getEnabledIds();
+    const defaultOpen = await readDefaultOpen();
     return {
       commands: SUB_COMMANDS.map((s) => ({
         id: s.id,
@@ -458,20 +516,20 @@ export function initShellMenu(): void {
   ipcMain.on('shell-menu:set-enabled', (_e, ids: string[]) => {
     enabledIds = new Set(ids);
     persistEnabledIds(ids);
-    registerShellMenu();
+    void registerShellMenu().catch((e) => console.error('[shellMenu] set-enabled 重新注册失败:', e));
   });
 
-  ipcMain.on('shell-menu:set-default-open', (_e, payload: { ext: string; enabled: boolean }) => {
+  ipcMain.on('shell-menu:set-default-open', async (_e, payload: { ext: string; enabled: boolean }) => {
     if (!payload || !payload.ext) return;
     setDefaultOpen(payload.ext, !!payload.enabled);
-    const cur = new Set(readDefaultOpenSync());
+    const cur = new Set(await readDefaultOpen());
     if (payload.enabled) cur.add(payload.ext);
     else cur.delete(payload.ext);
     saveBasicInfoKV('shellMenuDefaultOpen', JSON.stringify([...cur]));
   });
 
   ipcMain.on('shell-menu:reregister', () => {
-    registerShellMenu();
+    void registerShellMenu().catch((e) => console.error('[shellMenu] reregister 重新注册失败:', e));
   });
 }
 

@@ -31,19 +31,18 @@ function wireGbkStream(child: ChildProcess, onChunk: (str: string) => void): voi
 const activeTasks = new Map<string, ChildProcess>();
 
 export async function initSys() {
-  let fonts: ObjectType = await getFonts2()
-  fonts = fonts.map((item: ObjectType) => {
-    return {
-      label: item.familyName,
-      value: item.familyName,
+  // 字体列表懒加载：首次调用 get-fonts 时才枚举系统字体（避免启动期 3s+ 阻塞），
+  // 之后缓存复用（P1 启动优化）。initSys 本身不再阻塞于字体枚举。
+  let fontsCache: any = null;
+  ipcMain.handle("get-fonts", async () => {
+    if (!fontsCache) {
+      const raw = await getFonts2();
+      fontsCache = raw.map((item: ObjectType) => ({
+        label: item.familyName,
+        value: item.familyName,
+      }));
     }
-  })
-
-  // 获取表数据，参数为表名，以及查询条件
-  ipcMain.handle("get-fonts", async (event) => {
-    return new Promise((resolve) => {
-      resolve(fonts)
-    });
+    return fontsCache;
   });
 
   // 获取扩展对应的默认文件位置

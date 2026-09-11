@@ -43,6 +43,10 @@ export const preload = path.join(__dirname, "../preload/index.mjs");
 export const systemInfoWorkerPath = path.join(appRoot, VITE_DEV_SERVER_URL ? "./public/worker/systemInfo.cjs" : "./dist/worker/systemInfo.cjs");
 export const defaultAppWorkerPath = path.join(appRoot, VITE_DEV_SERVER_URL ? "./public/worker/defaultApp.cjs" : "./dist/worker/defaultApp.cjs");
 
+// 右键菜单注册表写入 Worker：主线程规划好 RegOp 列表后发给它，在 worker 线程异步执行 reg/powershell，
+// 不阻塞主线程（消除注册导致的鼠标/窗口卡顿）。dev 用 public/worker，打包后用 dist/worker。
+export const shellMenuWorkerPath = path.join(appRoot, VITE_DEV_SERVER_URL ? "./public/worker/shellMenu.cjs" : "./dist/worker/shellMenu.cjs");
+
 // 扫描进程worker
 export const scanWorkerPath = path.join(vitePublic, "worker.mjs");
 
