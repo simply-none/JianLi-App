@@ -30,6 +30,7 @@ import { initBing } from "./module/bing.ts";
 import { initTTS } from "./module/tts.ts";
 import { initEbook } from "./module/ebook.ts";
 import { initEbookTransfer } from "./module/ebookTransfer.ts";
+import { initRemoteControl } from "./module/remoteControl.ts";
 import { initScreenshot } from "./module/screenshot.ts";
 import { initStock } from "./module/stock.ts";
 import { initSinaFinance } from "./module/sinaFinance.ts";
@@ -118,6 +119,7 @@ async function runDeferredInits(): Promise<void> {
     ['sync', initSync],
     ['transfer', initTransfer],
     ['ferry', initFerry],
+    ['remoteControl', initRemoteControl],
     ['shellMenuIpc', initShellMenu],
     ['pdf', initPdf],
   ];
