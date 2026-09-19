@@ -294,6 +294,14 @@ const originShortcuts = ref([
     key: 'privacyHideShortcut',
     shortcut: ['', '', ''],
   },
+  {
+    // P1-6 小纸条：把当前剪贴板文本发到最近一次发过的设备
+    type: 'send_clipboard_slip',
+    url: '',
+    name: '发小纸条（剪贴板）',
+    key: 'sendClipboardSlipShortcut',
+    shortcut: ['Ctrl', 'Alt', 'S'],
+  },
 ])
 
 // 路由功能：基于 layoutRouters 动态生成，所有布局内路由均可注册快捷键。

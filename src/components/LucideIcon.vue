@@ -125,6 +125,10 @@ import { AlarmClock, AlarmClockCheck, AlarmClockMinus, AlarmClockPlus, ArrowDown
   Paperclip,
   GitCompare,
   Replace,
+  // —— 小纸条用图标 ——
+  ClipboardCopy,
+  ArrowDownLeft,
+  ArrowUpRight,
 } from '@lucide/vue';
 import { ArrowLeftRight } from '@lucide/vue';
 import { ref } from 'vue';
@@ -442,6 +446,10 @@ let nameMap = ref<Record<any, any>>({
   Paperclip,
   GitCompare,
   Replace,
+  // —— 小纸条用图标 ——
+  ClipboardCopy,
+  ArrowDownLeft,
+  ArrowUpRight,
 })
 
 function getPadding(padding: string | number): string {

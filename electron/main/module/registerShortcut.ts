@@ -6,6 +6,8 @@ import { clipboard, ipcMain, globalShortcut, BrowserWindow } from "electron";
 import colors from "colors";
 import { createOtherWindow, hideOtherWindow } from "./newWindow.ts";
 import { lockAppNow, togglePrivacyHide } from "./appLock.ts";
+import { sendClipboardSlip } from "./noteSlip.ts";
+import { notifyTrayBalloon } from "./tray.ts";
 
 export const tableName = "register_shortcut";
 
@@ -386,6 +388,25 @@ function getAppTwoFactorWindow() {
   });
 }
 
+/**
+ * 小纸条快捷发送：把当前剪贴板文本发到最近目标。
+ * 快捷键可能在任何页面触发，页面 toast 不一定可见（小纸条页未必打开），
+ * 统一用托盘气泡回执（Windows）；非 Windows 平台静默忽略回执。
+ */
+function sendClipboardSlipNow() {
+  sendClipboardSlip()
+    .then((r) => {
+      if (r.ok) {
+        notifyTrayBalloon("小纸条已发送", `已发到 ${r.name || r.ip || "对端"}`);
+      } else {
+        notifyTrayBalloon("小纸条发送失败", r.error || "未知错误");
+      }
+    })
+    .catch((e) => {
+      notifyTrayBalloon("小纸条发送失败", String((e as Error)?.message ?? e));
+    });
+}
+
 function getPomodoroWindow() {
   const allWindows = BrowserWindow.getAllWindows();
   return allWindows.find((w) => {
@@ -467,6 +488,10 @@ function globalShortcutFn(item) {
     }
     else if (item.type == 'privacy_hide') {
       togglePrivacyHide();
+    }
+    else if (item.type == 'send_clipboard_slip') {
+      // P1-6 小纸条：把剪贴板文本甩到手机
+      sendClipboardSlipNow();
     }
     console.log("Electron loves global shortcuts!");
   });

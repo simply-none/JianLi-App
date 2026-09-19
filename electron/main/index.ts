@@ -31,6 +31,7 @@ import { initTTS } from "./module/tts.ts";
 import { initEbook } from "./module/ebook.ts";
 import { initEbookTransfer } from "./module/ebookTransfer.ts";
 import { initRemoteControl } from "./module/remoteControl.ts";
+import { initNoteSlip } from "./module/noteSlip.ts";
 import { initScreenshot } from "./module/screenshot.ts";
 import { initStock } from "./module/stock.ts";
 import { initSinaFinance } from "./module/sinaFinance.ts";
@@ -120,6 +121,8 @@ async function runDeferredInits(): Promise<void> {
     ['transfer', initTransfer],
     ['ferry', initFerry],
     ['remoteControl', initRemoteControl],
+    // P1-6 小纸条（依赖 sync 的 registerDataRoute，必须排在 sync 之后）
+    ['noteSlip', initNoteSlip],
     ['shellMenuIpc', initShellMenu],
     ['pdf', initPdf],
   ];

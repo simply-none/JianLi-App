@@ -171,6 +171,7 @@ export const iconMap: Record<string, string> = {
   pdfTools: 'FileBox',
   fileTransfer: 'ArrowLeftRight',
   ferry: 'ScanQrCode',
+  noteSlip: 'StickyNotePlus',
 };
 
 export { getLightColor, getDarkColor } from './color';

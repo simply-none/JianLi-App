@@ -73,6 +73,7 @@ export const RouteNames = {
   FILE_VAULT: "fileVault",
   FILE_TRANSFER: "fileTransfer",
   FERRY: "ferry",
+  NOTE_SLIP: "noteSlip",
 } as const;
 
 export type RouteNameType = typeof RouteNames[keyof typeof RouteNames];
@@ -446,6 +447,14 @@ export const layoutRouters: RouteRecordRaw[] = [
     component: () => import("@/views/ferry/index.vue"),
     meta: {
       title: "隔空互传",
+    },
+  },
+  {
+    path: "/noteSlip",
+    name: RouteNames.NOTE_SLIP,
+    component: () => import("@/views/noteSlip/index.vue"),
+    meta: {
+      title: "小纸条",
     },
   },
 ];

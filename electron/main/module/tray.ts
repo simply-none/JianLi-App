@@ -11,6 +11,7 @@ import { store } from "./store.ts";
 import { queryByConditions } from "../utils/sql.ts";
 import { myDb } from "./newSql.ts";
 import { startScreenshotCapture } from "./screenshot.ts";
+import { sendClipboardSlip } from "./noteSlip.ts";
 
 // 各小窗的兜底配置（与 src/views/windowMode/config/windowSections.ts 的默认尺寸保持一致）。
 // createOtherWindow 的兜底尺寸只有 108x81，面板放不下，必须给足尺寸。
@@ -117,6 +118,21 @@ function showTrayBalloon(title: string, content: string) {
   }
 }
 
+/** 托盘「发小纸条」：复用 noteSlip 的剪贴板发送，回执走气泡 */
+function sendClipboardSlipFromTray(): void {
+  sendClipboardSlip()
+    .then((r) => {
+      if (r.ok) {
+        showTrayBalloon("小纸条已发送", `已发到 ${r.name || r.ip || "对端"}`);
+      } else {
+        showTrayBalloon("小纸条发送失败", r.error || "未知错误");
+      }
+    })
+    .catch((e) => {
+      showTrayBalloon("小纸条发送失败", String((e as Error)?.message ?? e));
+    });
+}
+
 /** 构建托盘右键菜单（选项变更后需重建以刷新 checkbox 状态） */
 function buildContextMenu(): Menu {
   return Menu.buildFromTemplate([
@@ -143,6 +159,11 @@ function buildContextMenu(): Menu {
       label: "快速记录",
       click: () =>
         openOrToggleMiniWindow("quickNote", "quickNote", DEFAULT_QUICK_NOTE_CONFIG),
+    },
+    {
+      // P1-6 小纸条：把当前剪贴板文本甩到最近一次发过的手机
+      label: "发小纸条（剪贴板）",
+      click: () => sendClipboardSlipFromTray(),
     },
     { type: "separator" },
     // —— 窗口显隐 ——

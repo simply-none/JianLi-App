@@ -40,6 +40,7 @@ export const menuGroupDefs: MenuGroupDef[] = [
       'sync',
       'fileTransfer',
       'ferry',
+      'noteSlip',
     ],
   },
   {

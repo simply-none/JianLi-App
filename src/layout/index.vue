@@ -118,6 +118,7 @@ import { getStore } from '@/utils/common';
 import { isLockedRoute, resolveMenuGroups, type MenuRouteItem } from '@/constants/menu';
 import { fileNotify } from '@/utils/fileNotify';
 import useGlobalSetting from '@/store/useGlobalSetting';
+import { ElNotification } from 'element-plus';
 
 // 响应式刷新 key，用于强制更新菜单
 const menuRefreshKey = ref(0);
@@ -156,10 +157,30 @@ function handleFileReceived(
   fileNotify({ title: "收到文件", message: `来自 ${payload.from}`, filePath: payload.path });
 }
 
+/**
+ * 小纸条：手机发来文字 / 链接时，即使不在小纸条页也弹通知（点击直达页面）。
+ * 内容只做摘要展示（≤80 字），全文在页面里看，避免通知被长文本撑爆。
+ */
+function handleSlipReceived(_e: unknown, payload: { content: string; from: string }) {
+  const text = (payload?.content || '').trim().replace(/\s+/g, ' ');
+  const preview = text.length > 80 ? `${text.slice(0, 80)}…` : text;
+  ElNotification({
+    title: '收到小纸条',
+    message: `来自 ${payload?.from || '未知设备'}：${preview || '（空内容）'}`,
+    type: 'success',
+    duration: 6000,
+    onClick: () => {
+      router.push({ name: 'noteSlip' });
+    },
+  });
+}
+
 onMounted(() => {
   window.addEventListener('route-setting-changed', handleMenuRefresh);
   // 文件互传：接收方收到文件后，即使不在文件互传页也弹蓝色路径通知
   window.ipcRenderer.on('file-transfer:received', handleFileReceived);
+  // 小纸条：手机发来文字 / 链接
+  window.ipcRenderer.on('slip:received', handleSlipReceived);
   // 预热快捷键注册页 chunk，避免首次进入时因懒加载编译/下载产生的「暂停」感
   // 与 router 中 () => import(...) 指向同一模块，Vite 复用同一 chunk
   const preload = () => import('@/views/registerShortcut/index.vue').catch(() => {});
@@ -173,6 +194,7 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('route-setting-changed', handleMenuRefresh);
   window.ipcRenderer.off('file-transfer:received', handleFileReceived);
+  window.ipcRenderer.off('slip:received', handleSlipReceived);
 });
 
 const router = useRouter();
