@@ -24,6 +24,11 @@
       <el-tab-pane label="数据导出" name="export">
         <ExportCenterCard />
       </el-tab-pane>
+
+      <!-- 整库迁移（移动端互通） -->
+      <el-tab-pane label="整库迁移" name="sqlite">
+        <SqliteCard />
+      </el-tab-pane>
     </el-tabs>
   </div>
 </template>
@@ -38,6 +43,7 @@ import BackupListCard from './components/BackupListCard.vue';
 import RestoreCard from './components/RestoreCard.vue';
 import AutoBackupCard from './components/AutoBackupCard.vue';
 import ExportCenterCard from './components/ExportCenterCard.vue';
+import SqliteCard from './components/SqliteCard.vue';
 
 /** 当前激活的 Tab */
 const activeTab = ref('backup');

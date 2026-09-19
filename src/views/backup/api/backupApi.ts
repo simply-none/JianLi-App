@@ -11,6 +11,7 @@ import type {
   CommonResult,
   ExportModulesResult,
   ExportFileItem,
+  ImportResult,
 } from "../types";
 import { toPlain } from "@/utils/common";
 
@@ -157,4 +158,33 @@ export function runExport(params: {
   saveDir: string;
 }): Promise<{ ok: boolean; files?: ExportFileItem[]; error?: string }> {
   return call("export:run", params);
+}
+
+/**
+ * 导出 PC 主库整库快照（与移动端同格式 db_导出_<时间戳>.sqlite）
+ *
+ * @param {string} saveDir - 用户自选导出目录
+ * @returns {Promise<{ ok: boolean; filePath?: string; size?: number; error?: string }>} 导出结果
+ */
+export function exportSqlite(saveDir: string): Promise<{ ok: boolean; filePath?: string; size?: number; error?: string }> {
+  return call("data-management:export-sqlite", { saveDir });
+}
+
+/**
+ * 弹出文件选择框，选择要导入的 .sqlite 文件
+ *
+ * @returns {Promise<string|null>} 选择的文件路径；取消返回 null
+ */
+export function selectSqliteFile(): Promise<string | null> {
+  return call<string | null>("data-management:select-sqlite");
+}
+
+/**
+ * 从外部 db.sqlite 合并非 basic_info 表进 PC 主库
+ *
+ * @param {string} sourcePath - 源 db.sqlite 绝对路径
+ * @returns {Promise<ImportResult>} 导入结果
+ */
+export function importSqlite(sourcePath: string): Promise<ImportResult> {
+  return call<ImportResult>("data-management:import-sqlite", { sourcePath });
 }

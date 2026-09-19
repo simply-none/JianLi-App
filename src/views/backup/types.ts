@@ -141,3 +141,21 @@ export interface CommonResult {
   error?: string;
   [key: string]: any;
 }
+
+/** 整库导入结果（data-management:import-sqlite 返回） */
+export interface ImportResult {
+  /** 是否成功 */
+  ok: boolean;
+  /** 合并的表数量 */
+  tables?: number;
+  /** 合并的行数量 */
+  rows?: number;
+  /** 因源有而目标无、被新增的字段数量 */
+  addedColumns?: number;
+  /** 成功时的可读摘要 */
+  message?: string;
+  /** 是否需要重启应用使各模块缓存生效 */
+  needRestart?: boolean;
+  /** 错误信息 */
+  error?: string;
+}

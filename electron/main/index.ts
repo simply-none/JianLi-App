@@ -56,6 +56,7 @@ import {
 } from "./module/shellMenu.ts";
 import { initPdf } from "./module/pdf.ts";
 import { initSafetyProtection } from "./module/safetyProtection.ts";
+import { initDataManagement } from "./module/dataManagement.ts";
 
 registerJlocalProtocolBefore()
 
@@ -162,6 +163,8 @@ async function createWindow() {
   await timeInit('store', initStore);
   // 备份与恢复 + 数据导出中心（依赖 newSql 连接池，须在其后初始化）
   await timeInit('backup', initBackup);
+  // 整库 SQLite 导入/导出（移动端互通，依赖 newSql 连接池）
+  await timeInit('dataManagement', initDataManagement);
   // 文件相关
   await timeInit('file', initFile);
   // 资源管理（文本预览读取 + 物理文件删除）
