@@ -3,10 +3,18 @@
  *
  * 复用 syncModule 的 47124 数据面（registerDataRoute 注入 /remote/*，不新开端口）。
  * 手机端「遥控 PC」页发出白名单指令，主进程经 PowerShell / rundll32 落到系统层：
- *   - page-prev / page-next / screen-black : SendKeys（作用于前台窗口，PPT/浏览器/阅读器通用）
- *   - media-play / media-prev / media-next / vol-up / vol-down / vol-mute
+ * 第一批（主面板）：
+ *   - page-prev / page-next / screen-black / screen-white : SendKeys（作用于前台窗口，PPT/浏览器/阅读器通用）
+ *   - media-play / media-prev / media-next / media-stop / vol-up / vol-down / vol-mute
  *       : keybd_event 虚拟媒体键（SendKeys 不支持 VK_MEDIA_*，P/Invoke 内联）
  *   - lock : rundll32 user32.dll,LockWorkStation
+ * 第二批（「更多命令」抽屉，2026-09-22）：
+ *   - presentation-start / presentation-end : keybd_event VK_F5 / VK_ESCAPE（PPT 开始/结束放映）
+ *   - show-desktop / alt-tab / alt-f4 : keybd_event 组合键（Win+D / Alt+Tab / Alt+F4）
+ *   - key-up / key-down / key-left / key-right : keybd_event 方向键
+ *   - monitor-off : WM_SYSCOMMAND + SC_MONITORPOWER 关闭显示器（任意输入唤醒）
+ *   - clipboard-text : body.arg 文本 → Electron clipboard（手机 → PC 剪贴板，上限 3000 字）
+ *   - open-url : body.arg 链接 → shell.openExternal（仅 http/https，防协议注入）
  *
  * 安全模型（v1）：4 位配对码。手机 `POST /remote/pair` → PC 弹系统对话框显示 4 位码
  * （**码不进 HTTP 响应**，只有坐在电脑前的人能看到）→ 手机 `POST /remote/pair/confirm`
@@ -16,7 +24,7 @@
  */
 
 import { execFile, spawn } from 'node:child_process'
-import { dialog } from 'electron'
+import { clipboard, dialog, shell } from 'electron'
 import { registerDataRoute } from './sync/syncModule.ts'
 import { queryByConditions, upsertData } from '../utils/sql.ts'
 import { myDb } from './newSql.ts'
@@ -127,7 +135,12 @@ function sendKeys(keys: string): Promise<void> {
   })
 }
 
-/** 媒体/音量虚拟键：keybd_event P/Invoke（VK_MEDIA_*=0xB0..0xB3，VK_VOLUME_*=0xAD..0xAF） */
+/** keybd_event P/Invoke 前缀（每次 spawn 都要重新 Add-Type，进程不共享） */
+const KB_ADDTYPE =
+  `Add-Type -Namespace Jl -Name Kb -MemberDefinition '[DllImport("user32.dll")] public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);'`
+
+/** 单键按下+抬起：keybd_event P/Invoke（VK_MEDIA_*=0xB0..0xB3，VK_VOLUME_*=0xAD..0xAF，
+ *  另复用于 F5/Esc/方向键等非媒体虚拟键——SendKeys 表达不了它们） */
 function mediaKey(vk: number): Promise<void> {
   return new Promise((resolve, reject) => {
     spawn(
@@ -136,14 +149,67 @@ function mediaKey(vk: number): Promise<void> {
         '-NoProfile',
         '-NonInteractive',
         '-Command',
-        `Add-Type -Namespace Jl -Name Kb -MemberDefinition '[DllImport("user32.dll")] public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);'; ` +
-          `[Jl.Kb]::keybd_event(${vk},0,0,[UIntPtr]::Zero); Start-Sleep -Milliseconds 40; [Jl.Kb]::keybd_event(${vk},0,2,[UIntPtr]::Zero)`,
+        `${KB_ADDTYPE}; [Jl.Kb]::keybd_event(${vk},0,0,[UIntPtr]::Zero); Start-Sleep -Milliseconds 40; [Jl.Kb]::keybd_event(${vk},0,2,[UIntPtr]::Zero)`,
       ],
       { windowsHide: true, timeout: 8000 },
     )
       .on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`mediaKey exit ${code}`))))
       .on('error', reject)
   })
+}
+
+/** 组合键（Win+D / Alt+Tab / Alt+F4）：keybd_event 依次按下、再逆序抬起 */
+function keyCombo(vks: number[]): Promise<void> {
+  const down = vks
+    .map((vk) => `[Jl.Kb]::keybd_event(${vk},0,0,[UIntPtr]::Zero); Start-Sleep -Milliseconds 30`)
+    .join('; ')
+  const up = [...vks]
+    .reverse()
+    .map((vk) => `[Jl.Kb]::keybd_event(${vk},0,2,[UIntPtr]::Zero)`)
+    .join('; ')
+  return new Promise((resolve, reject) => {
+    spawn(
+      'powershell',
+      ['-NoProfile', '-NonInteractive', '-Command', `${KB_ADDTYPE}; ${down}; ${up}`],
+      { windowsHide: true, timeout: 8000 },
+    )
+      .on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`keyCombo exit ${code}`))))
+      .on('error', reject)
+  })
+}
+
+/** 关闭显示器：WM_SYSCOMMAND(0x0112) + SC_MONITORPOWER(0xF170, lParam=2)，任意输入唤醒 */
+function monitorOff(): Promise<void> {
+  const u32 =
+    `Add-Type -Namespace Jl -Name U32 -MemberDefinition '[DllImport("user32.dll")] public static extern System.IntPtr SendMessage(System.IntPtr hWnd, uint Msg, System.IntPtr wParam, System.IntPtr lParam);'`
+  return new Promise((resolve, reject) => {
+    spawn(
+      'powershell',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        `${u32}; [Jl.U32]::SendMessage([IntPtr]0xFFFF, [IntPtr]0x0112, [IntPtr]0xF170, [IntPtr]2)`,
+      ],
+      { windowsHide: true, timeout: 8000 },
+    )
+      .on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`monitorOff exit ${code}`))))
+      .on('error', reject)
+  })
+}
+
+/** 手机文本 → PC 剪贴板（随后 PC 上 Ctrl+V 粘贴；上限 3000 字防滥用） */
+function clipboardText(text: string): void {
+  const value = text.slice(0, 3000)
+  if (!value.trim()) throw new Error('文本为空')
+  clipboard.writeText(value)
+}
+
+/** 让 PC 打开网址（仅 http/https，防任意协议注入） */
+async function openUrl(url: string): Promise<void> {
+  const u = url.trim()
+  if (!/^https?:\/\/\S+$/i.test(u)) throw new Error('仅支持 http/https 链接')
+  await shell.openExternal(u)
 }
 
 /** 锁屏 */
@@ -155,17 +221,32 @@ function lockWorkStation(): Promise<void> {
   })
 }
 
-/** 命令白名单（键 → 执行器；不在表内一律 400） */
-const COMMANDS: Record<string, () => Promise<void>> = {
+/** 命令白名单（键 → 执行器；不在表内一律 400）。
+ *  第二批命令的参数经 body.arg 传入（clipboard-text = 文本 / open-url = 链接） */
+const COMMANDS: Record<string, (arg: string) => Promise<void>> = {
   'page-prev': () => sendKeys('{PGUP}'),
   'page-next': () => sendKeys('{PGDN}'),
   'screen-black': () => sendKeys('b'),
+  'screen-white': () => sendKeys('w'), // PPT 白屏（与黑屏 b 成对）
   'media-play': () => mediaKey(0xb3), // VK_MEDIA_PLAY_PAUSE
   'media-prev': () => mediaKey(0xb1), // VK_MEDIA_PREV_TRACK
   'media-next': () => mediaKey(0xb0), // VK_MEDIA_NEXT_TRACK
+  'media-stop': () => mediaKey(0xb2), // VK_MEDIA_STOP
   'vol-up': () => mediaKey(0xaf), // VK_VOLUME_UP
   'vol-down': () => mediaKey(0xae), // VK_VOLUME_DOWN
   'vol-mute': () => mediaKey(0xad), // VK_VOLUME_MUTE
+  'presentation-start': () => mediaKey(0x74), // VK_F5 开始放映
+  'presentation-end': () => mediaKey(0x1b), // VK_ESCAPE 结束放映
+  'show-desktop': () => keyCombo([0x5b, 0x44]), // Win + D
+  'alt-tab': () => keyCombo([0x12, 0x09]), // Alt + Tab 切换窗口
+  'alt-f4': () => keyCombo([0x12, 0x73]), // Alt + F4 关闭当前窗口
+  'key-up': () => mediaKey(0x26), // VK_UP
+  'key-down': () => mediaKey(0x28), // VK_DOWN
+  'key-left': () => mediaKey(0x25), // VK_LEFT
+  'key-right': () => mediaKey(0x27), // VK_RIGHT
+  'monitor-off': () => monitorOff(), // 关闭显示器
+  'clipboard-text': async (arg) => clipboardText(arg), // body.arg = 文本
+  'open-url': (arg) => openUrl(arg), // body.arg = http(s) 链接
   lock: lockWorkStation,
 }
 
@@ -231,13 +312,14 @@ export function initRemoteControl(): void {
     }
     const body = await readBody(req)
     const cmd = String(body.cmd ?? '')
+    const arg = typeof body.arg === 'string' ? body.arg : ''
     const fn = COMMANDS[cmd]
     if (!fn) {
       json(res, { ok: false, error: `未知命令：${cmd}` }, 400)
       return
     }
     try {
-      await fn()
+      await fn(arg)
       json(res, { ok: true })
     } catch (e) {
       json(res, { ok: false, error: String((e as Error).message ?? e) }, 500)
