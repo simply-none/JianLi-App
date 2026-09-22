@@ -3,7 +3,7 @@
     <div class="ferry-header">
       <LucideIcon name="ScanQrCode" :size="30" class="ferry-logo" />
       <div class="ferry-title">
-        <h2>隔空互传</h2>
+        <h2>流光扫传</h2>
         <p>无需局域网，屏幕二维码直传</p>
       </div>
     </div>
@@ -22,7 +22,7 @@
 
       <el-button type="primary" size="large" :loading="opening" @click="openFerry">
         <LucideIcon name="ScanQrCode" :size="18" />
-        <span>打开隔空互传</span>
+        <span>打开流光扫传</span>
       </el-button>
 
       <p v-if="error" class="ferry-error">{{ error }}</p>

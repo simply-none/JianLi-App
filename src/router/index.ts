@@ -446,7 +446,7 @@ export const layoutRouters: RouteRecordRaw[] = [
     name: RouteNames.FERRY,
     component: () => import("@/views/ferry/index.vue"),
     meta: {
-      title: "隔空互传",
+      title: "流光扫传",
     },
   },
   {

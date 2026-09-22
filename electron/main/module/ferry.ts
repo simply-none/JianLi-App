@@ -1,5 +1,7 @@
 /**
- * 隔空互传模块（QRFerry 本地集成）
+ * 流光扫传模块（QRFerry 本地集成）
+ * 注：界面名已由「隔空互传」改为「流光扫传」；落盘目录仍沿用旧名「隔空互传」，
+ *     以兼容历史已接收文件（改名会让老用户在新目录里找不到旧文件）。
  * ----------------------------------------------------------------------------
  * 把打包内的 qyferry 静态站（屏幕→摄像头、fountain 码动态二维码文件传输，
  * 纯客户端、不经过服务器/局域网）作为「内置资源」托管到本机 http://127.0.0.1，
@@ -106,7 +108,7 @@ function receiveDir(): string {
   return dir;
 }
 
-/** 打开/聚焦隔空互传独立窗口 */
+/** 打开/聚焦流光扫传独立窗口 */
 async function openFerry(): Promise<void> {
   await ensureServer();
   const url = `http://127.0.0.1:${ferryPort}/`;
@@ -116,7 +118,7 @@ async function openFerry(): Promise<void> {
     return;
   }
   ferryWin = new BrowserWindow({
-    title: "隔空互传",
+    title: "流光扫传",
     width: 920,
     height: 760,
     minWidth: 480,

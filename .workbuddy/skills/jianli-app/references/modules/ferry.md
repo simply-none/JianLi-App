@@ -1,4 +1,6 @@
-# 隔空互传 (ferry / QRFerry)
+# 流光扫传（原「隔空互传」，代码代号 ferry / QRFerry）
+
+> **命名（2026-09-22 双端统一更名）**：界面名一律「流光扫传」；**代码代号 `ferry`、路由 `/ferry`、IPC `ferry:open`、第三方静态站 `qyferry`(QRFerry) 与落盘目录「文档/隔空互传/」全部刻意保留旧名**（改目录会让老用户已接收文件「消失」）。新增文档/注释请用新名，遇到旧名不必改代码。
 
 ## 职责
 把打包内的 QRFerry 静态站（屏幕→摄像头、fountain 码动态二维码文件传输，纯客户端、不经过服务器/局域网）
@@ -15,7 +17,7 @@
 ## 关键文件
 - 主进程：`electron/main/module/ferry.ts`（`initFerry()` 入口；**改完必须重启 Electron**）
   - 静态服务：`ensureServer()`（随机端口、MIME 映射、防目录穿越、仅起一次缓存端口）
-  - 窗口：`openFerry()`（title「隔空互传」、920×760、`partition:"ferry"` 隔离会话、`setPermissionRequestHandler` 对 media/camera/microphone 自动 `callback(true)`；`will-download` 落盘「文档/隔空互传/」）
+  - 窗口：`openFerry()`（title「流光扫传」、920×760、`partition:"ferry"` 隔离会话、`setPermissionRequestHandler` 对 media/camera/microphone 自动 `callback(true)`；`will-download` 落盘「文档/隔空互传/」）
   - IPC：`ferry:open`（渲染→主，`ipcMain.handle`）
 - 打包：`electron-builder.json5` 的 `extraResources` 把 `electron/resources/qyferry` → `resources/qyferry`
 - 渲染端入口（菜单四件套）：
@@ -29,4 +31,4 @@
 - 接收文件走浏览器下载机制（`will-download`），落盘目录固定「文档/隔空互传/」；若需自定义目录再扩展。
 - **≤10MB 限制**：屏幕→摄像头逐帧扫描机制固有，大文件极慢；两端（网页内联提示条 + 渲染端入口页）均带说明。
 - 随机端口避免多实例冲突；服务单例常驻（仅起一次），多窗口复用同一端口。
-- 与「文件互传」（`file-transfer`）是**两套独立机制**：文件互传走局域网 UDP+HTTP 数据面；隔空互传走屏幕二维码→摄像头，互不相干。
+- 与「文件互传」（`file-transfer`）是**两套独立机制**：文件互传走局域网 UDP+HTTP 数据面；流光扫传走屏幕二维码→摄像头，互不相干。
