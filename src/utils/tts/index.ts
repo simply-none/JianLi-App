@@ -1,6 +1,7 @@
 import type { ITTSProvider, TTSManagerConfig, TTSOptions, TTSProviderType, VoiceInfo } from './types';
 import { SystemTTSProvider } from './SystemTTSProvider';
 import { WebTTSProvider } from './WebTTSProvider';
+import { KokoroProvider } from './KokoroProvider';
 
 /**
  * TTS 管理器
@@ -11,6 +12,8 @@ export class TTSManager {
   private systemProvider: ITTSProvider;
   /** Web TTS 提供商 */
   private webProvider: ITTSProvider;
+  /** Kokoro 本地离线模型提供商 */
+  private kokoroProvider: ITTSProvider;
   /** 当前使用的提供商类型 */
   private currentProviderType: TTSProviderType;
   /** 配置 */
@@ -21,6 +24,7 @@ export class TTSManager {
   constructor(config: TTSManagerConfig = {}) {
     this.systemProvider = new SystemTTSProvider();
     this.webProvider = new WebTTSProvider();
+    this.kokoroProvider = new KokoroProvider();
     this.config = {
       defaultProvider: config.defaultProvider || 'system',
       autoFallback: config.autoFallback !== false,
@@ -39,6 +43,8 @@ export class TTSManager {
         return this.systemProvider;
       case 'web':
         return this.webProvider;
+      case 'kokoro':
+        return this.kokoroProvider;
       default:
         return this.systemProvider;
     }
@@ -126,13 +132,15 @@ export class TTSManager {
    * @returns 包含提供商类型和语音列表的对象
    */
   async getAllVoices(): Promise<Record<TTSProviderType, VoiceInfo[]>> {
-    const [systemVoices, webVoices] = await Promise.all([
+    const [systemVoices, webVoices, kokoroVoices] = await Promise.all([
       this.systemProvider.getVoices().catch(() => []),
       this.webProvider.getVoices().catch(() => []),
+      this.kokoroProvider.getVoices().catch(() => []),
     ]);
     return {
       system: systemVoices,
       web: webVoices,
+      kokoro: kokoroVoices,
     };
   }
 
@@ -141,14 +149,26 @@ export class TTSManager {
    * @returns 包含可用性状态的对象
    */
   async checkAvailability(): Promise<Record<TTSProviderType, boolean>> {
-    const [systemAvailable, webAvailable] = await Promise.all([
+    const [systemAvailable, webAvailable, kokoroAvailable] = await Promise.all([
       this.systemProvider.isAvailable().catch(() => false),
       this.webProvider.isAvailable().catch(() => true),
+      this.kokoroProvider.isAvailable().catch(() => false),
     ]);
     return {
       system: systemAvailable,
       web: webAvailable,
+      kokoro: kokoroAvailable,
     };
+  }
+
+  /**
+   * Kokoro 模型目录变更后调用：失效 KokoroProvider 内的目录缓存
+   * （缓存设计为进程内一次性读取，导入新目录后必须手动失效）
+   */
+  invalidateKokoroModelDirCache(): void {
+    if (this.kokoroProvider instanceof KokoroProvider) {
+      this.kokoroProvider.invalidateModelDirCache();
+    }
   }
 
   /**
@@ -160,9 +180,9 @@ export class TTSManager {
 
     if (!availability[this.currentProviderType]) {
       if (this.config.autoFallback) {
-        // 按优先级尝试降级：系统 -> Web -> 系统
-        const fallbackOrder: TTSProviderType[] = ['web', 'system'];
-        
+        // 按优先级尝试降级：Kokoro（本地离线，音质最佳） -> Web -> 系统
+        const fallbackOrder: TTSProviderType[] = ['kokoro', 'web', 'system'];
+
         for (const fallbackType of fallbackOrder) {
           if (fallbackType !== this.currentProviderType && availability[fallbackType]) {
             console.info(`TTS: ${this.currentProviderType} 不可用，自动切换到 ${fallbackType}`);
@@ -193,4 +213,4 @@ export function getTTSManager(config?: TTSManagerConfig): TTSManager {
 }
 
 export type { ITTSProvider, TTSOptions, TTSProviderType, VoiceInfo, TTSManagerConfig };
-export { SystemTTSProvider, WebTTSProvider };
+export { SystemTTSProvider, WebTTSProvider, KokoroProvider };

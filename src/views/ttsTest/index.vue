@@ -21,6 +21,13 @@
           </div>
           <div class="status-value">{{ webAvailable ? '可用' : '不可用' }}</div>
         </div>
+        <div class="status-card" :class="{ 'is-available': kokoroAvailable, 'is-unavailable': !kokoroAvailable }">
+          <div class="status-header">
+            <LucideIcon name="Package" :size="20" />
+            <span>Kokoro 本地模型</span>
+          </div>
+          <div class="status-value">{{ kokoroAvailable ? '可用' : '未安装' }}</div>
+        </div>
         <div class="status-card current-provider">
           <div class="status-header">
             <LucideIcon name="Zap" :size="20" />
@@ -42,7 +49,42 @@
           <LucideIcon name="Globe" :size="16" />
           <span>Web API</span>
         </button>
+        <button class="provider-btn" :class="{ 'is-active': currentProvider === 'kokoro' }" @click="switchProvider('kokoro')">
+          <LucideIcon name="Package" :size="16" />
+          <span>Kokoro</span>
+        </button>
       </div>
+    </div>
+
+    <div class="pack-section">
+      <h3>本地语音包（Kokoro）</h3>
+      <div class="pack-status">
+        <div class="pack-info">
+          <div class="pack-line">
+            <span class="pack-label">安装状态</span>
+            <span class="pack-value" :class="kokoroAvailable ? 'is-ok' : 'is-miss'">{{ kokoroAvailable ? '已安装' : '未安装' }}</span>
+          </div>
+          <div class="pack-line">
+            <span class="pack-label">模型目录</span>
+            <span class="pack-value pack-dir">{{ kokoroDir || '未导入' }}</span>
+          </div>
+        </div>
+        <div class="pack-actions">
+          <button class="btn btn-primary" @click="chooseModelDir">
+            <LucideIcon name="FolderOpen" :size="16" />
+            <span>导入模型目录</span>
+          </button>
+          <button class="btn btn-secondary" @click="refreshKokoro">
+            <LucideIcon name="RefreshCw" :size="16" />
+            <span>刷新状态</span>
+          </button>
+        </div>
+      </div>
+      <p class="pack-hint">
+        从 GitHub 下载模型包并解压：curl -L -O
+        https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-multi-lang-v1_1.tar.bz2
+        ，解压后点「导入模型目录」选择解压出的文件夹（国内可换 hf-mirror.com 镜像）。
+      </p>
     </div>
 
     <div class="speak-section">
@@ -91,6 +133,9 @@
         <button class="tab-btn" :class="{ 'is-active': activeTab === 'web' }" @click="activeTab = 'web'">
           Web ({{ webVoices.length }})
         </button>
+        <button class="tab-btn" :class="{ 'is-active': activeTab === 'kokoro' }" @click="activeTab = 'kokoro'">
+          Kokoro ({{ kokoroVoices.length }})
+        </button>
       </div>
       <div class="voices-list">
         <div v-if="currentVoices.length === 0" class="empty-state">
@@ -133,6 +178,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import LucideIcon from '@/components/LucideIcon.vue';
 import { getTTSManager, type TTSProviderType, type VoiceInfo } from '@/utils/tts';
+import { getStoreAsync, setStoreAsync } from '@/utils/common';
 
 const ttsManager = getTTSManager({
   defaultProvider: 'system',
@@ -141,14 +187,17 @@ const ttsManager = getTTSManager({
 
 const systemAvailable = ref(false);
 const webAvailable = ref(false);
+const kokoroAvailable = ref(false);
+const kokoroDir = ref('');
 const currentProvider = ref<TTSProviderType>('system');
 const speaking = ref(false);
 const textToSpeak = ref('该休息了，保护眼睛');
 const rate = ref(1.0);
 const selectedVoice = ref('');
-const activeTab = ref<'system' | 'web'>('system');
+const activeTab = ref<'system' | 'web' | 'kokoro'>('system');
 const systemVoices = ref<VoiceInfo[]>([]);
 const webVoices = ref<VoiceInfo[]>([]);
+const kokoroVoices = ref<VoiceInfo[]>([]);
 
 interface LogEntry {
   type: 'info' | 'success' | 'error' | 'warn';
@@ -170,6 +219,7 @@ const currentProviderLabel = computed(() => {
   const labels: Record<TTSProviderType, string> = {
     system: '系统 TTS',
     web: 'Web API',
+    kokoro: 'Kokoro 本地模型',
   };
   return labels[currentProvider.value];
 });
@@ -178,6 +228,7 @@ const currentVoices = computed(() => {
   const voicesMap: Record<string, VoiceInfo[]> = {
     system: systemVoices.value,
     web: webVoices.value,
+    kokoro: kokoroVoices.value,
   };
   return voicesMap[activeTab.value] || [];
 });
@@ -186,6 +237,7 @@ const emptyStateText = computed(() => {
   const texts: Record<string, string> = {
     system: '暂无系统语音',
     web: '暂无 Web 语音',
+    kokoro: '未安装 Kokoro 模型或导入的目录无效',
   };
   return texts[activeTab.value] || '暂无语音';
 });
@@ -196,6 +248,7 @@ watch(currentProvider, (newType) => {
   const labels: Record<TTSProviderType, string> = {
     system: '系统 TTS',
     web: 'Web API',
+    kokoro: 'Kokoro 本地模型',
   };
   addLog(`切换到 ${labels[newType]}`, 'info');
   loadVoices();
@@ -206,8 +259,10 @@ async function checkAvailability() {
     const availability = await ttsManager.checkAvailability();
     systemAvailable.value = availability.system;
     webAvailable.value = availability.web;
+    kokoroAvailable.value = availability.kokoro;
     addLog(`系统 TTS: ${availability.system ? '可用' : '不可用'}`, availability.system ? 'success' : 'error');
     addLog(`Web API: ${availability.web ? '可用' : '不可用'}`, availability.web ? 'success' : 'error');
+    addLog(`Kokoro 本地模型: ${availability.kokoro ? '可用' : '未安装'}`, availability.kokoro ? 'success' : 'warn');
   } catch (err) {
     addLog(`检测失败: ${err instanceof Error ? err.message : String(err)}`, 'error');
   }
@@ -218,7 +273,8 @@ async function loadVoices() {
     const allVoices = await ttsManager.getAllVoices();
     systemVoices.value = allVoices.system;
     webVoices.value = allVoices.web;
-    addLog(`加载语音: 系统 ${systemVoices.value.length}, Web ${webVoices.value.length}`, 'info');
+    kokoroVoices.value = allVoices.kokoro;
+    addLog(`加载语音: 系统 ${systemVoices.value.length}, Web ${webVoices.value.length}, Kokoro ${kokoroVoices.value.length}`, 'info');
   } catch (err) {
     addLog(`加载语音失败: ${err instanceof Error ? err.message : String(err)}`, 'error');
   }
@@ -260,11 +316,12 @@ async function testDefault() {
   const testTexts = ['你好，这是一段测试语音。', '该休息了，看看远方的绿色植物吧。', '工作顺利，身体健康！'];
   
   // A/B 对比：在所有可用的 Provider 间切换
-  const providers: TTSProviderType[] = ['system', 'web'];
+  const providers: TTSProviderType[] = ['system', 'web', 'kokoro'];
   const availableProviders = providers.filter(p => {
     switch (p) {
       case 'system': return systemAvailable.value;
       case 'web': return webAvailable.value;
+      case 'kokoro': return kokoroAvailable.value;
     }
   });
 
@@ -281,6 +338,7 @@ async function testDefault() {
     const labels: Record<TTSProviderType, string> = {
       system: '系统 TTS',
       web: 'Web API',
+      kokoro: 'Kokoro 本地模型',
     };
     
     addLog(`\n===== 测试 ${labels[provider]} =====`, 'info');
@@ -307,11 +365,53 @@ async function testDefault() {
 
 async function previewVoice(voiceName: string) {
   addLog(`预览语音: ${voiceName}`, 'info');
+  // Kokoro 音色（"kokoro:<sid>"）只在 kokoro 提供商下生效，临时切换后恢复
+  const isKokoroVoice = voiceName.startsWith('kokoro:');
+  const prevProvider = currentProvider.value;
+  if (isKokoroVoice && prevProvider !== 'kokoro') {
+    ttsManager.setProvider('kokoro');
+  }
   try {
     await ttsManager.speak('这是一段语音预览', { voice: voiceName, rate: 1.0 });
     addLog('预览完成', 'success');
   } catch (err) {
     addLog(`预览失败: ${err instanceof Error ? err.message : String(err)}`, 'error');
+  } finally {
+    if (isKokoroVoice && prevProvider !== 'kokoro') {
+      ttsManager.setProvider(prevProvider);
+    }
+  }
+}
+
+/** 刷新 Kokoro 模型状态（读取渲染端持久化的目录 + 主进程校验文件） */
+async function refreshKokoro() {
+  try {
+    const savedDir = await getStoreAsync('tts_kokoro_model_dir');
+    const status = await window.ipcRenderer.tts.kokoro.status(typeof savedDir === 'string' && savedDir ? savedDir : undefined);
+    kokoroAvailable.value = status.installed;
+    kokoroDir.value = status.dir || '';
+  } catch (err) {
+    addLog(`刷新 Kokoro 状态失败: ${err instanceof Error ? err.message : String(err)}`, 'error');
+  }
+}
+
+/** 导入模型目录：主进程弹目录选择框并校验必需文件，成功后持久化到 store 并刷新缓存/列表 */
+async function chooseModelDir() {
+  try {
+    const res = await window.ipcRenderer.tts.kokoro.chooseModelDir();
+    if (res.canceled) return;
+    if (!res.success || !res.dir) {
+      addLog(res.error || '导入模型目录失败', 'error');
+      return;
+    }
+    await setStoreAsync('tts_kokoro_model_dir', res.dir);
+    // 关键：失效 KokoroProvider 的目录缓存，否则它仍回退默认目录（模型未安装）
+    ttsManager.invalidateKokoroModelDirCache();
+    addLog(`已导入模型目录: ${res.dir}`, 'success');
+    await refreshKokoro();
+    await loadVoices();
+  } catch (err) {
+    addLog(`导入模型目录失败: ${err instanceof Error ? err.message : String(err)}`, 'error');
   }
 }
 
@@ -324,6 +424,7 @@ onMounted(async () => {
 
   currentProvider.value = ttsManager.getProviderType();
   await checkAvailability();
+  await refreshKokoro();
   await loadVoices();
 });
 </script>
@@ -398,6 +499,7 @@ onMounted(async () => {
 }
 
 .config-section,
+.pack-section,
 .speak-section,
 .voices-section,
 .logs-section {
@@ -416,9 +518,58 @@ onMounted(async () => {
   }
 }
 
+.pack-section {
+  .pack-status {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .pack-info {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+  }
+  .pack-line {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font-size: 13px;
+  }
+  .pack-label {
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+  .pack-value {
+    color: var(--text-primary);
+    &.is-ok { color: var(--color-success, #22c55e); font-weight: 600; }
+    &.is-miss { color: var(--color-warning, #f59e0b); font-weight: 600; }
+    &.pack-dir {
+      word-break: break-all;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+  }
+  .pack-actions {
+    display: flex;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .pack-hint {
+    margin: 12px 0 0;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text-muted);
+    word-break: break-all;
+  }
+}
+
 .provider-switch {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
 }
 .provider-btn {

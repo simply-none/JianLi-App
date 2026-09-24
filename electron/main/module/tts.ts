@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron';
 import say from 'say';
 import log from 'electron-log';
+import { initKokoroTTS } from './tts-kokoro.ts';
 
 /**
  * TTS 配置选项接口
@@ -80,6 +81,9 @@ function stopSystem(): Promise<void> {
  */
 export function initTTS() {
   log.info('Initializing TTS module...');
+
+  // ============ Kokoro 本地离线 TTS（sherpa-onnx + worker_threads） ============
+  initKokoroTTS();
 
   // ============ 系统 TTS (say 库) ============
 

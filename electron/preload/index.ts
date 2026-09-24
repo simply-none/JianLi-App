@@ -49,6 +49,33 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
         return ipcRenderer.invoke('tts:system:is-available')
       },
     },
+
+    // ============ Kokoro 本地离线 TTS（sherpa-onnx + worker_threads） ============
+    kokoro: {
+      /** 模型安装状态：{ installed, dir, defaultDir } */
+      status(modelDir?: string) {
+        return ipcRenderer.invoke('tts:kokoro:status', modelDir)
+      },
+      /** 音色列表（未安装返回空数组） */
+      getVoices(modelDir?: string) {
+        return ipcRenderer.invoke('tts:kokoro:get-voices', modelDir)
+      },
+      isAvailable(modelDir?: string) {
+        return ipcRenderer.invoke('tts:kokoro:is-available', modelDir)
+      },
+      /** 选择并校验模型目录，返回 { success, dir?, canceled?, error? } */
+      chooseModelDir() {
+        return ipcRenderer.invoke('tts:kokoro:choose-model-dir')
+      },
+      /** 合成，返回 { success, url?(file://), durationMs?, error? } */
+      synthesize(text: string, options?: { sid?: number; speed?: number; modelDir?: string }) {
+        return ipcRenderer.invoke('tts:kokoro:synthesize', text, options)
+      },
+      /** 停止合成（终止 worker，下次合成会重新加载模型） */
+      stop() {
+        return ipcRenderer.invoke('tts:kokoro:stop')
+      },
+    },
   },
   // 电子书阅读 API
   ebook: {

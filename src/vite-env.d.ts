@@ -30,6 +30,15 @@ interface Window {
         getVoices: () => Promise<string[]>;
         isAvailable: () => Promise<boolean>;
       };
+      // Kokoro 本地离线 TTS（sherpa-onnx + worker_threads）
+      kokoro: {
+        status: (modelDir?: string) => Promise<{ installed: boolean; dir: string; defaultDir: string }>;
+        getVoices: (modelDir?: string) => Promise<{ sid: number; name: string; gender: 'female' | 'male'; lang: string }[]>;
+        isAvailable: (modelDir?: string) => Promise<boolean>;
+        chooseModelDir: () => Promise<{ success: boolean; dir?: string; canceled?: boolean; error?: string }>;
+        synthesize: (text: string, options?: { sid?: number; speed?: number; modelDir?: string }) => Promise<{ success: boolean; url?: string; durationMs?: number; error?: string }>;
+        stop: () => Promise<{ success: boolean }>;
+      };
     };
     // 电子书阅读 API
     ebook: {

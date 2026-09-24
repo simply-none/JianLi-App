@@ -1,7 +1,10 @@
 /**
  * TTS 提供商类型
+ * - system: 系统 TTS（say 库）
+ * - web: Web Speech API（渲染进程）
+ * - kokoro: Kokoro 本地离线模型（sherpa-onnx + worker_threads，需安装模型包）
  */
-export type TTSProviderType = 'system' | 'web';
+export type TTSProviderType = 'system' | 'web' | 'kokoro';
 
 /**
  * TTS 配置选项接口
@@ -17,6 +20,8 @@ export interface TTSOptions {
   voice?: string;
   /** 语言代码，如 'zh-CN' */
   lang?: string;
+  /** 多说话人模型的说话人 ID（Kokoro 专用，0-102） */
+  sid?: number;
 }
 
 /**
