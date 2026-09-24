@@ -65,7 +65,7 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { pomodoroStatusTable, getStore, setStore, deletePomodoroStatus } from '@/utils/common'
+import { pomodoroStatusTable, getStore, setStoreAsync, deletePomodoroStatus } from '@/utils/common'
 import moment from 'moment'
 import ChartsView from './charts.vue'
 import { getConfiguredIntervalMs } from './segment'
@@ -75,7 +75,7 @@ const savedTab = getStore(POMODORO_TAB_KEY)
 const activeTab = ref(savedTab === 'charts' ? 'charts' : 'table')
 
 watch(activeTab, (val) => {
-  setStore(POMODORO_TAB_KEY, val)
+  setStoreAsync(POMODORO_TAB_KEY, val)
 })
 
 const curDate = ref(moment().format('YYYY-MM-DD'))

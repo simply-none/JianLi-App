@@ -1,6 +1,6 @@
 import { ref, watch } from 'vue';
 import { defineStore } from 'pinia';
-import { getStore, setStore } from '@/utils/common';
+import { getStore, setStoreAsync } from '@/utils/common';
 import type { HighlightTypeName } from '@/views/ebookReader/highlightConfig';
 
 /** 电子书文件格式类型：txt 文本、epub 电子书、pdf 文档，空字符串表示未打开任何文件 */
@@ -262,7 +262,7 @@ export default defineStore('ebook-reader', () => {
    * 各 setXxx 设置项改完 settings.value 后调用，保证三种格式各自独立落库。
    */
   function persistSettings() {
-    setStore(SETTINGS_KEY, settingsMap.value);
+    setStoreAsync(SETTINGS_KEY, settingsMap.value);
   }
 
   // settings 始终指向当前格式的设置对象（与 settingsMap[activeFormat] 同一引用）
@@ -300,7 +300,7 @@ export default defineStore('ebook-reader', () => {
    */
   function setCurrentFile(file: EbookFile) {
     currentFile.value = file;
-    setStore(CURRENT_FILE_KEY, file);
+    setStoreAsync(CURRENT_FILE_KEY, file);
   }
 
   // 右键「用渐离阅读」外部打开待处理文件列表（App.vue 写入，ebookReader/index.vue 挂载/监听后消费）
@@ -317,7 +317,7 @@ export default defineStore('ebook-reader', () => {
    */
   function setProgress(val: EbookProgress) {
     progress.value = val;
-    setStore(PROGRESS_KEY, val);
+    setStoreAsync(PROGRESS_KEY, val);
   }
 
   /**
@@ -330,7 +330,7 @@ export default defineStore('ebook-reader', () => {
   function setBookProgress(path: string, val: EbookProgress) {
     if (!path) return;
     progressMap.value = { ...progressMap.value, [path]: val };
-    setStore(PROGRESS_MAP_KEY, progressMap.value);
+    setStoreAsync(PROGRESS_MAP_KEY, progressMap.value);
   }
 
   /**

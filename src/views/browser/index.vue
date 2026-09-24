@@ -81,7 +81,7 @@ import { useBrowserShortcuts, EVENT_TOGGLE_FIND } from "./composables/useBrowser
 import { goBack, goForward, reload, toggleDevTools } from "./composables/useWebviewBridge";
 import { startSniffing, stopSniffing } from "./composables/useSniffer";
 import { useNightMode } from "./composables/useNightMode";
-import { getStore, setStore } from "@/utils/common";
+import { getStore, setStoreAsync } from "@/utils/common";
 
 const browserStore = useBrowser();
 const { tabs, activeTabId, activeTab } = storeToRefs(browserStore);
@@ -101,7 +101,7 @@ const showBookmarkBar = ref(getStore("browser-bookmarks-bar") !== false);
 /** 切换书签栏显隐并持久化 */
 function onToggleBookmarkBar() {
   showBookmarkBar.value = !showBookmarkBar.value;
-  setStore("browser-bookmarks-bar", showBookmarkBar.value);
+  setStoreAsync("browser-bookmarks-bar", showBookmarkBar.value);
 }
 
 // 初始化夜间模式（单例：读取持久化 + 跟随主题订阅）

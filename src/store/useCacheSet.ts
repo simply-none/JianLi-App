@@ -1,6 +1,6 @@
 import { computed, onMounted, ref } from "vue";
 import { defineStore, storeToRefs } from "pinia";
-import { getStore, sendSync, setStore } from "../utils/common";
+import { getStore, sendSync, setStoreAsync } from "../utils/common";
 import { initPiniaStatus, type defaultField } from "@/utils/store";
 
 export default defineStore("cache-set", () => {
@@ -9,7 +9,7 @@ export default defineStore("cache-set", () => {
   const fileCachePathC = computed(() => fileCachePath.value)
   function setFileCachePath(value: string) {
     fileCachePath.value = value;
-    setStore("fileCachePath", value); 
+    setStoreAsync("fileCachePath", value); 
   }
   
   // pinia状态初始化

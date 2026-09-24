@@ -1,6 +1,6 @@
 import { computed, onMounted, onUnmounted, ref, toRaw, unref } from "vue";
 import { defineStore, storeToRefs } from "pinia";
-import { getStore, sendSync, setStore } from "../utils/common";
+import { getStore, sendSync, setStoreAsync } from "../utils/common";
 import { initPiniaStatus, type defaultField } from "@/utils/store";
 import { ElMessage } from "element-plus";
 import { sysNotify, appNotify } from "@/utils/notify";
@@ -25,7 +25,7 @@ export default defineStore("tips", () => {
     }
     let newValue = toRaw(unref(tipType))
     console.log(newValue, 'newValue setTipType')
-    setStore("tipType", newValue);
+    setStoreAsync("tipType", newValue);
   }
 
   // 提醒类型选项
@@ -45,7 +45,7 @@ export default defineStore("tips", () => {
       }
     }
     let newValue = toRaw(unref(tipTypeOps))
-    setStore("tipTypeOps", newValue);
+    setStoreAsync("tipTypeOps", newValue);
   }
 
   // pinia状态初始化

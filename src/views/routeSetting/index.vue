@@ -45,7 +45,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
-import { getStore, setStore } from '@/utils/common';
+import { getStore, setStoreAsync } from '@/utils/common';
 import { RouteRecordNameGeneric } from 'vue-router';
 import LucideIcon from '@/components/LucideIcon.vue';
 import { isLockedRoute, resolveMenuGroups } from '@/constants/menu';
@@ -100,7 +100,7 @@ function loadConfig() {
 function saveConfig() {
   saving.value = true;
   try {
-    setStore('routeSetting', routeConfig.value);
+    setStoreAsync('routeSetting', routeConfig.value);
     ElMessage.success('配置已保存');
     // 通知 layout 刷新菜单
     window.dispatchEvent(new CustomEvent('route-setting-changed'));
@@ -115,7 +115,7 @@ function saveConfig() {
 // 重置配置
 function resetConfig() {
   routeConfig.value = {};
-  setStore('routeSetting', {});
+  setStoreAsync('routeSetting', {});
   ElMessage.success('已重置为默认配置');
   // 通知 layout 刷新菜单
   window.dispatchEvent(new CustomEvent('route-setting-changed'));

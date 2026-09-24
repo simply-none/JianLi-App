@@ -10,7 +10,7 @@
  */
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import { send, setStore } from "../utils/common";
+import { send, setStoreAsync } from "../utils/common";
 
 /** 解锁第一步（密码）返回结果 */
 export interface UnlockResult {
@@ -194,7 +194,7 @@ export default defineStore("app-lock", () => {
    */
   function setOnStartup(value: boolean): void {
     onStartup.value = value;
-    setStore("appLockOnStartup", value);
+    setStoreAsync("appLockOnStartup", value);
     send("app-lock:config-changed", {});
   }
 
@@ -206,7 +206,7 @@ export default defineStore("app-lock", () => {
    */
   function setOnRestore(value: boolean): void {
     onRestore.value = value;
-    setStore("appLockOnRestore", value);
+    setStoreAsync("appLockOnRestore", value);
     send("app-lock:config-changed", {});
   }
 

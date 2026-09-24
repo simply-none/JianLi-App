@@ -1,7 +1,7 @@
 import { computed, onMounted, ref, toRaw, watchEffect } from "vue";
 import type { Ref } from "vue";
 import { defineStore, storeToRefs } from "pinia";
-import { basicInfoTable, getStore, send, sendSync, setPomodoroStatus, setStore } from "../utils/common";
+import { basicInfoTable, getStore, send, sendSync, setPomodoroStatus, setStoreAsync } from "../utils/common";
 import moment from "moment";
 import usePomodoroDisplay from "@/store/usePomodoroDisplay";
 import useTipsRuntime from "@/store/useTipsRuntime";
@@ -83,11 +83,11 @@ export default defineStore("global-setting", () => {
             };
       // 仅 record=true 时落库；补偿/刷新路径传 false，只更新展示不写 pomodoro_status
       if (record) cacheCurStatusInfo(curStatus.value, startTime);
-      else setStore("curStatus", curStatus.value);
+      else setStoreAsync("curStatus", curStatus.value);
       return true;
     }
     curStatus.value = status;
-    setStore("curStatus", status);
+    setStoreAsync("curStatus", status);
     // record=false（启动补偿 / 续跑 / 刷新当前时间）时只更新内存状态，不写 pomodoro_status，避免碎片记录
     if (record) cacheCurStatusInfo(status, startTime);
   }
@@ -120,7 +120,7 @@ export default defineStore("global-setting", () => {
     }).catch(err => {
       console.error(err, 'setPomodoroStatus error')
     })
-    setStore("curStatus", status);
+    setStoreAsync("curStatus", status);
   }
 
   // 强制解锁屏幕限制（即可以玩电脑）
@@ -131,7 +131,7 @@ export default defineStore("global-setting", () => {
 
   function setForceWorkTimes(value: number) {
     forceWorkTimes.value = value;
-    setStore("forceWorkTimes", value);
+    setStoreAsync("forceWorkTimes", value);
   }
 
   function setTodayForceWorkTimes(value: number) {
@@ -141,7 +141,7 @@ export default defineStore("global-setting", () => {
       times: value,
     };
     todayForceWorkTimes.value = t;
-    setStore("todayForceWorkTimes", t);
+    setStoreAsync("todayForceWorkTimes", t);
   }
 
   // 是否开机启动
@@ -150,7 +150,7 @@ export default defineStore("global-setting", () => {
 
   function setIsStartup(value: boolean) {
     isStartup.value = value;
-    setStore("isStartup", value);
+    setStoreAsync("isStartup", value);
     send("set-startup", value);
   }
 
@@ -162,12 +162,12 @@ export default defineStore("global-setting", () => {
 
   function setSidebarVisible(value: boolean) {
     sidebarVisible.value = value;
-    setStore("sidebarVisible", value);
+    setStoreAsync("sidebarVisible", value);
   }
 
   function setTopbarVisible(value: boolean) {
     topbarVisible.value = value;
-    setStore("topbarVisible", value);
+    setStoreAsync("topbarVisible", value);
   }
 
   // 系统样式布局设置
@@ -188,30 +188,30 @@ export default defineStore("global-setting", () => {
 
   function setAppInnerColor(value: string) {
     appInnerColor.value = value;
-    setStore("appInnerColor", value);
+    setStoreAsync("appInnerColor", value);
   }
 
   function setAppBgColor(value: string) {
     appBgColor.value = value;
-    setStore("appBgColor", value);
+    setStoreAsync("appBgColor", value);
   }
 
   function setGlobalFont(value: string) {
     globalFont.value = value;
-    setStore("globalFont", value);
+    setStoreAsync("globalFont", value);
     document.documentElement.style.setProperty("--jianli-global-font", value);
   }
 
   function setGlobalFontEN(value: string) {
     globalFontEN.value = value;
-    setStore("globalFontEN", value);
+    setStoreAsync("globalFontEN", value);
     document.documentElement.style.setProperty("--jianli-global-font-EN", value);
   }
 
   function setGlobalFontOps(value: CommonOps[]) {
     globalFontOps.value = value;
     console.log(value, "value");
-    setStore("globalFontOps", value);
+    setStoreAsync("globalFontOps", value);
   }
 
   // 应用强制锁定（即休息时）设置存储思路：
@@ -234,12 +234,12 @@ export default defineStore("global-setting", () => {
 
   function setHomeMode(value: Record<StatusMode, ObjectType>) {
     homeMode.value = value;
-    setStore("homeMode", value);
+    setStoreAsync("homeMode", value);
   }
 
   function setHomeModeOps(value: ObjectType[]) {
     homeModeOps.value = value;
-    setStore("homeModeOps", value);
+    setStoreAsync("homeModeOps", value);
   }
 
   // 内置状态 key 集合：番茄钟 work/rest/lock + 历史遗留 screen（全屏/锁屏态）。
@@ -286,7 +286,7 @@ export default defineStore("global-setting", () => {
     // 守卫：仅在 homeMode 已从库载入真实数据后才写库，避免应用启动早期空壳覆盖 store，
     // 清空已持久化的 mode（番茄钟状态主页模式小组件）。见 2026-08-28 修复。
     if (homeModeLoaded.value) {
-      setStore("homeMode", next);
+      setStoreAsync("homeMode", next);
     }
   }
 
@@ -490,7 +490,7 @@ export default defineStore("global-setting", () => {
       today !== storeValue.today
     ) {
       map.value = defaultValue;
-      setStore(key, defaultValue);
+      setStoreAsync(key, defaultValue);
     } else {
       map.value = storeValue;
     }

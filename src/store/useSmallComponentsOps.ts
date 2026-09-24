@@ -8,7 +8,7 @@ import poet from '@/smallComponents/poet.vue';
 import tips from '@/smallComponents/tips.vue'
 import mdEditor from '@/smallComponents/mdEditor.vue'
 
-import { getStore, sendSync, setStore, send } from "../utils/common";
+import { getStore, sendSync, setStoreAsync, send } from "../utils/common";
 import { initPiniaStatus, type defaultField } from "@/utils/store";
 
 // 小组件 选项/属性
@@ -103,7 +103,7 @@ export default defineStore("small-components-ops", () => {
   const poetComponentPropsC = computed(() => poetComponentProps.value);
   function setPoetComponentProps(value: ObjectType) {
     poetComponentProps.value = value;
-    setStore("poetComponentProps", value);
+    setStoreAsync("poetComponentProps", value);
   }
 
   // 当前状态小组件 属性
@@ -113,7 +113,7 @@ export default defineStore("small-components-ops", () => {
   );
   function setCurrentStatusComponentProps(value: ObjectType) {
     currentStatusComponentProps.value = value;
-    setStore("currentStatusComponentProps", value);
+    setStoreAsync("currentStatusComponentProps", value);
   }
 
   // 距离下次状态切换的时间小组件 属性
@@ -123,7 +123,7 @@ export default defineStore("small-components-ops", () => {
   );
   function setDistanceToNextStatusComponentProps(value: ObjectType) {
     distanceToNextStatusComponentProps.value = value;
-    setStore("distanceToNextStatusComponentProps", value);
+    setStoreAsync("distanceToNextStatusComponentProps", value);
   }
 
   // 大日期时间小组件 属性
@@ -133,7 +133,7 @@ export default defineStore("small-components-ops", () => {
   );
   function setLargeDateTimeComponentProps(value: ObjectType) {
     largeDateTimeComponentProps.value = value;
-    setStore("largeDateTimeComponentProps", value);
+    setStoreAsync("largeDateTimeComponentProps", value);
   }
 
   // pinia状态初始化

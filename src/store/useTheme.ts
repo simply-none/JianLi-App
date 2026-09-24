@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue';
 import { defineStore } from 'pinia';
-import { getStore, setStore } from '@/utils/common';
+import { getStore, setStoreAsync } from '@/utils/common';
 
 export type ThemeName = 
   | 'light' 
@@ -78,7 +78,7 @@ export default defineStore('theme', () => {
 
   function setTheme(name: ThemeName) {
     currentTheme.value = name;
-    setStore(STORE_KEY, name);
+    setStoreAsync(STORE_KEY, name);
   }
 
   return {

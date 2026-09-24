@@ -96,7 +96,7 @@ import { storeToRefs } from 'pinia';
 import { ElMessage } from 'element-plus';
 import LucideIcon from '@/components/LucideIcon.vue';
 import usePomodoroStatus from '@/store/usePomodoroStatus';
-import { getStore, setStore } from '@/utils/common';
+import { getStore, setStoreAsync } from '@/utils/common';
 
 const { status } = usePomodoroStatus();
 
@@ -196,7 +196,7 @@ function loadBackgroundConfig() {
 // 保存配置到 store
 function saveBackgroundConfig(config) {
   try {
-    setStore(STORAGE_KEY, config);
+    setStoreAsync(STORAGE_KEY, config);
   } catch (err) {
     console.error('保存背景配置失败:', err);
   }

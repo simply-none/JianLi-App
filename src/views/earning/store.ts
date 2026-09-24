@@ -9,7 +9,7 @@
  */
 
 import { ref, computed } from 'vue'
-import { getSqlData, setSqlData, deleteSqlData, getStore, setStore } from '@/utils/common'
+import { getSqlData, setSqlData, deleteSqlData, getStore, setStoreAsync } from '@/utils/common'
 import { getBatchQuote, getStockKline, getFundNav } from './api'
 import type {
   Holding,
@@ -463,7 +463,7 @@ function loadFallback(): void {
 }
 async function setFallback(on: boolean): Promise<void> {
   estimateFallback.value = on
-  setStore(FALLBACK_KEY, on)
+  setStoreAsync(FALLBACK_KEY, on)
   // 切换后强制刷新估值（用户主动操作）
   await refreshQuotes(true)
 }

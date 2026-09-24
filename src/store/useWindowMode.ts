@@ -1,6 +1,6 @@
 import { computed, onMounted, ref, watch, toRaw } from "vue";
 import { defineStore, storeToRefs } from "pinia";
-import { getStore, sendSync, setStore, send, sendMany, getWindowConfig } from "../utils/common";
+import { getStore, sendSync, setStoreAsync, send, sendMany, getWindowConfig } from "../utils/common";
 import { initPiniaStatus, type defaultField } from "@/utils/store";
 
 export default defineStore("window-mode", () => {
@@ -8,7 +8,7 @@ export default defineStore("window-mode", () => {
   const showPomodoroMiniWindowC = computed(() => showPomodoroMiniWindow.value);
   function setShowPomodoroMiniWindow(value: boolean) {
     showPomodoroMiniWindow.value = value;
-    setStore("showPomodoroMiniWindow", value);
+    setStoreAsync("showPomodoroMiniWindow", value);
   }
 
   const pomodoroMiniWindowConfig = ref({
@@ -35,7 +35,7 @@ export default defineStore("window-mode", () => {
   const showMiniNotebookWindowC = computed(() => showMiniNotebookWindow.value);
   function setShowMiniNotebookWindow(value: boolean) {
     showMiniNotebookWindow.value = value;
-    setStore("showMiniNotebookWindow", value);
+    setStoreAsync("showMiniNotebookWindow", value);
   }
 
   const miniNotebookWindowConfig = ref({
@@ -59,7 +59,7 @@ export default defineStore("window-mode", () => {
   const showQuickNoteWindowC = computed(() => showQuickNoteWindow.value);
   function setShowQuickNoteWindow(value: boolean) {
     showQuickNoteWindow.value = value;
-    setStore("showQuickNoteWindow", value);
+    setStoreAsync("showQuickNoteWindow", value);
   }
 
   const quickNoteWindowConfig = ref({
@@ -86,7 +86,7 @@ export default defineStore("window-mode", () => {
   const showTodoWindowC = computed(() => showTodoWindow.value);
   function setShowTodoWindow(value: boolean) {
     showTodoWindow.value = value;
-    setStore("showTodoWindow", value);
+    setStoreAsync("showTodoWindow", value);
   }
 
   const todoWindowConfig = ref({
@@ -112,7 +112,7 @@ export default defineStore("window-mode", () => {
   const showClipboardWindowC = computed(() => showClipboardWindow.value);
   function setShowClipboardWindow(value: boolean) {
     showClipboardWindow.value = value;
-    setStore("showClipboardWindow", value);
+    setStoreAsync("showClipboardWindow", value);
   }
 
   const clipboardWindowConfig = ref({
@@ -139,7 +139,7 @@ export default defineStore("window-mode", () => {
   const showHabitWindowC = computed(() => showHabitWindow.value);
   function setShowHabitWindow(value: boolean) {
     showHabitWindow.value = value;
-    setStore("showHabitWindow", value);
+    setStoreAsync("showHabitWindow", value);
   }
 
   /**
@@ -153,7 +153,7 @@ export default defineStore("window-mode", () => {
       return;
     }
     showHabitWindow.value = true;
-    setStore("showHabitWindow", true);
+    setStoreAsync("showHabitWindow", true);
   }
 
   const habitWindowConfig = ref({
@@ -184,7 +184,7 @@ export default defineStore("window-mode", () => {
   const showCountdownWindowC = computed(() => showCountdownWindow.value);
   function setShowCountdownWindow(value: boolean) {
     showCountdownWindow.value = value;
-    setStore("showCountdownWindow", value);
+    setStoreAsync("showCountdownWindow", value);
   }
   /**
    * 打开倒计时小窗（供通知点击 / 快捷键复用）。
@@ -196,7 +196,7 @@ export default defineStore("window-mode", () => {
       return;
     }
     showCountdownWindow.value = true;
-    setStore("showCountdownWindow", true);
+    setStoreAsync("showCountdownWindow", true);
   }
   const countdownWindowConfig = ref({
     position: 'bottom-right',
@@ -222,7 +222,7 @@ export default defineStore("window-mode", () => {
   const showCommandPaletteWindowC = computed(() => showCommandPaletteWindow.value);
   function setShowCommandPaletteWindow(value: boolean) {
     showCommandPaletteWindow.value = value;
-    setStore("showCommandPaletteWindow", value);
+    setStoreAsync("showCommandPaletteWindow", value);
   }
 
   const commandPaletteWindowConfig = ref({
@@ -254,7 +254,7 @@ export default defineStore("window-mode", () => {
   const showAppTwoFactorMiniWindowC = computed(() => showAppTwoFactorMiniWindow.value);
   function setShowAppTwoFactorMiniWindow(value: boolean) {
     showAppTwoFactorMiniWindow.value = value;
-    setStore("showAppTwoFactorMiniWindow", value);
+    setStoreAsync("showAppTwoFactorMiniWindow", value);
   }
   /**
    * 打开 2FA 测试小窗（供 2FA 页面按钮 / 快捷键复用）。
@@ -266,7 +266,7 @@ export default defineStore("window-mode", () => {
       return;
     }
     showAppTwoFactorMiniWindow.value = true;
-    setStore("showAppTwoFactorMiniWindow", true);
+    setStoreAsync("showAppTwoFactorMiniWindow", true);
   }
   const appTwoFactorMiniWindowConfig = ref({
     position: 'bottom-right',
@@ -292,7 +292,7 @@ export default defineStore("window-mode", () => {
   const showThemeConversationMiniWindowC = computed(() => showThemeConversationMiniWindow.value);
   function setShowThemeConversationMiniWindow(value: boolean) {
     showThemeConversationMiniWindow.value = value;
-    setStore("showThemeConversationMiniWindow", value);
+    setStoreAsync("showThemeConversationMiniWindow", value);
   }
 
   const themeConversationMiniWindowConfig = ref({
@@ -319,7 +319,7 @@ export default defineStore("window-mode", () => {
   const showAccountingMiniWindowC = computed(() => showAccountingMiniWindow.value);
   function setShowAccountingMiniWindow(value: boolean) {
     showAccountingMiniWindow.value = value;
-    setStore("showAccountingMiniWindow", value);
+    setStoreAsync("showAccountingMiniWindow", value);
   }
 
   const accountingMiniWindowConfig = ref({
@@ -352,7 +352,7 @@ export default defineStore("window-mode", () => {
   const showStockMiniWindowC = computed(() => showStockMiniWindow.value);
   function setShowStockMiniWindow(value: boolean) {
     showStockMiniWindow.value = value;
-    setStore("showStockMiniWindow", value);
+    setStoreAsync("showStockMiniWindow", value);
   }
 
   const stockMiniWindowConfig = ref({
@@ -449,18 +449,18 @@ export default defineStore("window-mode", () => {
         // 仅当新键不存在时才迁移，避免覆盖用户已保存的新配置
         const newConfig = getStore("window-mode:pomodoro");
         if (!newConfig) {
-          setStore("window-mode:pomodoro", oldPomodoroConfig);
+          setStoreAsync("window-mode:pomodoro", oldPomodoroConfig);
         }
         // 迁移完成后清除旧键，避免反复迁移导致旧值反复覆盖新值
-        setStore("pomodoroMiniWindowConfig", null);
+        setStoreAsync("pomodoroMiniWindowConfig", null);
       }
       const oldNotebookConfig = getStore("miniNotebookWindowConfig");
       if (oldNotebookConfig) {
         const newConfig = getStore("window-mode:notebook");
         if (!newConfig) {
-          setStore("window-mode:notebook", oldNotebookConfig);
+          setStoreAsync("window-mode:notebook", oldNotebookConfig);
         }
-        setStore("miniNotebookWindowConfig", null);
+        setStoreAsync("miniNotebookWindowConfig", null);
       }
     };
 

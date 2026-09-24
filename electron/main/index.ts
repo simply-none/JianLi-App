@@ -147,16 +147,49 @@ async function createWindow() {
   await timeInit('log', initLog);
   // 数据库（统一由 newSql 初始化，包含 db.sqlite 与打包宋词库 shiciDb）
   await timeInit('newSqlite', initNewSqlite);
-  // 全新提醒引擎（定点/周期/多状态），依赖 newSql
-  await timeInit('newReminder', initNewReminder);
-  // 倒计时模块（独立调度 + 自有表 countdown）
-  await timeInit('countdown', initCountdown);
-  // 诗词数据
-  await timeInit('poetData', initPoetData);
-  // 定时任务（番茄钟）
-  await timeInit('job', initJob);
-  // 重复任务引擎（启动扫描 + 每日 00:00 生成实例）
-  await timeInit('recurrence', initRecurrence);
+  // ===== DB 之后的模块分组并行初始化（P1 启动优化）=====
+  // 同一泳道内保持既有先后依赖；不同泳道之间无依赖，Promise.all 并行。
+  // 泳道内任一模块失败仅跳过该模块（与 runDeferredInits 行为一致），不中断启动。
+  const runLane = (lane: [string, () => void | Promise<void>][]) =>
+    lane.reduce(
+      (chain, [name, fn]) =>
+        chain.then(() =>
+          timeInit(name, fn).catch((e) =>
+            console.error(`[init] ${name} 初始化异常，已跳过:`, e),
+          ),
+        ),
+      Promise.resolve(),
+    );
+
+  // 泳道A：提醒/番茄钟/重复任务集群（initRecurrence 必须在 initJob 之后，见 risks #17）
+  const laneA: [string, () => void | Promise<void>][] = [
+    ['newReminder', initNewReminder],
+    ['job', initJob],
+    ['recurrence', initRecurrence],
+  ];
+  // 泳道B：倒计时（独立调度 + 自有表）+ 诗词数据
+  const laneB: [string, () => void | Promise<void>][] = [
+    ['countdown', initCountdown],
+    ['poetData', initPoetData],
+  ];
+  // 泳道C：数据缓存 + 备份恢复 + 整库导入导出（依赖 newSql 连接池，已在其前完成）
+  const laneC: [string, () => void | Promise<void>][] = [
+    ['store', initStore],
+    ['backup', initBackup],
+    ['dataManagement', initDataManagement],
+  ];
+  // 泳道D：文件/资源 + 安全锁集群。
+  // 安全类 IPC（file-vault:status 等）须在渲染端挂载前就绪——并行只会让它们更早完成，
+  // 不会比原串行链路更晚（原链路在它们前面还有十几个模块）。
+  const laneD: [string, () => void | Promise<void>][] = [
+    ['file', initFile],
+    ['resource', initResource],
+    ['appLock', initAppLock],
+    ['safetyProtection', initSafetyProtection],
+    ['twoFactor', initTwoFactor],
+    ['passwordVault', initPasswordVault],
+    ['fileVault', initFileVault],
+  ];
   // 修复历史数据：确保待办表 key 列具备唯一索引（不阻塞）
   ensureTableExists('todo_list', undefined, 'key', { primaryKeyType: 'TEXT' }).catch((e) =>
     console.warn('ensure todo_list key index failed:', e),
@@ -164,56 +197,33 @@ async function createWindow() {
   ensureTableExists('todo_tags', undefined, 'id', { primaryKeyType: 'INTEGER' }).catch((e) =>
     console.warn('ensure todo_tags id index failed:', e),
   );
-  // 数据缓存
-  await timeInit('store', initStore);
-  // 备份与恢复 + 数据导出中心（依赖 newSql 连接池，须在其后初始化）
-  await timeInit('backup', initBackup);
-  // 整库 SQLite 导入/导出（移动端互通，依赖 newSql 连接池）
-  await timeInit('dataManagement', initDataManagement);
-  // 文件相关
-  await timeInit('file', initFile);
-  // 资源管理（文本预览读取 + 物理文件删除）
-  await timeInit('resource', initResource);
-  // 应用锁 / 隐私模式（依赖 DB）
-  await timeInit('appLock', initAppLock);
-  // 安全保护（密保）：与 2FA/应用锁共用 vault/crypto 加密架构，密钥来源为设备绑定主密钥
-  await timeInit('safetyProtection', initSafetyProtection);
-  // ===== 安全/锁类 IPC 提前注册（P1 启动优化·修复回归）=====
-  // 渲染端启动即查询保险箱/锁状态（file-vault:status 等）。P1 让主线程变自由后，
-  // 渲染端会提前发 IPC，若 handler 注册太晚会报 "No handler registered"。
-  // 故紧跟 DB 之后立即注册这些安全类 handler，确保渲染端挂载前已就绪。
-  await timeInit('twoFactor', initTwoFactor);
-  await timeInit('passwordVault', initPasswordVault);
-  await timeInit('fileVault', initFileVault);
-  // 托盘图标
+  await Promise.all([runLane(laneA), runLane(laneB), runLane(laneC), runLane(laneD)]);
+  // 托盘图标（依赖窗口，保持串行）
   await timeInit('tray', initTray);
-  // 系统信息监控
-  await timeInit('systemInfo', initSystemInfo);
-  // 网络请求工作台（Postman 风格）
-  await timeInit('netRequest', initNetRequest);
-  // 新窗口相关
-  await timeInit('newWindow', initNewWindow);
   // 内置浏览器站点权限管理依赖的窗口 getter（轻量，提前设置）
   setPermissionWindowGetter(() => win);
-  // 剪贴板（异步：需先补齐新增列，失败不应阻塞启动）
-  await timeInit('clipboard', () => initClipboard().catch((err) => console.error('initClipboard error:', err)));
-  // 快捷键注册
-  await timeInit('registerShortcut', initRegisterShortcut);
-  // 系统相关（字体枚举等较重，移出关键路径延迟到首屏之后；见 runDeferredInits）
-  // 自动更新
-  await timeInit('autoUpdate', initAutoUpdate);
-  // 天气模块
-  await timeInit('weather', initWeather);
-  // 新爬虫工具（通用网页爬取）
-  await timeInit('crawler', initCrawler);
-  // 数据获取模块（Puppeteer 任务化采集引擎，独立于天气爬虫）
-  await timeInit('dataAcquisition', initDataAcquisition);
-  // 定位模块
-  await timeInit('location', initLocation);
-  // Bing 图片模块
-  await timeInit('bing', initBing);
-  // TTS 语音合成模块
-  await timeInit('tts', initTTS);
+  // ===== 其余非关键模块：两泳道并行（完成后进入延迟初始化队列）=====
+  // 泳道E：轻量 IPC 注册类
+  const laneE: [string, () => void | Promise<void>][] = [
+    ['systemInfo', initSystemInfo],
+    ['netRequest', initNetRequest],
+    ['newWindow', initNewWindow],
+    // 剪贴板（异步：需先补齐新增列，失败不应阻塞启动）
+    ['clipboard', () => initClipboard().catch((err) => console.error('initClipboard error:', err))],
+    ['registerShortcut', initRegisterShortcut],
+    ['autoUpdate', initAutoUpdate],
+    ['location', initLocation],
+    ['bing', initBing],
+    ['tts', initTTS],
+  ];
+  // 泳道F：可能带网络/IO 的模块，隔离在同泳道串行，避免启动期网络风暴
+  const laneF: [string, () => void | Promise<void>][] = [
+    ['weather', initWeather],
+    ['crawler', initCrawler],
+    // 数据获取模块（Puppeteer 任务化采集引擎，独立于天气爬虫；按需懒启动）
+    ['dataAcquisition', initDataAcquisition],
+  ];
+  await Promise.all([runLane(laneE), runLane(laneF)]);
   // ===== 非关键模块：延迟到首屏之后分批初始化（P1 启动优化）=====
   // 下列模块仅注册 IPC / 启动可选引擎，不阻塞首屏；延迟到下一 tick 执行，
   // 且每个初始化之间让出事件循环，使主窗口启动后即可交互，消除原先 ~5s 的主线程冻结。

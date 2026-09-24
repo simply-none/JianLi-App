@@ -58,7 +58,47 @@ export function setStore(key: 'multi-field' | string, value: any) {
 export function sendSync(key: string, value: any) {
   // 还原 Vue 代理/ref 为纯对象，避免结构化克隆失败
   value = toPlain(value)
-  return window.ipcRenderer.sendSync(key, value) 
+  return window.ipcRenderer.sendSync(key, value)
+}
+
+// ---------------------------------------------------------------------------
+// 异步版 store 读写（新代码优先使用，替代 getStore / setStore）
+//
+// 主进程 get-store / set-store 通道是 sendSync 专用（ipcMain.on + e.returnValue），
+// 每次调用都会阻塞渲染进程直到 SQLite 落盘完成；高频写入（如浏览器标签会话、
+// 阅读进度）会反复卡主线程。这里改走 new-sql:query / new-sql:upsert 异步通道，
+// 存储语义与 store.ts 的 get-store / set-store 完全一致（值 JSON.stringify 存储、
+// 读取时 JSON.parse，multi-field 为多字段整体写入）。
+// ---------------------------------------------------------------------------
+
+/** 异步读取 basic_info 中指定 key 的值（等价 getStore，不阻塞渲染进程） */
+export async function getStoreAsync(key: string): Promise<any> {
+  try {
+    const res = await window.ipcRenderer.handlePromise('new-sql:query', {
+      tableName: basicInfoTable,
+      conditions: { key },
+    })
+    const rows = res?.data ?? []
+    return rows.length > 0 ? JSON.parse(rows[0].value) : null
+  } catch (err) {
+    console.error(err, 'getStoreAsync error')
+    return null
+  }
+}
+
+/** 异步写入 basic_info（等价 setStore，不阻塞渲染进程；不使用返回值） */
+export async function setStoreAsync(key: 'multi-field' | string, value: any) {
+  try {
+    // 递归还原 Vue 代理/ref 为纯对象，避免结构化克隆失败（见 toPlain 注释）
+    value = toPlain(value)
+    await window.ipcRenderer.handlePromise('new-sql:upsert', {
+      tableName: basicInfoTable,
+      data: key === 'multi-field' ? value : { key, value: JSON.stringify(value) },
+      config: { primaryKey: 'key' },
+    })
+  } catch (err) {
+    console.error(err, 'setStoreAsync error')
+  }
 }
 
 // 发送异步数据

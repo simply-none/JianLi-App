@@ -5,7 +5,7 @@ import { computed, ref, toRaw, watch } from 'vue'
 import type { Ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import useWindowMode from '@/store/useWindowMode'
-import { setStore } from '@/utils/common'
+import { setStoreAsync } from '@/utils/common'
 import { GAP_OPTIONS, WINDOW_SECTIONS, type WindowConfig, type WindowKey } from '../config/windowSections'
 
 /** 自定义弹窗支持的配置项 */
@@ -89,7 +89,7 @@ export function useWindowModeSetting() {
     const storeConfig = storeConfigMap[key]
     localConfig.value = { ...localConfig.value, ...data }
     storeConfig.value = { ...storeConfig.value, ...data }
-    setStore(`window-mode:${section.storeKey}`, { ...storeConfig.value })
+    setStoreAsync(`window-mode:${section.storeKey}`, { ...storeConfig.value })
   }
 
   function setPosition(key: WindowKey, value: string) {

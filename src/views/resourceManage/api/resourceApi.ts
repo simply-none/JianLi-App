@@ -14,7 +14,7 @@
  */
 import type { ResourceItem, ResourceType, SortField, SortOrder } from '../types';
 import { getFileType } from '../utils/fileType';
-import { getStore, setStore, toPlain } from '@/utils/common';
+import { getStore, setStoreAsync, toPlain } from '@/utils/common';
 
 /** 资源表名 */
 const TABLE = 'resource';
@@ -101,7 +101,7 @@ async function migrateLegacyData(): Promise<void> {
         }));
       }
     }
-    setStore(MIGRATED_FLAG, true);
+    setStoreAsync(MIGRATED_FLAG, true);
   } catch (e) {
     console.error('[resource] 旧资源数据迁移失败:', e);
   }

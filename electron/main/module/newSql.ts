@@ -786,12 +786,59 @@ function getPrimaryKeyDef(primaryKey: string, pkType: string): string {
   return `${primaryKey} ${upper} PRIMARY KEY`;
 }
 
-export async function ensureTableExists(
+/**
+ * 表就绪缓存：query/insert/upsert/update/del 每次都会先走 ensureTableExists，
+ * 旧实现每条业务 SQL 都附带 sqlite_master 查询 + PRAGMA table_info +
+ * CREATE UNIQUE INDEX IF NOT EXISTS（2~3 次元数据 IO）。
+ * 这里按「表名|主键|主键类型|列签名」缓存已确认就绪的表，首次成功后直接跳过；
+ * 并发调用用 inFlight 去重，避免启动期同表多请求竞态重复建索引。
+ * 注意：唯一索引建立失败（含去重重试失败）时不上缓存，保留每次重试的机会。
+ */
+const ensuredTables = new Set<string>();
+const inFlightEnsures = new Map<string, Promise<void>>();
+
+function ensureCacheKey(
+  tableName: string,
+  columns?: string[],
+  primaryKey: string = "id",
+  config?: { primaryKeyType?: "INTEGER" | "TEXT" }
+): string {
+  const pkType = config?.primaryKeyType || (primaryKey === "id" ? "INTEGER" : "TEXT");
+  const cols = columns && columns.length ? [...columns].sort().join(",") : "";
+  return `${tableName}|${primaryKey}|${pkType}|${cols}`;
+}
+
+export function ensureTableExists(
   tableName: string,
   columns?: string[],
   primaryKey: string = "id",
   config?: { primaryKeyType?: "INTEGER" | "TEXT" }
 ): Promise<void> {
+  const key = ensureCacheKey(tableName, columns, primaryKey, config);
+  if (ensuredTables.has(key)) {
+    return Promise.resolve();
+  }
+  const inFlight = inFlightEnsures.get(key);
+  if (inFlight) {
+    return inFlight;
+  }
+  const p = ensureTableExistsCore(tableName, columns, primaryKey, config)
+    .then((ok) => {
+      if (ok) ensuredTables.add(key);
+    })
+    .finally(() => {
+      inFlightEnsures.delete(key);
+    });
+  inFlightEnsures.set(key, p);
+  return p;
+}
+
+async function ensureTableExistsCore(
+  tableName: string,
+  columns?: string[],
+  primaryKey: string = "id",
+  config?: { primaryKeyType?: "INTEGER" | "TEXT" }
+): Promise<boolean> {
   const db = myDb.db;
   return new Promise((resolve, reject) => {
     db.get(
@@ -809,7 +856,7 @@ export async function ensureTableExists(
 
           const pkType = config?.primaryKeyType || (primaryKey === 'id' ? 'INTEGER' : 'TEXT');
           const primaryKeyDef = getPrimaryKeyDef(primaryKey, pkType);
-            
+
           await new Promise<void>((res, rej) => {
             const sql = columnDefs
               ? `CREATE TABLE IF NOT EXISTS ${tableName} (
@@ -824,9 +871,13 @@ export async function ensureTableExists(
               else res();
             });
           });
-          resolve();
+          // 表为本次新建，主键与唯一索引随建表语句生成，可直接缓存
+          resolve(true);
           return;
         }
+
+        // 记录本次确认是否完全成功：失败项不上缓存，下次调用继续重试
+        let schemaOk = true;
 
         const existingColumns = await new Promise<string[]>((resolve, reject) => {
           db.all(`PRAGMA table_info(${tableName})`, [], (err, rows) => {
@@ -844,6 +895,7 @@ export async function ensureTableExists(
                 const errMsg = (alterErr as Error).message;
                 if (!errMsg.includes("duplicate column name")) {
                   console.warn(`Failed to add column ${primaryKey} to ${tableName}:`, errMsg);
+                  schemaOk = false;
                 }
               }
               res();
@@ -867,19 +919,26 @@ export async function ensureTableExists(
                     (delErr) => {
                       if (delErr) {
                         console.warn(`Failed to dedupe ${tableName}(${primaryKey}):`, (delErr as Error).message);
+                        schemaOk = false;
                         return res();
                       }
                       db.run(
                         `CREATE UNIQUE INDEX IF NOT EXISTS uq_${tableName}_${primaryKey} ON ${tableName}(${primaryKey})`,
                         (e2) => {
-                          if (e2) console.warn(`Failed to create unique index on ${tableName}(${primaryKey}):`, (e2 as Error).message);
+                          if (e2) {
+                            console.warn(`Failed to create unique index on ${tableName}(${primaryKey}):`, (e2 as Error).message);
+                            schemaOk = false;
+                          }
                           res();
                         },
                       );
                     },
                   );
                 } else {
-                  if (idxErr) console.warn(`Failed to create unique index on ${tableName}(${primaryKey}):`, msg);
+                  if (idxErr) {
+                    console.warn(`Failed to create unique index on ${tableName}(${primaryKey}):`, msg);
+                    schemaOk = false;
+                  }
                   res();
                 }
               },
@@ -892,7 +951,7 @@ export async function ensureTableExists(
           await ensureColumns(db, tableName, columns.filter(col => col.toLowerCase() !== primaryKey.toLowerCase()));
         }
 
-        resolve();
+        resolve(schemaOk);
       }
     );
   });

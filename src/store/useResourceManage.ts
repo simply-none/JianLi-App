@@ -1,6 +1,6 @@
 import { computed, onMounted, ref, toRaw, unref } from "vue";
 import { defineStore, storeToRefs } from "pinia";
-import { getStore, sendSync, setStore } from "../utils/common";
+import { getStore, sendSync, setStoreAsync } from "../utils/common";
 import { initPiniaStatus, type defaultField } from "@/utils/store";
 
 export default defineStore("resource-manage", () => {
@@ -20,7 +20,7 @@ export default defineStore("resource-manage", () => {
     let imageResourceArr = imageResource.value.map((item: any) => {
       return toRaw(item)
     })
-    setStore("imageResource", imageResourceArr);
+    setStoreAsync("imageResource", imageResourceArr);
   }
   
   // pinia状态初始化

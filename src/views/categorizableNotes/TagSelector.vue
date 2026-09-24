@@ -60,7 +60,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import LucideIcon from '@/components/LucideIcon.vue';
 import { v4 as uuidv4 } from 'uuid';
 import moment from 'moment';
-import { getStore, setStore } from '@/utils/common';
+import { getStore, setStoreAsync } from '@/utils/common';
 
 const props = defineProps({
   modelValue: {
@@ -132,7 +132,7 @@ async function fetchTags() {
 
 async function saveTags(tags) {
   try {
-    setStore('note_tags', tags);
+    setStoreAsync('note_tags', tags);
     return true;
   } catch (error) {
     console.error('保存标签失败:', error);

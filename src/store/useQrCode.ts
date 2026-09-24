@@ -7,7 +7,7 @@
  */
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import { getStore, setStore } from '@/utils/common';
+import { getStore, setStoreAsync } from '@/utils/common';
 import { QR_STYLE_PRESETS } from '@/utils/qrcode';
 import type { QrStyleOptions } from '@/utils/qrcode';
 
@@ -35,7 +35,7 @@ export default defineStore('qr-code', () => {
   function setStyle(style: QrStyleOptions, presetId: string = 'custom') {
     currentStyle.value = style;
     stylePresetId.value = presetId;
-    setStore('qr-code:style', style);
+    setStoreAsync('qr-code:style', style);
   }
 
   /** 触发历史刷新 */

@@ -13,7 +13,7 @@
 import { computed, ref, watch } from "vue";
 import useTheme, { type ThemeName } from "@/store/useTheme";
 import useBrowser from "@/store/useBrowser";
-import { getStore, setStore } from "@/utils/common";
+import { getStore, setStoreAsync } from "@/utils/common";
 import { getWebview } from "./useWebviewBridge";
 
 /** 夜间模式类型 */
@@ -108,7 +108,7 @@ export function applyNightModeAll() {
  */
 export function setNightMode(next: NightMode) {
   mode.value = next;
-  setStore("browser-night-mode", next);
+  setStoreAsync("browser-night-mode", next);
   applyNightModeAll();
 }
 

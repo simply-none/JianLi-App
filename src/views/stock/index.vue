@@ -64,7 +64,7 @@ import StockSettings from './components/StockSettings.vue'
 import StockFavorites from './components/StockFavorites.vue'
 import StockWatchlist from './components/StockWatchlist.vue'
 import { getApiKey } from './api'
-import { getStore, setStore, send } from '@/utils/common'
+import { getStore, setStoreAsync, send } from '@/utils/common'
 import { useWatchlistStore } from './watchlistStore'
 
 type KeyStatus = 'loading' | 'missing' | 'ready'
@@ -117,7 +117,7 @@ function onSearch(list: string[]) {
   lastQueryText.value = list.join(', ')
   drilledFromMarket.value = false
   // 持久化上一次查询，下次进入默认展示
-  setStore(LAST_QUERY_KEY, { symbols:  list })
+  setStoreAsync(LAST_QUERY_KEY, { symbols:  list })
   // 同步上一次查询给股票小窗口（持久化 + 实时推送）
   syncLastQueryToMini(list)
   // 短暂标记以便 UX 反馈（实际加载在各卡片内完成）
@@ -147,7 +147,7 @@ function syncLastQueryToMini(symbols: string[]) {
     const cfg = raw && typeof raw === 'string' ? JSON.parse(raw) : (raw || {})
     if (cfg.symbol !== first) {
       cfg.symbol = first
-      setStore('window-mode:stockMini', cfg)
+      setStoreAsync('window-mode:stockMini', cfg)
     }
   } catch (e) {
     console.warn('同步上一次查询到小窗口配置失败:', e)

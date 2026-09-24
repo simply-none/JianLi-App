@@ -8,7 +8,7 @@
  */
 import { computed, onMounted, ref } from "vue";
 import { defineStore } from "pinia";
-import { getStore, setStore } from "../utils/common";
+import { getStore, setStoreAsync } from "../utils/common";
 import { initPiniaStatus, type defaultField } from "@/utils/store";
 
 /** 搜索引擎配置 */
@@ -311,15 +311,15 @@ export default defineStore("browser", () => {
    */
   function setDefaultEngine(engine: string) {
     defaultEngine.value = engine;
-    setStore("browser-default-engine", engine);
+    setStoreAsync("browser-default-engine", engine);
   }
 
   // ==================== 持久化 ====================
   /** 保存标签会话（仅精简字段）与激活标签 ID */
   function saveToStore() {
     const stored: StoredTab[] = tabs.value.map((t) => ({ id: t.id, title: t.title, url: t.url, pinned: t.pinned, uaMode: t.uaMode }));
-    setStore("browser-tabs", stored);
-    setStore("browser-active-tab-id", activeTabId.value);
+    setStoreAsync("browser-tabs", stored);
+    setStoreAsync("browser-active-tab-id", activeTabId.value);
   }
 
   /**

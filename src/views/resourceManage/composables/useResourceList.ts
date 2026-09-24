@@ -14,7 +14,7 @@ import {
   listResources,
   toggleStar,
 } from '../api/resourceApi';
-import { getStore, setStore } from '@/utils/common';
+import { getStore, setStoreAsync } from '@/utils/common';
 
 /** 视图模式持久化键 */
 const VIEW_MODE_KEY = 'resource:view-mode';
@@ -46,7 +46,7 @@ export function useResourceList() {
 
   // 视图模式变更时持久化
   watch(viewMode, (mode) => {
-    setStore(VIEW_MODE_KEY, mode);
+    setStoreAsync(VIEW_MODE_KEY, mode);
   });
 
   /**
