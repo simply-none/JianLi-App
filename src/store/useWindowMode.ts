@@ -1,6 +1,6 @@
 import { computed, onMounted, ref, watch, toRaw } from "vue";
 import { defineStore, storeToRefs } from "pinia";
-import { getStore, sendSync, setStoreAsync, send, sendMany, getWindowConfig } from "../utils/common";
+import { getStore, sendSync, setStoreAsync, send, getWindowConfig } from "../utils/common";
 import { initPiniaStatus, type defaultField } from "@/utils/store";
 
 export default defineStore("window-mode", () => {
@@ -28,30 +28,6 @@ export default defineStore("window-mode", () => {
       send("open-new-window", "pomodoro", pomodoroMiniWindowConfig.value);
     } else {
       send("close-new-window", "pomodoro");
-    }
-  });
-
-  const showMiniNotebookWindow = ref();
-  const showMiniNotebookWindowC = computed(() => showMiniNotebookWindow.value);
-  function setShowMiniNotebookWindow(value: boolean) {
-    showMiniNotebookWindow.value = value;
-    setStoreAsync("showMiniNotebookWindow", value);
-  }
-
-  const miniNotebookWindowConfig = ref({
-    position: 'bottom-right',
-    width: 800,
-    height: 600,
-    gap: 30,
-    x: 0,
-    y: 0,
-  });
-
-  watch(showMiniNotebookWindow, (newValue) => {
-    if (newValue == true) {
-      sendMany("open-new-window", "notebook", miniNotebookWindowConfig.value);
-    } else {
-      send("close-new-window", "notebook");
     }
   });
 
@@ -407,11 +383,6 @@ export default defineStore("window-mode", () => {
         map: showPomodoroMiniWindow,
       },
       {
-        field: "showMiniNotebookWindow",
-        default: false,
-        map: showMiniNotebookWindow,
-      },
-      {
         field: "showQuickNoteWindow",
         default: false,
         map: showQuickNoteWindow,
@@ -454,14 +425,6 @@ export default defineStore("window-mode", () => {
         // 迁移完成后清除旧键，避免反复迁移导致旧值反复覆盖新值
         setStoreAsync("pomodoroMiniWindowConfig", null);
       }
-      const oldNotebookConfig = getStore("miniNotebookWindowConfig");
-      if (oldNotebookConfig) {
-        const newConfig = getStore("window-mode:notebook");
-        if (!newConfig) {
-          setStoreAsync("window-mode:notebook", oldNotebookConfig);
-        }
-        setStoreAsync("miniNotebookWindowConfig", null);
-      }
     };
 
     migrateOldConfig();
@@ -480,18 +443,6 @@ export default defineStore("window-mode", () => {
           layout: 'default',
         },
         map: pomodoroMiniWindowConfig,
-      },
-      {
-        field: "window-mode:notebook",
-        default: {
-          position: 'bottom-right',
-          width: 800,
-          height: 600,
-          gap: 30,
-          x: 0,
-          y: 0,
-        },
-        map: miniNotebookWindowConfig,
       },
       {
         field: "window-mode:quickNote",
@@ -708,10 +659,6 @@ export default defineStore("window-mode", () => {
     showPomodoroMiniWindowC,
     setShowPomodoroMiniWindow,
     pomodoroMiniWindowConfig,
-    showMiniNotebookWindow,
-    showMiniNotebookWindowC,
-    setShowMiniNotebookWindow,
-    miniNotebookWindowConfig,
     showQuickNoteWindow,
     showQuickNoteWindowC,
     setShowQuickNoteWindow,

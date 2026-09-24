@@ -5,7 +5,6 @@
 /** 小窗标识：页面内索引配置与 store 的键 */
 export type WindowKey =
   | 'pomodoro'
-  | 'notebook'
   | 'quickNote'
   | 'todo'
   | 'themeConversation'
@@ -101,12 +100,6 @@ const POMODORO_SIZE_OPTIONS: SizeOption[] = [
   { label: '300×150', width: 300, height: 150 },
 ]
 
-const NOTEBOOK_SIZE_OPTIONS: SizeOption[] = [
-  { label: '600×400', width: 600, height: 400 },
-  { label: '800×600', width: 800, height: 600 },
-  { label: '1024×768', width: 1024, height: 768 },
-]
-
 const QUICK_NOTE_SIZE_OPTIONS: SizeOption[] = [
   { label: '400×300', width: 400, height: 300 },
   { label: '600×400', width: 600, height: 400 },
@@ -195,14 +188,6 @@ export const WINDOW_SECTIONS: WindowSection[] = [
     sizeOptions: POMODORO_SIZE_OPTIONS,
     skinOptions: SKIN_OPTIONS,
     layoutOptions: POMODORO_LAYOUT_OPTIONS,
-  },
-  {
-    key: 'notebook',
-    title: '笔记本小窗口',
-    icon: 'LibraryBig',
-    storeKey: 'notebook',
-    fields: { position: true, size: true, gap: true, skin: false, layout: false },
-    sizeOptions: NOTEBOOK_SIZE_OPTIONS,
   },
   {
     key: 'quickNote',

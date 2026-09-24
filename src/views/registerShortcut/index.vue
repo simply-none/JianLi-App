@@ -110,7 +110,6 @@ const registerShortcut = async (shortcut) => {
 const iconMap = {
   showAppShortcut: 'Monitor',
   homeShortcut: 'House',
-  notebookShortcut: 'Notebook',
   pomodoroRecordShortcut: 'Clock',
   clipboardShortcut: 'Folder',
   netRequestShortcut: 'Globe',
@@ -124,7 +123,6 @@ const iconMap = {
 const iconClassMap = {
   showAppShortcut: 'icon-blue',
   homeShortcut: 'icon-green',
-  notebookShortcut: 'icon-purple',
   pomodoroRecordShortcut: 'icon-orange',
   clipboardShortcut: 'icon-yellow',
   netRequestShortcut: 'icon-cyan',
@@ -138,7 +136,6 @@ const iconClassMap = {
 const descriptionMap = {
   showAppShortcut: '快速显示/隐藏应用窗口',
   homeShortcut: '快速跳转到首屏页面',
-  notebookShortcut: '快速打开记事本功能',
   pomodoroRecordShortcut: '快速查看番茄钟记录',
   clipboardShortcut: '快速打开剪贴板历史',
   netRequestShortcut: '快速打开网络请求记录',
@@ -180,13 +177,6 @@ const originShortcuts = ref([
     url: 'home',
     name: '打开首屏',
     key: 'homeShortcut',
-    shortcut: ['', '', ''],
-  },
-  {
-    type: 'open_match_page',
-    url: 'notebook',
-    name: '打开记事本',
-    key: 'notebookShortcut',
     shortcut: ['', '', ''],
   },
   {

@@ -140,7 +140,6 @@ export const iconMap: Record<string, string> = {
   fileRela: 'Plug2',
   resourceManage: 'Files',
   clipboard: 'FileText',
-  notebookApp: 'Notebook',
   categorizableNotes: 'LibraryBig',
   themeConversation: 'MessagesSquare',
   registerShortcut: 'Lightbulb',

@@ -18,7 +18,6 @@ export function useWindowModeSetting() {
   // —— store 侧映射表 ——
   const storeConfigMap: Record<WindowKey, Ref<any>> = {
     pomodoro: refs.pomodoroMiniWindowConfig,
-    notebook: refs.miniNotebookWindowConfig,
     quickNote: refs.quickNoteWindowConfig,
     todo: refs.todoWindowConfig,
     themeConversation: refs.themeConversationMiniWindowConfig,
@@ -33,7 +32,6 @@ export function useWindowModeSetting() {
 
   const showSetterMap: Record<WindowKey, (val: boolean) => void> = {
     pomodoro: store.setShowPomodoroMiniWindow,
-    notebook: store.setShowMiniNotebookWindow,
     quickNote: store.setShowQuickNoteWindow,
     todo: store.setShowTodoWindow,
     themeConversation: store.setShowThemeConversationMiniWindow,
@@ -48,7 +46,6 @@ export function useWindowModeSetting() {
 
   const storeVisibleMap: Record<WindowKey, Ref<any>> = {
     pomodoro: refs.showPomodoroMiniWindowC,
-    notebook: refs.showMiniNotebookWindowC,
     quickNote: refs.showQuickNoteWindowC,
     todo: refs.showTodoWindowC,
     themeConversation: refs.showThemeConversationMiniWindowC,

@@ -22,7 +22,6 @@ export const RouteNames = {
   FILE_RELA: "fileRela",
   RESOURCE_MANAGE: "resourceManage",
   CLIPBOARD: "clipboard",
-  NOTEBOOKAPP: "notebookApp",
   REGISTER_SHORTCUT: "registerShortcut",
   SAFETY_PROTECTION: "safetyProtection",
   NET_REQUEST: "netRequest",
@@ -36,7 +35,6 @@ export const RouteNames = {
   SMALL: "small",
   SECOND: "pomodoro",
   JOB_TIP_WINDOW: "jobTipWindow",
-  MINI_NOTEBOOK: "miniNotebook",
   CATEGORIZABLE_NOTES: "categorizableNotes",
   THEME_CONVERSATION: "themeConversation",
   THEME_CONVERSATION_MINI: "themeConversationMini",
@@ -199,14 +197,6 @@ export const layoutRouters: RouteRecordRaw[] = [
     component: () => import("@/views/clipboard/index.vue"),
     meta: {
       title: "剪贴板",
-    },
-  },
-  {
-    path: "/notebookApp",
-    name: RouteNames.NOTEBOOKAPP,
-    component: () => import("@/views/notebook/index.vue"),
-    meta: {
-      title: "笔记本",
     },
   },
   {
@@ -489,11 +479,6 @@ const routers: RouteRecordRaw[] = [
     path: "/jobTipWindow",
     name: RouteNames.JOB_TIP_WINDOW,
     component: () => import("@/views/jobTipWindow/index.vue"),
-  },
-  {
-    path: "/miniNotebook",
-    name: RouteNames.MINI_NOTEBOOK,
-    component: () => import("@/views/miniNotebook/index.vue"),
   },
   {
     path: "/quickNote",

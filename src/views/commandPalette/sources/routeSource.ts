@@ -6,10 +6,8 @@ import { DEFAULT_LIMIT, MAX_PER_SOURCE, PREFERRED_ROUTES } from '../config/palet
 /**
  * 功能入口数据源：直接由 layoutRouters 派生，不手写清单，
  * 以后新增任何布局内页面都会自动进命令面板。
- *
- * 隐藏的页面：被新模块取代的旧入口，避免用户同时搜到两个名字。
  */
-const HIDDEN_ROUTE_NAMES = new Set(['notebookApp'])
+const HIDDEN_ROUTE_NAMES = new Set<string>()
 
 export const routeSource: CommandSource = {
   id: 'route',
