@@ -34,6 +34,79 @@ export let myDb: Record<string, Database> = {
 };
 
 /**
+ * 只读专用连接集合（与 myDb 指向同一库文件，WAL 下允许多连接并发读写）。
+ * query/count/explain 的 SELECT 走这里，与写连接（myDb）分离 → 写进行中读不被阻塞。
+ * 注意：只读连接必须在「写连接已切到 WAL」之后才打开（见 initWALMode），
+ * 否则连接建立时库仍是 DELETE 日志模式，会与写连接的 WAL 日志模式错配。
+ * shiciDb 本身是只读打包库，无需另开，getReadDb 遇到它直接回退自身。
+ */
+export let readDb: Record<string, Database> = {
+  db: null,
+  userDb: null,
+  shiciDb: null,
+};
+
+/**
+ * 单条语句的 Promise 封装（替代回调式 db.run，便于在 async 流程里 await）。
+ */
+function runStmt(db: Database, sql: string, params: any[] = []): Promise<{ lastID: number; changes: number }> {
+  return new Promise((resolve, reject) => {
+    db.run(sql, params, function (err) {
+      if (err) reject(err);
+      else resolve({ lastID: this.lastID, changes: this.changes });
+    });
+  });
+}
+
+let txSeq = 0;
+/**
+ * 基于 SAVEPOINT 的嵌套安全事务。
+ *
+ * SQLite 的 SAVEPOINT 可任意嵌套：即便两个写操作在单连接上异步交错、
+ * 或「事务里又调用了会开事务的 helper」，各自拿到独立 savepoint，
+ * 绝不会触发 "cannot start a transaction within a transaction"。
+ * 对比 BEGIN/COMMIT：BEGIN 一旦遇到已开启的事务即报错；SAVEPOINT 永远安全。
+ */
+async function runInTx(db: Database, fn: () => Promise<void>): Promise<void> {
+  const name = `sql_tx_${++txSeq}`;
+  await runStmt(db, `SAVEPOINT ${name};`);
+  try {
+    await fn();
+    await runStmt(db, `RELEASE ${name};`);
+  } catch (err) {
+    await runStmt(db, `ROLLBACK TO ${name};`).catch(() => {});
+    await runStmt(db, `RELEASE ${name};`).catch(() => {});
+    throw err;
+  }
+}
+
+/** 每连接写锁：事务类写操作串行执行，避免并发写交错导致嵌套 BEGIN / SQLITE_BUSY。 */
+const writeLocks = new WeakMap<Database, Promise<unknown>>();
+function withWriteLock<T>(db: Database, fn: () => Promise<T>): Promise<T> {
+  const prev = writeLocks.get(db) ?? Promise.resolve();
+  let release!: () => void;
+  const p = new Promise<void>((r) => (release = r));
+  writeLocks.set(db, prev.then(() => p).catch(() => p));
+  return prev.then(
+    () => fn().finally(release),
+    () => fn().finally(release)
+  );
+}
+
+/** 取某逻辑库的只读连接；shiciDb 回退到自身（其本身即只读打包库）。 */
+function getReadDb(dbName: string): Database {
+  if (dbName === "shiciDb") return myDb.shiciDb;
+  return readDb[dbName] || myDb[dbName];
+}
+
+/** 计算主库（db/userDb）的 sqlite 文件路径，供 initWALMode 在 WAL 就绪后开只读连接。 */
+function dbFilePath(dbName: string): string {
+  const userDataPath = app.getPath("documents");
+  const cachePath = (store.get("fileCachePath") || userDataPath) as string;
+  return path.resolve(cachePath, dbName + ".sqlite");
+}
+
+/**
  * 查询选项接口
  */
 interface QueryOptions {
@@ -152,6 +225,17 @@ export async function reopenNewSqlite() {
       console.error("reopenNewSqlite 关闭连接失败:", dbName, err);
     }
   }
+  // 关闭只读连接（shiciDb 与写连接同一实例，已由上方关闭，跳过避免重复 close）
+  for (const dbName of Object.keys(readDb)) {
+    const rconn = readDb[dbName];
+    if (!rconn || rconn === myDb[dbName]) continue;
+    try {
+      await new Promise<void>((resolve) => rconn.close(() => resolve()));
+    } catch (err) {
+      console.error("reopenNewSqlite 关闭只读连接失败:", dbName, err);
+    }
+    readDb[dbName] = null;
+  }
   await createDBFile();
   await initWALMode();
 }
@@ -203,23 +287,32 @@ async function createDBFile() {
  */
 async function initWALMode() {
   for (const dbName of Object.keys(myDb)) {
-    // 宋词只读库不参与 WAL（打包资源不可写），跳过 PRAGMA
-    if (dbName === "shiciDb") continue;
+    // 宋词只读库：打包资源不可写，不参与 WAL；只读连接即其自身
+    if (dbName === "shiciDb") {
+      readDb.shiciDb = myDb.shiciDb;
+      continue;
+    }
+    const wdb = myDb[dbName];
+    if (!wdb) continue;
     await new Promise<void>((resolve, reject) => {
-      myDb[dbName].run("PRAGMA journal_mode = WAL;", (err) => {
-        if (err) {
-          reject(err);
-        } else {
-          myDb[dbName].run("PRAGMA synchronous = NORMAL;", (err2) => {
-            if (err2) {
-              reject(err2);
-            } else {
-              myDb[dbName].run("PRAGMA busy_timeout = 5000;", (err3) => {
-                err3 ? reject(err3) : resolve();
-              });
-            }
+      wdb.run("PRAGMA journal_mode = WAL;", (err) => {
+        if (err) return reject(err);
+        wdb.run("PRAGMA synchronous = NORMAL;", (err2) => {
+          if (err2) return reject(err2);
+          wdb.run("PRAGMA busy_timeout = 5000;", (err3) => {
+            if (err3) return reject(err3);
+            // 写连接已切 WAL 后再开只读专用连接：避免连接建立时库还是 DELETE 日志模式，
+            // 导致只读连接与写连接的日志模式错配（WAL 多连接并发的前提是日志模式一致）。
+            // 注意：sqlite3 不是模块级变量（它只在 createDBFile 内局部定义），这里用模块级 verbose() 取得构造器
+            const sqlite3 = verbose();
+            const rdb = new sqlite3.Database(dbFilePath(dbName));
+            rdb.run("PRAGMA busy_timeout = 5000;", (err4) => {
+              if (err4) return reject(err4);
+              readDb[dbName] = rdb;
+              resolve();
+            });
           });
-        }
+        });
       });
     });
   }
@@ -241,7 +334,8 @@ async function initWALMode() {
 export async function query(options: QueryOptions): Promise<any[]> {
   const { tableName, conditions, columns, orderBy, orderByDesc, limit, offset, whereStr, SqlStr, primaryKey, config } = options;
   await ensureTableExists(tableName, undefined, primaryKey, config);
-  const db = myDb.db;
+  // 纯 SELECT 走只读连接，与写连接分离（WAL 下读不被写阻塞）；写连接仅用于上面的建表/加列
+  const db = getReadDb("db");
 
   // 支持两种传完整 SQL 的方式：顶层 SqlStr，或 conditions.SqlStr（与注释/其它模块约定一致）
   const rawSql = SqlStr || (conditions && conditions.SqlStr);
@@ -315,7 +409,7 @@ export async function query(options: QueryOptions): Promise<any[]> {
  * @returns {Promise<number>} 记录数量
  */
 export async function count(tableName: string, condition?: Record<string, any>): Promise<number> {
-  const db = myDb.db;
+  const db = getReadDb("db");
 
   return new Promise((resolve, reject) => {
     let sql = `SELECT COUNT(*) as count FROM ${tableName}`;
@@ -362,54 +456,32 @@ export async function insert(options: InsertOptions): Promise<{ lastID: number; 
     throw new Error("No data fields provided");
   }
 
-  return new Promise((resolve, reject) => {
-    db.run("BEGIN TRANSACTION;", async (beginErr) => {
-      if (beginErr) {
-        reject(beginErr);
-        return;
-      }
+  return withWriteLock(db, async () => {
+    let lastID = 0;
+    let totalChanges = 0;
+    await runInTx(db, async () => {
+      await ensureTableColumns(db, tableName, newData, config);
 
-      try {
-        await ensureTableColumns(db, tableName, newData, config);
+      const placeholders = columns.map(() => "?").join(",");
+      const sql = `INSERT INTO ${tableName} (${columns.join(",")}) VALUES (${placeholders})`;
 
-        const placeholders = columns.map(() => "?").join(",");
-        const sql = `INSERT INTO ${tableName} (${columns.join(",")}) VALUES (${placeholders})`;
+      const stmt = db.prepare(sql);
 
-        let lastID = 0;
-        let totalChanges = 0;
-
-        const stmt = db.prepare(sql);
-
-        for (const item of newData) {
-          await new Promise<void>((res, rej) => {
-            const values = columns.map((col) => item[col]);
-            stmt.run(values, function (err) {
-              if (err) {
-                rej(err);
-              } else {
-                lastID = this.lastID;
-                totalChanges += this.changes;
-                res();
-              }
-            });
+      for (const item of newData) {
+        const values = columns.map((col) => item[col]);
+        const res = await new Promise<{ lastID: number; changes: number }>((res, rej) => {
+          stmt.run(values, function (err) {
+            if (err) rej(err);
+            else res({ lastID: this.lastID, changes: this.changes });
           });
-        }
-
-        stmt.finalize();
-
-        db.run("COMMIT;", (commitErr) => {
-          if (commitErr) {
-            db.run("ROLLBACK;", () => {});
-            reject(commitErr);
-          } else {
-            resolve({ lastID, changes: totalChanges });
-          }
         });
-      } catch (err) {
-        db.run("ROLLBACK;", () => {});
-        reject(err);
+        lastID = res.lastID;
+        totalChanges += res.changes;
       }
+
+      await new Promise<void>((res) => stmt.finalize(() => res()));
     });
+    return { lastID, changes: totalChanges };
   });
 }
 
@@ -438,57 +510,35 @@ export async function upsert(options: InsertOptions): Promise<{ lastID: number; 
     throw new Error("No data fields provided");
   }
 
-  return new Promise((resolve, reject) => {
-    db.run("BEGIN TRANSACTION;", async (beginErr) => {
-      if (beginErr) {
-        reject(beginErr);
-        return;
-      }
+  return withWriteLock(db, async () => {
+    let lastID = 0;
+    let totalChanges = 0;
+    await runInTx(db, async () => {
+      await ensureTableColumns(db, tableName, newData, config);
 
-      try {
-        await ensureTableColumns(db, tableName, newData, config);
+      const placeholders = columns.map(() => "?").join(",");
+      const primaryKey = config?.primaryKey || "id";
+      const updateClause = columns.map((col) => `${col}=excluded.${col}`).join(",");
 
-        const placeholders = columns.map(() => "?").join(",");
-        const primaryKey = config?.primaryKey || "id";
-        const updateClause = columns.map((col) => `${col}=excluded.${col}`).join(",");
-        
-        const sql = `INSERT INTO ${tableName} (${columns.join(",")}) VALUES (${placeholders}) ON CONFLICT(${primaryKey}) DO UPDATE SET ${updateClause}`;
+      const sql = `INSERT INTO ${tableName} (${columns.join(",")}) VALUES (${placeholders}) ON CONFLICT(${primaryKey}) DO UPDATE SET ${updateClause}`;
 
-        let lastID = 0;
-        let totalChanges = 0;
+      const stmt = db.prepare(sql);
 
-        const stmt = db.prepare(sql);
-
-        for (const item of newData) {
-          await new Promise<void>((res, rej) => {
-            const values = columns.map((col) => item[col]);
-            stmt.run(values, function (err) {
-              if (err) {
-                rej(err);
-              } else {
-                lastID = this.lastID;
-                totalChanges += this.changes;
-                res();
-              }
-            });
+      for (const item of newData) {
+        const values = columns.map((col) => item[col]);
+        const res = await new Promise<{ lastID: number; changes: number }>((res, rej) => {
+          stmt.run(values, function (err) {
+            if (err) rej(err);
+            else res({ lastID: this.lastID, changes: this.changes });
           });
-        }
-
-        stmt.finalize();
-
-        db.run("COMMIT;", (commitErr) => {
-          if (commitErr) {
-            db.run("ROLLBACK;", () => {});
-            reject(commitErr);
-          } else {
-            resolve({ lastID, changes: totalChanges });
-          }
         });
-      } catch (err) {
-        db.run("ROLLBACK;", () => {});
-        reject(err);
+        lastID = res.lastID;
+        totalChanges += res.changes;
       }
+
+      await new Promise<void>((res) => stmt.finalize(() => res()));
     });
+    return { lastID, changes: totalChanges };
   });
 }
 
@@ -654,7 +704,7 @@ export async function execute(sql: string, params: any[] = [], primaryKey: strin
  * @returns {Promise<any[]>} 执行计划结果
  */
 export async function explain(sql: string): Promise<any[]> {
-  const db = myDb.db;
+  const db = getReadDb("db");
 
   return new Promise((resolve, reject) => {
     db.all(`EXPLAIN QUERY PLAN ${sql}`, [], (err, rows) => {
@@ -680,52 +730,33 @@ export async function transaction(options: TransactionOptions): Promise<{ succes
   const { sqls, params = [] } = options;
   const db = myDb.db;
 
-  return new Promise((resolve, reject) => {
-    db.run("BEGIN TRANSACTION;", async (beginErr) => {
-      if (beginErr) {
-        reject(beginErr);
-        return;
-      }
+  return withWriteLock(db, async () => {
+    const results: any[] = [];
+    await runInTx(db, async () => {
+      for (let i = 0; i < sqls.length; i++) {
+        const sql = sqls[i];
+        const sqlParams = params[i] || [];
 
-      try {
-        const results: any[] = [];
+        const result = await new Promise<{ lastID: number; changes: number; rows?: any[] }>((res, rej) => {
+          const isSelect = /^\s*SELECT/i.test(sql);
 
-        for (let i = 0; i < sqls.length; i++) {
-          const sql = sqls[i];
-          const sqlParams = params[i] || [];
-
-          const result = await new Promise<{ lastID: number; changes: number; rows?: any[] }>((res, rej) => {
-            const isSelect = /^\s*SELECT/i.test(sql);
-            
-            if (isSelect) {
-              db.all(sql, sqlParams, (err, rows) => {
-                if (err) rej(err);
-                else res({ lastID: 0, changes: 0, rows });
-              });
-            } else {
-              db.run(sql, sqlParams, function (err) {
-                if (err) rej(err);
-                else res({ lastID: this.lastID, changes: this.changes });
-              });
-            }
-          });
-
-          results.push(result);
-        }
-
-        db.run("COMMIT;", (commitErr) => {
-          if (commitErr) {
-            db.run("ROLLBACK;", () => {});
-            reject(commitErr);
+          if (isSelect) {
+            db.all(sql, sqlParams, (err, rows) => {
+              if (err) rej(err);
+              else res({ lastID: 0, changes: 0, rows });
+            });
           } else {
-            resolve({ success: true, results });
+            db.run(sql, sqlParams, function (err) {
+              if (err) rej(err);
+              else res({ lastID: this.lastID, changes: this.changes });
+            });
           }
         });
-      } catch (err) {
-        db.run("ROLLBACK;", () => {});
-        reject(err);
+
+        results.push(result);
       }
     });
+    return { success: true, results };
   });
 }
 
@@ -748,7 +779,13 @@ export async function recordPomodoro(data: Record<string, any>) {
   // 真正的新状态进入（开始时刻不同）→ 放行落库。相比旧的「|now-last.dateTime|<=10s」，
   // 新的判定能正确区分「同一段被重复下发」与「同一状态再次进入（不同开始时刻）」，不会误合并、也不会漏记。
   if (date && value != null && dateTime != null) {
-    const rows: any[] = await query({ tableName: 'pomodoro_status', conditions: { date } });
+    // 去重读走写连接（myDb.db），与下方 insert 同连接，避免 Layer3 只读连接与写连接交叉导致的去重竞态
+    const rows: any[] = await new Promise<any[]>((resolve, reject) => {
+      myDb.db.all(`SELECT * FROM pomodoro_status WHERE date = ?`, [date], (err, r) => {
+        if (err) reject(err);
+        else resolve(r as any[]);
+      });
+    });
     if (Array.isArray(rows) && rows.length) {
       const sameStart = rows.find(
         (r: any) => r.value === value && r.dateTime === dateTime
