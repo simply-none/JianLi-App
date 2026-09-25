@@ -1,4 +1,4 @@
-import type { ITTSProvider, TTSManagerConfig, TTSOptions, TTSProviderType, VoiceInfo } from './types';
+import type { ITTSProvider, TTSHandlers, TTSManagerConfig, TTSOptions, TTSProviderType, VoiceInfo } from './types';
 import { SystemTTSProvider } from './SystemTTSProvider';
 import { WebTTSProvider } from './WebTTSProvider';
 import { KokoroProvider } from './KokoroProvider';
@@ -92,15 +92,16 @@ export class TTSManager {
    * 朗读文本
    * @param text 要朗读的文本
    * @param options TTS 配置选项
+   * @param handlers 朗读回调处理器（边界高亮/播放控制，可选，向后兼容）
    * @returns Promise，朗读完成后 resolve
    */
-  async speak(text: string, options: TTSOptions = {}): Promise<void> {
+  async speak(text: string, options: TTSOptions = {}, handlers?: TTSHandlers): Promise<void> {
     this.stop();
 
     const provider = this.getCurrentProvider();
 
     try {
-      this.currentSpeakPromise = provider.speak(text, options);
+      this.currentSpeakPromise = provider.speak(text, options, handlers);
       await this.currentSpeakPromise;
     } catch (err) {
       // 如果当前是系统方案且启用了自动降级，则尝试 Web 方案
@@ -110,7 +111,7 @@ export class TTSManager {
       ) {
         console.warn('系统 TTS 失败，尝试降级到 Web TTS:', err);
         try {
-          this.currentSpeakPromise = this.webProvider.speak(text, options);
+          this.currentSpeakPromise = this.webProvider.speak(text, options, handlers);
           await this.currentSpeakPromise;
         } catch (fallbackErr) {
           throw new Error(`所有 TTS 方案均失败: ${fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)}`);

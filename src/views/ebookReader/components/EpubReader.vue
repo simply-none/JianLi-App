@@ -130,6 +130,8 @@ import { useEpubHighlight } from '../composables/useEpubHighlight';
 import { useEpubBookmarks } from '../composables/useEpubBookmarks';
 import { useEpubSearch } from '../composables/useEpubSearch';
 import { useEpubPageNumbers } from '../composables/useEpubPageNumbers';
+// TTS 朗读适配器（EPUB）：注册到 useBookTts 单例，提供取文本 / 高亮 / 翻页跟随 / 断点
+import { useEpubTts } from '../composables/useEpubTts';
 
 /** 阅读主题类型：day 白天、night 夜间、eye 护眼 */
 type EbookTheme = 'day' | 'night' | 'eye';
@@ -230,6 +232,8 @@ const bookmarks = useEpubBookmarks(ctx);
 const search = useEpubSearch(ctx);
 const pageNumbers = useEpubPageNumbers(ctx);
 const render = useEpubRender(ctx);
+// TTS 朗读适配器（EPUB）：注册到 useBookTts 单例，提供取文本 / 高亮 / 翻页跟随 / 断点
+useEpubTts(ctx);
 
 // 模板所需绑定（reactive ref 解构后仍保持响应性）
 const { themeClass, pageText, loading, progressText, onWheelPageTurn, onReaderMouseup, onEdgePrev, onEdgeNext, prevPage, nextPage } =

@@ -1,8 +1,10 @@
-import type { ITTSProvider, TTSOptions, VoiceInfo } from './types';
+import type { ITTSProvider, TTSHandlers, TTSOptions, VoiceInfo } from './types';
 
 /**
  * Web Speech API TTS 提供商实现
  * 使用浏览器原生的 speechSynthesis API
+ *
+ * 唯一原生支持逐字/逐句边界（onboundary）的引擎，是电子书「跟读高亮」的推荐引擎。
  */
 export class WebTTSProvider implements ITTSProvider {
   readonly type = 'web' as const;
@@ -11,9 +13,10 @@ export class WebTTSProvider implements ITTSProvider {
    * 朗读文本
    * @param text 要朗读的文本
    * @param options TTS 配置选项
+   * @param handlers 朗读回调处理器（边界高亮/播放控制，可选）
    * @returns Promise，朗读完成后 resolve
    */
-  speak(text: string, options: TTSOptions = {}): Promise<void> {
+  speak(text: string, options: TTSOptions = {}, handlers?: TTSHandlers): Promise<void> {
     return new Promise((resolve, reject) => {
       if (!window.speechSynthesis) {
         reject(new Error('Web Speech API 不可用'));
@@ -47,13 +50,37 @@ export class WebTTSProvider implements ITTSProvider {
           }
         }
 
-        utterance.onend = () => resolve();
-        utterance.onerror = (event) => {
-          // 忽略 interrupted 错误（可能是由于 stop() 导致）
-          if (event.error !== 'interrupted' && event.error !== 'canceled') {
-            reject(new Error(`TTS 错误: ${event.error}`));
-          } else {
+        // 边界回调仅一次结算，避免 onend / onerror 重复触发
+        let settled = false;
+        const finish = (ok: boolean, err?: Error) => {
+          if (settled) return;
+          settled = true;
+          handlers?.onEnd?.();
+          if (ok) {
             resolve();
+          } else {
+            reject(err as Error);
+          }
+        };
+
+        utterance.onstart = () => {
+          handlers?.onStart?.({ charIndex: 0 });
+        };
+        // 逐字/逐句边界：Web Speech API 原生支持，用于电子书跟读高亮
+        utterance.onboundary = (event: SpeechSynthesisEvent) => {
+          handlers?.onBoundary?.({
+            charIndex: event.charIndex,
+            charLength: event.charLength,
+            name: event.name === 'sentence' ? 'sentence' : 'word',
+          });
+        };
+        utterance.onend = () => finish(true);
+        utterance.onerror = (event) => {
+          // 忽略 interrupted / canceled（通常是由 stop() 主动中断导致，视为正常结束）
+          if (event.error !== 'interrupted' && event.error !== 'canceled') {
+            finish(false, new Error(`TTS 错误: ${event.error}`));
+          } else {
+            finish(true);
           }
         };
 

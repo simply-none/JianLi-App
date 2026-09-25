@@ -145,6 +145,8 @@ import type { TxtAnnotation } from '../composables/txtContext';
 import { createTxtCtx } from '../composables/txtContext';
 import { useTxtRender } from '../composables/useTxtRender';
 import { useTxtHighlight } from '../composables/useTxtHighlight';
+// TTS 朗读适配器（TXT）：注册到 useBookTts 单例，复用全局字符偏移做高亮 / 翻页跟随 / 断点
+import { useTxtTts } from '../composables/useTxtTts';
 
 /** 阅读主题类型：day 白天、night 夜间、eye 护眼 */
 type EbookTheme = 'day' | 'night' | 'eye';
@@ -221,6 +223,8 @@ const ctx = createTxtCtx(props, emit, settings, txtContainer, viewportRef, flowR
 // 先初始化 highlight（注册 loadAnnotations 回调），再初始化 render（mounted 时调用 loadContent 触发该回调）
 const highlight = useTxtHighlight(ctx);
 const render = useTxtRender(ctx);
+// TTS 朗读适配器（TXT）：注册到 useBookTts 单例，复用 render 的翻页/滚动 API
+useTxtTts(ctx, render);
 
 // 模板所需绑定（reactive ref 解构后仍保持响应性）
 const {

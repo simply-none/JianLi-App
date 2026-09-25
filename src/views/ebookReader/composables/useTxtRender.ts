@@ -810,5 +810,9 @@ export function useTxtRender(ctx: TxtCtx) {
     sliderValue: ctx.sliderValue,
     onSliderChange,
     jumpToAnnotation,
+    // 供 TTS 朗读适配器驱动翻页 / 滚动跟随（朗读时按句定位）
+    jumpToOffset,
+    scrollToOffset,
+    currentStartOffset,
   };
 }

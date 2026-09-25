@@ -122,6 +122,17 @@
               <LucideIcon :name="isFullscreen ? 'Minimize2' : 'Maximize2'" :size="16" />
               {{ isFullscreen ? '退出全屏' : '全屏' }}
             </el-button>
+            <!-- 朗读按钮（仅 EPUB / TXT）：点击开始/暂停朗读，详细控制见底部播放条 -->
+            <el-button
+              v-if="currentFile.format === 'epub' || currentFile.format === 'txt'"
+              size="small"
+              @click="toggleTts()"
+              :type="isPlaying ? 'primary' : ''"
+              :title="isPlaying ? '暂停朗读' : '开始朗读'"
+            >
+              <LucideIcon name="Volume2" :size="16" />
+              {{ isPlaying ? '暂停' : '朗读' }}
+            </el-button>
           </div>
         </header>
 
@@ -203,6 +214,17 @@
                 <LucideIcon name="Bookmark" :size="16" />
               </el-button>
             </el-badge>
+            <!-- 朗读（仅 EPUB / TXT，全屏时显示）：开始/暂停朗读 -->
+            <el-button
+              v-if="currentFile.format === 'epub' || currentFile.format === 'txt'"
+              size="small"
+              circle
+              @click="toggleTts()"
+              :type="isPlaying ? 'primary' : ''"
+              :title="isPlaying ? '暂停朗读' : '开始朗读'"
+            >
+              <LucideIcon name="Volume2" :size="16" />
+            </el-button>
             <el-button
               size="small"
               circle
@@ -362,6 +384,9 @@
         :books="ebookStore.bookshelf"
         @done="loadBookshelf"
       />
+
+      <!-- 电子书朗读浮动播放条（仅 EPUB / TXT 阅读视图，且已注册适配器时显示） -->
+      <TtsPlayBar v-if="view === 'reader' && hasAdapter" />
       </div>
     </template>
   </layout-vue>
@@ -386,7 +411,10 @@ import BookTransferDialog from './components/BookTransferDialog.vue';
 import SearchPanel from './components/SearchPanel.vue';
 import Bookshelf from './components/Bookshelf.vue';
 import AttachmentsDrawer from './components/AttachmentsDrawer.vue';
+import TtsPlayBar from './components/TtsPlayBar.vue';
 import { useBookshelf, handleExportResult } from './composables/useBookshelf';
+// 电子书 TTS 朗读：调度层单例（播放条 + 顶部「朗读」按钮共用）
+import { useBookTts } from './composables/useBookTts';
 // PDF 内嵌附件的读取/导出复用 PDF 工具箱已封装的 IPC（pdf:get-attachments / pdf:extract-attachment）
 import { pdfApi } from '@/views/pdfTools/api/pdfApi';
 import type { PdfAttachmentItem } from '@/views/pdfTools/types';
@@ -398,6 +426,13 @@ import type { TocItem, FlatTocItem, ReaderComponentInstance, AnnotationDisplayIt
 const ebookStore = useEbookReader();
 // 解构响应式状态：currentFile 当前文件、settings 设置
 const { currentFile, settings } = storeToRefs(ebookStore);
+
+// 电子书 TTS 朗读调度单例：播放条与顶部「朗读」按钮共享同一状态
+const tts = useBookTts();
+const { hasAdapter, isPlaying } = tts;
+function toggleTts(): void {
+  tts.toggle();
+}
 // 解构 actions：setCurrentFile 设置当前文件、setProgress 设置进度、setFontSize 设置字号、
 // setTheme 设置主题、setBgType/setBgColor/setBgImage/setTextColor 设置阅读区背景与文字色、
 // loadBookshelf 加载书架、addToBookshelf 写入书架、setBookProgress/getBookProgress 按书进度映射
