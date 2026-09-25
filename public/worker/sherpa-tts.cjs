@@ -1,10 +1,18 @@
-// Kokoro TTS 合成 Worker（独立 CJS 文件，不参与 vite 打包）
+// Sherpa-Onnx TTS 合成 Worker（独立 CJS，不参与 vite 打包）
 // ------------------------------------------------------------------
 // 为什么放 worker 线程：sherpa-onnx 的 OfflineTts.generate 是同步阻塞调用，
 // 长文本会占用数百 ms ~ 数秒 CPU，放主进程会冻结整个应用（窗口/IPC 全卡）。
 //
-// 与主进程 tts-kokoro.ts 的约定：
-// - 启动参数 workerData：{ sherpaModulePath, numThreads, debug, kokoro: { model, voices, tokens, dataDir?, lexicon?, dictDir? } }
+// 通用化：本 worker 不再专属于 Kokoro，而是通过 workerData.model 接收「内层 model 配置」，
+// 由主进程按模型类型拼好（kokoro / vits / matcha…），这里只负责
+//   new sherpa.OfflineTts({ model: workerData.model, maxNumSentences: 1 })
+// 然后合成并写出 WAV。Kokoro 与 Piper 共用同一套引擎与 WAV 逻辑。
+//
+// 与主进程 tts-*.ts 的约定：
+// - 启动参数 workerData：{ sherpaModulePath, model }
+//     model 即传给 OfflineTts 的 model 内层对象，例如：
+//       kokoro: { kokoro: { model, voices, tokens, dataDir?, lexicon? }, numThreads, provider }
+//       vits:   { vits:   { model, tokens, dataDir, sid, lengthScale }, numThreads, provider }
 // - 模型加载完成（或失败）postMessage 一条：{ type: 'ready' } / { type: 'load-error', error }
 // - 合成请求：{ id, text, sid, speed, outPath }
 // - 合成结果：{ type: 'result', id, success, wavPath?, durationMs?, error? }
@@ -19,38 +27,25 @@ const { createRequire } = require('module');
 const req = createRequire(workerData.sherpaModulePath);
 const sherpa = req('sherpa-onnx-node');
 
-const kokoro = workerData.kokoro || {};
-// kokoro 子配置字段与 sherpa-onnx-node types.js OfflineTtsKokoroModelConfig 对齐：
-// { model, voices, tokens, dataDir, lengthScale?, lexicon?, lang? }（v1.13.8 无 dictDir，勿传）
-const kokoroConfig = {
-  model: kokoro.model,
-  voices: kokoro.voices,
-  tokens: kokoro.tokens,
-};
-if (kokoro.dataDir) kokoroConfig.dataDir = kokoro.dataDir;
-if (kokoro.lexicon) kokoroConfig.lexicon = kokoro.lexicon;
+// workerData.model 即内层 model 配置（kokoro/vits/...），直接交给 OfflineTts
+const ttsModel = workerData.model || {};
 
 let tts = null;
 try {
-  // ⚠️ 顶层键是 `model`（v1.13.x addon API），不是旧 WASM 示例的 `modelConfig`；
-  // numThreads/provider/debug 也在 model 内层。键名错误时 C++ 层全部字段为空，
-  // 会抛 "Please check your config!"。
+  // ⚠️ 顶层键是 `model`（v1.13.x addon API）；numThreads/provider 在 model 内层。
+  // 键名错误时 C++ 层全部字段为空，会抛 "Please check your config!"。
   tts = new sherpa.OfflineTts({
-    model: {
-      kokoro: kokoroConfig,
-      debug: workerData.debug ? true : false,
-      numThreads: workerData.numThreads || 2,
-      provider: 'cpu',
-    },
+    model: ttsModel,
     maxNumSentences: 1,
   });
-  parentPort.postMessage({ type: 'ready' });
+  // 附加 numSpeakers：导入 VITS 模型时主进程可据此探测说话人数（Piper/Kokoro 忽略该字段，向后兼容）
+  parentPort.postMessage({ type: 'ready', numSpeakers: tts.numSpeakers });
 } catch (err) {
   parentPort.postMessage({ type: 'load-error', error: String((err && err.message) || err) });
   process.exit(1);
 }
 
-/** Float32 采样写为 16bit PCM WAV（Kokoro 输出 24kHz mono） */
+/** Float32 采样写为 16bit PCM WAV */
 function writeWavFile(samples, sampleRate, outPath) {
   const pcm = Buffer.alloc(samples.length * 2);
   for (let i = 0; i < samples.length; i++) {

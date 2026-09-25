@@ -2,6 +2,8 @@ import { ipcMain } from 'electron';
 import say from 'say';
 import log from 'electron-log';
 import { initKokoroTTS } from './tts-kokoro.ts';
+import { initPiperTTS } from './tts-piper.ts';
+import { initVitsTTS } from './tts-vits.ts';
 
 /**
  * TTS 配置选项接口
@@ -84,6 +86,12 @@ export function initTTS() {
 
   // ============ Kokoro 本地离线 TTS（sherpa-onnx + worker_threads） ============
   initKokoroTTS();
+
+  // ============ Piper 本地离线 TTS（sherpa-onnx VITS，复用 Kokoro 引擎与 Worker） ============
+  initPiperTTS();
+
+  // ============ 中文 VITS 本地离线 TTS（sherpa-onnx VITS，复用同一 Worker，说话人数导入探测） ============
+  initVitsTTS();
 
   // ============ 系统 TTS (say 库) ============
 

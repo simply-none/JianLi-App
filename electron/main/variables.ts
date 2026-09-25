@@ -47,9 +47,10 @@ export const defaultAppWorkerPath = path.join(appRoot, VITE_DEV_SERVER_URL ? "./
 // 不阻塞主线程（消除注册导致的鼠标/窗口卡顿）。dev 用 public/worker，打包后用 dist/worker。
 export const shellMenuWorkerPath = path.join(appRoot, VITE_DEV_SERVER_URL ? "./public/worker/shellMenu.cjs" : "./dist/worker/shellMenu.cjs");
 
-// Kokoro TTS 合成 Worker：sherpa-onnx 的 OfflineTts.generate 是同步阻塞调用（长文本占 CPU 数百 ms~数秒），
-// 必须放 worker 线程执行，否则朗读时会冻结主进程。dev 用 public/worker，打包后经 vite publicDir 拷贝到 dist/worker。
-export const kokoroWorkerPath = path.join(appRoot, VITE_DEV_SERVER_URL ? "./public/worker/kokoro.cjs" : "./dist/worker/kokoro.cjs");
+// Sherpa-Onnx TTS 合成 Worker（Kokoro / Piper 共用）：sherpa-onnx 的 OfflineTts.generate 是同步阻塞调用
+// （长文本占 CPU 数百 ms~数秒），必须放 worker 线程执行，否则朗读时会冻结主进程。
+// dev 用 public/worker，打包后经 vite publicDir 拷贝到 dist/worker。
+export const sherpaTtsWorkerPath = path.join(appRoot, VITE_DEV_SERVER_URL ? "./public/worker/sherpa-tts.cjs" : "./dist/worker/sherpa-tts.cjs");
 
 // 扫描进程worker
 export const scanWorkerPath = path.join(vitePublic, "worker.mjs");

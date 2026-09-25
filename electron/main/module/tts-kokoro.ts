@@ -9,10 +9,10 @@
  *
  * 职责：
  * - 模型目录解析与校验（默认 userData/tts-models，支持渲染端导入自选目录，持久化在渲染端 store）
- * - 合成走独立 Worker（public/worker/kokoro.cjs）：generate 是同步阻塞调用，不能在主进程跑
+ * - 合成走独立 Worker（public/worker/sherpa-tts.cjs，与 Piper 共用）：generate 是同步阻塞调用，不能在主进程跑
  * - IPC：tts:kokoro:status / get-voices / is-available / synthesize / stop / choose-model-dir
  *
- * ⚠️ 改动本文件后必须重启 Electron；kokoro.cjs 是独立 CJS，不参与 vite 打包。
+ * ⚠️ 改动本文件后必须重启 Electron；sherpa-tts.cjs 是独立 CJS，不参与 vite 打包。
  */
 import path from 'node:path';
 import fs from 'node:fs';
@@ -22,7 +22,7 @@ import { pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { app, dialog, ipcMain } from 'electron';
 import log from 'electron-log';
-import { kokoroWorkerPath, appRoot } from '../variables.ts';
+import { sherpaTtsWorkerPath, appRoot } from '../variables.ts';
 
 // ============ 模型目录与文件校验 ============
 

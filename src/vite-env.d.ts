@@ -39,6 +39,24 @@ interface Window {
         synthesize: (text: string, options?: { sid?: number; speed?: number; modelDir?: string }) => Promise<{ success: boolean; url?: string; durationMs?: number; error?: string }>;
         stop: () => Promise<{ success: boolean }>;
       };
+      // Piper 本地离线 TTS（sherpa-onnx VITS，复用 Kokoro 引擎与 Worker）
+      piper: {
+        status: (modelDir?: string) => Promise<{ installed: boolean; dir: string; defaultDir: string }>;
+        getVoices: (modelDir?: string) => Promise<{ sid: number; name: string; gender: 'female' | 'male'; lang: string }[]>;
+        isAvailable: (modelDir?: string) => Promise<boolean>;
+        chooseModelDir: () => Promise<{ success: boolean; dir?: string; canceled?: boolean; error?: string }>;
+        synthesize: (text: string, options?: { sid?: number; speed?: number; modelDir?: string }) => Promise<{ success: boolean; url?: string; durationMs?: number; error?: string }>;
+        stop: () => Promise<{ success: boolean }>;
+      };
+      // 中文 VITS 本地离线 TTS（sherpa-onnx VITS，独立于 Piper，说话人数导入探测）
+      vits: {
+        status: (modelDir?: string) => Promise<{ installed: boolean; modelCount: number; speakerCount: number; dir: string; defaultDir: string }>;
+        getVoices: (modelDir?: string) => Promise<{ sid: number; description: string; lang: string; gender?: 'female' | 'male' | 'neutral'; modelKey: string; modelDir: string }[]>;
+        isAvailable: (modelDir?: string) => Promise<boolean>;
+        chooseModelDir: () => Promise<{ success: boolean; dir?: string; modelCount?: number; speakerCount?: number; canceled?: boolean; error?: string }>;
+        synthesize: (text: string, options?: { sid?: number; speed?: number; modelDir?: string }) => Promise<{ success: boolean; url?: string; durationMs?: number; error?: string }>;
+        stop: () => Promise<{ success: boolean }>;
+      };
     };
     // 电子书阅读 API
     ebook: {

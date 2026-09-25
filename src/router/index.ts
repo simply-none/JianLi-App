@@ -324,7 +324,7 @@ export const layoutRouters: RouteRecordRaw[] = [
     name: RouteNames.TTS_TEST,
     component: () => import("@/views/ttsTest/index.vue"),
     meta: {
-      title: "语音合成测试",
+      title: "语音朗读",
     },
   },
   {

@@ -3,8 +3,10 @@
  * - system: 系统 TTS（say 库）
  * - web: Web Speech API（渲染进程）
  * - kokoro: Kokoro 本地离线模型（sherpa-onnx + worker_threads，需安装模型包）
+ * - piper: Piper 本地离线模型（sherpa-onnx VITS，复用 Kokoro 引擎，需安装中文模型）
+ * - vits: 中文 VITS 本地离线模型（sherpa-onnx VITS，独立于 Piper，说话人数导入时探测，需导入模型）
  */
-export type TTSProviderType = 'system' | 'web' | 'kokoro';
+export type TTSProviderType = 'system' | 'web' | 'kokoro' | 'piper' | 'vits';
 
 /**
  * TTS 配置选项接口

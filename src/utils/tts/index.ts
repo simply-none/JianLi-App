@@ -2,6 +2,9 @@ import type { ITTSProvider, TTSManagerConfig, TTSOptions, TTSProviderType, Voice
 import { SystemTTSProvider } from './SystemTTSProvider';
 import { WebTTSProvider } from './WebTTSProvider';
 import { KokoroProvider } from './KokoroProvider';
+import { PiperProvider } from './PiperProvider';
+import { SherpaVitsProvider } from './SherpaVitsProvider';
+import { SherpaOnnxProvider } from './SherpaOnnxProvider';
 
 /**
  * TTS 管理器
@@ -14,6 +17,10 @@ export class TTSManager {
   private webProvider: ITTSProvider;
   /** Kokoro 本地离线模型提供商 */
   private kokoroProvider: ITTSProvider;
+  /** Piper 本地离线模型提供商（sherpa-onnx VITS） */
+  private piperProvider: ITTSProvider;
+  /** 中文 VITS 本地离线模型提供商（sherpa-onnx VITS，独立于 Piper） */
+  private vitsProvider: ITTSProvider;
   /** 当前使用的提供商类型 */
   private currentProviderType: TTSProviderType;
   /** 配置 */
@@ -25,6 +32,8 @@ export class TTSManager {
     this.systemProvider = new SystemTTSProvider();
     this.webProvider = new WebTTSProvider();
     this.kokoroProvider = new KokoroProvider();
+    this.piperProvider = new PiperProvider();
+    this.vitsProvider = new SherpaVitsProvider();
     this.config = {
       defaultProvider: config.defaultProvider || 'system',
       autoFallback: config.autoFallback !== false,
@@ -45,6 +54,10 @@ export class TTSManager {
         return this.webProvider;
       case 'kokoro':
         return this.kokoroProvider;
+      case 'piper':
+        return this.piperProvider;
+      case 'vits':
+        return this.vitsProvider;
       default:
         return this.systemProvider;
     }
@@ -132,15 +145,19 @@ export class TTSManager {
    * @returns 包含提供商类型和语音列表的对象
    */
   async getAllVoices(): Promise<Record<TTSProviderType, VoiceInfo[]>> {
-    const [systemVoices, webVoices, kokoroVoices] = await Promise.all([
+    const [systemVoices, webVoices, kokoroVoices, piperVoices, vitsVoices] = await Promise.all([
       this.systemProvider.getVoices().catch(() => []),
       this.webProvider.getVoices().catch(() => []),
       this.kokoroProvider.getVoices().catch(() => []),
+      this.piperProvider.getVoices().catch(() => []),
+      this.vitsProvider.getVoices().catch(() => []),
     ]);
     return {
       system: systemVoices,
       web: webVoices,
       kokoro: kokoroVoices,
+      piper: piperVoices,
+      vits: vitsVoices,
     };
   }
 
@@ -149,15 +166,19 @@ export class TTSManager {
    * @returns 包含可用性状态的对象
    */
   async checkAvailability(): Promise<Record<TTSProviderType, boolean>> {
-    const [systemAvailable, webAvailable, kokoroAvailable] = await Promise.all([
+    const [systemAvailable, webAvailable, kokoroAvailable, piperAvailable, vitsAvailable] = await Promise.all([
       this.systemProvider.isAvailable().catch(() => false),
       this.webProvider.isAvailable().catch(() => true),
       this.kokoroProvider.isAvailable().catch(() => false),
+      this.piperProvider.isAvailable().catch(() => false),
+      this.vitsProvider.isAvailable().catch(() => false),
     ]);
     return {
       system: systemAvailable,
       web: webAvailable,
       kokoro: kokoroAvailable,
+      piper: piperAvailable,
+      vits: vitsAvailable,
     };
   }
 
@@ -172,6 +193,24 @@ export class TTSManager {
   }
 
   /**
+   * Piper 模型目录变更后调用：失效 PiperProvider 内的目录缓存
+   */
+  invalidatePiperModelDirCache(): void {
+    if (this.piperProvider instanceof PiperProvider) {
+      this.piperProvider.invalidateModelDirCache();
+    }
+  }
+
+  /**
+   * VITS 模型目录变更后调用：失效 SherpaVitsProvider 内的目录缓存
+   */
+  invalidateVitsModelDirCache(): void {
+    if (this.vitsProvider instanceof SherpaVitsProvider) {
+      this.vitsProvider.invalidateModelDirCache();
+    }
+  }
+
+  /**
    * 初始化并检测默认提供商可用性
    * 如果默认的系统方案不可用且启用了自动降级，则尝试其他方案
    */
@@ -180,8 +219,8 @@ export class TTSManager {
 
     if (!availability[this.currentProviderType]) {
       if (this.config.autoFallback) {
-        // 按优先级尝试降级：Kokoro（本地离线，音质最佳） -> Web -> 系统
-        const fallbackOrder: TTSProviderType[] = ['kokoro', 'web', 'system'];
+        // 按优先级尝试降级：Kokoro（本地离线，音质最佳） -> Piper（本地离线中文 VITS） -> VITS（中文多说话人） -> Web -> 系统
+        const fallbackOrder: TTSProviderType[] = ['kokoro', 'piper', 'vits', 'web', 'system'];
 
         for (const fallbackType of fallbackOrder) {
           if (fallbackType !== this.currentProviderType && availability[fallbackType]) {
@@ -213,4 +252,4 @@ export function getTTSManager(config?: TTSManagerConfig): TTSManager {
 }
 
 export type { ITTSProvider, TTSOptions, TTSProviderType, VoiceInfo, TTSManagerConfig };
-export { SystemTTSProvider, WebTTSProvider, KokoroProvider };
+export { SystemTTSProvider, WebTTSProvider, KokoroProvider, PiperProvider, SherpaVitsProvider, SherpaOnnxProvider };
