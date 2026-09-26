@@ -1,72 +1,15 @@
-<template>
-  <div class="transaction-manager">
-    <div class="content-area">
-      <div class="section-card">
-        <div class="status-bar">
-          <span class="status-label">当前状态:</span>
-          <span :class="['status-value', transactionStatus]">{{ statusText }}</span>
-        </div>
-        <div class="transaction-buttons">
-          <el-button
-            :disabled="transactionStatus === 'active'"
-            type="primary"
-            @click="beginTransaction"
-          >
-            开始事务
-          </el-button>
-          <el-button
-            :disabled="transactionStatus !== 'active'"
-            type="success"
-            @click="commitTransaction"
-          >
-            提交事务
-          </el-button>
-          <el-button
-            :disabled="transactionStatus !== 'active'"
-            type="danger"
-            @click="rollbackTransaction"
-          >
-            回滚事务
-          </el-button>
-        </div>
-      </div>
-
-      <div class="section-card">
-        <div class="section-title">事务日志</div>
-        <div class="log-container">
-          <div v-for="(log, index) in transactionLogs" :key="index" class="log-item">
-            <span class="log-time">{{ log.time }}</span>
-            <span :class="['log-content', log.type]">{{ log.content }}</span>
-          </div>
-          <div v-if="transactionLogs.length === 0" class="empty-log">
-            暂无事务日志
-          </div>
-        </div>
-      </div>
-
-      <div class="section-card">
-        <div class="section-title">批量 SQL 输入</div>
-        <el-input
-          type="textarea"
-          v-model="sqlContent"
-          :rows="6"
-          placeholder="请输入 SQL 语句，多条语句用分号分隔..."
-          class="sql-textarea"
-        />
-      </div>
-    </div>
-
-    <div class="bottom-area">
-      <div class="action-buttons">
-        <el-button type="primary" @click="executeBatch">批量执行</el-button>
-        <el-button type="success" @click="executeWithTransaction">带事务执行</el-button>
-      </div>
-    </div>
-  </div>
-</template>
-
 <script setup lang="ts">
+/**
+ * 事务管理（对齐设计稿 3:437）：状态卡 + BEGIN/COMMIT/ROLLBACK 控制行 + 语句深色输入
+ * + BEGIN 模式分段（DEFERRED/IMMEDIATE/EXCLUSIVE）+ 保存点卡 + 事务内语句清单。
+ * 说明：BEGIN/COMMIT 经多次独立 IPC 执行（连接池下非同一事务上下文时由主进程写锁兜底），
+ * 本面板主要演示事务语义（SAVEPOINT 系列为真实可执行语句）。
+ */
 import { ref, reactive, computed } from "vue";
+
+const emit = defineEmits<{
+  (e: "execute", sql: string): void;
+}>();
 
 interface LogEntry {
   time: string;
@@ -74,17 +17,17 @@ interface LogEntry {
   type: "info" | "success" | "error";
 }
 
-const emit = defineEmits<{
-  (e: "execute", sql: string): void;
-}>();
-
 const transactionStatus = ref<"idle" | "active">("idle");
+const beginMode = ref("DEFERRED");
 const sqlContent = ref("");
+const savepointName = ref("");
+const pendingStatements = reactive<string[]>([]);
 const transactionLogs = reactive<LogEntry[]>([]);
+const lastResult = ref("");
 
-const statusText = computed(() => {
-  return transactionStatus.value === "active" ? "事务进行中" : "未开始事务";
-});
+const BEGIN_MODES = ["DEFERRED", "IMMEDIATE", "EXCLUSIVE"];
+
+const statusText = computed(() => (transactionStatus.value === "active" ? "事务进行中" : "未开启"));
 
 function addLog(content: string, type: "info" | "success" | "error" = "info") {
   const now = new Date();
@@ -94,192 +37,195 @@ function addLog(content: string, type: "info" | "success" | "error" = "info") {
 
 function beginTransaction() {
   transactionStatus.value = "active";
-  addLog("BEGIN TRANSACTION", "info");
-  emit("execute", "BEGIN TRANSACTION");
+  pendingStatements.length = 0;
+  const sql = beginMode.value === "DEFERRED" ? "BEGIN TRANSACTION" : `BEGIN ${beginMode.value} TRANSACTION`;
+  addLog(sql, "info");
+  emit("execute", sql);
 }
 
 function commitTransaction() {
   transactionStatus.value = "idle";
   addLog("COMMIT", "success");
   emit("execute", "COMMIT");
+  lastResult.value = "COMMIT 完成";
 }
 
 function rollbackTransaction() {
   transactionStatus.value = "idle";
+  pendingStatements.length = 0;
   addLog("ROLLBACK", "error");
   emit("execute", "ROLLBACK");
+  lastResult.value = "已回滚";
 }
 
-function executeBatch() {
-  if (!sqlContent.value.trim()) return;
-
-  const sqls = sqlContent.value.split(";").filter(s => s.trim());
-  sqls.forEach(sql => {
-    if (sql.trim()) {
-      addLog(`执行: ${sql.trim()}`, "info");
-      emit("execute", sql.trim());
-    }
-  });
+/** 在事务中执行：BEGIN 后记录到未提交清单 */
+function runInTransaction() {
+  const sql = sqlContent.value.trim().replace(/;+$/, "");
+  if (!sql) return;
+  if (transactionStatus.value !== "active") {
+    lastResult.value = "请先 BEGIN 开启事务";
+    return;
+  }
+  pendingStatements.push(sql + ";");
+  addLog(`执行: ${sql}`, "info");
+  emit("execute", sql + ";");
+  lastResult.value = `已提交执行（未 COMMIT）：${sql.slice(0, 40)}${sql.length > 40 ? "…" : ""}`;
 }
 
-function executeWithTransaction() {
-  if (!sqlContent.value.trim()) return;
+function runDirect() {
+  const sql = sqlContent.value.trim().replace(/;+$/, "");
+  if (!sql) return;
+  addLog(`直接执行: ${sql}`, "info");
+  emit("execute", sql + ";");
+  lastResult.value = `直接执行：${sql.slice(0, 40)}${sql.length > 40 ? "…" : ""}`;
+}
 
-  beginTransaction();
-  setTimeout(() => {
-    executeBatch();
-    setTimeout(() => {
-      commitTransaction();
-    }, 100);
-  }, 50);
+function savepoint(op: "save" | "rollback" | "release") {
+  const name = savepointName.value.trim().replace(/[";]/g, "");
+  if (!name) return;
+  const sqlMap = {
+    save: `SAVEPOINT "${name}"`,
+    rollback: `ROLLBACK TO "${name}"`,
+    release: `RELEASE "${name}"`,
+  } as const;
+  addLog(sqlMap[op], "info");
+  emit("execute", sqlMap[op] + ";");
+}
+
+function resetAll() {
+  transactionStatus.value = "idle";
+  pendingStatements.length = 0;
+  transactionLogs.length = 0;
+  lastResult.value = "";
+  sqlContent.value = "";
+}
+
+async function exportLog() {
+  const text = transactionLogs.map((l) => `[${l.time}] ${l.content}`).join("\n");
+  try {
+    await navigator.clipboard.writeText(text || "（空日志）");
+  } catch {
+    /* 静默 */
+  }
 }
 </script>
 
+<template>
+  <div class="pnl">
+    <header class="pnl-header">
+      <span class="pnl-title">事务管理</span>
+      <span class="pnl-sub">当前：{{ statusText }}</span>
+      <div class="pnl-actions">
+        <button class="pb sm pb-gray" @click="resetAll">重置</button>
+      </div>
+    </header>
+
+    <div class="pnl-body">
+      <div class="dcard tinted">
+        <div class="dcard-title" style="margin-bottom: 6px">事务状态：{{ statusText }}</div>
+        <p class="dtip">在事务中执行的语句将在 COMMIT 后统一生效；ROLLBACK 可撤销本次全部改动。</p>
+      </div>
+
+      <div class="ctl-row">
+        <button class="pb md" :disabled="transactionStatus === 'active'" @click="beginTransaction">BEGIN</button>
+        <button class="pb md pb-green" :disabled="transactionStatus !== 'active'" @click="commitTransaction">COMMIT</button>
+        <button class="pb md pb-red-ghost" :disabled="transactionStatus !== 'active'" @click="rollbackTransaction">ROLLBACK</button>
+      </div>
+
+      <textarea
+        v-model="sqlContent"
+        class="dcode"
+        rows="3"
+        placeholder="在此输入要在事务中执行的 SQL，例如：UPDATE 订单记录 SET 状态='已发货' WHERE id=1024;"
+      />
+
+      <div class="mode-row">
+        <span class="dlabel">BEGIN 模式</span>
+        <button
+          v-for="m in BEGIN_MODES"
+          :key="m"
+          class="seg"
+          :class="{ on: beginMode === m }"
+          @click="beginMode = m"
+        >
+          {{ m }}
+        </button>
+      </div>
+
+      <div class="run-row">
+        <button class="pb md" :disabled="!sqlContent.trim()" @click="runInTransaction">在事务中执行</button>
+        <button class="pb md pb-gray" :disabled="!sqlContent.trim()" @click="runDirect">直接执行（不入事务）</button>
+      </div>
+
+      <div class="dcard">
+        <div class="dform">
+          <div class="dcard-title" style="margin-bottom: 0">保存点（模拟嵌套事务）</div>
+          <label class="dlabel">保存点名称</label>
+          <input v-model="savepointName" class="dinput" placeholder="如 sp_before_update" />
+          <div class="ctl-row">
+            <button class="pb sm" :disabled="!savepointName.trim()" @click="savepoint('save')">SAVEPOINT</button>
+            <button class="pb sm pb-gray" :disabled="!savepointName.trim()" @click="savepoint('rollback')">ROLLBACK TO</button>
+            <button class="pb sm pb-blue-ghost" :disabled="!savepointName.trim()" @click="savepoint('release')">RELEASE</button>
+          </div>
+          <p class="dtip">提示：SQLite 无真正嵌套事务；用 SAVEPOINT name / ROLLBACK TO name / RELEASE name 实现层级回滚。</p>
+        </div>
+      </div>
+
+      <div class="dcard">
+        <div class="dcard-title">事务内语句（未提交）</div>
+        <div v-for="(s, i) in pendingStatements" :key="i" class="stmt-line">{{ i + 1 }}. {{ s }}</div>
+        <p v-if="pendingStatements.length === 0" class="dtip">（暂无语句，BEGIN 后用「在事务中执行」的语句将在此列出）</p>
+        <p v-if="lastResult" class="last-result">{{ lastResult }}</p>
+      </div>
+
+      <div class="exp-row">
+        <span class="exp-label">最近日志</span>
+        <span class="log-inline" v-if="transactionLogs.length">{{ transactionLogs[transactionLogs.length - 1].time }} · {{ transactionLogs[transactionLogs.length - 1].content }}</span>
+        <button class="pb sm pb-blue-ghost" @click="exportLog">导出日志</button>
+      </div>
+    </div>
+  </div>
+</template>
+
 <style scoped lang="scss">
-.transaction-manager {
-  background: var(--bg-card);
-  border-radius: 12px;
-  box-shadow: var(--shadow-card);
-  height: 100%;
-  box-sizing: border-box;
+@use "./panel.scss" as *;
+
+.ctl-row {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
-.content-area {
-  flex: 1;
-  overflow-y: auto;
+.mode-row,
+.run-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
-.section-card {
-  margin-bottom: 24px;
-  background: var(--bg-base);
-  border-radius: 10px;
-  border: 1px solid var(--border-subtle);
-  padding: 20px;
-  transition: all 0.2s ease;
-
-  &:hover {
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 1px var(--color-primary-light);
-  }
-}
-
-.section-title {
-  font-size: 14px;
-  font-weight: 600;
+.stmt-line {
+  font-size: 13px;
   color: var(--text-primary);
-  margin-bottom: 16px;
-  padding: 8px 12px;
-  background: var(--color-primary-light);
-  border-radius: 6px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-
-  &::before {
-    content: "";
-    width: 8px;
-    height: 8px;
-    background: var(--color-primary);
-    border-radius: 50%;
-  }
+  font-family: Consolas, "Courier New", monospace;
+  padding: 4px 0;
 }
 
-.status-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-
-.status-label {
-  color: var(--text-secondary);
-}
-
-.status-value {
-  font-weight: 600;
-  padding: 6px 14px;
-  border-radius: 20px;
-
-  &.idle {
-    background: var(--tag-bg-info);
-    color: var(--color-info);
-  }
-
-  &.active {
-    background: var(--tag-bg-warning);
-    color: var(--color-warning);
-  }
-}
-
-.transaction-buttons {
-  display: flex;
-  gap: 12px;
-}
-
-.log-container {
-  background: linear-gradient(135deg, var(--bg-card) 0%, rgba(0, 0, 0, 0.1) 100%);
-  border: 1px solid var(--border-subtle);
-  border-radius: 10px;
-  padding: 16px;
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-.log-item {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 10px;
+.last-result {
+  margin: 8px 0 0;
   font-size: 13px;
-  padding: 8px;
-  background: var(--bg-base);
-  border-radius: 6px;
+  color: var(--color-success);
 }
 
-.log-time {
-  color: var(--text-muted);
-  font-family: monospace;
-  white-space: nowrap;
-}
-
-.log-content {
+.log-inline {
   flex: 1;
-
-  &.info {
-    color: var(--text-primary);
-  }
-
-  &.success {
-    color: var(--color-success);
-  }
-
-  &.error {
-    color: var(--color-error);
-  }
-}
-
-.empty-log {
+  min-width: 0;
+  font-size: 12px;
   color: var(--text-muted);
-  text-align: center;
-  padding: 30px;
-}
-
-.sql-textarea {
-  font-family: "Consolas", "Monaco", "Courier New", monospace;
-  font-size: 13px;
-}
-
-.bottom-area {
-  margin-top: auto;
-  padding-top: 20px;
-  border-top: 1px solid var(--border-subtle);
-}
-
-.action-buttons {
-  display: flex;
-  gap: 12px;
-  margin-top: 16px;
-  justify-content: flex-start;
+  font-family: Consolas, "Courier New", monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

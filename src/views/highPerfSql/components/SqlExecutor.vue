@@ -1,52 +1,12 @@
-<template>
-  <div class="sql-executor">
-    <div class="content-area">
-      <div class="section-card">
-        <div class="section-title">SQL 编辑器</div>
-        <el-input
-          type="textarea"
-          v-model="sqlText"
-          :rows="8"
-          placeholder="请输入 SQL 语句..."
-          class="sql-textarea"
-        />
-      </div>
-
-      <div class="section-card">
-        <div class="section-title">常用 SQL 模板</div>
-        <div class="template-tags">
-          <el-tag
-            v-for="template in templates"
-            :key="template.key"
-            :closable="false"
-            @click="applyTemplate(template)"
-            class="template-tag"
-          >
-            {{ template.label }}
-          </el-tag>
-        </div>
-      </div>
-    </div>
-
-    <div class="bottom-area">
-      <div class="action-buttons">
-        <el-button type="primary" @click="executeSql">执行 SQL</el-button>
-        <el-button @click="showExplain">执行计划</el-button>
-        <el-button @click="clearSql">清空</el-button>
-        <el-button @click="formatSql">格式化</el-button>
-      </div>
-    </div>
-  </div>
-</template>
-
 <script setup lang="ts">
+/**
+ * SQL 控制台（对齐设计稿 3:457）：深色编辑器 + 执行行 + 快捷探查 + 历史。
+ * 执行/解释经 emit → index.vue 统一走 new-sql:execute（sanctioned 执行器）；
+ * 结果区由 index.vue 下方的 ResultPanel 呈现（对应设计稿「执行结果」卡）。
+ */
 import { ref } from "vue";
 
-interface Template {
-  key: string;
-  label: string;
-  sql: string;
-}
+const props = defineProps<{ tables: string[] }>();
 
 const emit = defineEmits<{
   (e: "execute", sql: string): void;
@@ -54,126 +14,128 @@ const emit = defineEmits<{
 }>();
 
 const sqlText = ref("");
+const history = ref<string[]>([]);
+const historyOpen = ref(false);
 
-const templates: Template[] = [
-  { key: "select", label: "SELECT 查询", sql: "SELECT * FROM table_name WHERE condition;" },
-  { key: "insert", label: "INSERT 插入", sql: "INSERT INTO table_name (column1, column2) VALUES ('value1', 'value2');" },
-  { key: "update", label: "UPDATE 更新", sql: "UPDATE table_name SET column1 = 'value1' WHERE condition;" },
-  { key: "delete", label: "DELETE 删除", sql: "DELETE FROM table_name WHERE condition;" },
-  { key: "create", label: "CREATE TABLE", sql: "CREATE TABLE IF NOT EXISTS table_name (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT);" },
-  { key: "index", label: "CREATE INDEX", sql: "CREATE INDEX idx_name ON table_name (column_name);" },
-  { key: "view", label: "CREATE VIEW", sql: "CREATE VIEW view_name AS SELECT column1, column2 FROM table_name;" },
-  { key: "pragma", label: "PRAGMA 查询", sql: "PRAGMA table_info(table_name);" },
-  { key: "explain", label: "EXPLAIN", sql: "EXPLAIN QUERY PLAN SELECT * FROM table_name;" },
-];
-
-function applyTemplate(template: Template) {
-  sqlText.value = template.sql;
+function targetTable(): string {
+  return props.tables[0] || "表名";
 }
 
-function executeSql() {
-  if (!sqlText.value.trim()) return;
-  emit("execute", sqlText.value.trim());
+function doExecute() {
+  const sql = sqlText.value.trim();
+  if (!sql) return;
+  history.value = [sql, ...history.value.filter((h) => h !== sql)].slice(0, 50);
+  emit("execute", sql);
 }
 
-function showExplain() {
-  if (!sqlText.value.trim()) return;
-  emit("explain", sqlText.value.trim());
+function doExplain() {
+  const sql = sqlText.value.trim();
+  if (!sql) return;
+  emit("explain", sql);
 }
 
-function clearSql() {
+function doClear() {
   sqlText.value = "";
 }
 
-function formatSql() {
-  if (!sqlText.value.trim()) return;
-  sqlText.value = sqlText.value.replace(/;/g, ";\n").replace(/,/g, ", ");
+function probe(kind: "schema" | "index" | "objects") {
+  const t = targetTable();
+  if (kind === "schema") sqlText.value = `PRAGMA table_info(${t});`;
+  else if (kind === "index") sqlText.value = `SELECT name, "unique" FROM pragma_index_list(${t});`;
+  else sqlText.value = `SELECT type, name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name;`;
+}
+
+function useHistory(sql: string) {
+  sqlText.value = sql;
+  historyOpen.value = false;
 }
 </script>
 
+<template>
+  <div class="pnl">
+    <header class="pnl-header">
+      <span class="pnl-title">SQL 控制台</span>
+      <span class="pnl-sub">直接执行 SQL（高级）</span>
+      <div class="pnl-actions">
+        <button class="pb sm" @click="doExecute">执行</button>
+      </div>
+    </header>
+
+    <div class="pnl-body">
+      <textarea
+        v-model="sqlText"
+        class="dcode editor"
+        rows="6"
+        spellcheck="false"
+        placeholder="SELECT c.姓名, COUNT(o.id) AS 订单数&#10;FROM 客户信息 c&#10;LEFT JOIN 订单记录 o ON o.客户id = c.id&#10;GROUP BY c.姓名;"
+        @keydown.ctrl.enter.prevent="doExecute"
+      />
+
+      <div class="run-row">
+        <button class="pb md" @click="doExecute">执行</button>
+        <button class="pb md pb-gray" @click="doClear">清空</button>
+        <button class="pb md pb-gray" @click="doExplain">执行计划</button>
+        <span class="dtip">支持多条语句，以分号分隔；Ctrl+Enter 执行；请确保已备份重要数据。</span>
+      </div>
+
+      <div class="quick-row">
+        <span class="dlabel">快捷探查</span>
+        <button class="pb sm pb-gray" @click="probe('schema')">表结构</button>
+        <button class="pb sm pb-gray" @click="probe('index')">索引清单</button>
+        <button class="pb sm pb-gray" @click="probe('objects')">全部对象</button>
+        <button class="pb sm pb-gray" @click="historyOpen = !historyOpen">历史（{{ history.length }}）</button>
+      </div>
+
+      <div v-if="historyOpen && history.length > 0" class="dcard">
+        <div class="dcard-title">执行历史</div>
+        <div v-for="(h, i) in history" :key="i" class="hist-row" @click="useHistory(h)">
+          <span class="mono">{{ h }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
 <style scoped lang="scss">
-.sql-executor {
-  background: var(--bg-card);
-  border-radius: 12px;
-  box-shadow: var(--shadow-card);
-  height: 100%;
-  box-sizing: border-box;
+@use "./panel.scss" as *;
+
+.editor {
+  min-height: 160px;
+}
+
+.run-row {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
-.content-area {
-  flex: 1;
-  overflow-y: auto;
-}
-
-.section-card {
-  margin-bottom: 24px;
-  background: var(--bg-base);
-  border-radius: 10px;
-  border: 1px solid var(--border-subtle);
-  padding: 20px;
-  transition: all 0.2s ease;
-
-  &:hover {
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 1px var(--color-primary-light);
-  }
-}
-
-.section-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 16px;
-  padding: 8px 12px;
-  background: var(--color-primary-light);
-  border-radius: 6px;
-  display: inline-flex;
+.quick-row {
+  display: flex;
   align-items: center;
   gap: 8px;
-
-  &::before {
-    content: "";
-    width: 8px;
-    height: 8px;
-    background: var(--color-primary);
-    border-radius: 50%;
-  }
-}
-
-.sql-textarea {
-  font-family: "Consolas", "Monaco", "Courier New", monospace;
-  font-size: 13px;
-}
-
-.template-tags {
-  display: flex;
   flex-wrap: wrap;
-  gap: 8px;
 }
 
-.template-tag {
+.hist-row {
+  padding: 7px 10px;
+  border-bottom: 1px dashed var(--border-subtle);
+  font-size: 12px;
+  color: var(--text-primary);
   cursor: pointer;
-  transition: all 0.2s;
+
+  &:last-child {
+    border-bottom: none;
+  }
 
   &:hover {
-    background: var(--color-primary-light);
+    background: var(--bg-hover);
     color: var(--color-primary);
-    border-color: var(--color-primary);
   }
-}
 
-.bottom-area {
-  margin-top: auto;
-  padding-top: 20px;
-  border-top: 1px solid var(--border-subtle);
-}
-
-.action-buttons {
-  display: flex;
-  gap: 12px;
-  margin-top: 16px;
-  justify-content: flex-start;
+  .mono {
+    font-family: Consolas, "Courier New", monospace;
+    word-break: break-all;
+  }
 }
 </style>

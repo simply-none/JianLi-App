@@ -1,235 +1,10 @@
-<template>
-  <div class="query-builder">
-    <div class="builder-section-box">
-    <div class="builder-section">
-      <div class="section-title">表选择</div>
-      <el-select
-        v-model="queryForm.tableName"
-        placeholder="请选择表"
-        class="table-select"
-        @change="handleTableChange"
-      >
-        <el-option
-          v-for="table in tables"
-          :key="table.name"
-          :label="table.name"
-          :value="table.name"
-        />
-      </el-select>
-    </div>
-
-    <div class="builder-section">
-      <div class="section-title">字段选择</div>
-      <div class="field-selector">
-        <el-checkbox :checked="selectAllFields" @change="toggleSelectAll">
-          全选
-        </el-checkbox>
-        <el-checkbox-group v-model="queryForm.selectedFields">
-          <el-checkbox
-            v-for="field in currentFields"
-            :key="field.name"
-            :label="field.name"
-            :value="field.name"
-          />
-        </el-checkbox-group>
-      </div>
-      <div class="query-options">
-        <el-checkbox v-model="queryForm.distinct">去重(DISTINCT)</el-checkbox>
-        <el-checkbox v-model="queryForm.groupByEnabled">分组(GROUP BY)</el-checkbox>
-        <el-checkbox v-model="queryForm.havingEnabled">分组条件(HAVING)</el-checkbox>
-        <el-checkbox v-model="queryForm.orderByEnabled">排序(ORDER BY)</el-checkbox>
-      </div>
-    </div>
-
-    <div class="builder-section" v-if="queryForm.groupByEnabled">
-      <div class="section-title">GROUP BY</div>
-      <el-select
-        v-model="queryForm.groupByField"
-        placeholder="选择分组字段"
-        multiple
-      >
-        <el-option
-          v-for="field in currentFields"
-          :key="field.name"
-          :label="field.name"
-          :value="field.name"
-        />
-      </el-select>
-    </div>
-
-    <div class="builder-section" v-if="queryForm.havingEnabled">
-      <div class="section-title">HAVING 条件</div>
-      <el-input
-        v-model="queryForm.havingCondition"
-        placeholder="例如: COUNT(*) > 10"
-      />
-    </div>
-
-    <div class="builder-section" v-if="queryForm.orderByEnabled">
-      <div class="section-title">ORDER BY</div>
-      <div class="order-by-row">
-        <el-select
-          v-model="queryForm.orderByField"
-          placeholder="选择排序字段"
-        >
-          <el-option
-            v-for="field in currentFields"
-            :key="field.name"
-            :label="field.name"
-            :value="field.name"
-          />
-        </el-select>
-        <el-select v-model="queryForm.orderByDirection">
-          <el-option label="升序" value="ASC" />
-          <el-option label="降序" value="DESC" />
-        </el-select>
-      </div>
-    </div>
-
-    <div class="builder-section">
-      <div class="section-title">WHERE 条件构建器</div>
-      <div class="conditions-container">
-        <div
-          v-for="(condition, index) in queryForm.conditions"
-          :key="index"
-          class="condition-row"
-        >
-          <el-select
-            v-model="condition.field"
-            placeholder="字段"
-            class="condition-field"
-          >
-            <el-option
-              v-for="field in currentFields"
-              :key="field.name"
-              :label="field.name"
-              :value="field.name"
-            />
-          </el-select>
-          <el-select
-            v-model="condition.operator"
-            placeholder="运算符"
-            class="condition-operator"
-          >
-            <el-option
-              v-for="op in operators"
-              :key="op.value"
-              :label="op.label"
-              :value="op.value"
-            />
-          </el-select>
-          <el-input
-            v-model="condition.value"
-            :placeholder="getPlaceholder(condition.operator)"
-            class="condition-value"
-          />
-          <div class="condition-logic">
-            <el-select
-              v-model="condition.logic"
-              v-if="index < queryForm.conditions.length - 1"
-            >
-              <el-option label="与" value="AND" />
-              <el-option label="或" value="OR" />
-            </el-select>
-            <button
-              v-if="queryForm.conditions.length > 1"
-              class="remove-condition"
-              @click="removeCondition(index)"
-            >
-              <span class="remove-icon">×</span>
-            </button>
-          </div>
-        </div>
-      </div>
-      <button class="add-condition" @click="addCondition">
-        + 添加条件
-      </button>
-    </div>
-
-    <div class="builder-section">
-      <div class="section-title">分页设置</div>
-      <div class="pagination-row">
-        <el-input-number
-          v-model="queryForm.limit"
-          :min="1"
-          :max="1000"
-          label="限制条数(LIMIT)"
-          class="pagination-input"
-        />
-        <el-input-number
-          v-model="queryForm.offset"
-          :min="0"
-          label="偏移量(OFFSET)"
-          class="pagination-input"
-        />
-      </div>
-    </div>
-
-    <div class="builder-section">
-      <div class="section-title">JOIN 操作</div>
-      <div v-if="queryForm.joinEnabled" class="join-container">
-        <div class="join-row">
-          <el-select v-model="queryForm.joinType">
-            <el-option label="内连接" value="INNER" />
-            <el-option label="左连接" value="LEFT" />
-            <el-option label="右连接" value="RIGHT" />
-            <el-option label="全连接" value="FULL" />
-          </el-select>
-          <el-select v-model="queryForm.joinTable" placeholder="关联表">
-            <el-option
-              v-for="table in tables.filter(t => t.name !== queryForm.tableName)"
-              :key="table.name"
-              :label="table.name"
-              :value="table.name"
-            />
-          </el-select>
-        </div>
-        <div class="join-on-row">
-          <span class="join-label">ON</span>
-          <el-select v-model="queryForm.joinField1" placeholder="字段1">
-            <el-option
-              v-for="field in currentFields"
-              :key="field.name"
-              :label="field.name"
-              :value="field.name"
-            />
-          </el-select>
-          <span class="join-operator">=</span>
-          <el-select v-model="queryForm.joinField2" placeholder="字段2">
-            <el-option
-              v-for="field in getJoinTableFields()"
-              :key="field.name"
-              :label="field.name"
-              :value="field.name"
-            />
-          </el-select>
-        </div>
-      </div>
-      <el-checkbox v-model="queryForm.joinEnabled">启用 JOIN</el-checkbox>
-    </div>
-    </div>
-    <div class="action-buttons-box">
-    <div class="builder-section">
-      <div class="section-title">SQL 预览</div>
-      <div class="sql-preview">{{ generatedSql }}</div>
-    </div>
-
-    <div class="action-buttons">
-      <el-button type="primary" @click="executeQuery">执行查询</el-button>
-      <el-button @click="showExplain">执行计划</el-button>
-      <el-button @click="exportResult">导出结果</el-button>
-      <el-button @click="testConcurrency">并发测试</el-button>
-    </div>
-    </div>
-  </div>
-</template>
-
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from "vue";
-
-interface Table {
-  name: string;
-}
+/**
+ * 查询构建器（「高级 SQL」分页）：可视化拼 SELECT——字段/WHERE/GROUP BY/HAVING/ORDER BY/分页/JOIN。
+ * 生成 SQL 经 emit("execute"/"explain") → index.vue 统一执行。
+ */
+import { ref, reactive, computed } from "vue";
+import { Play, Eye, Copy, Check } from "@lucide/vue";
 
 interface Field {
   name: string;
@@ -244,7 +19,7 @@ interface Condition {
 }
 
 const props = defineProps<{
-  tables: Table[];
+  tables: string[];
   tableFields: Record<string, Field[]>;
 }>();
 
@@ -253,7 +28,7 @@ const emit = defineEmits<{
   (e: "explain", sql: string): void;
 }>();
 
-const operators = [
+const OPERATORS = [
   { label: "等于", value: "=" },
   { label: "不等于", value: "!=" },
   { label: "大于", value: ">" },
@@ -262,8 +37,6 @@ const operators = [
   { label: "小于等于", value: "<=" },
   { label: "模糊匹配", value: "LIKE" },
   { label: "不匹配", value: "NOT LIKE" },
-  { label: "全局匹配", value: "GLOB" },
-  { label: "不全局匹配", value: "NOT GLOB" },
   { label: "包含于", value: "IN" },
   { label: "不包含于", value: "NOT IN" },
   { label: "在范围内", value: "BETWEEN" },
@@ -272,15 +45,15 @@ const operators = [
   { label: "不为空", value: "IS NOT NULL" },
 ];
 
+const JOIN_TYPES = ["INNER", "LEFT", "RIGHT", "FULL"];
+
 const queryForm = reactive({
   tableName: "",
   selectedFields: [] as string[],
   distinct: false,
-  conditions: [
-    { field: "", operator: "=", value: "", logic: "AND" } as Condition,
-  ],
+  conditions: [{ field: "", operator: "=", value: "", logic: "AND" } as Condition],
   groupByEnabled: false,
-  groupByField: [] as string[],
+  groupByFields: [] as string[],
   havingEnabled: false,
   havingCondition: "",
   orderByEnabled: false,
@@ -295,20 +68,33 @@ const queryForm = reactive({
   joinField2: "",
 });
 
-const selectAllFields = computed(() => {
-  const fields = props.tableFields[queryForm.tableName] || [];
-  return fields.length > 0 && fields.every(f => queryForm.selectedFields.includes(f.name));
-});
+const copied = ref(false);
 
 const currentFields = computed(() => props.tableFields[queryForm.tableName] || []);
+const joinTableFields = computed(() => props.tableFields[queryForm.joinTable] || []);
+const selectAllFields = computed(
+  () => currentFields.value.length > 0 && currentFields.value.every((f) => queryForm.selectedFields.includes(f.name))
+);
 
-function toggleSelectAll(val: boolean) {
-  const fields = props.tableFields[queryForm.tableName] || [];
-  queryForm.selectedFields = val ? fields.map(f => f.name) : [];
+function toggleField(name: string) {
+  const i = queryForm.selectedFields.indexOf(name);
+  if (i >= 0) queryForm.selectedFields.splice(i, 1);
+  else queryForm.selectedFields.push(name);
+}
+
+function toggleSelectAll() {
+  queryForm.selectedFields = selectAllFields.value ? [] : currentFields.value.map((f) => f.name);
+}
+
+function toggleGroupBy(name: string) {
+  const i = queryForm.groupByFields.indexOf(name);
+  if (i >= 0) queryForm.groupByFields.splice(i, 1);
+  else queryForm.groupByFields.push(name);
 }
 
 function handleTableChange() {
   queryForm.selectedFields = [];
+  queryForm.groupByFields = [];
   queryForm.conditions = [{ field: "", operator: "=", value: "", logic: "AND" }];
 }
 
@@ -322,303 +108,373 @@ function removeCondition(index: number) {
 
 function getPlaceholder(operator: string): string {
   if (operator.includes("NULL")) return "";
-  if (operator === "IN" || operator === "NOT IN") return "(value1, value2, ...)";
-  if (operator === "BETWEEN" || operator === "NOT BETWEEN") return "value1 AND value2";
+  if (operator.includes("IN")) return "(value1, value2, ...)";
+  if (operator.includes("BETWEEN")) return "value1 AND value2";
   if (operator === "LIKE") return "%pattern%";
-  if (operator === "GLOB") return "*pattern*";
   return "请输入值";
 }
 
-function getJoinTableFields(): Field[] {
-  return props.tableFields[queryForm.joinTable] || [];
+function q(name: string): string {
+  return `"${name.replace(/"/g, '""')}"`;
 }
 
 const generatedSql = computed(() => {
   if (!queryForm.tableName) return "-- 请选择表";
 
-  const fields = queryForm.selectedFields.length > 0
-    ? queryForm.selectedFields.join(", ")
-    : "*";
-
-  let sql = `SELECT ${queryForm.distinct ? "DISTINCT " : ""}${fields} FROM ${queryForm.tableName}`;
+  const fields = queryForm.selectedFields.length > 0 ? queryForm.selectedFields.map(q).join(", ") : "*";
+  let sql = `SELECT ${queryForm.distinct ? "DISTINCT " : ""}${fields} FROM ${q(queryForm.tableName)}`;
 
   if (queryForm.joinEnabled && queryForm.joinTable) {
-    sql += ` ${queryForm.joinType} JOIN ${queryForm.joinTable}`;
+    sql += ` ${queryForm.joinType} JOIN ${q(queryForm.joinTable)}`;
     if (queryForm.joinField1 && queryForm.joinField2) {
-      sql += ` ON ${queryForm.tableName}.${queryForm.joinField1} = ${queryForm.joinTable}.${queryForm.joinField2}`;
+      sql += ` ON ${q(queryForm.tableName)}.${q(queryForm.joinField1)} = ${q(queryForm.joinTable)}.${q(queryForm.joinField2)}`;
     }
   }
 
-  const whereParts: string[] = [];
-  queryForm.conditions.forEach((cond, index) => {
-    if (!cond.field) return;
-
-    let valuePart = "";
-    if (cond.operator.includes("NULL")) {
-      valuePart = "";
-    } else if (cond.operator === "IN" || cond.operator === "NOT IN") {
-      valuePart = ` ${cond.value}`;
-    } else if (cond.operator === "BETWEEN" || cond.operator === "NOT BETWEEN") {
-      valuePart = ` ${cond.value}`;
-    } else {
-      const fieldType = currentFields.value.find(f => f.name === cond.field)?.type;
-      const isNumber = fieldType && (fieldType.includes("INT") || fieldType.includes("REAL") || fieldType.includes("FLOAT"));
-      valuePart = ` ${isNumber ? cond.value : `'${cond.value}'`}`;
-    }
-
-    whereParts.push(`${cond.field} ${cond.operator}${valuePart}`);
-  });
-
-  if (whereParts.length > 0) {
-    sql += " WHERE " + whereParts.join(" " + queryForm.conditions.map((c, i) => i < whereParts.length - 1 ? c.logic : "").filter(Boolean).join(" ") + " ");
+  const conds = queryForm.conditions.filter((c) => c.field);
+  if (conds.length > 0) {
+    const parts: string[] = [];
+    conds.forEach((cond, i) => {
+      let valuePart = "";
+      if (cond.operator.includes("NULL")) {
+        valuePart = "";
+      } else if (cond.operator.includes("IN") || cond.operator.includes("BETWEEN")) {
+        valuePart = ` ${cond.value}`;
+      } else {
+        const fieldType = currentFields.value.find((f) => f.name === cond.field)?.type;
+        const isNumber = fieldType && /INT|REAL|FLOAT|NUMERIC/i.test(fieldType);
+        valuePart = ` ${isNumber ? cond.value : `'${cond.value.replace(/'/g, "''")}'`}`;
+      }
+      const fragment = `${q(cond.field)} ${cond.operator}${valuePart}`;
+      if (i === 0) parts.push(fragment);
+      else parts.push(cond.logic, fragment);
+    });
+    sql += " WHERE " + parts.join(" ");
   }
 
-  if (queryForm.groupByEnabled && queryForm.groupByField.length > 0) {
-    sql += " GROUP BY " + queryForm.groupByField.join(", ");
+  if (queryForm.groupByEnabled && queryForm.groupByFields.length > 0) {
+    sql += " GROUP BY " + queryForm.groupByFields.map(q).join(", ");
   }
 
-  if (queryForm.havingEnabled && queryForm.havingCondition) {
-    sql += " HAVING " + queryForm.havingCondition;
+  if (queryForm.havingEnabled && queryForm.havingCondition.trim()) {
+    sql += " HAVING " + queryForm.havingCondition.trim();
   }
 
   if (queryForm.orderByEnabled && queryForm.orderByField) {
-    sql += " ORDER BY " + queryForm.orderByField + " " + queryForm.orderByDirection;
+    sql += ` ORDER BY ${q(queryForm.orderByField)} ${queryForm.orderByDirection}`;
   }
 
-  if (queryForm.limit) {
-    sql += " LIMIT " + queryForm.limit;
-  }
-
-  if (queryForm.offset) {
-    sql += " OFFSET " + queryForm.offset;
-  }
+  if (queryForm.limit > 0) sql += ` LIMIT ${queryForm.limit}`;
+  if (queryForm.offset > 0) sql += ` OFFSET ${queryForm.offset}`;
 
   return sql;
 });
 
 function executeQuery() {
+  if (!queryForm.tableName) return;
   emit("execute", generatedSql.value);
 }
 
 function showExplain() {
+  if (!queryForm.tableName) return;
   emit("explain", generatedSql.value);
 }
 
-function exportResult() {}
-
-function testConcurrency() {}
+async function copySql() {
+  try {
+    await navigator.clipboard.writeText(generatedSql.value);
+    copied.value = true;
+    setTimeout(() => (copied.value = false), 1500);
+  } catch {
+    /* 剪贴板不可用时静默 */
+  }
+}
 </script>
 
+<template>
+  <div class="ap-body">
+    <div class="ap-card">
+      <div class="ap-card-title">表选择</div>
+      <div class="ap-row">
+        <select v-model="queryForm.tableName" class="ap-field f-table" @change="handleTableChange">
+          <option value="" disabled>请选择表</option>
+          <option v-for="t in props.tables" :key="t" :value="t">{{ t }}</option>
+        </select>
+        <label class="ap-check"><input v-model="queryForm.distinct" type="checkbox" />去重 (DISTINCT)</label>
+      </div>
+    </div>
+
+    <div class="ap-card">
+      <div class="ap-card-title">
+        字段选择
+        <label class="ap-check all-check"><input type="checkbox" :checked="selectAllFields" @change="toggleSelectAll" />全选</label>
+      </div>
+      <div v-if="currentFields.length === 0" class="ap-empty">选择表后展示字段</div>
+      <div v-else class="field-chips">
+        <button
+          v-for="f in currentFields"
+          :key="f.name"
+          class="chip"
+          :class="{ on: queryForm.selectedFields.includes(f.name) }"
+          @click="toggleField(f.name)"
+        >
+          {{ f.name }}
+        </button>
+      </div>
+    </div>
+
+    <div class="ap-card">
+      <div class="ap-card-title">WHERE 条件</div>
+      <div class="cond-list">
+        <div v-for="(cond, i) in queryForm.conditions" :key="i" class="cond-row">
+          <select v-model="cond.field" class="ap-field c-field">
+            <option value="" disabled>字段</option>
+            <option v-for="f in currentFields" :key="f.name" :value="f.name">{{ f.name }}</option>
+          </select>
+          <select v-model="cond.operator" class="ap-field c-op">
+            <option v-for="op in OPERATORS" :key="op.value" :value="op.value">{{ op.label }}</option>
+          </select>
+          <input
+            v-if="!cond.operator.includes('NULL')"
+            v-model="cond.value"
+            class="ap-field c-value"
+            :placeholder="getPlaceholder(cond.operator)"
+            @keyup.enter="executeQuery"
+          />
+          <select v-if="i < queryForm.conditions.length - 1" v-model="cond.logic" class="ap-field c-logic">
+            <option value="AND">AND</option>
+            <option value="OR">OR</option>
+          </select>
+          <button v-if="queryForm.conditions.length > 1" class="cond-del" title="删除条件" @click="removeCondition(i)">×</button>
+        </div>
+      </div>
+      <button class="add-cond" @click="addCondition">＋ 添加条件</button>
+    </div>
+
+    <div class="ap-card">
+      <div class="ap-card-title">分组与排序</div>
+      <div class="grp-rows">
+        <label class="ap-check"><input v-model="queryForm.groupByEnabled" type="checkbox" />GROUP BY</label>
+        <div v-if="queryForm.groupByEnabled && currentFields.length > 0" class="field-chips indent">
+          <button
+            v-for="f in currentFields"
+            :key="f.name"
+            class="chip"
+            :class="{ on: queryForm.groupByFields.includes(f.name) }"
+            @click="toggleGroupBy(f.name)"
+          >
+            {{ f.name }}
+          </button>
+        </div>
+        <div v-if="queryForm.groupByEnabled" class="ap-row">
+          <span class="ap-label">HAVING</span>
+          <input v-model="queryForm.havingCondition" class="ap-field f-having" placeholder="例如 COUNT(*) > 10" />
+        </div>
+        <label class="ap-check"><input v-model="queryForm.orderByEnabled" type="checkbox" />ORDER BY</label>
+        <div v-if="queryForm.orderByEnabled" class="ap-row">
+          <select v-model="queryForm.orderByField" class="ap-field f-order">
+            <option value="" disabled>排序字段</option>
+            <option v-for="f in currentFields" :key="f.name" :value="f.name">{{ f.name }}</option>
+          </select>
+          <button class="chip" :class="{ on: queryForm.orderByDirection === 'ASC' }" @click="queryForm.orderByDirection = 'ASC'">升序</button>
+          <button class="chip" :class="{ on: queryForm.orderByDirection === 'DESC' }" @click="queryForm.orderByDirection = 'DESC'">降序</button>
+        </div>
+        <div class="ap-row">
+          <span class="ap-label">LIMIT</span>
+          <input v-model.number="queryForm.limit" type="number" min="0" class="ap-field f-num" />
+          <span class="ap-label gap-l">OFFSET</span>
+          <input v-model.number="queryForm.offset" type="number" min="0" class="ap-field f-num" />
+        </div>
+      </div>
+    </div>
+
+    <div class="ap-card">
+      <div class="ap-card-title">
+        JOIN
+        <label class="ap-check all-check"><input v-model="queryForm.joinEnabled" type="checkbox" />启用</label>
+      </div>
+      <div v-if="queryForm.joinEnabled" class="join-box">
+        <div class="ap-row">
+          <button
+            v-for="t in JOIN_TYPES"
+            :key="t"
+            class="chip"
+            :class="{ on: queryForm.joinType === t }"
+            @click="queryForm.joinType = t"
+          >
+            {{ t }}
+          </button>
+          <select v-model="queryForm.joinTable" class="ap-field f-table">
+            <option value="" disabled>关联表</option>
+            <option v-for="t in props.tables.filter((x) => x !== queryForm.tableName)" :key="t" :value="t">{{ t }}</option>
+          </select>
+        </div>
+        <div class="ap-row">
+          <select v-model="queryForm.joinField1" class="ap-field f-join-field">
+            <option value="" disabled>本表字段</option>
+            <option v-for="f in currentFields" :key="f.name" :value="f.name">{{ f.name }}</option>
+          </select>
+          <span class="ap-label">=</span>
+          <select v-model="queryForm.joinField2" class="ap-field f-join-field">
+            <option value="" disabled>关联字段</option>
+            <option v-for="f in joinTableFields" :key="f.name" :value="f.name">{{ f.name }}</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="ap-card">
+      <div class="ap-card-title">SQL 预览</div>
+      <code class="ap-sql">{{ generatedSql }}</code>
+    </div>
+
+    <div class="ap-footer">
+      <div class="foot-actions">
+        <button class="primary-btn" :disabled="!queryForm.tableName" @click="executeQuery"><Play class="btn-icon" />执行查询</button>
+        <button class="ghost-btn" :disabled="!queryForm.tableName" @click="showExplain"><Eye class="btn-icon" />执行计划</button>
+      </div>
+      <button class="ghost-btn" @click="copySql">
+        <Check v-if="copied" class="btn-icon" />
+        <Copy v-else class="btn-icon" />{{ copied ? "已复制" : "复制 SQL" }}
+      </button>
+    </div>
+  </div>
+</template>
+
 <style scoped lang="scss">
-.query-builder {
-  background: var(--bg-card);
-  border-radius: 12px;
-  box-shadow: var(--shadow-card);
-  height: 100%;
-  box-sizing: border-box;
+@use "./panel.scss" as *;
+
+.f-table {
+  flex: 0 0 220px;
+}
+
+.all-check {
+  margin-left: auto;
+  font-weight: 400;
+}
+
+.field-chips {
   display: flex;
-  flex-direction: column;
-}
+  flex-wrap: wrap;
+  gap: 6px;
 
-.builder-section-box {
-  flex: 1;
-  overflow-y: auto;
-  padding-right: 8px;
-}
-
-.builder-section {
-  margin-bottom: 24px;
-  background: var(--bg-base);
-  border-radius: 10px;
-  border: 1px solid var(--border-subtle);
-  padding: 20px;
-  transition: all 0.2s ease;
-
-  &:hover {
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 1px var(--color-primary-light);
+  &.indent {
+    padding-left: 8px;
   }
 }
 
-.section-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 16px;
-  padding: 8px 12px;
-  background: var(--color-primary-light);
-  border-radius: 6px;
-  display: inline-flex;
-  align-items: center;
+.cond-list {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
-
-  &::before {
-    content: "";
-    width: 8px;
-    height: 8px;
-    background: var(--color-primary);
-    border-radius: 50%;
-  }
 }
 
-.table-select {
-  width: 220px;
-}
-
-.field-selector {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 12px;
-  align-items: center;
-}
-
-.query-options {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 16px;
-  margin-top: 16px;
-}
-
-.order-by-row {
-  display: grid;
-  grid-template-columns: 1fr 120px;
-  gap: 12px;
-}
-
-.conditions-container {
+.cond-row {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.condition-row {
-  display: grid;
-  grid-template-columns: 1fr 120px 1fr auto;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
-  padding: 12px;
+  padding: 8px;
   background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
   border-radius: 8px;
-  border: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
 }
 
-.condition-field,
-.condition-operator {
-  width: 100%;
-  min-width: 120px;
-}
-
-.condition-value {
+.c-field {
   flex: 1;
-  min-width: 150px;
+  min-width: 110px;
 }
 
-.condition-logic {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  white-space: nowrap;
+.c-op {
+  flex: 0 0 108px;
 }
 
-.remove-condition {
-  width: 28px;
-  height: 28px;
+.c-value {
+  flex: 1;
+  min-width: 130px;
+}
+
+.c-logic {
+  flex: 0 0 76px;
+}
+
+.cond-del {
+  width: 24px;
+  height: 24px;
   border: none;
-  background: var(--color-error);
-  color: #fff;
   border-radius: 50%;
+  background: var(--tag-bg-danger);
+  color: var(--color-error);
+  font-size: 14px;
+  line-height: 1;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
+  flex-shrink: 0;
 
   &:hover {
-    transform: scale(1.1);
-    opacity: 0.8;
+    background: var(--color-error);
+    color: #fff;
   }
 }
 
-.remove-icon {
-  font-size: 16px;
-  line-height: 1;
-}
-
-.add-condition {
-  margin-top: 12px;
-  padding: 10px 20px;
-  background: var(--bg-card);
-  border: 2px dashed var(--border-subtle);
+.add-cond {
+  margin-top: 8px;
+  padding: 7px 16px;
+  background: transparent;
+  border: 1px dashed var(--border-subtle);
   border-radius: 8px;
   color: var(--text-secondary);
+  font-size: 12px;
   cursor: pointer;
-  transition: all 0.2s;
   width: fit-content;
 
   &:hover {
-    background: var(--color-primary-light);
     border-color: var(--color-primary);
     color: var(--color-primary);
     border-style: solid;
   }
 }
 
-.pagination-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-
-.pagination-input {
-  width: 100%;
-  max-width: 200px;
-}
-
-.join-container {
-  margin-bottom: 16px;
-}
-
-.join-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.join-on-row {
-  display: grid;
-  grid-template-columns: auto 1fr auto 1fr;
-  gap: 8px;
-  align-items: center;
-}
-
-.join-label,
-.join-operator {
-  color: var(--text-secondary);
-  font-weight: 500;
-}
-
-.sql-preview {
-  background: linear-gradient(135deg, var(--bg-base) 0%, rgba(0, 0, 0, 0.1) 100%);
-  border: 1px solid var(--border-subtle);
-  border-radius: 10px;
-  padding: 16px;
-  font-family: "Consolas", "Monaco", "Courier New", monospace;
-  font-size: 13px;
-  color: var(--text-primary);
-  white-space: pre-wrap;
-  word-break: break-all;
-  max-height: 200px;
-  overflow-y: auto;
-  position: relative;
-}
-
-.action-buttons {
+.grp-rows {
   display: flex;
-  gap: 12px;
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 1px solid var(--border-subtle);
-  justify-content: flex-start;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.f-having {
+  flex: 1;
+  min-width: 180px;
+}
+
+.f-order {
+  flex: 0 0 180px;
+}
+
+.f-num {
+  flex: 0 0 84px;
+}
+
+.gap-l {
+  margin-left: 12px;
+}
+
+.join-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.f-join-field {
+  flex: 1;
+  min-width: 130px;
+}
+
+.foot-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-icon {
+  width: 12px;
+  height: 12px;
 }
 </style>

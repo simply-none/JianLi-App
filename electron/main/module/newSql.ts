@@ -718,6 +718,37 @@ export async function explain(sql: string): Promise<any[]> {
 }
 
 /**
+ * 只读原始查询（可视化流水线专用）
+ *
+ * 与 query({SqlStr}) 的区别：
+ * 1. 不调用 ensureTableExists——表名写错不会偷偷建垃圾表；
+ * 2. 支持 params 参数化——值不拼进 SQL，杜绝注入；
+ * 3. 硬性只允许 SELECT，且走 getReadDb 只读连接（WAL 下读不被写阻塞）。
+ *
+ * 供「数据库操作 → 可视化流水线」把图编译出的 SELECT（含探针 COUNT）送到主进程执行。
+ *
+ * @param {string} sql - SELECT 语句
+ * @param {any[]} params - 参数化值
+ * @returns {Promise<any[]>} 结果行
+ */
+export async function readSql(sql: string, params: any[] = []): Promise<any[]> {
+  if (!/^\s*SELECT\b/i.test(sql)) {
+    throw new Error("new-sql:read 仅允许 SELECT 语句");
+  }
+  const db = getReadDb("db");
+
+  return new Promise((resolve, reject) => {
+    db.all(sql, params, (err, rows) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(rows);
+      }
+    });
+  });
+}
+
+/**
  * 执行事务
  * 
  * 在事务中执行多条 SQL 语句，保证原子性。
@@ -1362,6 +1393,23 @@ ipcMain.handle("new-sql:execute", async (event, { sql, params, primaryKey }: { s
 ipcMain.handle("new-sql:explain", async (event, { sql }: { sql: string }) => {
   try {
     const data = await explain(sql);
+    return { success: true, data };
+  } catch (err) {
+    return { success: false, error: (err as Error).message };
+  }
+});
+
+/**
+ * IPC 处理器：只读原始查询（仅 SELECT，走只读连接，支持参数化）
+ *
+ * 渲染进程调用方式：
+ * ```javascript
+ * await window.ipcRenderer.handlePromise("new-sql:read", { sql, params });
+ * ```
+ */
+ipcMain.handle("new-sql:read", async (event, { sql, params }: { sql: string; params?: any[] }) => {
+  try {
+    const data = await readSql(sql, params || []);
     return { success: true, data };
   } catch (err) {
     return { success: false, error: (err as Error).message };

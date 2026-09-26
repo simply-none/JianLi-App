@@ -1,174 +1,33 @@
-<template>
-  <div class="concurrency-tester">
-    <div class="content-area">
-      <div class="section-card">
-        <div class="section-title">测试配置</div>
-        <div class="config-row">
-          <div class="config-item">
-            <span class="config-label">并发数:</span>
-            <div class="concurrency-options">
-              <button
-                v-for="num in [10, 50, 100, 500]"
-                :key="num"
-                :class="['concurrency-btn', { active: testConfig.concurrency === num }]"
-                @click="testConfig.concurrency = num"
-              >
-                {{ num }}
-              </button>
-              <el-input-number
-                v-model="testConfig.concurrency"
-                :min="1"
-                :max="1000"
-                class="custom-concurrency"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div class="config-row">
-          <div class="config-item">
-            <span class="config-label">请求类型:</span>
-            <div class="type-options">
-              <button
-                v-for="type in requestTypes"
-                :key="type.value"
-                :class="['type-btn', { active: testConfig.requestType === type.value }]"
-                @click="testConfig.requestType = type.value"
-              >
-                {{ type.label }}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div class="config-row">
-          <div class="config-item">
-            <span class="config-label">执行次数:</span>
-            <div class="repeat-options">
-              <button
-                v-for="num in [1, 10, 100]"
-                :key="num"
-                :class="['repeat-btn', { active: testConfig.repeat === num }]"
-                @click="testConfig.repeat = num"
-              >
-                {{ num }}次
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div class="config-row">
-          <div class="config-item">
-            <span class="config-label">表名:</span>
-            <el-select
-              v-model="testConfig.tableName"
-              placeholder="请选择或输入表名"
-              filterable
-              allow-create
-              class="table-select"
-              default-first-option
-            >
-              <el-option
-                v-for="table in props.tables"
-                :key="table.name"
-                :label="table.name"
-                :value="table.name"
-              />
-            </el-select>
-          </div>
-        </div>
-      </div>
-
-      <div class="section-card">
-        <div class="section-title">测试进度</div>
-        <div class="progress-container">
-          <div class="progress-bar">
-            <div
-              class="progress-fill"
-              :style="{ width: progressPercent + '%' }"
-            />
-          </div>
-          <div class="progress-info">
-            <span>已完成: {{ testStats.completed }}/{{ testStats.total }} 请求</span>
-            <span>成功: {{ testStats.success }}</span>
-            <span>失败: {{ testStats.failed }}</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="section-card">
-        <div class="section-title">性能统计</div>
-        <div class="stats-grid">
-          <div class="stat-card">
-            <span class="stat-label">平均响应时间</span>
-            <span class="stat-value">{{ testStats.avgTime.toFixed(2) }}ms</span>
-          </div>
-          <div class="stat-card">
-            <span class="stat-label">最大响应时间</span>
-            <span class="stat-value">{{ testStats.maxTime.toFixed(2) }}ms</span>
-          </div>
-          <div class="stat-card">
-            <span class="stat-label">最小响应时间</span>
-            <span class="stat-value">{{ testStats.minTime.toFixed(2) }}ms</span>
-          </div>
-          <div class="stat-card">
-            <span class="stat-label">QPS</span>
-            <span class="stat-value">{{ testStats.qps.toFixed(2) }}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="bottom-area">
-      <div class="action-buttons">
-        <el-button
-          :disabled="isTesting"
-          type="primary"
-          @click="startTest"
-        >
-          开始测试
-        </el-button>
-        <el-button
-          :disabled="!isTesting"
-          type="danger"
-          @click="stopTest"
-        >
-          停止测试
-        </el-button>
-        <el-button @click="exportReport">导出报告</el-button>
-      </div>
-    </div>
-  </div>
-</template>
-
 <script setup lang="ts">
+/**
+ * 并发测试（对齐设计稿 3:418）：说明卡 + 并发/超时配置 + 语句输入（深色）
+ * + journal_mode / busy_timeout / 请求类型 分段选择 + 进度卡 + 统计卡 + 结果表 + 报告导出。
+ * 压测打 new-sql:execute（主进程写锁串行化），数值仅作参考。
+ */
 import { reactive, computed, ref } from "vue";
 
-interface Table {
-  name: string;
-}
-
-const props = defineProps<{
-  tables: Table[];
-}>();
+const props = defineProps<{ tables: string[] }>();
 
 const emit = defineEmits<{
   (e: "execute", sql: string): void;
 }>();
 
-const requestTypes = [
-  { label: "查询", value: "query" },
-  { label: "插入", value: "insert" },
-  { label: "更新", value: "update" },
-  { label: "删除", value: "delete" },
-  { label: "混合", value: "mixed" },
-];
+interface ResultRow {
+  type: string;
+  sql: string;
+  time: number;
+  ok: boolean;
+}
 
 const testConfig = reactive({
   concurrency: 10,
-  requestType: "query",
+  timeout: 3000,
   repeat: 1,
+  requestType: "read",
   tableName: "",
+  customSql: "",
+  journalMode: "WAL",
+  busyTimeout: 5000,
 });
 
 const testStats = reactive({
@@ -182,49 +41,41 @@ const testStats = reactive({
   qps: 0,
 });
 
+const resultRows = ref<ResultRow[]>([]);
 const isTesting = ref(false);
 const stopRequested = ref(false);
 const startTime = ref(0);
+const elapsedText = ref("0.0s");
 
-const progressPercent = computed(() => {
-  if (testStats.total === 0) return 0;
-  return (testStats.completed / testStats.total) * 100;
-});
+const JOURNAL_MODES = ["WAL", "DELETE", "TRUNCATE"];
+const REQUEST_TYPES = [
+  { label: "读", value: "read" },
+  { label: "写", value: "write" },
+  { label: "混合", value: "mixed" },
+];
+
+const progressPercent = computed(() => (testStats.total === 0 ? 0 : (testStats.completed / testStats.total) * 100));
 
 function generateSql(): string {
-  const table = testConfig.tableName || "basic_info";
-
-  switch (testConfig.requestType) {
-    case "query":
-      return `SELECT * FROM ${table} LIMIT 10`;
-    case "insert":
-      return `INSERT INTO ${table} (name, value, created_at) VALUES ('test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}', 'value_${Math.random()}', ${Date.now()})`;
-    case "update":
-      return `UPDATE ${table} SET value = 'updated_${Date.now()}' WHERE id = (SELECT id FROM ${table} ORDER BY RANDOM() LIMIT 1)`;
-    case "delete":
-      return `DELETE FROM ${table} WHERE id = (SELECT id FROM ${table} ORDER BY RANDOM() LIMIT 1)`;
-    case "mixed":
-      const types = ["query", "insert", "update", "delete"];
-      const randomType = types[Math.floor(Math.random() * types.length)];
-      return generateSqlForType(randomType, table);
-    default:
-      return `SELECT * FROM ${table} LIMIT 10`;
+  if (testConfig.customSql.trim()) {
+    return testConfig.customSql.trim().replace(/;+$/, "") + ";";
   }
+  const table = testConfig.tableName || props.tables[0] || "basic_info";
+  const type =
+    testConfig.requestType === "mixed"
+      ? ["read", "write"][Math.floor(Math.random() * 2)]
+      : testConfig.requestType;
+  if (type === "write") {
+    return `UPDATE ${table} SET value = 'bench_${Date.now()}' WHERE rowid = (SELECT rowid FROM ${table} LIMIT 1);`;
+  }
+  return `SELECT * FROM ${table} LIMIT 10;`;
 }
 
-function generateSqlForType(type: string, table: string): string {
-  switch (type) {
-    case "query":
-      return `SELECT * FROM ${table} LIMIT 10`;
-    case "insert":
-      return `INSERT INTO ${table} (name, value, created_at) VALUES ('test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}', 'value_${Math.random()}', ${Date.now()})`;
-    case "update":
-      return `UPDATE ${table} SET value = 'updated_${Date.now()}' WHERE id = (SELECT id FROM ${table} ORDER BY RANDOM() LIMIT 1)`;
-    case "delete":
-      return `DELETE FROM ${table} WHERE id = (SELECT id FROM ${table} ORDER BY RANDOM() LIMIT 1)`;
-    default:
-      return `SELECT * FROM ${table} LIMIT 10`;
-  }
+function withTimeout(p: Promise<any>, ms: number): Promise<any> {
+  return Promise.race([
+    p,
+    new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms)),
+  ]);
 }
 
 async function startTest() {
@@ -240,55 +91,56 @@ async function startTest() {
   testStats.maxTime = 0;
   testStats.minTime = Infinity;
   testStats.qps = 0;
+  resultRows.value = [];
 
   const allTimes: number[] = [];
 
   for (let r = 0; r < testConfig.repeat; r++) {
     if (stopRequested.value) break;
-
     const promises: Promise<void>[] = [];
 
     for (let c = 0; c < testConfig.concurrency; c++) {
-      promises.push(new Promise<void>(async (resolve) => {
-        if (stopRequested.value) {
+      promises.push(
+        new Promise<void>(async (resolve) => {
+          if (stopRequested.value) {
+            resolve();
+            return;
+          }
+          const sql = generateSql();
+          const t0 = performance.now();
+          let ok = false;
+          try {
+            const res = await withTimeout(
+              window.ipcRenderer.handlePromise("new-sql:execute", { sql }),
+              testConfig.timeout
+            );
+            ok = !!res?.success;
+          } catch {
+            ok = false;
+          }
+          const cost = performance.now() - t0;
+          allTimes.push(cost);
+          if (ok) testStats.success++;
+          else testStats.failed++;
+          testStats.completed++;
+          testStats.maxTime = Math.max(testStats.maxTime, cost);
+          testStats.minTime = Math.min(testStats.minTime, cost);
+          if (resultRows.value.length < 200) {
+            resultRows.value.push({ type: testConfig.requestType, sql, time: cost, ok });
+          }
+          elapsedText.value = `${((performance.now() - startTime.value) / 1000).toFixed(1)}s`;
           resolve();
-          return;
-        }
-
-        const sql = generateSql();
-        const reqStartTime = performance.now();
-
-        try {
-          await window.ipcRenderer.handlePromise("new-sql:execute", { sql }).then(res => {
-            if (res.success) {
-              testStats.success++;
-            } else {
-              testStats.failed++;
-              console.error(res, '执行失败');
-            }
-          });
-        } catch {
-          testStats.failed++;
-        }
-
-        const reqTime = performance.now() - reqStartTime;
-        allTimes.push(reqTime);
-
-        testStats.completed++;
-        testStats.maxTime = Math.max(testStats.maxTime, reqTime);
-        testStats.minTime = Math.min(testStats.minTime, reqTime);
-
-        resolve();
-      }));
+        })
+      );
     }
-
     await Promise.all(promises);
   }
 
   const totalTime = performance.now() - startTime.value;
   testStats.avgTime = allTimes.reduce((a, b) => a + b, 0) / allTimes.length || 0;
   testStats.qps = (testStats.completed / totalTime) * 1000;
-
+  if (!Number.isFinite(testStats.minTime)) testStats.minTime = 0;
+  elapsedText.value = `${(totalTime / 1000).toFixed(1)}s`;
   isTesting.value = false;
 }
 
@@ -296,177 +148,251 @@ function stopTest() {
   stopRequested.value = true;
 }
 
-function exportReport() {}
+function applyJournalMode(mode: string) {
+  testConfig.journalMode = mode;
+  emit("execute", `PRAGMA journal_mode=${mode};`);
+}
+
+function applyBusyTimeout() {
+  emit("execute", `PRAGMA busy_timeout=${Number(testConfig.busyTimeout) || 5000};`);
+}
+
+function download(content: string, ext: string, mime: string) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `concurrency_report_${Date.now()}.${ext}`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function reportObj() {
+  return {
+    config: { ...testConfig },
+    stats: { ...testStats, minTime: Number.isFinite(testStats.minTime) ? testStats.minTime : 0 },
+    results: resultRows.value,
+    finishedAt: new Date().toISOString(),
+  };
+}
+
+function exportCsv() {
+  const header = "type,sql,time_ms,ok";
+  const rows = resultRows.value.map((r) => `${r.type},"${r.sql.replace(/"/g, '""')}",${r.time.toFixed(2)},${r.ok}`);
+  download("\uFEFF" + [header, ...rows].join("\r\n"), "csv", "text/csv;charset=utf-8;");
+}
+
+function exportJson() {
+  download(JSON.stringify(reportObj(), null, 2), "json", "application/json;charset=utf-8;");
+}
+
+function exportMd() {
+  const s = reportObj().stats as any;
+  const md = [
+    "# 并发测试报告",
+    "",
+    `- 时间：${new Date().toLocaleString("zh-CN")}`,
+    `- 并发：${testConfig.concurrency} × ${testConfig.repeat} 次`,
+    `- 完成 ${s.completed} · 成功 ${s.success} · 失败 ${s.failed}`,
+    `- 平均 ${s.avgTime.toFixed(2)}ms · 最大 ${s.maxTime.toFixed(2)}ms · 最小 ${s.minTime.toFixed(2)}ms · QPS ${s.qps.toFixed(2)}`,
+  ].join("\n");
+  download(md, "md", "text/markdown;charset=utf-8;");
+}
 </script>
 
+<template>
+  <div class="pnl">
+    <header class="pnl-header">
+      <span class="pnl-title">并发测试</span>
+      <span class="pnl-sub">性能评估工具</span>
+      <div class="pnl-actions">
+        <button class="pb sm" :disabled="isTesting" @click="startTest">开始测试</button>
+      </div>
+    </header>
+
+    <div class="pnl-body">
+      <div class="dcard tinted">
+        <p class="dtip" style="font-size: 12.5px; color: var(--text-secondary)">
+          模拟多个用户同时访问数据库，观察并发性能与锁等待情况。仅用于测试库，会真实产生负载。
+        </p>
+      </div>
+
+      <div class="cfg-row">
+        <div class="cfg-item">
+          <input v-model.number="testConfig.concurrency" type="number" min="1" max="1000" class="dinput cfg-num" />
+          <span class="dlabel">并发数</span>
+        </div>
+        <div class="cfg-item">
+          <input v-model.number="testConfig.timeout" type="number" min="100" class="dinput cfg-timeout" />
+          <span class="dlabel">超时(ms)</span>
+        </div>
+      </div>
+
+      <textarea
+        v-model="testConfig.customSql"
+        class="dcode"
+        rows="3"
+        :placeholder="`留空则按请求类型自动生成，例如：SELECT * FROM ${tables[0] || '订单记录'} WHERE 状态 = '待处理' LIMIT 100;`"
+      />
+
+      <div class="seg-row">
+        <span class="dlabel">日志模式（journal_mode）</span>
+        <button
+          v-for="m in JOURNAL_MODES"
+          :key="m"
+          class="seg"
+          :class="{ on: testConfig.journalMode === m }"
+          @click="applyJournalMode(m)"
+        >
+          {{ m }}
+        </button>
+      </div>
+
+      <div class="seg-row">
+        <span class="dlabel">busy_timeout（毫秒，缓解 SQLITE_BUSY）</span>
+        <input
+          v-model.number="testConfig.busyTimeout"
+          type="number"
+          min="0"
+          class="dinput busy-input"
+          @change="applyBusyTimeout"
+        />
+      </div>
+
+      <div class="seg-row">
+        <span class="dlabel">请求类型</span>
+        <button
+          v-for="t in REQUEST_TYPES"
+          :key="t.value"
+          class="seg"
+          :class="{ on: testConfig.requestType === t.value }"
+          @click="testConfig.requestType = t.value"
+        >
+          {{ t.label }}
+        </button>
+      </div>
+
+      <div class="seg-row">
+        <span class="dlabel">目标表</span>
+        <select v-model="testConfig.tableName" class="dinput table-select">
+          <option value="" disabled>请选择表</option>
+          <option v-for="t in props.tables" :key="t" :value="t">{{ t }}</option>
+        </select>
+        <span class="dtip">结果将按表归类，便于查看并发表现</span>
+      </div>
+
+      <div class="dcard">
+        <div class="dcard-title">测试进度</div>
+        <div class="progress-bar">
+          <div class="progress-fill" :style="{ width: progressPercent + '%' }" />
+        </div>
+        <p class="dtip">
+          已完成 {{ testStats.completed }} / {{ testStats.total }} · {{ progressPercent.toFixed(0) }}% · 已用 {{ elapsedText }}
+        </p>
+      </div>
+
+      <div class="dcard">
+        <div class="dcard-title">性能统计</div>
+        <div class="stats-grid">
+          <div class="stat-cell">
+            <span class="stat-label">平均响应</span>
+            <span class="stat-value">{{ testStats.avgTime.toFixed(2) }}<i>ms</i></span>
+          </div>
+          <div class="stat-cell">
+            <span class="stat-label">最大响应</span>
+            <span class="stat-value">{{ testStats.maxTime.toFixed(2) }}<i>ms</i></span>
+          </div>
+          <div class="stat-cell">
+            <span class="stat-label">最小响应</span>
+            <span class="stat-value">{{ (Number.isFinite(testStats.minTime) ? testStats.minTime : 0).toFixed(2) }}<i>ms</i></span>
+          </div>
+          <div class="stat-cell">
+            <span class="stat-label">QPS</span>
+            <span class="stat-value">{{ testStats.qps.toFixed(2) }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="dcard">
+        <div class="dcard-title">测试结果<span class="sub">目标表：{{ testConfig.tableName || "未选择" }}</span></div>
+        <div class="dtable flat">
+          <div class="dt-head">
+            <span class="r-type">类型</span>
+            <span class="r-sql">语句</span>
+            <span class="r-time">耗时</span>
+            <span class="r-ok">结果</span>
+          </div>
+          <div v-if="resultRows.length === 0" class="dt-empty">尚未运行测试</div>
+          <template v-else>
+            <div v-for="(r, i) in resultRows" :key="i" class="dt-row">
+              <span class="r-type">{{ r.type }}</span>
+              <span class="r-sql mono" :title="r.sql">{{ r.sql }}</span>
+              <span class="r-time">{{ r.time.toFixed(1) }}ms</span>
+              <span class="r-ok" :class="r.ok ? 'dt-ok' : 'dt-fail'">{{ r.ok ? "成功" : "失败" }}</span>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <div class="exp-row">
+        <span class="exp-label">报告导出</span>
+        <button class="pb sm pb-blue-ghost" @click="exportCsv">导出 CSV</button>
+        <button class="pb sm pb-blue-ghost" @click="exportJson">导出 JSON</button>
+        <button class="pb sm pb-blue-ghost" @click="exportMd">导出 MD</button>
+      </div>
+
+      <p class="dtip">
+        提示：SQLite 为库级锁（非表级），锁层级 SHARED→RESERVED→PENDING→EXCLUSIVE；WAL 模式下读者与单一写者可并发，写写之间靠 busy_timeout 排队。
+      </p>
+    </div>
+  </div>
+</template>
+
 <style scoped lang="scss">
-.concurrency-tester {
-  background: var(--bg-card);
-  border-radius: 12px;
-  box-shadow: var(--shadow-card);
-  height: 100%;
-  box-sizing: border-box;
+@use "./panel.scss" as *;
+
+.cfg-row {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
 }
 
-.content-area {
-  flex: 1;
-  overflow-y: auto;
-}
-
-.section-card {
-  margin-bottom: 24px;
-  background: var(--bg-base);
-  border-radius: 10px;
-  border: 1px solid var(--border-subtle);
-  padding: 20px;
-  transition: all 0.2s ease;
-
-  &:hover {
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 1px var(--color-primary-light);
-  }
-}
-
-.section-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 16px;
-  padding: 8px 12px;
-  background: var(--color-primary-light);
-  border-radius: 6px;
-  display: inline-flex;
+.cfg-item {
+  display: flex;
   align-items: center;
   gap: 8px;
-
-  &::before {
-    content: "";
-    width: 8px;
-    height: 8px;
-    background: var(--color-primary);
-    border-radius: 50%;
-  }
 }
 
-.config-row {
-  margin-bottom: 20px;
+.cfg-num {
+  width: 90px;
 }
 
-.config-item {
+.cfg-timeout {
+  width: 80px;
+}
+
+.seg-row {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.config-label {
-  font-size: 13px;
-  color: var(--text-secondary);
-  font-weight: 500;
-}
-
-.concurrency-options {
-  display: flex;
-  gap: 8px;
   align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
-.concurrency-btn {
-  padding: 10px 18px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.2s;
-
-  &:hover {
-    background: var(--color-primary-light);
-    border-color: var(--color-primary);
-  }
-
-  &.active {
-    background: var(--color-primary);
-    color: #fff;
-    border-color: var(--color-primary);
-  }
-}
-
-.custom-concurrency {
+.busy-input {
   width: 120px;
 }
 
 .table-select {
-  width: 100%;
-  max-width: 300px;
-}
-
-.type-options {
-  display: flex;
-  gap: 8px;
-}
-
-.type-btn {
-  padding: 10px 18px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.2s;
-
-  &:hover {
-    background: var(--color-primary-light);
-    border-color: var(--color-primary);
-  }
-
-  &.active {
-    background: var(--color-primary);
-    color: #fff;
-    border-color: var(--color-primary);
-  }
-}
-
-.repeat-options {
-  display: flex;
-  gap: 8px;
-}
-
-.repeat-btn {
-  padding: 10px 18px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.2s;
-
-  &:hover {
-    background: var(--color-primary-light);
-    border-color: var(--color-primary);
-  }
-
-  &.active {
-    background: var(--color-primary);
-    color: #fff;
-    border-color: var(--color-primary);
-  }
-}
-
-.progress-container {
-  background: var(--bg-card);
-  border-radius: 10px;
-  padding: 16px;
-  border: 1px solid var(--border-subtle);
+  width: 220px;
 }
 
 .progress-bar {
   height: 10px;
-  background: var(--border-subtle);
+  background: var(--bg-hover);
   border-radius: 5px;
   overflow: hidden;
-  margin-bottom: 14px;
+  margin-bottom: 8px;
 }
 
 .progress-fill {
@@ -476,56 +402,69 @@ function exportReport() {}
   transition: width 0.3s ease;
 }
 
-.progress-info {
-  display: flex;
-  gap: 24px;
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
+  gap: 12px;
 }
 
-.stat-card {
-  background: var(--bg-card);
-  border-radius: 10px;
-  padding: 20px;
+.stat-cell {
+  background: var(--bg-hover);
+  border-radius: 8px;
+  padding: 12px 10px;
   text-align: center;
-  border: 1px solid var(--border-subtle);
-  transition: all 0.2s ease;
-
-  &:hover {
-    border-color: var(--color-primary);
-    transform: translateY(-2px);
-  }
 }
 
 .stat-label {
   display: block;
   font-size: 12px;
   color: var(--text-muted);
-  margin-bottom: 10px;
+  margin-bottom: 6px;
 }
 
 .stat-value {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 700;
   color: var(--text-primary);
+
+  i {
+    font-style: normal;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-left: 2px;
+  }
 }
 
-.bottom-area {
-  margin-top: auto;
-  padding-top: 20px;
-  border-top: 1px solid var(--border-subtle);
+.dtable.flat {
+  border-radius: 8px;
 }
 
-.action-buttons {
-  display: flex;
-  gap: 12px;
-  margin-top: 16px;
-  justify-content: flex-start;
+.r-type {
+  flex: 0 0 60px;
+}
+
+.r-sql {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  &.mono {
+    font-family: Consolas, "Courier New", monospace;
+    color: var(--text-primary);
+  }
+}
+
+.r-time {
+  flex: 0 0 90px;
+}
+
+.r-ok {
+  flex: 0 0 60px;
+
+  &.dt-fail {
+    color: var(--color-error);
+  }
 }
 </style>

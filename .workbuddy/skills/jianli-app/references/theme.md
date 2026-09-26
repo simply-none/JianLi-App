@@ -27,6 +27,8 @@
 
 完整值见 `src/styles/themes/cobalt.scss`（它包含了主题定义的所有变量名，可作为总表参考）。
 
+> ⚠️ 坑：项目里**没有 `--border-color` 这个变量**（部分旧代码靠 `var(--border-color, #e5e7eb)` 的兜底撑着，深色主题下会发白）。卡片/分隔边一律用 `--border-subtle`；软徽标底色用 `--tag-bg-*` 配 `--color-*` 文字，不要自造浅色 hex。highPerfSql 工作台 2026-09-26 曾因此整页在深色主题下发白，已全量替换为 token。
+
 ## 红线（新增 / 修改任何 UI 必须遵守）
 1. **禁止硬编码颜色**：任何背景、文字、边框、主色一律写 `var(--xxx)`，不得出现 `#hex`、`rgb()/rgba()`、
    `white/black` 等字面量（阴影/半透明 tint 例外，但也应尽量基于 token 的 `color-mix` 或 `--bg-hover` 派生）。

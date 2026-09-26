@@ -24,10 +24,12 @@
 | `execute(sql, params?, primaryKey?)` | 任意 SQL | ❌ **业务禁用**（见 §6） |
 
 > `query` 支持三种形态：① 完整 SQL `SqlStr`（顶层或 `conditions.SqlStr`）；② `whereStr` 自定义 WHERE；③ `conditions` 等值条件对象（自动拼 `col = ?`）。`orderBy/limit/offset` 必须在 **options 顶层**，不要塞进 `conditions`（这是与旧层最大的语义差异）。
+>
+> ⚠️ `SqlStr` 形态的两个坑：会先 `ensureTableExists(tableName)`（表名打错会**偷偷建垃圾表**）且不支持参数。需要「参数化任意 SELECT」时用 **`new-sql:read`**（仅允许 SELECT、走只读连接、不建表，`readSql`）。
 
 ## 3. 渲染端调用（IPC）
 
-主进程已注册 `new-sql:query / count / insert / upsert / update / delete / transaction / listTables / tableInfo / record-pomodoro`。渲染端统一封装薄函数后调用：
+主进程已注册 `new-sql:query / count / insert / upsert / update / delete / transaction / listTables / tableInfo / record-pomodoro / read / execute / explain`。渲染端统一封装薄函数后调用：
 
 ```ts
 // src/views/xxx/api/xxxApi.ts
@@ -75,6 +77,7 @@ await query({ tableName: 'ci', conditions: { author: '苏轼' }, dbName: 'shiciD
 3. 业务表统一以 `key(TEXT)` 作主键；`upsert` 透传 `primaryKey:'key'`，否则退化为重复 INSERT。
 4. 改主进程 `newSql.ts` 后**必须重启 Electron**。
 5. 多写并发：WAL 已开启；跨进程唯一入口（如番茄钟去重 `recordPomodoro`）需在主进程串行，不要放到渲染端。
+6. ⚠️ `update`/`del` 通道内部 `ensureTableExists(tableName)` 用**默认主键 `id`**：对没有 `id` 列的任意表执行会自动 `ALTER ADD COLUMN id` + 建唯一索引（污染表结构）。操作「非自家约定的表」（如用户库里的任意表）时，改用 `new-sql:transaction` 传参数化 UPDATE/DELETE；或传全 `config`/选项里显式主键的通道（`insert`/`upsert` 支持 `config.primaryKey`）。
 
 ## 7. 何时读本文档
 任何「建表 / 读写业务数据 / 补列 / 多库 / 迁移旧层调用」任务。具体模块的数据访问见 `modules/*.md`。

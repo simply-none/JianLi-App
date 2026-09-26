@@ -1,0 +1,635 @@
+/* 高级面板共享样式（严格对齐 Ardot 设计稿 3:346~3:457 面板帧） */
+
+/* ===== 旧版通用工具（QueryBuilder 等仍在用） ===== */
+
+.ap-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ap-card {
+  background: var(--bg-hover);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.ap-card-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.ttl-icon {
+  width: 13px;
+  height: 13px;
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.ap-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.ap-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.ap-field {
+  padding: 7px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-primary);
+  outline: none;
+  background: var(--bg-card);
+  font-family: inherit;
+  box-sizing: border-box;
+
+  &:focus {
+    border-color: var(--color-primary);
+  }
+
+  &.mono {
+    font-family: Consolas, "Courier New", monospace;
+  }
+}
+
+select.ap-field,
+input.ap-field {
+  cursor: text;
+}
+
+select.ap-field {
+  cursor: pointer;
+}
+
+textarea.ap-field {
+  width: 100%;
+  resize: vertical;
+  line-height: 1.6;
+  cursor: text;
+}
+
+.ap-check {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+
+  input {
+    accent-color: var(--color-primary);
+  }
+}
+
+.primary-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 14px;
+  border: none;
+  border-radius: 8px;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+}
+
+.ghost-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+
+.danger-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 12px;
+  border: 1px solid var(--tag-bg-danger);
+  border-radius: 8px;
+  background: var(--bg-card);
+  color: var(--color-error);
+  font-size: 12px;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: var(--tag-bg-danger);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+
+.chip {
+  padding: 4px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+  }
+
+  &.on {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: #fff;
+  }
+}
+
+.ap-sql {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #1e293b;
+  color: #e2e8f0;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.ap-empty {
+  padding: 20px 0;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.ap-list {
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-card);
+  overflow: hidden;
+}
+
+.ap-list-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 12px;
+  color: var(--text-primary);
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &:hover {
+    background: var(--bg-hover);
+  }
+}
+
+.ap-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
+}
+
+/* ===== 设计稿面板规格（pnl-* / dcard / dtable / seg / dlabel / dinput） ===== */
+
+.pnl {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  /* 设计稿面板为白色整卡（3:346 等），不透出页面底色 */
+  background: var(--bg-card);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* 面板头：56px，标题 16 Bold + 副标题 12 + 右侧主按钮 */
+.pnl-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px 0 20px;
+  height: 56px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+}
+
+.pnl-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.pnl-sub {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.pnl-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 面板体：padding 16 20，卡片间 16 */
+.pnl-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 20px;
+
+  /* 面板体靠自身滚动，子项一律不参与 flex 压缩——
+     否则 textarea 等表单控件会被压扁（其 min-content 高度极小，内部可滚） */
+  > * {
+    flex-shrink: 0;
+  }
+}
+
+/* 白底卡片：border + radius 10；tinted = #F9FAFB 说明/状态卡 */
+.dcard {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 14px 16px;
+
+  &.tinted {
+    background: var(--bg-hover);
+  }
+}
+
+.dcard-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+
+  .sub {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--text-secondary);
+  }
+}
+
+.dtip {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+/* 表格卡：40px 表头（bg-hover 12 SemiBold）+ 44px 行（13px） */
+.dtable {
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--bg-card);
+  overflow: hidden;
+}
+
+.dt-head,
+.dt-row {
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+}
+
+.dt-head {
+  height: 40px;
+  background: var(--bg-hover);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.dt-row {
+  min-height: 44px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 13px;
+  color: var(--text-secondary);
+
+  &:hover {
+    background: var(--bg-hover);
+  }
+}
+
+.dt-name {
+  color: var(--text-primary);
+  font-weight: 500;
+  font-family: Consolas, "Courier New", monospace;
+}
+
+.dt-ok {
+  color: var(--color-success);
+}
+
+.dt-act {
+  color: var(--text-secondary);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--color-primary);
+  }
+
+  &.danger:hover {
+    color: var(--color-error);
+  }
+}
+
+/* 设计稿表格（索引 3:346 / 触发器 3:394）无「操作」列；删除悬停行尾显示 */
+.row-del {
+  flex: 1;
+  text-align: right;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+
+  &:hover {
+    color: var(--color-error);
+  }
+}
+
+.dt-row:hover .row-del {
+  opacity: 1;
+}
+
+.dt-empty {
+  padding: 20px 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* 表单：label 13 Medium + 输入 36px radius 8 */
+.dform {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dlabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.dinput {
+  width: 100%;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-card);
+  font-size: 13px;
+  color: var(--text-primary);
+  outline: none;
+  font-family: inherit;
+  box-sizing: border-box;
+
+  &::placeholder {
+    color: var(--text-muted);
+  }
+
+  &:focus {
+    border-color: var(--color-primary);
+  }
+}
+
+textarea.dinput {
+  height: auto;
+  padding: 10px 12px;
+  resize: vertical;
+}
+
+select.dinput {
+  cursor: pointer;
+}
+
+/* 深色 SQL 编辑器（设计稿 #1E283C，两主题固定） */
+.dcode {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  background: #1e283c;
+  color: #dfe6f0;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  outline: none;
+  resize: vertical;
+  box-sizing: border-box;
+
+  &::placeholder {
+    color: #8a9ab5;
+  }
+
+  &.static {
+    color: #dfe6f0;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 180px;
+    overflow-y: auto;
+    cursor: default;
+  }
+}
+
+/* 分段选择：32px，active 蓝底白字 radius 6 */
+.seg {
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+  }
+
+  &.on {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: #fff;
+  }
+}
+
+/* 按钮：主 32/36、绿色、红描边、蓝描边导出、灰重置 */
+.pb {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: none;
+  border-radius: 8px;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  &.sm {
+    height: 32px;
+    padding: 0 14px;
+    font-size: 13px;
+  }
+
+  &.md {
+    height: 36px;
+    padding: 0 16px;
+  }
+
+  &.block {
+    width: 100%;
+    height: 38px;
+  }
+}
+
+.pb-green {
+  background: var(--color-success);
+}
+
+.pb-red-ghost {
+  background: var(--bg-card);
+  border: 1px solid var(--color-error);
+  color: var(--color-error);
+
+  &:hover:not(:disabled) {
+    background: var(--tag-bg-danger);
+  }
+}
+
+.pb-blue-ghost {
+  background: var(--bg-card);
+  border: 1px solid var(--color-primary);
+  color: var(--color-primary);
+
+  &:hover:not(:disabled) {
+    background: var(--color-primary-light);
+  }
+}
+
+.pb-gray {
+  background: var(--bg-hover);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+
+  &:hover:not(:disabled) {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+  }
+}
+
+/* 开关：36×20 蓝底白钮 */
+.toggle {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  border: none;
+  border-radius: 10px;
+  background: var(--border-subtle);
+  cursor: pointer;
+  transition: background 0.2s;
+  flex-shrink: 0;
+  padding: 0;
+
+  &::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    transition: left 0.2s;
+  }
+
+  &.on {
+    background: var(--color-primary);
+
+    &::after {
+      left: 18px;
+    }
+  }
+}
+
+/* 底部导出行：蓝描边按钮组（设计稿 3:1504/3:1507/3:1510 等均靠左） */
+.exp-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+
+  .exp-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+}
