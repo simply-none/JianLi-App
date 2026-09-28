@@ -297,19 +297,25 @@ async function initWALMode() {
     await new Promise<void>((resolve, reject) => {
       wdb.run("PRAGMA journal_mode = WAL;", (err) => {
         if (err) return reject(err);
-        wdb.run("PRAGMA synchronous = NORMAL;", (err2) => {
-          if (err2) return reject(err2);
-          wdb.run("PRAGMA busy_timeout = 5000;", (err3) => {
-            if (err3) return reject(err3);
-            // 写连接已切 WAL 后再开只读专用连接：避免连接建立时库还是 DELETE 日志模式，
-            // 导致只读连接与写连接的日志模式错配（WAL 多连接并发的前提是日志模式一致）。
-            // 注意：sqlite3 不是模块级变量（它只在 createDBFile 内局部定义），这里用模块级 verbose() 取得构造器
-            const sqlite3 = verbose();
-            const rdb = new sqlite3.Database(dbFilePath(dbName));
-            rdb.run("PRAGMA busy_timeout = 5000;", (err4) => {
-              if (err4) return reject(err4);
-              readDb[dbName] = rdb;
-              resolve();
+        // WAL 自动 checkpoint 门槛：默认 1000 页 ≈ 4MB。db.sqlite 已达 137MB（其中
+        // clipboard_history 占 121MB），4MB 阈值意味着写几次就要做一次全库 checkpoint
+        // （写回主库 + fsync），是高频截图/写库场景下的周期性卡顿源。
+        // 抬到 6000 页 ≈ 24MB，显著降低 checkpoint 频次（WAL 文件仍会自动回收）。
+        wdb.run("PRAGMA wal_autocheckpoint = 6000;", () => {
+          wdb.run("PRAGMA synchronous = NORMAL;", (err2) => {
+            if (err2) return reject(err2);
+            wdb.run("PRAGMA busy_timeout = 5000;", (err3) => {
+              if (err3) return reject(err3);
+              // 写连接已切 WAL 后再开只读专用连接：避免连接建立时库还是 DELETE 日志模式，
+              // 导致只读连接与写连接的日志模式错配（WAL 多连接并发的前提是日志模式一致）。
+              // 注意：sqlite3 不是模块级变量（它只在 createDBFile 内局部定义），这里用模块级 verbose() 取得构造器
+              const sqlite3 = verbose();
+              const rdb = new sqlite3.Database(dbFilePath(dbName));
+              rdb.run("PRAGMA busy_timeout = 5000;", (err4) => {
+                if (err4) return reject(err4);
+                readDb[dbName] = rdb;
+                resolve();
+              });
             });
           });
         });
@@ -1135,6 +1141,16 @@ function extractColumnNames(sql: string): string[] {
  * 
  * 根据数据对象自动检测并添加缺失的列。
  * 如果表不存在则创建表。
+ *
+ * 性能（见 2026-09-28 修复）：本函数每次调用都要做 2 次元数据 IO——
+ *   1) SELECT sql FROM sqlite_master（取建表语句）
+ *   2) PRAGMA table_info(tableName)（取现有列名）
+ * 而 upsert() 在事务里每次都会调用它。自从渲染端 setStore 迁移到
+ * setStoreAsync（走 new-sql:upsert）后，basic_info 这类表的写入频率上升，
+ * 每次写入都白跑这 2 次元数据查询 + 建表语句解析，是明确的性能回归。
+ * 故用 ensuredColumnSets 做「表名 | 主键 | 写入列签名（排序后）」缓存：
+ * 命中则直接短路；仅在该次检查「未发生任何 ALTER/CREATE 变更」时才写缓存，
+ * 保证结构变更不会被缓存掩盖。
  * 
  * @param {Database} db - 数据库实例
  * @param {string} tableName - 表名
@@ -1142,21 +1158,31 @@ function extractColumnNames(sql: string): string[] {
  * @param {{ primaryKey?: string }} [config] - 配置选项
  * @returns {Promise<void>}
  */
+const ensuredColumnSets = new Set<string>();
+
 async function ensureTableColumns(
   db: Database,
   tableName: string,
   data: Record<string, any>[],
   config?: { primaryKey?: string; primaryKeyType?: "INTEGER" | "TEXT" }
 ) {
+  const dataCols = [...new Set(data.flatMap((d) => Object.keys(d || {})))].sort().join(',');
+  const colCacheKey = `${tableName}|${config?.primaryKey || 'id'}|${dataCols}`;
+  if (ensuredColumnSets.has(colCacheKey)) {
+    return Promise.resolve();
+  }
   return new Promise<void>((resolve, reject) => {
     db.get(`SELECT sql FROM sqlite_master WHERE type='table' AND name='${tableName}'`, async (err, result: any) => {
       if (err) return reject(err);
+      // 本次检查是否对表结构做了实际变更；有变更则不写缓存，便于下次重新校验
+      let schemaChanged = false;
 
       const pk = config?.primaryKey || 'id';
       const pkType = config?.primaryKeyType || (pk === 'id' ? 'INTEGER' : 'TEXT');
 
       if (!result || !result.sql) {
         const primaryKey = getPrimaryKeyDef(pk, pkType);
+        schemaChanged = true;
 
         await new Promise<void>((res, rej) => {
           db.run(`CREATE TABLE IF NOT EXISTS ${tableName} (${primaryKey});`, [], (createErr) => {
@@ -1173,6 +1199,7 @@ async function ensureTableColumns(
         });
 
         if (!existingColumns.includes(pk)) {
+          schemaChanged = true;
           // SQLite 不支持通过 ALTER 给既存表加主键列，故分两步：
           // 1) 先加普通列；2) 再建唯一索引，等价于主键的唯一约束（ON CONFLICT 可用）。
           await new Promise<void>((res) => {
@@ -1221,6 +1248,7 @@ async function ensureTableColumns(
       );
 
       if (newColumns.length > 0) {
+        schemaChanged = true;
         const alterPromises = newColumns.map(
           (col) =>
             new Promise<void>((res) => {
@@ -1236,6 +1264,11 @@ async function ensureTableColumns(
             })
         );
         await Promise.all(alterPromises);
+      }
+
+      // 结构无变更才缓存：下次同表同列集合的 upsert 直接短路，省去 2 次元数据 IO
+      if (!schemaChanged) {
+        ensuredColumnSets.add(colCacheKey);
       }
 
       resolve();

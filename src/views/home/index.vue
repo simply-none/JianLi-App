@@ -56,10 +56,19 @@ const { startScreenSaverFn, closeScreenSaverFn, injectState, endInjectedState } 
 const { verifyPassword } = useSafetyProtection();
 const curComponent = shallowRef(custom)
 
-watch(() => (homeModeC.value[isIdleNow.value ? 'idle' : currentStateKey.value] || {}), (n, o) => {
-  console.log(n, o, 'homeModeC')
-  // 状态 key 缺失配置时（理论上已被 alignHomeModeKeys 补齐）安全降级，不崩
-  const modeValue = n?.value
+// 性能注意（见 2026-09-28 修复）：
+// 此处监听「当前生效的 homeMode 条目」，原实现带 deep:true —— 而 getter 依赖
+// isIdleNow → idleNow（1s 定时器），导致每秒对该深层对象（含 widgets 数组 / style 对象）
+// 做一次完整递归遍历，并伴随 console.log 打印整个响应式对象，持续占用渲染主线程。
+// homeMode 的写入均为整体替换引用，故只需浅层比较；日志同步移除。
+// 另：getter 改为返回原始值（条目的 value，即模式编号），而非条目对象——
+// 对象字面量在 key 缺失时每次都新建 {}，浅比较会恒不相等，导致 handler 空转。
+const curHomeModeValue = computed(() => {
+  const key = isIdleNow.value ? 'idle' : currentStateKey.value
+  return homeModeC.value[key]?.value || ''
+})
+
+watch(curHomeModeValue, (modeValue) => {
   switch (modeValue) {
     case '1':
       curComponent.value = ImitationWindowsUpdate
@@ -101,7 +110,7 @@ watch(() => (homeModeC.value[isIdleNow.value ? 'idle' : currentStateKey.value] |
       curComponent.value = PoetryHome
       break;
   }
-}, { immediate: true, deep: true })
+}, { immediate: true })
 
 // 打开操作按钮
 function openHomeBtnsFn() {
@@ -127,7 +136,7 @@ function toggleComponent(status) {
 watch(() => currentStateKey.value, () => {
   // 首页展示组件模式变更
   toggleComponent(currentStateKey.value)
-}, { immediate: true, deep: true })
+}, { immediate: true })
 
 // 开启锁屏状态：向番茄钟（多状态提醒 id='pomodoro'）注入「强制锁屏」非序列状态（sequential:false），
 // 结束后由主进程自动归位到 work/rest 序列循环

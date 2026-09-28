@@ -11,14 +11,22 @@ import { initPiniaStatus, type defaultField } from "@/utils/store";
 
 export const prefix = 'curStatusInfo'
 
-// 空闲（免打扰）时段全局判定：基于番茄钟提醒的 idleTime 配置 + 每秒刷新的时钟，
+// 空闲（免打扰）时段全局判定：基于番茄钟提醒的 idleTime 配置 + 定时刷新的时钟，
 // 空闲边界（开始/结束）即时切换。模块级单例，全应用仅一个定时器。
+//
+// 性能注意（见 2026-09-28 修复）：刷新间隔由 1s 调整为 15s。
+// idleTime 的判定精度只到「分钟」（见 utils/idleTime.ts 用 getHours/getMinutes），
+// 每秒刷新属于纯冗余，却在整条链上造成持续开销：
+//   idleNow（每秒变） → isIdleNow 重算 → activeHomeModeKey 重算
+//   → home/index.vue 与 importSmallComponents.vue 的 watch getter 每秒求值。
+// 15s 间隔对免打扰时段这种场景无感（最大误差 15s，边界仍会在 1 个周期内生效）。
 const idleNow = ref(Date.now());
+const IDLE_CLOCK_INTERVAL = 15_000;
 let idleClockStarted = false;
 function startIdleClock() {
   if (idleClockStarted) return;
   idleClockStarted = true;
-  setInterval(() => { idleNow.value = Date.now(); }, 1000);
+  setInterval(() => { idleNow.value = Date.now(); }, IDLE_CLOCK_INTERVAL);
 }
 
 export type StatusMode = "work" | "rest" | "screen" | "lock" | "idle";
@@ -505,10 +513,9 @@ export default defineStore("global-setting", () => {
   });
 
   // 监听上面所有状态的变化，打开番茄钟小窗口同步数据
+  // 注意：此处不可保留 console.log —— 打印 reactive 对象会让 DevTools 做深度序列化，
+  // 且本 effect 依赖较多、变更频繁，日志本身会成为持续的渲染主线程开销（见 2026-09-28 修复）。
   watchEffect(() => {
-    console.log(curStatus.value, "curStatus.value");
-    console.log(forceWorkTimes.value, "forceWorkTimes.value");
-    console.log(todayForceWorkTimes.value, "todayForceWorkTimes.value");
     send('sync-data-to-other-window', {
       curStatus: toRaw(curStatus.value),
       startWorkTime: toRaw(startWorkTimeC.value),

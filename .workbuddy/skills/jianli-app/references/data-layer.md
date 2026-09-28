@@ -26,6 +26,14 @@
 - 业务表统一以 `key(TEXT)` 作主键；`query`/`upsert` 透传 `primaryKey:'key'`。
 - 历史破表可在加载时幂等补列 + 建索引修复（参考 `habitApi.ensureHabitTables`）。
 
+## 元数据检查必须带缓存（2026-09-28 性能教训）
+- newSql 里所有「查 `sqlite_master` / `PRAGMA table_info` 以确认表/列就绪」的检查**都必须带模块级缓存**，否则开销会随调用频率线性放大。
+- 已有两处缓存：
+  - `ensureTableExists` → `ensuredTables`（键 = 表名\|主键\|主键类型\|列签名，并发用 `inFlightEnsures` 去重）。
+  - `ensureTableColumns` → `ensuredColumnSets`（键 = 表名\|主键\|写入列签名）。**`upsert` 在事务内每次都会调它**，原实现每次白跑 `SELECT sql FROM sqlite_master` + `PRAGMA table_info` 2 次元数据 IO；`f0b1337` 把渲染端 `setStore` 迁到 `setStoreAsync`（走 `new-sql:upsert`）后写入频率上升，放大成可感知的卡顿。
+- 写缓存的前提：**该次检查未发生任何 `CREATE` / `ALTER` 变更**（结构变更不入缓存，保证下次重新校验）。这与「运行时禁止在 ensure* 之外 ALTER 业务表」的既有约束配套。
+- 因此 **`setStoreAsync` 不是零成本**：每次写入 = `ensureTableExists` + 全局写锁 + `BEGIN/COMMIT` 事务 + `ensureTableColumns`（缓存命中后短路径）。高频（每秒级）写入仍应改用进程内缓存，不要靠 `setStoreAsync` 硬扛。
+
 ## 渲染端封装
 - `src/views/.../api/*.ts` 调用 `window.ipcRenderer.invoke('new-sql:query', {...})`；建议统一封装 `queryData` / `upsert` / `delete` 之类薄函数。
 - newSql **每秒热路径禁用**（如剪贴板用进程内 `lastText` 缓存，不要高频查库）。

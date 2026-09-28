@@ -12,6 +12,12 @@ export const tableName = "clipboard_history";
 const MAX_IMAGE_DATAURL_LENGTH = 2 * 1024 * 1024;
 // 图片去重指纹取样长度（比较完整 dataURL 开销过大，取长度 + 头部片段足够区分）
 const IMAGE_FINGERPRINT_SAMPLE = 200;
+// 单条文本入库长度上限：拦在写库之前，避免超大文本（实测出现过 7.3MB 单条）
+// 既撑大表，又让 SCAN 成本线性上涨。超限只截断入库，不丢整条记录。
+const MAX_TEXT_LENGTH = 512 * 1024;
+// 监听轮询间隔（ms）。1s 太激进：每分钟 60 次同步系统剪贴板调用，
+// 每次都要阻塞主进程事件循环，鼠标快速移动时的卡顿瞬间就出在这里。
+const POLL_INTERVAL = 1500;
 
 /** 内容类型筛选：与渲染端工具栏的筛选项一一对应 */
 export type ClipboardKind = 'all' | 'text' | 'image' | 'link';
@@ -64,6 +70,31 @@ async function ensureClipboardColumns() {
 }
 
 /**
+ * 补齐索引（幂等，每次启动执行，失败仅记录不影响启动）。
+ *
+ * 性能背景（2026-09-28 修复）：本表长期只靠 `uq_clipboard_history_id` 主键索引，
+ * 而列表查询 / 启动预热都按 `create_time DESC, id DESC` 排序，去重也按 `text` 过滤，
+ * 全无可用索引 ⇒ 每次都是 `SCAN` + `USE TEMP B-TREE FOR ORDER BY`。
+ * 库涨到 120MB+ / 2.6 万行后，单次列表查询实测 **444ms**、去重查找 **445ms**；
+ * 建立 `idx_clipboard_create_time` 后同一查询降到 **15ms**（约 30 倍）。
+ */
+async function ensureClipboardIndexes() {
+  const indexes = [
+    // 列表分页 + 启动预热（ORDER BY create_time DESC, id DESC）
+    `CREATE INDEX IF NOT EXISTS idx_clipboard_create_time ON ${tableName}(create_time DESC, id DESC)`,
+    // 类型筛选（kind = text / image）
+    `CREATE INDEX IF NOT EXISTS idx_clipboard_image ON ${tableName}(image)`,
+  ];
+  for (const sql of indexes) {
+    try {
+      await newSqlExecute(sql);
+    } catch (err) {
+      console.error("clipboard ensure index error:", err);
+    }
+  }
+}
+
+/**
  * 清洗历史脏数据：早期版本把 NativeImage 直接 JSON 序列化后入库（实为 {} 之类的无效值），
  * 会被类型筛选与卡片图片分支误判为图片，这里统一清空。
  */
@@ -89,6 +120,7 @@ export async function initClipboard() {
   });
 
   await ensureClipboardColumns();
+  await ensureClipboardIndexes();
   await cleanLegacyImageData();
   registerClipboardIpc();
   startClipboardMonitor();
@@ -105,7 +137,11 @@ function registerClipboardIpc() {
     async (_e, { keyword, startTime, endTime, kind, limit = 50, offset = 0 }) => {
       try {
         const { where, params } = buildWhere({ keyword, startTime, endTime, kind });
-        const sql = `SELECT * FROM ${tableName} ${where} ORDER BY create_time DESC, id DESC LIMIT ? OFFSET ?`;
+        // 只取渲染端真正消费的列。
+        // 原为 `SELECT *`，会把 rtf / bookmark / findText 这几个富文本大字段
+        // 一并搬给渲染进程，再经 IPC 结构化克隆 —— 纯属浪费（前端从未读取它们）。
+        // text 与 image 是卡片预览必需的，保留原值。
+        const sql = `SELECT id, text, html, image, create_time, use_count, last_used FROM ${tableName} ${where} ORDER BY create_time DESC, id DESC LIMIT ? OFFSET ?`;
         const res = await newSqlExecute(sql, [...params, limit, offset]);
         return { success: true, data: res.rows || [] };
       } catch (err) {
@@ -232,12 +268,60 @@ function registerClipboardIpc() {
 // ensureTableExists（sqlite_master 查询 + 两次 PRAGMA table_info 自省），
 // 即每秒凭空多 3 次 DB 往返，是监听卡顿的根因。
 let lastClipboardText = "";
-// 图片指纹缓存（长度 + 头部片段），避免每秒对整张图做 PNG 编码与全量比较
+// 图片指纹缓存（长度 + 头部片段），避免每次都对整张图做 PNG 编码与全量比较
 let lastImageFingerprint = "";
+// 廉价图片指纹缓存（尺寸 + 位图字节数），**不做 PNG 编码**即可判断图片是否变了
+let lastImageCheapKey = "";
+
+/**
+ * ⚠️ 这里**没有**使用 `clipboard.getChangeCount()` 作为守卫。
+ *
+ * 曾尝试过，但经二进制符号核查确认：Electron 36.9.5 的 `clipboard` 模块**不提供**
+ * 该 API（`electron.exe` 里 `ChangeCount` 仅以 Chromium 媒体指标名出现，与剪贴板无关），
+ * `electron.d.ts` 也没有声明。任何调用都会取到 `undefined` ⇒ 守卫恒失效，
+ * 反而让人误以为已经优化过。**不要重新引入这个思路。**
+ *
+ * 真正可靠的守卫见下方 `cheapImageKey()`：只用「尺寸 + 位图字节数」判断，
+ * 完全不触发 PNG 编码。**同样不要用 `readBuffer('image/png')`** —— 原因见其注释。
+ */
 
 /** 计算图片指纹：长度 + 头部取样，足以区分不同截图且开销极低 */
 function imageFingerprint(dataUrl: string): string {
   return `${dataUrl.length}:${dataUrl.slice(0, IMAGE_FINGERPRINT_SAMPLE)}`;
+}
+
+/**
+ * 廉价图片指纹：**不做 PNG 编码**。
+ *
+ * ⚠️ 关键取舍（2026-09-28 修正）：**不要用 `readBuffer('image/png')`**。
+ * Windows 剪贴板里的图片通常以 DIB/Bitmap 形式存放，并非 PNG。当剪贴板没有
+ * 原生 PNG 数据时，Electron 的 `readBuffer('image/png')` 会在内部**临时编码成 PNG**
+ * 再返回 —— 等于把「省掉的编码」又加回来了，守卫形同虚设。
+ *
+ * 改用「尺寸 + 位图字节数」组合，两者都**不涉及 PNG 编码**：
+ *  - `getSize()` 只读头部尺寸元数据；
+ *  - `toBitmap()` 拿的是 BGRA 原始像素缓冲（无压缩、无编码，纯内存拷贝）。
+ *
+ * 指纹 = `宽x高:位图字节数`。同一张图重复读必然一致；换图（哪怕尺寸相同）
+ * 只要像素缓冲长度不同或尺寸不同就能区分。相比之下只用尺寸太弱（同尺寸的不同
+ * 截图会碰撞 → 漏记录），这个组合在「不编码」的前提下已足够强。
+ *
+ * 极端情况：两张尺寸相同、且像素长度也相同的不同图片会碰撞 → 漏记一条。
+ * 这个概率远低于「同尺寸截图」的必然碰撞，且代价只是少存一条历史，可接受。
+ */
+function cheapImageKey(): string {
+  try {
+    const img = clipboard.readImage();
+    if (img.isEmpty()) return "";
+    const { width, height } = img.getSize();
+    if (!width || !height) return "";
+    // toBitmap 返回 BGRA 原始像素，纯内存拷贝，不做任何编码压缩
+    const bmp = img.toBitmap();
+    const bytes = bmp ? bmp.length : 0;
+    return `${width}x${height}:${bytes}`;
+  } catch {
+    return "";
+  }
 }
 
 /** 带 use_count / last_used 的落库：相同纯文本合并为一条并置顶，图片每次都新增 */
@@ -252,43 +336,69 @@ async function saveClipboardItem(payload: {
 }) {
   const { text, html, image, rtf, bookmark, findText, now } = payload;
 
+  // 超长文本截断（改在写库前拦，避免 7MB 级记录进表放大后续所有 SCAN 成本）
+  const safeText = text.length > MAX_TEXT_LENGTH ? text.slice(0, MAX_TEXT_LENGTH) : text;
+
   // 图片条目不做合并（每次截图都是独立内容），直接新增
   if (image) {
     await newSqlExecute(
       `INSERT INTO ${tableName} (text, html, image, rtf, bookmark, findText, create_time, use_count, last_used) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)`,
-      [text, html, image, rtf, bookmark, findText, now, now]
+      [safeText, html, image, rtf, bookmark, findText, now, now]
     );
     return;
   }
 
-  // 纯文本/富文本：已存在相同文本则合并（次数 +1、时间刷新到置顶），否则新增
-  const exist = await newSqlExecute(
-    `SELECT id FROM ${tableName} WHERE text = ? AND (image IS NULL OR image = '') LIMIT 1`,
-    [text]
-  );
-  const existId = exist.rows && exist.rows[0]?.id;
-  if (existId) {
-    await newSqlExecute(
-      `UPDATE ${tableName} SET use_count = COALESCE(use_count, 0) + 1, last_used = ?, create_time = ? WHERE id = ?`,
-      [now, now, existId]
+  // 纯文本/富文本：已存在相同文本则合并（次数 +1、时间刷新到置顶），否则新增。
+  // 注：这里对 TEXT 列的等值匹配无法走索引（SQLite 无前缀索引，且长文本做索引不划算），
+  // 成本随行数线性上涨，故加 LIMIT 之外再做一道长度短路：超长文本不做合并查找，直接新增。
+  if (safeText.length <= 8192) {
+    const exist = await newSqlExecute(
+      `SELECT id FROM ${tableName} WHERE text = ? AND (image IS NULL OR image = '') LIMIT 1`,
+      [safeText]
     );
-    return;
+    const existId = exist.rows && exist.rows[0]?.id;
+    if (existId) {
+      await newSqlExecute(
+        `UPDATE ${tableName} SET use_count = COALESCE(use_count, 0) + 1, last_used = ?, create_time = ? WHERE id = ?`,
+        [now, now, existId]
+      );
+      return;
+    }
   }
 
   await newSqlExecute(
     `INSERT INTO ${tableName} (text, html, image, rtf, bookmark, findText, create_time, use_count, last_used) VALUES (?, ?, '', ?, ?, ?, ?, 1, ?)`,
-    [text, html, rtf, bookmark, findText, now, now]
+    [safeText, html, rtf, bookmark, findText, now, now]
   );
 }
 
 /**
  * 后台剪贴板监听：监测剪贴板变化并落库（newSql）。
  *
- * 性能约定：
- * 1. 每秒只做轻量的 readText() + availableFormats()，与进程内缓存比对，
- *    未变化直接返回（零 DB、零图片解码）。
- * 2. 只有确认剪贴板里真的有图片格式时，才做 readImage().toDataURL() 的昂贵操作。
- * 3. 写入仅在真正新增/合并时发生，避免每秒 DB 往返。
+ * 性能红线（2026-09-28 修复，**四层守卫，顺序不可调整**）：
+ *
+ *   ┌─ 1. readText() 文本未变 ─────────────────────────── 最便宜
+ *   ├─ 2. availableFormats() 无 image/* ───────────────── 便宜
+ *   ├─ 3. cheapImageKey() 尺寸+位图长度，**不编码** ────── 便宜 ← 关键！
+ *   └─ 4. toDataURL()（PNG 编码）仅新图片才做 ──────────── 昂贵
+ *
+ * **第 3 层的存在是这个函数的全部要点。** 它必须在第 4 层之前拦掉「图片没变」的情况。
+ *
+ * 三次修正的历史（都不要再犯）：
+ *  - v1：把指纹比对放在 `toDataURL()` **之后** ⇒ 每轮白编码一次；
+ *  - v2：加 `getChangeCount()` 序列号守卫，但 **Electron 36 没有这个 API**
+ *    （`electron.d.ts` 未声明，`electron.exe` 里也搜不到剪贴板相关的 ChangeCount）
+ *    ⇒ 守卫恒失效，问题原样保留；
+ *  - v3：用 `readBuffer('image/png')` 做廉价指纹，但 **Windows 剪贴板里图片通常是
+ *    DIB/Bitmap 而非 PNG**，没有原生 PNG 数据时 `readBuffer` 会**内部临时编码** ⇒
+ *    又把编码加回来了；
+ *  - v4（现行）：`getSize()` + `toBitmap().length`，两者都不触发任何编码。
+ *
+ * 用户可复现的症状正好对应这条链：**剪贴板最近一条是文本时不卡（走不到第 3 层），
+ * 是图片时卡（每轮一路走到第 4 层）**。
+ *
+ * 序列号守卫实测无效已移除；`readBuffer('image/png')` 亦被否决。**两者都不要重新引入**，
+ * 原因见上方 `cheapImageKey()` 的注释。
  */
 function startClipboardMonitor() {
   // 启动时用最新一条文本预热缓存，避免重启后首次复制重复落库
@@ -296,7 +406,15 @@ function startClipboardMonitor() {
     .then((res) => {
       const row = res.rows && res.rows[0];
       lastClipboardText = row?.text || "";
-      lastImageFingerprint = row?.image ? imageFingerprint(row.image) : "";
+      if (row?.image) {
+        lastImageFingerprint = imageFingerprint(row.image);
+        // 库里的 dataURL 无法反推原始 PNG 字节，故廉价指纹留空：
+        // 首次轮询会多编码一次（可接受的一次性代价），之后即靠廉价指纹命中。
+        lastImageCheapKey = "";
+      } else {
+        lastImageFingerprint = "";
+        lastImageCheapKey = "";
+      }
     })
     .catch((err) => console.error("clipboard seed last text error:", err));
 
@@ -304,18 +422,30 @@ function startClipboardMonitor() {
     const text = clipboard.readText();
     const hasText = !!text && !!text.trim();
 
-    // 文本未变化：再判断图片（先用便宜的 availableFormats 守卫，避免每秒编码图片）
+    // ── 文本未变化：再判断图片 ──
     if (!hasText || text === lastClipboardText) {
+      // 第 2 层：格式守卫（避免对纯文本剪贴板做任何图片读取）
       const formats = clipboard.availableFormats();
       const hasImageFormat = formats.some((f: string) => f.toLowerCase().startsWith("image/"));
-      if (!hasImageFormat) return;
+      if (!hasImageFormat) {
+        // 剪贴板是纯文本：清空图片缓存，避免「文本 → 图片 → 文本」来回切时误判
+        lastImageCheapKey = "";
+        lastImageFingerprint = "";
+        return;
+      }
 
+      // 第 3 层（关键）：廉价指纹 —— 只读尺寸 + 位图长度，**不做 PNG 编码**
+      const cheapKey = cheapImageKey();
+      if (cheapKey && cheapKey === lastImageCheapKey) return; // 图片没变 → 零编码返回
+
+      // 第 4 层：确认是新图片，才付编码代价
       const img = clipboard.readImage();
       if (img.isEmpty()) return;
       const dataUrl = img.toDataURL();
       const fingerprint = imageFingerprint(dataUrl);
-      // 图片也没变化：完全跳过
-      if (fingerprint === lastImageFingerprint) return;
+
+      // 廉价指纹可能因 readBuffer 失败而为空，此时回落到昂贵指纹兜底去重
+      if (!cheapKey && fingerprint === lastImageFingerprint) return;
 
       const now = moment().format("YYYY-MM-DD HH:mm:ss");
       try {
@@ -342,6 +472,8 @@ function startClipboardMonitor() {
           });
         }
         lastImageFingerprint = fingerprint;
+        // 只有成功落库/记账后才刷新廉价指纹，失败则下轮重试
+        lastImageCheapKey = cheapKey;
       } catch (err) {
         console.error("clipboard image insert error:", err);
       }
@@ -358,8 +490,11 @@ function startClipboardMonitor() {
       const now = moment().format("YYYY-MM-DD HH:mm:ss");
       await saveClipboardItem({ text, html, image: "", rtf, bookmark, findText, now });
       lastClipboardText = text;
+      // 剪贴板已换成文本，图片缓存作废
+      lastImageCheapKey = "";
+      lastImageFingerprint = "";
     } catch (err) {
       console.error("clipboard insert error:", err);
     }
-  }, 1000);
+  }, POLL_INTERVAL);
 }

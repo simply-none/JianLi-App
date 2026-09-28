@@ -64,14 +64,23 @@ const currentSmallComps = computed(() => {
   })
 })
 
-watch(() => homeModeC.value[activeHomeModeKey.value] || {}, (n, o) => {
+// 性能注意（见 2026-09-28 修复）：
+// 这里【不能】用 deep:true。原实现 watch(() => homeModeC.value[key], ..., {deep:true})
+// 的 getter 依赖 activeHomeModeKey → isIdleNow → idleNow（1s 定时器），导致：
+//   1) 每秒 getter 重跑一次，deep 会对 homeMode 整棵子树做完整递归遍历；
+//   2) 一旦判定变化就执行 JSON.parse(JSON.stringify(整个 homeMode)) 全量深拷贝；
+//   3) modeData.value = md 再触发一轮组件重渲染。
+// 而 homeMode 的每次写入都是整体替换对象引用（setHomeMode / alignHomeModeKeys 都是
+// homeMode.value = 新对象），所以靠引用比较即可感知「用户改配置」，无需 deep 遍历。
+// 改为监听 [activeHomeModeKey, homeModeC] 两个浅值，仅在真正变化时做深拷贝。
+watch([activeHomeModeKey, homeModeC], () => {
   homeModeCc.value = JSON.parse(JSON.stringify(homeModeC.value || {}))
   const curKey = activeHomeModeKey.value
   const curEntry = homeModeCc.value[curKey] || {}
   // 状态 key 缺失时安全降级为空布局，不崩
   const md = (curEntry.mode || {})[curEntry.value] || {}
   modeData.value = md
-}, { immediate: true, deep: true })
+}, { immediate: true })
 
 const computedBackgroundColorPriority = computed(() => {
   if (modeData.value[props.modeName] && modeData.value[props.modeName]['basic'] && modeData.value[props.modeName]['basic']['backgroundPriority']) {
