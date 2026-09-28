@@ -62,14 +62,33 @@
 
 ## 可视化流水线（第 13 个操作入口，SQL 教学模式）
 - 定位：**教用户数据库操作**——节点即真实 SQL 子句（FROM/WHERE/GROUP BY/SELECT/INSERT），图 → SQL 确定性编译，不是虚拟业务层流水线。
+- **界面语言总原则（2026-09-28 重做）**：以「人话」为主、SQL 关键字为辅。凡用户可见文案，先问「不懂 SQL 的人看得懂吗」。术语对照：`humanLabel`（数据源/筛选条件/分组统计/输出列/写回表）为主标，`label`（FROM/WHERE/…）降级为灰色副标；「探针」→「预览这步行数」；「自动整理」→「一键排整齐」；「模板」→「布局」。**新增用户可见文案时禁止再用「探针/流水线编译/子句库」等实现者词汇。**
 - 代码：`src/views/highPerfSql/visual/`（模块化拆分，避免单文件过大）：
-  - `types.ts`：节点数据模型（`PipelineNodeData`/`NodeKind`/`KIND_META` 颜色表）
-  - `compiler.ts`：**纯函数编译器**（图→SQL；值一律 `?` 参数化、标识符双引号包裹；`probeCountSql` 生成节点级探针 COUNT；`connectionError` 校验连线方向）
+  - `types.ts`：节点数据模型（`PipelineNodeData`/`NodeKind`/`KIND_META`）。`KIND_META` 现含 `humanLabel`/`desc`（属性面板说明卡）/`emptyHint`（节点空态文案）/`color`/`softBg`/`order`；另导出 **`nodeEmpty(data)`** 判定节点是否「未配置」（画布虚线灰边 + 空态文案的依据；SELECT 留空 = 全部列，恒不算空）。
+  - `compiler.ts`：**纯函数编译器**（图→SQL；值一律 `?` 参数化、标识符双引号包裹；`probeCountSql` 生成节点级探针 COUNT；`connectionError` 校验连线方向）。**两个关键产物**：
+    - `lineMap: SqlLine[]` —— SQL **逐行**拆解并标注来源 `nodeId`，是「画布节点 ⇔ SQL 行」双向高亮的唯一数据源。**`select.sql` 由 lineMap 拼出**（`lines.map(l=>l.text).join("\n")`），二者恒一致，不要单独拼 sql 字符串。
+    - `issues: CompileIssue[]` —— 结构化错误（带 `nodeId` 用于定位、`fix` 用于一键修复）。`errors: string[]` 仍保留（= `issues.map(i=>i.message)`），旧调用方不受影响。`fix: "remove-extra-from"` 表示「多余的 FROM 节点」，由 `VisualPipeline.applyFix()` 消费。
+    - 另有 `nodeSummary(data)`：节点卡片上的**人话摘要**（与 `nodeFragment` 的真 SQL 片段分工，摘要给新手、片段给想看 SQL 的人）。
   - `api.ts`：IPC 薄封装（读 `new-sql:read`、写 `new-sql:transaction`、自省 listTables/tableInfo）
-  - `VisualPipeline.vue`：编排器（VueFlow 画布 + 工具栏 + 状态）
-  - `components/`：`SqlClauseNode`（自定义节点，片段+探针徽标）、`NodeLibrary`（子句库芯片）、`PropertyPanel`（按 kind 分区表单）、`SqlPreviewBar`（底部实时 SQL）、`PipelineResultTable`（结果表，预览 200 行）、`WriteConfirmDialog`（写双重确认弹窗）
-- 入口：`OperationSelector` 新增 `visual`（icon `Workflow`）；选中时 `index.vue` 独占内容区渲染 `VisualPipeline`（不走共用 ResultPanel）。
+  - `VisualPipeline.vue`：编排器。含 **① 上手横幅 ② 分组工具栏 ③ 非阻塞提示条（`softTip`）④ 错误卡（可定位 + 一键修复）⑤ 画布 ⑥ 左侧积木箱 ⑦ 右栏属性+结果**。
+    - **落点算法**：`addNodeByKind` 锚定「kind order 最大、其次 y 最大」的节点，落在其 `(+280, +40)`；**禁止再用 `window.innerWidth` 做偏移**（旧实现导致节点散落成堆）。
+    - **自动连线**：新加节点会自动连到 order 恰好更小的最近前驱，降低「忘了连线」门槛。
+    - **重复 FROM 拦截**：点「数据源」芯片而已有 FROM 时**不报错**，改为选中并闪一下既有节点 + `softTip` 提示改表位置。
+    - **双向联动状态**：`hoverNodeId`（悬停节点）、`activeLineNo`（悬停 SQL 行）两个 ref；watch 里算出 `__linked` 注入节点 data。`activeLineNo` 优先于 `hoverNodeId`。
+    - **节点序号** `nodeOrder`：按 `KIND_META.order` 排序生成 1..n，注入节点 `__order`，与 SQL 行号视觉对应。
+    - 初始化 `buildStarterGraph()` 建 **FROM→WHERE→GROUP BY→SELECT** 四节点完整链（避免打开就是散点），`onMounted` 里 `nextTick` + `setTimeout(60)` 后再 `autoLayout()`（dagre 需要节点已量出 dimensions）。
+  - `components/`：
+    - `SqlClauseNode`：三层信息 = 人话标题+序号 → 人话摘要 → 真 SQL 片段（小字灰）；`empty` 态用**虚线灰边**；`linked` 态用于 SQL 联动高亮；探针徽标 tooltip 说明「数据流到这一步还有 N 行」。
+    - `NodeLibrary`：**左侧竖栏「积木箱」**（190px，不再压在画布上）；每项 = 中文名 + SQL 灰色副标 + 一句人话说明；支持 `draggable` 拖拽（`application/sql-node-kind`）。
+    - `PropertyPanel`：顶部**说明卡**（`KIND_META.desc` + 空态警告）→ 表单 → **本步 SQL 对照块** → 操作区。WHERE 条件行带「满足/并且」前缀；表字段以 **chips** 呈现可点击填入（`fillField`/`appendCol`/`appendSelectCol`）；**未选中时是引导式空态**（列 5 种积木，可直接点添加）。删除按钮已降噪（默认灰、hover 才红）。
+    - `SqlPreviewBar`：**报错时依然显示 SQL**（旧实现会整块变红藏起来，教学价值全丢）；错误作为附加行压在下方；每行左侧序号 chip + hover 高亮（`hover-line` 事件）；语法高亮配色与「高级 SQL」tab 同源（`.k`#F2B95C / `.id`#7ED0A8 / `.n`#C4D2F0 / `.ph`#FFD479）。
+    - `PipelineResultTable`：空态是**带引导的虚线框**（点运行 or 点步骤上的 ▶）。
+    - `WriteConfirmDialog`：写双重确认弹窗。
+- 入口：`index.vue` 的 `TABS` 含 `visual`；`activeNav === 'visual'` 时独占内容区渲染 `VisualPipeline`（不走共用 ResultPanel）。
 - 新增 IPC：**`new-sql:read`**（`newSql.ts` 的 `readSql`）——仅允许 SELECT、走 `getReadDb` 只读连接、支持 params 参数化、**不调 `ensureTableExists`**（区别于 `query({SqlStr})`：后者表名写错会建垃圾表且不支持参数）。写路径复用既有 `new-sql:transaction`（runInTx+withWriteLock，失败回滚），语句形如 `INSERT INTO 目标 (输出列) SELECT ...`。
-- 交互约定：FROM 唯一且不接受入边；INSERT 不接出边；连线方向须符合执行顺序；写操作默认禁用（工具栏「允许写操作」开关）+ 弹窗双重确认。
+- 交互约定：FROM 唯一且不接受入边；INSERT 不接出边；连线方向须符合执行顺序；写操作默认禁用（工具栏「允许写回」开关 + 锁图标橙色态）+ 弹窗双重确认。
 - 模板持久化：V1 存 `localStorage`（key `sql-pipeline-templates`），后续可迁 SQLite `sql_pipeline` 表。
-- 坑：VueFlow 样式必须引入（`VisualPipeline.vue` 底部非 scoped style 已独立 `@import` 两个 css，不依赖 flow 页面）；自动整理动态 import `../../flow/useLayout`（dagre LR）。
+- 坑：VueFlow 样式必须引入（`VisualPipeline.vue` 底部非 scoped style 已独立 `@import` 两个 css，不依赖 flow 页面）；自动布局走 `../../flow/useLayout`（dagre LR），**必须在 setup 期调用以共享同一 VueFlow 实例**。
+- **画布事件名**：VueFlow 的悬停事件是 `@node-mouse-enter` / `@node-mouse-leave`（不是 `mouseenter`）。
+- **画可视化 tab 设计稿时的量测规矩**（2026-09-28 踩坑）：画布是 `width:"fill_container"`，**它的实际内宽必须先量再用**——在 1440 帧里，扣掉左侧积木箱 190 + 右栏 340 + 面板 padding，画布内宽只有 **约 846px**，而不是 1440。凭感觉按 1440 铺节点会让最后 1~2 个节点被 `clipsContent` 裁掉（截图里表现为「只露出 3 个节点」）。规矩：① 先 `capture_layout(parentId=画布ID, maxDepth:1)` 读 bounds 拿真实内宽；② 一行放不下就**折行铺第二行**（长连线绕过空位指向第二行首节点），不要硬压节点宽度；③ 收尾用 `capture_layout(problemsOnly:true)` 查 `OUTSIDE_PARENT` / `overlaps`，带 `Outside parent... clipsContent:true` 的必须修掉（真裁切），提示「overlaps with 箭头」且位移 ≤2px 的属良性可忽略。
+

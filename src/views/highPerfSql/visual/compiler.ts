@@ -64,14 +64,17 @@ function walkChain(fromId: string, nodes: Map<string, GraphNode>, edges: GraphEd
 }
 
 /** 校验链上节点顺序符合 KIND_META.order（INSERT 除外，单独处理） */
-function orderErrors(chain: ChainStep[]): string[] {
-  const errors: string[] = [];
+function orderErrors(chain: ChainStep[]): CompileIssue[] {
+  const errors: CompileIssue[] = [];
   let prevOrder = -1;
   for (const step of chain) {
     if (step.data.kind === "insert") continue;
     const order = KIND_META[step.data.kind].order;
     if (order < prevOrder) {
-      errors.push(`节点顺序错误：${KIND_META[step.data.kind].label} 应出现在链路更靠前的位置`);
+      errors.push({
+        message: `节点顺序不对：「${KIND_META[step.data.kind].humanLabel}」应该排在更前面`,
+        nodeId: step.id,
+      });
     }
     prevOrder = Math.max(prevOrder, order);
   }
@@ -134,6 +137,34 @@ export function nodeFragment(data: PipelineNodeData): string {
   }
 }
 
+/**
+ * 节点卡片上的「人话摘要」：不写 SQL，直接说这一步现在是什么状态。
+ * 与 nodeFragment（真 SQL 片段）分工：摘要给新手，片段给想看 SQL 的人。
+ */
+export function nodeSummary(data: PipelineNodeData): string {
+  switch (data.kind) {
+    case "from":
+      return data.table ? `来自「${data.table}」` : KIND_META.from.emptyHint;
+    case "where": {
+      const conds = (data.conditions || []).filter((c) => c.field);
+      if (conds.length === 0) return KIND_META.where.emptyHint;
+      const first = conds[0];
+      const tail = conds.length > 1 ? ` 等 ${conds.length} 个条件` : "";
+      return `只留 ${first.field} ${first.op} ${first.value || "?"}${tail}`;
+    }
+    case "groupBy": {
+      const cols = (data.groupByCols || []).filter(Boolean);
+      return cols.length ? `按「${cols.join("、")}」归并` : KIND_META.groupBy.emptyHint;
+    }
+    case "select":
+      return (data.selectCols || []).filter(Boolean).length
+        ? `只输出「${(data.selectCols || []).filter(Boolean).join("、")}」`
+        : KIND_META.select.emptyHint;
+    case "insert":
+      return data.targetTable ? `存进「${data.targetTable}」` : KIND_META.insert.emptyHint;
+  }
+}
+
 export interface CompileInput {
   nodes: GraphNode[];
   edges: GraphEdge[];
@@ -146,10 +177,39 @@ export interface CompiledSelect {
   outputCols: string[];
 }
 
+/**
+ * 一条编译问题（错误）。
+ * nodeId 让界面能定位到出问题的节点；fix 让「一键修复」知道该做什么。
+ */
+export interface CompileIssue {
+  message: string;
+  /** 相关节点（用于点击错误高亮对应节点） */
+  nodeId?: string;
+  /**
+   * 可自动修复的动作描述。
+   * - "remove-extra-from"：多余的 FROM 节点（保留链上的第一个）
+   * - "pick-table"：新加一个 FROM 并提示选表（无处可修时不给 fix）
+   */
+  fix?: "remove-extra-from";
+}
+
+/** SQL 中的一行及其来源节点，供「点 SQL 高亮节点 / 点节点高亮 SQL」双向联动 */
+export interface SqlLine {
+  /** 行号（1-based，仅用于展示） */
+  no: number;
+  text: string;
+  /** 该行由哪个节点产生（无则为 undefined，如括号、缩进续行） */
+  nodeId?: string;
+}
+
 /** 整图编译产物：ok=false 时只保证 errors 有值 */
 export interface CompileResult {
   ok: boolean;
   errors: string[];
+  /** 结构化问题清单（与 errors 同源，多带 nodeId / fix） */
+  issues: CompileIssue[];
+  /** 主查询 SQL 拆行 + 来源节点映射（ok=false 时可能为空） */
+  lineMap: SqlLine[];
   select?: CompiledSelect;
   insertSql?: string;
   insertParams?: any[];
@@ -157,33 +217,64 @@ export interface CompileResult {
 }
 
 /**
- * 编译整张图。不抛异常，错误集中在 errors 里返回，方便画布上直接展示。
+ * 编译整张图。不抛异常，问题集中在 issues 里返回，方便画布上直接展示与定位。
  */
 export function compilePipeline({ nodes, edges }: CompileInput): CompileResult {
-  const errors: string[] = [];
+  const issues: CompileIssue[] = [];
   const nodeMap = new Map<string, GraphNode>(nodes.map((n) => [n.id, n]));
 
+  const empty: Pick<CompileResult, "lineMap"> = { lineMap: [] };
+
   const fromNodes = nodes.filter((n) => n.data.kind === "from");
-  if (fromNodes.length === 0) errors.push("缺少 FROM 节点：请从子句库添加一个数据源表");
-  if (fromNodes.length > 1) errors.push("FROM 节点只能有一个（多表联查请用视图或 SQL 控制台）");
-  if (fromNodes.length !== 1) return { ok: false, errors };
+  if (fromNodes.length === 0) {
+    issues.push({ message: "还没有「数据源」节点：请从左侧积木箱拖入一个「数据源」" });
+  }
+  if (fromNodes.length > 1) {
+    // 多余的 FROM 节点可一键清理：保留排在最前的（通常就是链首），删掉其余
+    issues.push({
+      message: `有 ${fromNodes.length} 个「数据源」节点，但只能有一个 —— 多余的会干扰编译`,
+      fix: "remove-extra-from",
+    });
+  }
+  if (fromNodes.length !== 1) {
+    return { ok: false, errors: issues.map((i) => i.message), issues, ...empty };
+  }
 
   const from = fromNodes[0];
-  if (!from.data.table) errors.push("FROM 节点未选择数据源表");
+  if (!from.data.table) {
+    issues.push({ message: "「数据源」还没选表：在右侧属性面板里挑一张", nodeId: from.id });
+  }
 
   const chain = walkChain(from.id, nodeMap, edges).filter((s) => s.data.kind !== "insert");
-  errors.push(...orderErrors(chain));
+  issues.push(...orderErrors(chain));
 
   const selectNode = chain.find((s) => s.data.kind === "select");
-  if (!selectNode) errors.push("缺少 SELECT 节点：链路需要以 SELECT 输出结尾");
+  if (!selectNode) {
+    const disconnected = nodes.filter((n) => n.data.kind === "select" && !chain.some((c) => c.id === n.id));
+    issues.push({
+      message: disconnected.length
+        ? "「输出列」节点还没有连上流水线：从上一个节点拉一条线过来"
+        : "缺少「输出列」节点：一条完整流水线必须以它结尾",
+      nodeId: disconnected[0]?.id,
+    });
+  }
 
   const insertNode = nodes.map((n) => n.data).find((d) => d.kind === "insert");
-  if (insertNode && !insertNode.targetTable) errors.push("INSERT 节点未选择写回目标表");
+  if (insertNode && !insertNode.targetTable) {
+    const insertGraphNode = nodes.find((n) => n.data.kind === "insert");
+    issues.push({ message: "「写回表」还没选目标表", nodeId: insertGraphNode?.id });
+  }
 
-  if (errors.length > 0) return { ok: false, errors };
+  if (issues.length > 0) {
+    return { ok: false, errors: issues.map((i) => i.message), issues, ...empty };
+  }
 
-  // ---- 组装 SELECT ----
+  // ---- 组装 SELECT（逐行记录来源节点，供双向联动）----
   const params: any[] = [];
+  const lines: SqlLine[] = [];
+  const pushLine = (text: string, nodeId?: string) => {
+    lines.push({ no: lines.length + 1, text, nodeId });
+  };
 
   const chainNoSelect = chain.filter((s) => s.data.kind !== "select");
   const whereSteps = chainNoSelect.filter((s) => s.data.kind === "where");
@@ -191,23 +282,34 @@ export function compilePipeline({ nodes, edges }: CompileInput): CompileResult {
   const { frags: outFrags, cols } = outputList(selectNode!.data);
 
   const selectList = outFrags.length ? outFrags.join(", ") : "*";
-
-  let sql = `SELECT ${selectList}\nFROM ${qid(from.data.table!)}`;
+  pushLine(`SELECT ${selectList}`, selectNode!.id);
+  pushLine(`FROM ${qid(from.data.table!)}`, from.id);
 
   const whereFrags: string[] = [];
-  for (const w of whereSteps) whereFrags.push(...conditionFragments(w.data, params));
-  if (whereFrags.length) sql += `\nWHERE ${whereFrags.join("\n  AND ")}`;
+  for (const w of whereSteps) {
+    // WHERE 的每个条件都归属其来源 WHERE 节点；关键字行与条件行同源
+    const before = whereFrags.length;
+    whereFrags.push(...conditionFragments(w.data, params));
+    const added = whereFrags.slice(before);
+    if (added.length === 0) continue;
+    if (before === 0) pushLine(`WHERE ${added[0]}`, w.id);
+    else pushLine(`  AND ${added[0]}`, w.id);
+    for (const extra of added.slice(1)) pushLine(`  AND ${extra}`, w.id);
+  }
 
   const groupCols = (groupStep?.data.groupByCols || []).filter(Boolean);
-  if (groupCols.length) sql += `\nGROUP BY ${groupCols.map(qid).join(", ")}`;
+  if (groupCols.length) {
+    pushLine(`GROUP BY ${groupCols.map(qid).join(", ")}`, groupStep!.id);
+  }
 
   if (selectNode!.data.orderByCol) {
-    sql += `\nORDER BY ${qid(selectNode!.data.orderByCol)}${selectNode!.data.orderByDesc ? " DESC" : ""}`;
+    pushLine(`ORDER BY ${qid(selectNode!.data.orderByCol)}${selectNode!.data.orderByDesc ? " DESC" : ""}`, selectNode!.id);
   }
   if (selectNode!.data.limit != null && (selectNode!.data.limit as number) > 0) {
-    sql += `\nLIMIT ${Math.floor(selectNode!.data.limit as number)}`;
+    pushLine(`LIMIT ${Math.floor(selectNode!.data.limit as number)}`, selectNode!.id);
   }
 
+  const sql = lines.map((l) => l.text).join("\n");
   const select: CompiledSelect = { sql, params, outputCols: cols };
 
   // ---- 写回语句（存在 INSERT 节点时）----
@@ -215,14 +317,27 @@ export function compilePipeline({ nodes, edges }: CompileInput): CompileResult {
   let insertParams: any[] | undefined;
   if (insertNode) {
     if (cols.length === 0) {
-      errors.push("写回需要显式输出列：请在 SELECT 节点填写输出列或聚合列（不能为 *）");
-      return { ok: false, errors, select };
+      const insertGraphNode = nodes.find((n) => n.data.kind === "insert");
+      issues.push({
+        message: "写回需要先指定输出列：在「输出列」节点里填上要写出哪些列（不能是全部列 *）",
+        nodeId: selectNode?.id ?? insertGraphNode?.id,
+      });
+      return { ok: false, errors: issues.map((i) => i.message), issues, select, lineMap: lines };
     }
     insertSql = `INSERT INTO ${qid(insertNode.targetTable!)} (${cols.map(qid).join(", ")})\n${sql}`;
     insertParams = params;
   }
 
-  return { ok: true, errors: [], select, insertSql, insertParams, targetTable: insertNode?.targetTable };
+  return {
+    ok: true,
+    errors: [],
+    issues: [],
+    select,
+    lineMap: lines,
+    insertSql,
+    insertParams,
+    targetTable: insertNode?.targetTable,
+  };
 }
 
 /**
@@ -276,11 +391,15 @@ export function connectionError(
   sourceKind: NodeKind | undefined,
   targetKind: NodeKind | undefined
 ): string | null {
-  if (!sourceKind || !targetKind) return "连线两端必须是流水线节点";
-  if (targetKind === "from") return "FROM 是数据源头，不能接收输入";
-  if (sourceKind === "insert") return "INSERT 是终点，不能继续向后连线";
+  if (!sourceKind || !targetKind) return "连线的两端都必须是流水线里的节点";
+  if (targetKind === "from") {
+    return "「数据源」是起点，不能再接收别人连过来的线";
+  }
+  if (sourceKind === "insert") {
+    return "「写回表」是终点，后面不用再接东西了";
+  }
   if (KIND_META[targetKind].order <= KIND_META[sourceKind].order && !(sourceKind === "where" && targetKind === "where")) {
-    return `连线方向应符合执行顺序：${KIND_META[sourceKind].label} → ${KIND_META[targetKind].label} 不合法`;
+    return `连线方向反了：数据要先经过「${KIND_META[sourceKind].humanLabel}」，再到「${KIND_META[targetKind].humanLabel}」`;
   }
   return null;
 }

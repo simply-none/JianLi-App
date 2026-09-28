@@ -167,7 +167,9 @@ defineExpose({ addLog });
 .result-panel {
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  /* 不参与压缩：内容至少 .rp-body 的 300px，超出由外层 .sql-console 滚动 */
+  flex-shrink: 0;
+  min-height: 300px;
   border: 1px solid var(--border-subtle);
   border-radius: 10px;
   background: var(--bg-card);
@@ -258,7 +260,9 @@ defineExpose({ addLog });
 
 .rp-body {
   flex: 1;
-  min-height: 0;
+  /* 三个页签（数据表格 / 执行计划 / 消息日志）统一最小高度 300px，
+     避免结果区在内容少时塌成一条窄缝 */
+  min-height: 300px;
   display: flex;
   flex-direction: column;
   padding: 10px 12px;
@@ -274,8 +278,10 @@ defineExpose({ addLog });
 }
 
 .rp-table-wrap {
-  flex: 1;
-  min-height: 0;
+  flex: 1 1 auto;
+  /* 撑满 .rp-body（其 min-height 为 300px）；自身滚动，
+     不用 min-height:0 —— 否则在仅有 min-height 的父级里会塌成 0 高 */
+  min-height: 240px;
   overflow: auto;
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
@@ -326,11 +332,11 @@ defineExpose({ addLog });
   color: var(--text-muted);
 }
 
+/* 消息日志：跟随 .rp-body 的 300px 最小高度，自身负责滚动 */
 .rp-log {
-  flex: 1;
-  min-height: 0;
+  flex: 1 1 auto;
+  min-height: 240px;
   overflow-y: auto;
-  max-height: 220px;
 }
 
 .log-item {
