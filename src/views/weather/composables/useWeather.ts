@@ -2,13 +2,17 @@
  * 天气数据组合式函数
  * 数据来源优先级：
  *   1. 数据库 weather_data 表（updated_at 未过缓存时效 → 直接展示）
- *   2. 缓存过期或无记录 → 主进程爬虫获取 → 异步 upsert 回数据库
- * 天气数据不再使用 localStorage 存储
+ *   2. 缓存过期或无记录 → 主进程按「数据源降级链」获取 → 异步 upsert 回数据库
+ *
+ * 数据源由主进程 weather/registry.ts 按用户配置的 providerOrder 依次尝试，
+ * 渲染端只需读取返回数据中的 source / capabilities / _trace。
+ * 天气数据不再使用 localStorage 存储。
  */
 import { ref } from 'vue'
-import type { WeatherData } from '../types'
+import type { ProviderId, WeatherData } from '../types'
 import { getCacheTTL } from '../constants'
 import { getWeatherRow, saveWeatherToDb } from '../db'
+import { fetchWeather } from '../api'
 
 /**
  * 创建天气数据控制器
@@ -48,17 +52,18 @@ export function useWeather(onLog?: (message: string, type?: 'info' | 'success' |
   /**
    * 按城市加载天气（优先命中数据库缓存）
    * @param city 城市名
-   * @param forceRefresh 是否强制刷新（跳过数据库缓存，直接爬取）
-   * @throws 网络或解析失败时抛出 Error，由调用方决定提示方式
+   * @param forceRefresh 是否强制刷新（跳过数据库缓存，直接走主进程降级链）
+   * @param providerId 指定单一数据源（不做降级），省略则走配置的降级链
+   * @throws 全链路失败时抛出 Error，由调用方决定提示方式
    */
-  async function loadByCity(city: string, forceRefresh = false) {
+  async function loadByCity(city: string, forceRefresh = false, providerId?: ProviderId) {
     loading.value = true
     loadingText.value = `正在获取 ${city} 的天气...`
-    onLog?.(`开始获取天气: ${city}, 强制刷新: ${forceRefresh}`, 'info')
+    onLog?.(`开始获取天气: ${city}, 强制刷新: ${forceRefresh}${providerId ? `, 指定源: ${providerId}` : ''}`, 'info')
 
     try {
-      // 非强制刷新时优先使用数据库缓存（updated_at 未过时效即有效）
-      if (!forceRefresh) {
+      // 非强制刷新且未指定数据源时优先使用数据库缓存
+      if (!forceRefresh && !providerId) {
         const cached = await readDbCache(city)
         if (cached) {
           weatherData.value = cached
@@ -68,21 +73,23 @@ export function useWeather(onLog?: (message: string, type?: 'info' | 'success' |
         }
       }
 
-      onLog?.(`IPC 调用 get-weather: city=${city}`, 'info')
-      const result = await window.ipcRenderer.invoke('get-weather', { city, forceRefresh })
+      onLog?.(`IPC 调用 get-weather: city=${city}${providerId ? `, providerId=${providerId}` : ''}`, 'info')
+      const result = await fetchWeather(city, forceRefresh, providerId)
       rawData.value = result
 
-      // 主进程失败时返回 { error } 对象而非抛异常
-      if (!result || result.error) {
-        throw new Error(result?.error || '获取天气失败')
-      }
-
-      weatherData.value = result as WeatherData
+      weatherData.value = result
       currentCity.value = city
-      onLog?.(`获取成功: ${city}`, 'success')
+
+      // 记录本次数据源与降级轨迹，便于调试面板定位问题
+      const trace = result._trace ?? []
+      if (trace.length) {
+        const chain = trace.map((t) => `${t.label}${t.ok ? '✓' : '✗'}`).join(' → ')
+        onLog?.(`降级链: ${chain}`, 'info')
+      }
+      onLog?.(`获取成功: ${city}, 来源: ${result.source || '未知'}`, 'success')
 
       // 异步写入数据库天气表（不阻塞展示，失败仅记录日志）
-      saveWeatherToDb(city, result as WeatherData)
+      saveWeatherToDb(city, result)
         .then(() => onLog?.(`已存入数据库天气表: ${city}`, 'success'))
         .catch((err) => onLog?.(`数据库写入失败: ${(err as Error).message}`, 'warning'))
     } finally {

@@ -80,6 +80,13 @@ import { AlarmClock, AlarmClockCheck, AlarmClockMinus, AlarmClockPlus, ArrowDown
   Dumbbell,
   Flower2,
   Sparkles,
+  // —— 天气扩展字段用图标（空气质量 / 预警 / 逐小时 / 日出日落） ——
+  Leaf,
+  Activity,
+  CloudSunRain,
+  Tornado,
+  Waves,
+  UmbrellaIcon,
   // —— 内置浏览器用图标（已在 @lucide/vue 中验证存在） ——
   Star,
   ChevronUp,
@@ -418,6 +425,13 @@ let nameMap = ref<Record<any, any>>({
   Dumbbell,
   Flower2,
   Sparkles,
+  // —— 天气扩展字段用图标 ——
+  Leaf,
+  Activity,
+  CloudSunRain,
+  Tornado,
+  Waves,
+  UmbrellaIcon,
   // —— 内置浏览器用图标 ——
   Star,
   ChevronUp,

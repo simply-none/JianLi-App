@@ -1,0 +1,46 @@
+feat(weather): 天气改造为多数据源可插拔架构，首批接入和风/Open-Meteo/爬虫兜底
+
+将原 485 行 Puppeteer 爬虫单源实现重构为「适配器 + 降级链 + 能力清单驱动 UI」，
+支持按用户配置的优先级依次尝试多数据源，字段按各源能力分级展示。
+
+主进程
+- 拆分 electron/main/module/weather.ts 为 weather/ 目录 10 个文件：
+  index(IPC+缓存) / registry(降级链) / config(配置+凭据加密) / capability(能力矩阵)
+  / normalize(归一化) / types / providers/{qweather,openMeteo,crawler} / data/cnCities
+- 原 weather.ts 改为 45 行转发层，main/index.ts 调用点零改动
+- 新增 weatherProviders.ts（barrel）打破 config 与 providers 的循环依赖
+- 和风：JWT(EdDSA/Ed25519，Node 原生 crypto 零依赖签发) + GeoAPI 中文城市解析
+  + 6 个接口 Promise.allSettled，指数/AQI 失败不拖垮整源
+- Open-Meteo：零 Key，WMO 天气码映射中文
+- 凭据复用 vault/crypto 加密后存 SQLite basic_info（key=weatherConfig），
+  与 stockVault 同路径；对外接口只回 {configured, preview}，绝不含明文
+
+IPC
+- 保留 get-weather（新增可选 providerId，不传即走降级链）与 get-weather-broadcast
+- 新增 weather:get-config / save-config / probe-provider / available-providers
+- save-config 凭据字段传空串=保持原值、传 null=清空，保存后清缓存
+
+渲染端
+- 新增 capability.ts（useWeatherCapability）与 api.ts（IPC 封装）
+- 新增 6 个展示组件：HourlyForecast / AirQuality / WeatherAlert / MinutelyRain
+  / AstroCard / SourceBadge
+- 新增 2 个配置组件：WeatherProviderSettings（抽屉，源排序/开关/测试连接）
+  / ProviderForm（按 configSchema 动态渲染，支持 when 条件字段）
+- WeatherDetails 改为 12 格声明式，按能力 + 值双重过滤
+- DebugPanel 新增「数据源轨迹」tab
+
+兼容性
+- 基础字段保持必填不变，WeatherHero/DailyForecast/useWeatherTheme 零改动
+- has() 在无 capabilities 时回退 true，旧缓存全字段展示，db.ts 无需迁移
+
+修复
+- 修复数据源设置保存报「An object could not be cloned.」：reactive Proxy 无法通过
+  Electron 结构化克隆，api.ts 新增 toPlain() 统一剥离 Proxy（递归 toRaw）
+- 修复县级城市查不到坐标导致 Open-Meteo 降级到爬虫：渲染端查询词为去后缀短名
+  （南康区→南康），坐标表只收省会+地级市；新增 COUNTY_TO_PREFECTURE 映射表
+  （首批江西 98 条），lookupCityCoords 扩展为四级匹配
+
+文档
+- 同步 skills 的 SKILL.md、ipc-channels.md、modules/weather.md
+
+⚠️ 改动涉及主进程，需重启 Electron 生效。

@@ -47,6 +47,12 @@
           </el-dropdown-menu>
         </template>
       </el-dropdown>
+
+      <!-- 数据源设置入口 -->
+      <el-button class="btn-source" title="配置天气数据源" @click="emit('openSettings')">
+        <LucideIcon name="Settings" :size="15" />
+        <span class="btn-source-text">数据源</span>
+      </el-button>
     </div>
 
     <!-- 星标城市（永远置顶：搜索栏下方、搜索历史上方） -->
@@ -123,6 +129,8 @@ const emit = defineEmits<{
   (e: 'removeHistory', city: string): void
   /** 清空全部历史 */
   (e: 'clearHistory'): void
+  /** 打开数据源设置 */
+  (e: 'openSettings'): void
 }>()
 
 /** 输入框绑定值 */
@@ -222,6 +230,26 @@ function handleTtlChange(ttl: number) {
     }
 
     .btn-cache-text {
+      font-size: 0.75rem;
+    }
+  }
+
+  // 数据源设置按钮
+  .btn-source {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    color: rgba(255, 255, 255, 0.85);
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.2);
+      border-color: rgba(255, 255, 255, 0.4);
+      color: #fff;
+    }
+
+    .btn-source-text {
       font-size: 0.75rem;
     }
   }

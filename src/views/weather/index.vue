@@ -9,6 +9,7 @@
       @toggleStar="toggleStarCity"
       @removeHistory="history.remove"
       @clearHistory="history.clear"
+      @openSettings="settingsVisible = true"
     />
 
     <!-- 主体内容：骨架屏 / 天气数据 / 空状态 -->
@@ -27,13 +28,43 @@
         @refresh="handleRefresh"
         @toggleStar="toggleStarCity"
       />
+
       <WeatherDetails :data="weatherData" />
+
+      <!-- 天气预警（置顶醒目位置） -->
+      <WeatherAlert v-if="caps.has('alert.warning') && weatherData.weatherWarnings?.length" :warnings="weatherData.weatherWarnings" />
+
+      <!-- 分钟级降水（有数据才展示） -->
+      <MinutelyRain
+        v-if="caps.has('minutely.precipitation') && weatherData.minutely?.values?.length"
+        :minutely="weatherData.minutely"
+      />
+
+      <!-- 空气质量 -->
+      <AirQuality v-if="caps.has('air.quality') && weatherData.airQuality" :air="weatherData.airQuality" />
+
+      <!-- 逐小时预报 -->
+      <HourlyForecast
+        v-if="caps.has('forecast.hourly') && weatherData.hourly?.length"
+        :hourly="weatherData.hourly"
+      />
+
+      <!-- 日出日落 / 月相 -->
+      <AstroCard
+        v-if="caps.hasDomain('astro.') && weatherData.astro"
+        :astro="weatherData.astro"
+      />
+
       <LifeIndices
-        v-if="weatherData.indices?.length"
+        v-if="caps.has('indices.life') && weatherData.indices?.length"
         :indices="weatherData.indices"
         :source="weatherData.source"
       />
+
       <DailyForecast v-if="weatherData.forecast?.length" :forecast="weatherData.forecast" />
+
+      <!-- 数据来源标识（含降级轨迹） -->
+      <SourceBadge :data="weatherData" :show-trace="debugVisible" />
     </div>
 
     <div v-else class="empty-state">
@@ -52,15 +83,19 @@
       v-if="debugVisible"
       :logs="debug.logs.value"
       :raw-data="rawData"
+      :data="weatherData"
       @save="handleSaveDebug"
       @clear="debug.clearLogs"
       @close="debugVisible = false"
     />
+
+    <!-- 数据源设置抽屉 -->
+    <WeatherProviderSettings v-model="settingsVisible" @saved="handleSettingsSaved" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import LucideIcon from '@/components/LucideIcon.vue'
 import WeatherSearch from './components/WeatherSearch.vue'
@@ -70,11 +105,19 @@ import LifeIndices from './components/LifeIndices.vue'
 import DailyForecast from './components/DailyForecast.vue'
 import WeatherSkeleton from './components/WeatherSkeleton.vue'
 import DebugPanel from './components/DebugPanel.vue'
+import WeatherAlert from './components/WeatherAlert.vue'
+import AirQuality from './components/AirQuality.vue'
+import HourlyForecast from './components/HourlyForecast.vue'
+import MinutelyRain from './components/MinutelyRain.vue'
+import AstroCard from './components/AstroCard.vue'
+import SourceBadge from './components/SourceBadge.vue'
+import WeatherProviderSettings from './components/WeatherProviderSettings.vue'
 import { useWeather } from './composables/useWeather'
 import { useCityHistory } from './composables/useCityHistory'
 import { useStarredCities } from './composables/useStarredCities'
 import { useWeatherTheme } from './composables/useWeatherTheme'
 import { useDebugLog } from './composables/useDebugLog'
+import { useWeatherCapability } from './capability'
 
 /** 调试日志控制器 */
 const debug = useDebugLog()
@@ -89,6 +132,9 @@ const {
   loadByCity,
   refresh,
 } = weather
+
+/** 能力判断器（决定扩展区块是否渲染） */
+const caps = useWeatherCapability(weatherData)
 
 /** 城市搜索历史控制器 */
 const history = useCityHistory()
@@ -108,6 +154,8 @@ const { condition, backgroundStyle, heroIcon } = useWeatherTheme(weatherData)
 
 /** 调试面板可见性 */
 const debugVisible = ref(false)
+/** 数据源设置抽屉可见性 */
+const settingsVisible = ref(false)
 
 /** 是否正在强制刷新（刷新按钮旋转） */
 const refreshing = ref(false)
@@ -162,6 +210,20 @@ async function toggleStarCity(city: string) {
   const ok = await toggleStar(city)
   if (!ok) {
     ElMessage.warning('该城市暂无天气数据，无法星标')
+  }
+}
+
+/**
+ * 数据源设置保存后：强制刷新当前城市，让新链路立即生效
+ */
+async function handleSettingsSaved() {
+  debug.addLog('数据源设置已更新，正在强制刷新', 'info')
+  if (!currentCity.value) return
+  try {
+    await refresh()
+    debug.addLog('已按新数据源重新获取天气', 'success')
+  } catch (error) {
+    debug.addLog(`刷新失败: ${(error as Error).message}`, 'error')
   }
 }
 

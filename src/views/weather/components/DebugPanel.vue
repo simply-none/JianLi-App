@@ -25,20 +25,51 @@
       <el-tab-pane label="天气原始数据" name="raw">
         <pre class="raw-data">{{ formatJson(rawData) }}</pre>
       </el-tab-pane>
+
+      <!-- 数据源轨迹 -->
+      <el-tab-pane label="数据源轨迹" name="trace">
+        <div class="trace-list">
+          <div
+            v-for="(t, index) in trace"
+            :key="`${t.id}-${index}`"
+            class="trace-item"
+            :class="t.ok ? 'ok' : 'fail'"
+          >
+            <span class="trace-status">
+              <LucideIcon :name="t.ok ? 'CircleCheck' : 'CircleX'" :size="14" :stroke-width="1.9" />
+            </span>
+            <span class="trace-label">{{ t.label }}</span>
+            <span class="trace-ms">{{ t.ok ? `${t.ms} ms` : '' }}</span>
+            <span class="trace-err">{{ t.ok ? '成功' : t.error || '失败' }}</span>
+          </div>
+          <div v-if="trace.length === 0" class="empty-logs">暂无轨迹（数据可能来自旧缓存）</div>
+        </div>
+
+        <div v-if="usedCaps.length" class="cap-block">
+          <div class="cap-block-title">本次数据具备的字段能力（{{ usedCaps.length }} 项）</div>
+          <div class="cap-tags">
+            <span v-for="cap in usedCaps" :key="cap" class="cap-tag">{{ capabilityLabel(cap) }}</span>
+          </div>
+        </div>
+      </el-tab-pane>
     </el-tabs>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import type { DebugLog } from '../types'
+import { computed, ref } from 'vue'
+import LucideIcon from '@/components/LucideIcon.vue'
+import { capabilityLabel } from '../capability'
+import type { DebugLog, WeatherData } from '../types'
 
 /** 组件 Props */
-defineProps<{
+const props = defineProps<{
   /** 调试日志列表 */
   logs: DebugLog[]
   /** 天气原始数据 */
   rawData: unknown
+  /** 当前天气数据（用于读取降级轨迹与能力清单） */
+  data?: WeatherData | null
 }>()
 
 /** 组件事件 */
@@ -53,6 +84,12 @@ const emit = defineEmits<{
 
 /** 当前激活的调试标签页 */
 const activeTab = ref('logs')
+
+/** 本次请求的降级轨迹 */
+const trace = computed(() => props.data?._trace ?? [])
+
+/** 本次数据具备的字段能力 */
+const usedCaps = computed(() => props.data?.capabilities ?? [])
 
 /**
  * 格式化 JSON 数据用于展示
@@ -165,6 +202,86 @@ function formatJson(data: unknown): string {
     color: #a8b2d1;
     white-space: pre-wrap;
     word-break: break-all;
+  }
+
+  .trace-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+
+    .trace-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.78rem;
+
+      &.ok {
+        background: #16281e;
+      }
+
+      &.fail {
+        background: #2e1717;
+      }
+
+      .trace-status {
+        display: flex;
+        flex-shrink: 0;
+      }
+
+      &.ok .trace-status {
+        color: #69db7c;
+      }
+
+      &.fail .trace-status {
+        color: #ff6b6b;
+      }
+
+      .trace-label {
+        min-width: 100px;
+        color: #d9e0f0;
+      }
+
+      .trace-ms {
+        width: 70px;
+        color: #6c757d;
+        font-family: 'Consolas', 'Monaco', monospace;
+      }
+
+      .trace-err {
+        flex: 1;
+        color: #a8b2d1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    }
+  }
+
+  .cap-block {
+    margin-top: 14px;
+
+    .cap-block-title {
+      font-size: 0.78rem;
+      color: var(--text-primary, #fff);
+      margin-bottom: 8px;
+    }
+
+    .cap-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+
+      .cap-tag {
+        padding: 2px 9px;
+        border-radius: 999px;
+        font-size: 0.7rem;
+        color: #a8b2d1;
+        background: #1c2233;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+    }
   }
 }
 </style>
