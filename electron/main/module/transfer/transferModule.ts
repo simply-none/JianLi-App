@@ -126,9 +126,9 @@ function deviceId(): string {
 
 // —— 随机昵称（#昵称：基座格式【形容词1】【形容词2】的【名词】，如「软胖憨憨的小鸭」）——
 // 词库与移动端 device_nickname.dart 同源（随即词库.md），三组各取其一拼接。
+// 持久化：electron-store 首次生成后永久留存，不再轮换（仅旧后缀格式触发一次性重生）。
 // 平台后缀规则：本机展示（顶部栏 / 我的设备）只用基座，不带平台；
 // 只有在「发现设备 / 历史设备列表」等广播给对端时才追加「的PC」，见 deviceInfo()。
-const NICK_TTL = 3 * 24 * 3600 * 1000; // 3 天有效期，到期重新随机
 const NICK_ADJ1 = [
   "软萌", "圆滚", "糯软", "奶白", "粉糯", "蓬松", "软绵", "饱满", "奶胖", "粉嘟",
   "弹软", "粉润", "白胖", "软嫩", "圆溜", "软糯", "软绒", "奶乎", "粉圆", "甜软",
@@ -160,27 +160,22 @@ function randomNickname(): string {
   return `${pick(NICK_ADJ1)}${pick(NICK_ADJ2)}的${pick(NICK_NOUN)}`;
 }
 /** 当前昵称：基座「【形容词1】【形容词2】的【名词】」格式（如「软胖憨憨的小鸭」），
- *  持久化到 electron-store，3 天内稳定；过期/缺失/旧格式（带「的渐离App/的App/的PC」等后缀）则重新随机。
+ *  持久化到 electron-store，首次生成后永久固定，不再按时间轮换；
+ *  仅当缺失或为旧格式（带「的渐离App/的App/的PC」等后缀）时才一次性重生。
  *  本机展示只用基座；平台后缀「的PC」仅在广播(发现设备/历史列表)时追加，见 deviceInfo()。 */
 export function currentNickname(): string {
   const cached = store.get("_transfer_nickname") as
     | { name?: string; ts?: number }
     | undefined;
-  const now = Date.now();
   const oldName = cached?.name ?? "";
   const hasOldSuffix =
     /的(渐离App|App|PC)$/.test(oldName) || /[ (](PC|App)\)$/.test(oldName);
-  if (
-    cached &&
-    cached.name &&
-    cached.ts &&
-    now - cached.ts < NICK_TTL &&
-    !hasOldSuffix
-  ) {
+  if (cached && cached.name && !hasOldSuffix) {
+    // 已存在且格式合法：永久复用，不再按时间轮换
     return cached.name;
   }
   const name = randomNickname();
-  store.set("_transfer_nickname", { name, ts: now });
+  store.set("_transfer_nickname", { name, ts: Date.now() });
   return name;
 }
 
@@ -1089,7 +1084,7 @@ export function initTransfer(): void {
       success: true,
       data: {
         ...deviceInfo(),
-        name: currentNickname(), // 本机展示用基座昵称（不含平台后缀）
+        name: currentNickname(), // 本机展示用基座昵称（不含平台后缀，首次生成后永久固定）
         receiveDir: receiveDir(),
         autoAccept: autoAcceptEnabled(),
         rename: renameStrategy(),
@@ -1098,7 +1093,7 @@ export function initTransfer(): void {
       },
     }));
 
-    // 当前随机昵称（3 天有效期，过期自动重生成）；顶部栏展示用
+    // 本机设备名（随机昵称基座，首次生成后永久固定）；顶部栏 / 我的设备展示用
     ipcMain.handle("transfer:nickname", () => currentNickname());
 
     ipcMain.handle("transfer:scan", async () => {
