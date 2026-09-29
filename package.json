@@ -55,7 +55,7 @@
     "element-plus": "^2.9.8",
     "fast-glob": "^3.3.3",
     "globby": "^15.0.0",
-    "json-editor-vue": "^0.18.1",
+    "json-editor-vue": "^0.19.1",
     "moment": "^2.30.1",
     "pinia": "^3.0.2",
     "quill": "^2.0.2",
