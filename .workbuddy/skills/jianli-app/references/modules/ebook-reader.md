@@ -33,6 +33,12 @@ EPUB / TXT / PDF 三格式阅读：进度保存、书架、分类、笔记与划
 - **content_hash 身份**：换路径重新导入按 `sha256` 复用同内容的标注/书签/进度（多副本共享）；但书架行各路径独立，删除某副本只删其书架引用、不删共享数据。书架徽标计数依赖 `get-annotation-counts` 传 `contentHashes`。
 - TXT 编码自动检测（GB2312/GBK→GB18030），并去除首部 BOM。
 - **附件抽屉（PDF 专用）**：`components/AttachmentsDrawer.vue` + 工具栏「附件」按钮（`v-if="currentFile.format === 'pdf'"`）。读取/另存复用 PDF 工具箱已封装的 `pdfApi.getAttachments / extractAttachment`（即 `pdf:get-attachments` / `pdf:extract-attachment`，主进程 `pdf.ts#readEmbeddedFiles` 解析 `/Names /EmbeddedFiles` 名称树）。**列表只回元信息（name/mime/size），附件字节由主进程直接写盘、不经过渲染端 IPC**，避免大附件卡顿。切换文件时在 `watch(currentFile.path)` 里重置附件状态。踩坑细节见 `modules/pdf-tools.md`。
+- **★★ 书架点书打不开 = `jlocal://` 协议问题，先查 `protocol.ts`（2026-09-29）★★**：`utils/fileUtils.ts` 的 `openBook` 链路是
+  `checkFileExists()` → `fetch('jlocal:///' + filePath, { method: 'HEAD' })`，**全部电子书都经 `jlocal://` 读盘**
+  （EPUB 渲染 `useEpubRender.ts` 也是 `const url = 'jlocal:///' + filePath`）。
+  故「升级后点书没反应 / 控制台 CORS 报错 / `net::ERR_FAILED` / `TypeError: Failed to fetch`」基本都是
+  `electron/main/module/protocol.ts` 的问题，**不是阅读器本身的 bug**。两个坑（`corsEnabled` 漏声明、`standard` scheme 吃盘符）
+  详见 `references/risks.md` 第 43 条。快速自检：主进程日志若**完全没有** jlocal 报错，就是被 CORS 拦在 `protocol.handle` 之前（坑 A）。
 
 ## 一键传书（PC ↔ 手机，2026-09-10 新增，与移动端书架「传书」对齐）
 - **入口**：工具栏「打开文件」右侧的「传书」按钮（LucideIcon `ArrowLeftRight`）→ 弹窗 `components/BookTransferDialog.vue`（`v-model="bookTransferVisible"`，`:books="ebookStore.bookshelf"`，`@done="loadBookshelf"` 刷新书架）。

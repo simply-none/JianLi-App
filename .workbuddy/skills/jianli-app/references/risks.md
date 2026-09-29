@@ -288,4 +288,57 @@
       ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit
     ```
     两侧都要跑：`tsconfig.json`（渲染端 `src/`）与 `tsconfig.node.json`（electron 侧）。
+43. **★★ `jlocal://` 协议两个致命坑（2026-09-29 修复「升级 Electron 44 后电子书点不开」）★★** ——
+    `electron/main/module/protocol.ts` 集中承载这两个坑，**任何改该文件的改动都要同时守住下面两条**。
+
+    **坑 A：`privileges.corsEnabled` 默认 false，漏写则 dev 下 fetch 全被 CORS 拦死。**
+    - 现象（dev 模式点电子书即失败，控制台）：
+      ```
+      Access to fetch at 'jlocal://c/Users/.../书.epub' from origin 'http://localhost:5173'
+      has been blocked by CORS policy: Cross origin requests are only supported for
+      protocol schemes: chrome, chrome-extension, chrome-untrusted, data, http, https.
+      ```
+      接 `fileUtils.ts` 的 `checkFileExists` → `net::ERR_FAILED` → `TypeError: Failed to fetch`
+      → `useBookshelf.ts` 的 `openBook` 挂掉。
+    - 根因：这是 **Chromium 的 CORS** 拒的，**不是**文件/路径/handler 的问题。dev 下页面 origin 是
+      `http://localhost:5173`，去 fetch `jlocal://` 属**跨源**；Chromium 只对**显式声明 `corsEnabled` 的 scheme**
+      放行跨源。`Privileges.corsEnabled` **默认 `false`**（见 `electron.d.ts`），本文件原先没写 ⇒
+      被拦在 `protocol.handle` **之前**（所以主进程日志里看不到任何 jlocal 报错，容易误判成"没走到协议"）。
+    - **`webSecurity: false` 不能替代**（`mainWindow.ts` 里本来就有）：前者管同源策略对页面自身资源的松紧，
+      后者是 **scheme 级 CORS 白名单**，二者不是一回事。
+    - 升级前能用：Electron ≤36 对 privileged scheme 的跨源更宽松；**Electron 44（Chromium 152）收紧为严格校验**。
+    - ✅ 修法：`privileges` 里显式加 `corsEnabled: true`。
+
+    **坑 B：`standard` scheme 会把 Windows 盘符吃掉，`slice('jlocal:///'.length)` 必挂。**
+    - `jlocal` 注册了 `standard: true`，Chromium 按 `scheme://host/path` 规范化 URL：
+      ```
+      渲染端拼出        jlocal:///C:/Users/风起/Downloads/书籍/书.epub
+      Chromium 规范化   jlocal://c/Users/风起/Downloads/书籍/书.epub
+                        ↑ host="c"（盘符冒号丢失），三斜杠变双斜杠
+      ```
+      **实测三种拼法 `jlocal:///`、`jlocal://`、`jlocal:////` 规范化结果完全一致**。
+    - 于是旧写法 `decodeURIComponent(request.url).slice('jlocal:///'.length)`（**length 是 10，不是 11**）
+      得到 `/Users/风起/...` —— **盘符没了且以 `/` 开头** ⇒ Windows 下 `fs.statSync` 抛错 ⇒ 返回 404。
+    - ✅ 修法：新增 `resolveLocalPath()`，用 `URL.host` + `URL.pathname` 还原，并兼容两种输入形态：
+      | 输入形态 | host | pathname | 还原结果 |
+      |---|---|---|---|
+      | `jlocal://c/Users/...`（Chromium 规范化后 = **真实运行时**） | `c` | `/Users/...` | `C:/Users/...`（盘符补回、转大写） |
+      | `jlocal:///C:/Users/...`（未规范化，如纯 Node 解析） | `""` | `/C:/Users/...` | 去掉前导 `/` → `C:/Users/...` |
+      | `jlocal:///home/u/a.txt`（POSIX） | `""` | `/home/u/a.txt` | 原样（**不能误判成盘符**） |
+      | `jlocal://server/share/a.txt`（UNC） | `server` | `/share/a.txt` | `//server/share/a.txt` |
+      ⚠️ 判盘符的兜底正则要用 `^\/[a-zA-Z]:\//`（**带冒号**）；只用 `^\/[a-zA-Z]\//` 会把 `/c/foo` 这种正常路径误伤。
+    - **验证认知**：**纯 Node 的 `new URL()` 不把 `C:` 当 host**（给出 host="" / pathname="/C:/..."），
+      只有**真实 Chromium 才规范化成 `jlocal://c/...`**。所以单测要**同时覆盖两种形态**，
+      否则会拿"和真实运行时不同的输入"测出假结果（本次就这样先误判过一轮）。
+      权威验证必须走真实 Electron 探针（见第 39 条方法），用 **`net.fetch`** 而非 BrowserWindow
+      （沙箱内 `loadURL`/`loadFile` 一律 `ERR_FAILED`）。
+      实测通过样本：`raw=jlocal://c/Users/风起/Downloads/书籍/....epub` → resolve 为 `C:/Users/风起/...`
+      → `exists=true size=65259132` → `status=200`；`HEAD` 亦 `200 / content-length=65259132`。
+
+    **附带修的两处（同文件，顺手）**：
+    - **`HEAD` 不该建读流**：原实现无论 method 都 `fs.createReadStream` 并带 body 返回。
+      `checkFileExists()` 走 HEAD，body 会被丢弃 ⇒ 白白开文件句柄（大书尤其浪费）。
+      现按 `request.method === 'HEAD'` 提前返回 `new Response(null, { status: 200, headers: {...} })`。
+    - **`.epub` 缺 MIME**：落到 `application/octet-stream`。epub.js 靠 ArrayBuffer 解析、不致命，
+      但已补 `'.epub': 'application/epub+zip'`。
 

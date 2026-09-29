@@ -13,6 +13,26 @@ export function registerJlocalProtocolBefore() {
         standard: true,
         bypassCSP: true,
         stream: true,
+        // ★ corsEnabled 必须显式开（2026-09-29，Electron 44 升级后电子书打不开的根因）
+        //
+        // 现象（dev 模式点书即失败，控制台报）：
+        //   Access to fetch at 'jlocal://c/Users/.../书.epub' from origin
+        //   'http://localhost:5173' has been blocked by CORS policy:
+        //   Cross origin requests are only supported for protocol schemes:
+        //   chrome, chrome-extension, chrome-untrusted, data, http, https.
+        //
+        // 根因：这是 **Chromium 的 CORS** 在拒绝，不是文件/路径/协议 handler 的问题。
+        // 渲染端在 dev 下跑在 `http://localhost:5173`，去 fetch `jlocal://` 属**跨源请求**；
+        // 而 Chromium 只对「已声明 corsEnabled 的 scheme」放行跨源。
+        // `Privileges.corsEnabled` 默认为 **false**（见 electron.d.ts），
+        // 本文件原先没写 ⇒ jlocal 不在放行名单 ⇒ fetch 直接被 CORS 拦在合成请求之前，
+        // 连 protocol.handle 都进不去（所以主进程日志里看不到 jlocal 报错）。
+        //
+        // 为什么升级前能用：Electron ≤36 对 registerSchemesAsPrivileged 注册的
+        // privileged scheme 在跨源上更宽松；Electron 44（Chromium 152）收紧为严格 CORS 校验。
+        // 注意 `webSecurity: false` **不能**替代它 —— 该开关管的是同源策略对页面自身资源的作用，
+        // 而这里是 scheme 级别的 CORS 白名单，必须靠 privileges 声明。
+        corsEnabled: true,
       },
     },
   ])
@@ -124,6 +144,10 @@ function getContentType(filePath: string): string {
     '.wbmp': 'image/vnd.wap.wbmp',
     '.xbm': 'image/x-xbitmap',
     '.pdf': 'application/pdf',
+    // ★ .epub 此前缺失 → 落到 'application/octet-stream'（2026-09-29 补）
+    // epub.js 靠 fetch/XHR 拿 ArrayBuffer 解析，MIME 不致命，但标对更规范，
+    // 也避免个别浏览器/中间层对 octet-stream 另做处理。
+    '.epub': 'application/epub+zip',
     '.txt': 'text/plain',
     '.md': 'text/markdown',
     '.json': 'application/json',
@@ -253,14 +277,72 @@ function handleRangeRequest(filePath: string, rangeHeader: string | null, stats:
   })
 }
 
+/**
+ * 从 jlocal:// 请求 URL 还原出真实磁盘路径。
+ *
+ * ★ 为什么不能再用 `decodeURIComponent(request.url).slice('jlocal:///'.length)` ★
+ * （2026-09-29 修复「电子书点不开」的直接根因）
+ *
+ * `jlocal` 注册为 **standard scheme**（privileges.standard = true），Chromium 会
+ * 按 `scheme://host/path` 规范化 URL。于是 Windows 盘符 `C:` 里的冒号被吃掉、
+ * `C` 被当成 **host**：
+ *
+ *     渲染端拼出            jlocal:///C:/Users/风起/Downloads/书籍/书.epub
+ *     Chromium 规范化后      jlocal://c/Users/风起/Downloads/书籍/书.epub
+ *                           ↑ host="c"，三斜杠变成双斜杠，盘符冒号丢失
+ *
+ * 实测（Electron 44，三种拼法 `jlocal:///`、`jlocal://`、`jlocal:////` 结果**完全一致**）：
+ *      rawUrl   = jlocal://c/Users/%E9%A3%8E%E8%B5%B7/.../probe.txt
+ *      slice(10)= /Users/风起/.../probe.txt      ← 盘符没了，且以 / 开头
+ *
+ * ⇒ Windows 上这个路径非法，`fs.statSync` 抛错 → 返回 404 → 电子书打不开。
+ * 这正是用户报错 URL 里出现 `jlocal://c/Users/...`（host=c）的原因。
+ *
+ * 正确还原方式：取 `URL.host` + `URL.pathname`，再把被拆出去的盘符拼回来：
+ *     host="c" + pathname="/Users/..." → "c" + "/Users/..." → "/c/Users/..."
+ *                                                          → "C:/Users/..."  ✓
+ *
+ * 兼容处理（两种输入形态都要吃下，缺一不可）：
+ *   A. Chromium 规范化后的真实形态 `jlocal://c/Users/...` → host="c" 是单字母 → 拼成 `C:/...`
+ *   B. 未被规范化的形态 `jlocal:///C:/Users/...` → host="" 且 pathname="/C:/Users/..."
+ *      （纯 Node 的 `new URL()` 就长这样；真实 Electron 里若 handler 拿到原始 URL 亦同）
+ *      → pathname 以 `/X:/` 开头时，去掉前导 `/` 得到 `C:/...`
+ *   C. host 为空且 pathname 不是盘符形态 → 直接返回 pathname（原样相对/绝对路径）
+ *   D. UNC 路径（`\\server\share`）→ host 是服务器名，按 `//host/path` 还原
+ */
+function resolveLocalPath(requestUrl: string): string {
+  const u = new URL(requestUrl);
+  const host = u.host || '';
+  // pathname 仍是百分号编码，必须解码（中文目录名依赖这一步）
+  const pathname = decodeURIComponent(u.pathname || '');
+
+  // A. Windows 盘符被 Chromium 拆成 host：`jlocal://c/...` → c + /... → C:/...
+  if (/^[a-zA-Z]$/.test(host)) {
+    return `${host.toUpperCase()}:${pathname}`;
+  }
+
+  // B. 未被规范化的三斜杠形态：pathname = /C:/Users/... → 去掉前导 / → C:/Users/...
+  //    注意只看「`/` + 单字母 + `:` + `/`」这一种，避免误伤 `/c/foo` 这类正常绝对路径。
+  if (!host && /^\/[a-zA-Z]:\//.test(pathname)) {
+    return pathname.slice(1);
+  }
+
+  if (!host) {
+    // C. 无 host：POSIX 风格 /... 或已是完整路径，原样返回
+    return pathname;
+  }
+
+  // D. 其余（如 UNC 的 server 名）：还原成 //host/path
+  return `//${host}${pathname}`;
+}
+
 export function registerJlocalProtocol() {
   protocol.handle("jlocal", async (request) => {
-    const reqUrl = decodeURIComponent(request.url);
-    const filePath = reqUrl.slice("jlocal:///".length);
-    
+    const filePath = resolveLocalPath(request.url);
+
     try {
       const stats = fs.statSync(filePath)
-      
+
       if (stats.isDirectory()) {
         return new Response('Directory not allowed', { status: 403 })
       }
@@ -269,14 +351,42 @@ export function registerJlocalProtocol() {
       const videoExts = ['.mp4', '.webm', '.ogg', '.mov', '.avi', '.flv', '.wmv', '.mkv', '.m4v', '.3gp', '.3g2', '.mpeg', '.mpg', '.mpe', '.mpv', '.m2v', '.m2ts', '.ts', '.vob', '.ogv', '.qt', '.f4v', '.f4p', '.f4a', '.f4b', '.rm', '.rmvb', '.asf', '.divx', '.xvid', '.amv', '.mts', '.mxf', '.roq', '.nsv', '.mng', '.yuv', '.gifv']
       const audioExts = ['.mp3', '.wav', '.ogg', '.aac', '.flac', '.wma', '.m4a', '.aiff', '.alac', '.dsf', '.dff', '.opus', '.vorbis', '.pcm', '.au', '.snd', '.mid', '.midi', '.rmi', '.m4b', '.m4p', '.mpc', '.ape', '.wv', '.tak', '.tta', '.shn', '.mp2', '.mp1', '.amr', '.awb', '.3ga', '.oga', '.spx', '.mka']
 
+      // ★ HEAD 只回元数据，不建读流（2026-09-29 补）
+      // `src/views/ebookReader/utils/fileUtils.ts` 的 checkFileExists() 就是发 HEAD，
+      // 而原实现无论什么 method 都 `fs.createReadStream` + 返回 body：
+      // 对 HEAD 而言 body 会被丢弃，等于白白打开一个文件句柄（书越大越浪费）；
+      // 且 `Response` 带 body 时若被 Chromium 判定与 HEAD 语义冲突，可能让步进逻辑异常。
+      const isHead = request.method === 'HEAD'
+
       if (videoExts.includes(ext) || audioExts.includes(ext)) {
         const rangeHeader = request.headers.get('range') || null
+        if (isHead) {
+          return new Response(null, {
+            status: 200,
+            headers: {
+              'Content-Type': getContentType(filePath),
+              'Content-Length': stats.size.toString(),
+              'Accept-Ranges': 'bytes',
+            },
+          })
+        }
         return handleRangeRequest(filePath, rangeHeader, stats)
       }
 
       const contentType = getContentType(filePath)
+
+      if (isHead) {
+        return new Response(null, {
+          status: 200,
+          headers: {
+            'Content-Type': contentType,
+            'Content-Length': stats.size.toString(),
+          },
+        })
+      }
+
       const stream = fs.createReadStream(filePath)
-      
+
       return new Response(stream as unknown as BodyInit, {
         status: 200,
         headers: {
