@@ -48,7 +48,7 @@ npm install
 
 | 下载对象 | 配置位置 | 键 / 字段 |
 |---|---|---|
-| 运行时 Electron 二进制 | `electron-builder.json5` | `electronGet.mirrorOptions.mirror` |
+| 运行时 Electron 二进制 | `electron-builder.json5` | `electronDownload.mirrorOptions.mirror` |
 | 打包期 Electron 二进制 | 同上（打包时生效） | 同上 |
 | 原生模块预编译包 | shell 环境变量 | `sqlite3_binary_host`（每包一行）|
 
@@ -152,7 +152,7 @@ npm install
 
 ## 打包
 
-镜像已在 `electron-builder.json5` 的 `electronGet.mirrorOptions.mirror` 中配好，直接打包即可：
+镜像已在 `electron-builder.json5` 的 `electronDownload.mirrorOptions.mirror` 中配好，直接打包即可：
 
 ```shell
 npm run build

@@ -27,6 +27,7 @@
  */
 import { onMounted } from "vue";
 import LucideIcon from "@/components/LucideIcon.vue";
+import useBrowser from "@/store/useBrowser";
 import type { BookmarkRecord } from "../api/browserApi";
 import { navigateActiveTab } from "../composables/useWebviewBridge";
 import { useBookmarks } from "../composables/useBookmarks";
@@ -88,10 +89,9 @@ function onOpen(bm: BookmarkRecord, e?: MouseEvent) {
   }
 }
 
-/** 新标签打开（动态取 store 实例） */
-async function openInNewTab(url: string) {
-  const mod = await import("@/store/useBrowser");
-  const store = mod.default();
+/** 新标签打开 */
+function openInNewTab(url: string) {
+  const store = useBrowser();
   store.createTab(url, "书签打开");
 }
 </script>

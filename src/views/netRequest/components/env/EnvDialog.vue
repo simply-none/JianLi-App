@@ -83,6 +83,7 @@ import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { Environment, EnvVar } from '../../types'
 import { uid } from '../../composables/useEnvironment'
+import { activateEnv, deleteEnv, saveEnv } from '../../db'
 
 /** 弹窗可见性（v-model） */
 const visible = defineModel<boolean>({ default: false })
@@ -201,7 +202,6 @@ function syncSelectedVars(): void {
 async function saveAll(): Promise<void> {
   saving.value = true
   try {
-    const { deleteEnv, saveEnv, activateEnv } = await import('../../db')
     // 1. 删除标记环境
     for (const id of deletedIds.value) {
       await deleteEnv(id)

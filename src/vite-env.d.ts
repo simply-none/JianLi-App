@@ -41,7 +41,11 @@ interface Window {
       };
       // Piper 本地离线 TTS（sherpa-onnx VITS，复用 Kokoro 引擎与 Worker）
       piper: {
-        status: (modelDir?: string) => Promise<{ installed: boolean; dir: string; defaultDir: string }>;
+        // 与主进程 tts-piper.ts 的 tts:piper:status 返回严格一致：
+        // installed = readyCount > 0（需模型文件 + espeak-ng-data 齐备）
+        // modelCount = scanPiperModels 扫到的模型总数（不校验 espeak-ng-data）
+        // readyCount = 其中真正可用（resolvePiperPaths 通过）的数量
+        status: (modelDir?: string) => Promise<{ installed: boolean; modelCount: number; readyCount: number; dir: string; defaultDir: string }>;
         getVoices: (modelDir?: string) => Promise<{ sid: number; name: string; gender: 'female' | 'male'; lang: string }[]>;
         isAvailable: (modelDir?: string) => Promise<boolean>;
         chooseModelDir: () => Promise<{ success: boolean; dir?: string; canceled?: boolean; error?: string }>;

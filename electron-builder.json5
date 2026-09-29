@@ -6,10 +6,16 @@
   "productName": "渐离App",
 
   // Electron 下载镜像：显式声明，不依赖包管理器注入环境变量
-  //   - electronGet 类型为 ElectronGetOptions，其 mirrorOptions 直接透传给 @electron/get
+  //   - 正确的父键是 electronDownload（**不是** electronGet，后者不存在于 schema，会报
+  //     "configuration has an unknown property 'electronGet'" 而中断打包）
+  //   - electronDownload 同时接受两种形状，靠运行时识别（app-builder-lib/out/util/electronGet.js:584
+  //     的 ELECTRON_GET_EXCLUSIVE_KEYS = ["mirrorOptions","force","unsafelyDisableChecksums","checksums"]）：
+  //       ① 现代（@electron/get）：{ mirrorOptions: { mirror } }   ← 本文件采用
+  //       ② 遗留（electron-download）：{ mirror }（扁平）
+  //     两者最终都归一到 mirrorOptions.mirror；嵌套形状在 ElectronFramework.js:33 另有显式处理
+  //     （展平成 mirror 供 app-builder 二进制下载使用），覆盖更全，故优先。
   //   - 环境变量 ELECTRON_MIRROR 与这里的 mirror 等价，两者任选其一即可（这里优先）
-  //   - 注意：不存在 electronMirror / electronBuilderBinariesMirror 这两个配置项
-  "electronGet": {
+  "electronDownload": {
     "mirrorOptions": {
       "mirror": "https://npmmirror.com/mirrors/electron/",
     },

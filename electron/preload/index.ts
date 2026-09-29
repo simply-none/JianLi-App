@@ -81,7 +81,7 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
 
     // ============ Piper 本地离线 TTS（sherpa-onnx VITS，复用 Kokoro 引擎与 Worker） ============
     piper: {
-      /** 模型安装状态：{ installed, dir, defaultDir } */
+      /** 模型安装状态：{ installed, modelCount, readyCount, dir, defaultDir } */
       status(modelDir?: string) {
         return ipcRenderer.invoke('tts:piper:status', modelDir)
       },

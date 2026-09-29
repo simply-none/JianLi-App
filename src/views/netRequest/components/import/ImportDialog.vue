@@ -81,6 +81,8 @@ import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { parseCodeSnippet, parseOpenApi, parsePostman } from '../../composables/useImport'
 import type { CodeSnippetKind } from '../../composables/useImport'
+import { importNodes, refreshCollection } from '../../composables/useCollection'
+import { refreshEnvs, saveEnvironment } from '../../composables/useEnvironment'
 import type { CollectionNode, Environment, RequestConfig } from '../../types'
 
 /** 弹窗可见性（v-model） */
@@ -210,8 +212,6 @@ const emit = defineEmits<{
 async function doImport(): Promise<void> {
   importing.value = true
   try {
-    const { importNodes, refreshCollection } = await import('../../composables/useCollection')
-    const { saveEnvironment, refreshEnvs } = await import('../../composables/useEnvironment')
     if (format.value === 'code') {
       if (!parsedCurl) return
       emit('curl', parsedCurl)

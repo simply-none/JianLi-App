@@ -62,7 +62,8 @@
     - `check-node-version.js` 曾硬编码「请使用 cnpm 安装依赖包」文案（挂 `prestart`，每次 dev/build 都打印，是印象的主要来源）→ 已改为 npm 文案。
     - `.gitignore` 曾把 `package-lock.json` / `pnpm-lock.yaml` / `yarn.lock` **三个 lockfile 全部忽略** → 现**放行 `package-lock.json`**（**锁文件必须提交**，这是依赖可复现的根本）、忽略 `pnpm-lock.yaml` 与 `yarn.lock`。
     - `package.json` 的 `scripts` 保持 `npm run xxx` 嵌套（npm 下本就正确，无需改动）。
-    - `increase-memory-limit`：它扫 `node_modules/.bin` 注入 `--max-old-space-size`，**npm 扁平布局下工作正常**，故 `build` 脚本保持原样调用它。
+    - ~~`increase-memory-limit`：它扫 `node_modules/.bin` 注入 `--max-old-space-size`，npm 扁平布局下工作正常，故 `build` 脚本保持原样调用它。~~
+      ⚠️ **此结论已作废，见第 44 条** —— 它生成的 shim 在 npm 下就是坏的，已从依赖与 `build` 脚本中移除。
 31. **`sqlite3` 装不上 = 下载被墙 + `node-gyp@8` 不支持新 Node（2026-09-29 二次定位，最终解法：升 sqlite3@6.0.1）**：`npm install` 报
     ```
     prebuild-install warn install read ECONNRESET
@@ -102,10 +103,10 @@
       这些键**从来不是 npm 的配置项**，而是 electron / prebuild-install / node-pre-gyp 的**环境变量**（读 `process.env`）；旧版 npm 对未知键"
       沉默地"注入 `npm_config_xxx` 环境变量，顺手实现了镜像用途。npm 11 起警告并将在下个大版本**移除该注入行为**。
     - **镜像的正确落点（已改好）**：
-      - 运行时 Electron 二进制 → `electron-builder.json5` 的 **`electronGet.mirrorOptions.mirror`**；
+      - 运行时 Electron 二进制 → `electron-builder.json5` 的 **`electronDownload.mirrorOptions.mirror`**（见第 46 条，**不是** `electronGet`）；
       - 原生模块预编译包 → **shell 环境变量**，或**用户级 `~/.npmrc`**（`C:\Users\<你>\.npmrc`）。**用户级不触发该警告**（npm 只对项目级的未知键报警），且全局生效；
       - puppeteer → 只能在 shell `set`（见第 32 条，它读无前缀变量）。
-    - ⚠️ **`electron-builder.json5` 里不存在 `electronMirror` / `electronBuilderBinariesMirror` 这两个字段**（已查 `app-builder-lib` 的 `configuration.ts` 与 `scheme.json` 确认；`Configuration` 接口里**没有任何含 "Mirror" 的属性**）。正确字段是 `electronGet: { mirrorOptions: { mirror } }`（`ElectronGetOptions` 直接透传给 `@electron/get`）。
+    - ⚠️ **`electron-builder.json5` 里不存在 `electronMirror` / `electronBuilderBinariesMirror` 这两个字段**（已查 `scheme.json` 确认；根属性 90 个里**没有任何含 "Mirror" 的属性**）。正确字段是 **`electronDownload`**（见第 46 条）。
     - ⚠️ **`.npmrc` 里 `key[]=...` 是错的**：`key` 是 npm **已存在的内置配置项**（TLS 客户端密钥，与 `cert` 配对），不是"自定义键容器"。
       实测后果：`key` 被解析成数组、触发 `npm warn config key 'key' and 'cert' are no longer used...`，
       并且 `npm exec` 会因把数组当密钥读而报 `ERR_OSSL_UNSUPPORTED`（OpenSSL DECODER routines::unsupported）。
@@ -115,7 +116,7 @@
     - **实测同网络对比**：GitHub 官方 **372 KB/s**（约 5 分 20 秒）vs npmmirror 镜像 **5.9 MB/s**（约 20 秒）。
     - **`@electron/get` 的镜像读取链（源码级，`artifact-utils.ts: mirrorVar()`）**：
       `npm_config_electron_mirror` → `NPM_CONFIG_ELECTRON_MIRROR` → `npm_config_electron_<snake>` → `npm_package_config_electron_*` → **`ELECTRON_MIRROR`** → `options.mirror` → 默认 GitHub。
-      ⇒ **`.npmrc` 写 `electron_mirror` 是有效的**（它确实读 npm 注入的变量），`electron-builder.json5` 的 `electronGet.mirrorOptions.mirror` 对应最末的 `options.mirror`。
+      ⇒ **`.npmrc` 写 `electron_mirror` 是有效的**（它确实读 npm 注入的变量），`electron-builder.json5` 的 `electronDownload.mirrorOptions.mirror` 对应最末的 `options.mirror`。
     - **URL 拼接**：`<mirror><version>/electron-v<version>-<platform>-<arch>.zip`（镜像上**不需要** `v` 前缀，带与不带都实测 HTTP 206）。
     - **镜像真伪校验**：镜像上 `SHASUMS256.txt` 可读且与官方值一致，可用来核对下载完整性。
     - **配置落点**：写**用户级 `~/.npmrc`**（不出警告、全局生效）；临时覆盖用 shell `set ELECTRON_MIRROR=...`（优先级高于 `.npmrc`）。
@@ -341,4 +342,229 @@
       现按 `request.method === 'HEAD'` 提前返回 `new Response(null, { status: 200, headers: {...} })`。
     - **`.epub` 缺 MIME**：落到 `application/octet-stream`。epub.js 靠 ArrayBuffer 解析、不致命，
       但已补 `'.epub': 'application/epub+zip'`。
+44. **★★ `increase-memory-limit` 会改坏 `node_modules/.bin`，且 `npm install` 修不回来（2026-09-29，已彻底移除）★★**
+    - **现象**：`npm run build` 在第一步就中断，报
+      `'"node --max-old-space-size=10240"' is not recognized as an internal or external command, operable program or batch file.`
+      （**注意报错里外层那对引号**，它就是定位线索）。
+    - **根因**：该包的实现是**文本替换 `node_modules/.bin/*.cmd` / `*.ps1`**，把 `node` 换成
+      `node --max-old-space-size=10240` 却**不加引号**：
+      ```bat
+      SET "_prog=node --max-old-space-size=10240"
+      … "%_prog%"  "%dp0%\..\vue-tsc\bin\vue-tsc.js" %*
+      ```
+      最后一行展开成 `"node --max-old-space-size=10240" "...vue-tsc.js"`，
+      cmd 把整个带空格的串当成**一个可执行文件名** ⇒ 找不到 ⇒ 报错。
+    - **受害范围（实测）**：`node_modules/.bin` 下 **136 个 shim 全部被改坏**（`.cmd` 与 `.ps1` 各半），无一幸免。
+      不只是 `vue-tsc` —— `electron-builder` / `vite` / `tsc` / `rollup` 等全在其中，
+      所以它会把整条 build 链都埋掉。
+    - ⚠️ **关键坑：`npm install` 修不回来**。npm 的 bin 链接逻辑是「**目标文件已存在就跳过**」，
+      这 136 个坏 shim 都是存在的文件，装几遍都不会重写。**必须先把 `.bin` 目录删掉再装**：
+      ```
+      rmdir /s /q node_modules\.bin && npm install
+      ```
+      （保险做法：`rmdir /s /q node_modules && npm install`。删后 npm 发现缺失才会重建全部 shim。）
+      排查同类别问题时，**「改了配置但报错照旧」优先怀疑 `.bin` 里残留的坏 shim**。
+    - ✅ **正解：改用 `NODE_OPTIONS` 环境变量**（Node 官方机制，由 Node 自身解析，不碰任何 shim、跨平台一致）：
+      ```json
+      "build": "set NODE_OPTIONS=--max-old-space-size=10240&& npm run prestart && vue-tsc --noEmit && vite build &&  electron-builder"
+      ```
+      ⚠️ `set NODE_OPTIONS=...&&` 中**故意不留空格**（写成 `=10240&&`）：cmd 的 `set` 会把等号右侧
+      空格**并入变量值**，留空格会让值末尾多个空格；紧贴 `&&` 才干净。
+    - 已从 `package.json` 的 `dependencies` 与 `build` 脚本中移除该包。
+    - **通用教训**：会**改写 `node_modules` 内文件**的工具（`increase-memory-limit` 这类）天生脆弱 ——
+      ① 产物不会被包管理器修复；② 卸载后残留仍在；③ 任何一次 `npm install` 都可能让它失效或被它重新改坏。
+      **能用环境变量/官方开关达成的，就不要用「改 node_modules 文件」的方案。**
+45. **★★ `src/vite-env.d.ts` 是 preload IPC 契约的手写镜像，会漂移 → `TS2339`（2026-09-29）★★**
+    - **现象**：`npm run build` 到 `vue-tsc --noEmit` 报
+      `error TS2339: Property 'modelCount' does not exist on type '{ installed: boolean; dir: string; defaultDir: string; }'`
+      （`src/views/ttsTest/index.vue` 的 `piperModelCount.value = status.modelCount || 0`）。
+    - **根因**：`window.ipcRenderer` 的类型**不是**从 preload 推导的 —— preload 的
+      `ipcRenderer.invoke()` 返回 `Promise<any>`，推导不出具体结构。真实类型来自
+      **`src/vite-env.d.ts` 里手写的 `interface Window`**，它是 preload 契约的**人工镜像**。
+      主进程 `tts-piper.ts` 的 `tts:piper:status` 后来加了 `modelCount` / `readyCount`，
+      但这份声明没同步 ⇒ **运行时数据结构是好的，纯粹是类型没跟上**（所以功能正常、只有构建挂）。
+    - **修法**：把声明改成与主进程返回**逐字对齐**（不要只加报错那一个字段，否则下一个字段还会再报一次）：
+      ```ts
+      status: (modelDir?: string) => Promise<{ installed: boolean; modelCount: number; readyCount: number; dir: string; defaultDir: string }>;
+      ```
+      （`electron/preload/index.ts` 的 JSDoc 同步更新。）
+    - **核对习惯（本次即这么做的）**：改之前先读**主进程 handler 的真实 `return`**，逐字段比对，
+      别照着报错只补一个字段。本次三处一并核对，结论是**只有 piper 漂移**，kokoro 与 vits
+      （含 `vits.chooseModelDir` 的 `modelCount?` / `speakerCount?`）都与主进程一致。
+    - **⚠️ 结构性风险（待改进，未动手）**：`vite-env.d.ts` 维护成本高且必然持续漂移。
+      更稳的做法是让它**从 preload 自动推导** —— 在 `electron/preload/index.ts` 里
+      `export type PreloadApi = typeof api`（api 需带显式返回类型，不能是 `Promise<any>`），
+      渲染端 `ipcRenderer: PreloadApi`。根治前，**新增/修改 IPC 返回值时务必同步这一份声明**。
+46. **★★ Electron 下载镜像的正确键是 `electronDownload`，不是 `electronGet`（2026-09-29 修正，此前文档写错）★★**
+    - **现象**：`npm run build` 走到 electron-builder 阶段中断：
+      ```
+      ⨯ Invalid configuration object. electron-builder 26.17.0 has been initialized using a
+        configuration object that does not match the API schema.
+      - configuration has an unknown property 'electronGet'
+      ```
+    - **根因**：`electron-builder.json5` 里写了 `electronGet` —— **这个键不存在**。
+      笔误源自把「`ElectronGetOptions` 这个类型名」误当成了配置键名。
+      ⚠️ **本 skill 第 33 条曾把 `electronGet` 写成"正确字段"，是错的，已修正** ——
+      这是典型的「类型名 ≠ 配置键名」，且当时只查了 `configuration.ts` 就下结论，**没查 `scheme.json`**。
+    - ✅ **正确写法**（顶层键是 `electronDownload`）：
+      ```json5
+      "electronDownload": {
+        "mirrorOptions": { "mirror": "https://npmmirror.com/mirrors/electron/" },
+      },
+      ```
+    - **`electronDownload` 接受两种形状**，运行时靠「是否含独占键」自动识别
+      （`app-builder-lib/out/util/electronGet.js:584`
+      `ELECTRON_GET_EXCLUSIVE_KEYS = ["mirrorOptions","force","unsafelyDisableChecksums","checksums"]`）：
+      | 形状 | 出处 | 写法 |
+      |---|---|---|
+      | ① 现代 | `@electron/get` | `{ mirrorOptions: { mirror } }` ← **本文件采用** |
+      | ② 遗留 | `electron-download` | `{ mirror }`（扁平） |
+      两者最终都归一到 `mirrorOptions.mirror`（`electronGet.js:676-677` 与 `:691-695` 两个分支）。
+      **嵌套形状优先**：`ElectronFramework.js:33` 对 `hasOwnProperty("mirrorOptions")` 有专门分支，
+      会把它**展平成 `mirror`** 供 app-builder 二进制下载（nsis / winCodeSign 等）使用，覆盖面更全。
+    - **Schema 事实（`app-builder-lib@26.17.0/scheme.json` 实测）**：根属性共 **90** 个，
+      `electronDownload` ✅ 存在，`electronGet` ❌ 不存在；90 个里**没有任何含 "Mirror" 的属性**
+      （含 electron 字样的只有 `electronBranding` / `electronCompile` / `electronDist` /
+      `electronDownload` / `electronFuses` / `electronLanguages` / `electronUpdaterCompatibility` / `electronVersion`）。
+    - **🔧 验证 electron-builder 配置项是否合法的方法（可复用）** —— 两处一起查，别只查一处：
+      ```js
+      // ① 权威 schema：根属性白名单
+      const j = JSON.parse(fs.readFileSync('node_modules/app-builder-lib/scheme.json','utf8'));
+      Object.keys(j.properties).includes('electronDownload')   // → true
+      Object.keys(j.properties).includes('electronGet')        // → false
+      // ② 运行时真实读取逻辑：看它到底消费哪个键、接受哪些形状
+      //    node_modules/app-builder-lib/out/util/electronGet.js
+      //    node_modules/app-builder-lib/out/electron/ElectronFramework.js
+      ```
+      **报错信息本身已经给了方向**（"unknown property" + 指向 https://www.electron.build/configuration），
+      但**不要只信文档站**——本站点已出现过"文档与实际 schema 不符"，**`scheme.json` 才是权威**。
+    - **镜像 URL 实测**（2026-09-29，Node https 探测）：
+      `https://npmmirror.com/mirrors/electron/44.4.5/electron-v44.4.5-win32-x64.zip`
+      → `302` → `https://cdn.npmmirror.com/binaries/electron/44.4.5/electron-v44.4.5-win32-x64.zip`
+      → **`200`，`content-length` 158184819（150.9 MB），`application/zip`** ⇒ 镜像有效。
+        （`electron-builder.json5` 里镜像地址**不带 `v` 前缀**，与第 35 条一致。）
+47. **Vite 警告「dynamically imported but also statically imported」＝ 无效懒加载（2026-09-29 清理）**
+    - **现象**：`vite build` 输出若干条 `[plugin vite:reporter] (!)` 警告，格式固定：
+      ```
+      (!) src/views/netRequest/db.ts is dynamically imported by EnvDialog.vue
+          but also statically imported by useCollection.ts, useEnvironment.ts, useHistory.ts,
+          dynamic import will not move module into another chunk.
+      ```
+    - **性质**：`(!)` 是 **warning 不是 error**，构建照常成功，**不影响功能**，只影响分包策略。
+      所以「构建没失败但输出脏」时不用慌。
+    - **根因**：某模块被 `await import()` **动态导入**（想拆成独立 chunk）的同时，
+      又被别处**静态导入** → 静态导入已把它拉进主包，动态导入拆不动 ⇒ **这个懒加载完全无效**。
+      本项目的成因是「在函数体内写 `await import()`」，以为能按需加载，
+      却忽略了同一模块早已被常驻代码静态引入。
+    - **本项目已清理的 4 处**（全部是唯一的动态导入者，删掉后警告消失）：
 
+      | 位置 | 原写法 | 目标模块 |
+      |---|---|---|
+      | `netRequest/components/env/EnvDialog.vue` | `saveAll()` 内 `await import('../../db')` | `db.ts` |
+      | `netRequest/components/import/ImportDialog.vue` | `doImport()` 内 `await import(…useCollection)` | `useCollection.ts` |
+      | `netRequest/components/import/ImportDialog.vue` | `doImport()` 内 `await import(…useEnvironment)` | `useEnvironment.ts` |
+      | `browser/components/BookmarksBar.vue` | `openInNewTab()` 内 `await import("@/store/useBrowser")` | `useBrowser.ts` |
+
+    - **修法**：把函数内的 `await import()` 提到**顶层静态导入**。
+      `store` 的动态取用（`mod.default()`）等价于 `import useBrowser from '@/store/useBrowser'` 后直接 `useBrowser()`
+      （`useBrowser.ts:120` 是 `export default defineStore(...)`）。
+      同步函数还能去掉多余的 `async`（调用方 `onOpen` 本就是 fire-and-forget，不 `await`）。
+    - **✅ 改前必须做的两项核对（否则可能引入真 bug）**：
+      1. **排除循环依赖** —— 逐个读目标模块的 import 列表。本次四个模块**都不引用任何 `.vue` 组件**，
+         故对话框导入它们不可能成环（`db.ts` 更是只有 `import type`，编译期擦除、零运行时依赖）。
+         ⚠️ **动态导入最常见的存在理由就是「破循环依赖」**，所以不能无脑改静态。
+      2. **确认行为不变** —— 检查目标模块是否已被其他静态导入拉进主包。本次全部满足，
+         例如 `EnvDialog.vue` 本就静态导入 `useEnvironment`（为了 `uid`），而后者静态导入 `db` ⇒ db 早已加载。
+    - **🔧 诊断/验证方法（不用跑完整构建，秒级）**：
+      ```js
+      // ① 扫全仓动态 import，看目标模块是否「既有动态又有静态导入」
+      //    匹配 /(?:await\s+)?import\s*\(\s*['"]([^'"]+)['"]/
+      // ② 改完后复扫，确认这些模块的「动态导入者」已清零 → 警告必然消失
+      //    （警告触发条件就是存在动态导入者，与静态导入数量无关）
+      ```
+    - **⚠️ 不要误伤正常的动态导入**：`src` 下共 74 处动态 import，绝大多数是**正确的** ——
+      `router/index.ts` 的 ~50 条**路由懒加载**（每页一个 chunk，必须保留）、
+      以及 `jsqr` / `qr-code-styling` / `diff` 等**重库的按需加载**。
+        只有「目标模块同时被静态导入」的那些才是冗余的。
+48. **Vite 6 → 8 升级可行性评估（2026-09-29 调研完成，**尚未执行**）**
+    - **起因**：`vite build` 输出两条黄色警告（非错误）：
+      ```
+      Unknown input options: platform. Allowed options: cache, context, ...
+      Unknown output options: codeSplitting. Allowed options: amd, assetFileNames, ...
+      ```
+    - **根因**：`vite-plugin-electron@1.1.2` 的 `setBuildOptions()`（`dist/utils-*.cjs`）
+      按 Vite 版本分支：`>=8` 写 `build.rolldownOptions`，`<8` 改写 `build.rollupOptions`。
+      **它的降级转换不完整** —— 只把 `output.codeSplitting` **额外**翻译成 `inlineDynamicImports`
+      （`if (typeof output.codeSplitting === "boolean") output.inlineDynamicImports = !output.codeSplitting`），
+      **却没删掉 `codeSplitting` 本身，`platform: "node"` 更是完全没转换** ⇒
+      这两个 Rolldown 专属选项被原样塞给 Rollup ⇒ Rollup 报「未知选项」。
+      警告由 `rollup/dist/shared/parseAst.js:1000` 的 `` `Unknown ${optionType}: … Allowed options: …` `` 产生。
+      **属上游插件的兼容层缺陷**，Rollup 会忽略未知选项 ⇒ **功能无影响**，纯噪声。
+    - **消灭警告的两条路**：
+      1. **保持 Vite 6**：给 electron 子构建加 `build.rollupOptions.onwarn` 过滤（`onwarn` 在 Rollup 的允许列表内，合法）；
+         **✅ 已实测可拦截**：直接调 `require('rollup').rollup({ input, platform:'node', onwarn })`，
+         捕获到 `onwarn: UNKNOWN_OPTION | Unknown input options: platform. …` ⇒
+         **可按 `warning.code === 'UNKNOWN_OPTION'` 精确过滤**（比按文案匹配稳，且不会误伤其它警告）。
+      2. **升 Vite 8**：Rolldown 原生认 `platform` / `codeSplitting`，警告从根上消失。
+    - **Vite 8 事实（2026-09-29 实测 npm registry）**：`latest = 8.3.1`，共 51 个 8.x 版本；
+      **2026-03-12 已发布稳定版**（非 beta），`previous = 7.3.6`。
+      Rolldown（Rust）**全面替代 esbuild + Rollup**，Oxc 做 JS 转换、Lightning CSS 做 CSS 压缩。
+      `vite@8.3.1`：`type: module`（ESM-only），deps = `rolldown ~1.2.9` / `lightningcss ^1.33.0` /
+      `postcss` / `picomatch` / `tinyglobby`；`engines.node = ^20.19.0 || >=22.12.0`。
+    - **本项目兼容矩阵（逐个核实）**：
+      | 包 | 已装 | 对 Vite 8 | 结论 |
+      |---|---|---|---|
+      | `vite` | 6.4.3 | — | 升 **8.3.1** |
+      | `@vitejs/plugin-vue` | 5.2.4 | peer `^5 \|\| ^6` | ❌ 必须升到 **6.x**（6.0.9 peer `vue ^3.2.25` + `vite ^5\|^6\|^7\|^8`）|
+      | `@vitejs/plugin-vue-jsx` | 5.1.6 | peer `^5 \|\| ^6 \|\| ^7 \|\| ^8` | ✅ 无需动 |
+      | `vite-plugin-electron` | 1.1.2 | peer `>=6`，代码有 Vite8 分支 | ✅ 无需动 |
+      | `vite-plugin-jsonx` | 1.2.3 | peer `>=4.0.0` | ✅ 无需动 |
+      | 硬条件 | Node 24 / vue 3.5.43 / vue-tsc 2.2.12 | `engines` 满足；plugin-vue6 要求 vue `^3.2.25` | ✅ 满足 |
+    - **✅ 两个常见破坏点与本项目无关（实测 0 处）**：
+      - `manualChunks` **对象字面量语法**在 Rolldown **不支持**（只认函数形式）—— 本项目 `manualChunks` 命中 **0 处**。
+      - `esbuild: {}` 配置需迁到 `oxc: {}` —— 本项目 **0 处**（`minify: isBuild` 是布尔，不受影响）。
+    - **⚠️ 真实风险（按影响排序）**：
+      1. **CJS 默认导入语义变化**：Rolldown 对「CJS 包默认导出」的处理与 Rollup 不同，
+         可能**构建通过但运行时 undefined**。逃生舱 `build.legacy.inconsistentCjsInterop: true`（临时）。
+         本项目 3 个 CJS 互操作插件（`@originjs/vite-plugin-commonjs` / `vite-plugin-require-transform` /
+         `vite-plugin-transform__require-to-import`）**只出现在 package.json，从未被 import** ⇒ 死依赖，
+         风险大幅降低（可顺手清掉），但仍需回归渲染端。
+      2. **循环导入会大声报警告**（Rollup 静默）⇒ 可能冒出一批新警告，**是暴露老问题、不是新 bug**，逐个判断。
+      3. **`build.cssMinify` 默认改 Oxc / Lightning CSS** ⇒ 需对生产构建做**视觉比对**。
+      4. **dev 内存约 7 倍**（Rolldown 保留更多模块图）⇒ 本项目工程大，留意 OOM。
+      5. `import.meta.hot.accept` 不再接受 URL（仅自定义 HMR 受影响，本项目无）。
+      6. 安装体积 +~15MB、ESM-only。
+    - **👍 安装无额外镜像负担**：`@rolldown/binding-win32-x64-msvc` 与 `lightningcss-win32-x64-msvc`
+      都是**普通 npm 包**（走 registry），实测镜像上均存在 ⇒
+      **不需要**像 `sqlite3` / `electron` 那样配 `*_binary_host`（那类是从 GitHub Release 下预编译包）。
+    - **两条迁移路径**：① 官方推荐两步法：先用 `overrides` 换 `rolldown-vite` 试跑，通过再升 8
+      （好处：把「Rolldown 本身兼容性」与「Vite 8 其它变更」两类问题分开）；② 直接 6 → 8（本项目改动面已核实很小：仅 `vite.config.ts` 2 处 `rollupOptions`→`rolldownOptions` + 2 个依赖升级）。
+    - **📌 结论**：**为实现「消除这 2 条警告」而升级不划算**（它们无害，`onwarn` 即可静音）；
+      但若目标是 Vite 8 的**构建提速（同规模项目实测 3–5x）**，现在时机合适 ——
+      阻碍面已核实很小，硬条件全满足。**待用户决策后再执行。**
+    - **🗓 决策记录（2026-09-29）：用户选择「先不动」** —— 已知悉警告无害、不影响产物；
+      `onwarn` 静音方案与 Vite 8 升级方案均已评估完毕（改动面/风险见上），
+      **留待有其它理由动构建链时一并处理**。⚠️ 后续若再看到这两条警告，**不要当成新问题去排查**，
+      这是**已评估并主动搁置**的已知项；也**不要**未经用户确认就擅自升级 Vite 或加 `onwarn`。
+
+49. **打包体积审计：`dependencies` 归位是 Setup.exe 瘦身的大头（2026-09-29，Setup 108.9→158.4MB 根因分析）**：
+   - **机制（两条链咬合）**：① `vite.config.ts` main/preload 的 `external` = `Object.keys(pkg.dependencies)` 全量；
+     ② electron-builder **按 `dependencies` 递归闭包收集 `node_modules`，与 `files` 无关**
+     （`files:["dist","dist-electron"]` 管不到 node_modules，那走独立收集逻辑）。
+     ⇒ 渲染端专用包只要写在 `dependencies`，整包进 app —— 哪怕其代码早被 Vite 打进 `dist/`。
+   - **实测构成（26.9.29-rc.1）**：win-unpacked 529.4MB = Electron 运行时 320.1 + 必需依赖 90.0 +
+     **冗余依赖 101.0** + app 其他 18.2；app/node_modules 216 包 191.1MB，而主进程真实 require 顶层仅 12 包。
+     增量大头：`@napi-rs/canvas-win32-x64-msvc` 36.5MB（pdfjs-dist@6.3 的 optionalDep 链）+ `sherpa-onnx-win-x64` 22.4MB（TTS）。
+   - **审计方法（可复用）**：扫 `dist-electron` + `electron/` + `public/worker` + `build` 的 `require/from/resolve`
+     提取直接引用 → 递归闭包（**必须含 optionalDependencies**）→ `顶层 deps − 闭包` = 可安全搬迁集合（本项 57 包/101.0MB）。
+     ⚠️ **纯静态扫描会漏 `createRequire(...).resolve('sherpa-onnx-node')` 这类运行时动态解析**
+     （tts-kokoro/piper/vits 共 3 处）⇒ `sherpa-onnx-node` + `sherpa-onnx-win-x64` 必须**留在 dependencies**，TTS 缺它即哑。
+   - **已实施（方案 A）**：13 个渲染端专用包 `dependencies` → `devDependencies`
+     （@dagrejs/dagre、@lucide/vue、@types/adm-zip、@vue-flow/*×4、diff、epubjs、jsqr、jszip、pdfjs-dist、qr-code-styling）；
+     `dependencies` 只剩 14 个主进程必需。`puppeteer-core` 是 puppeteer 的传递依赖，**闭包判定后不可搬**（只看直接引用会误判）。
+     预期 win-unpacked ≈428MB、Setup ≈125–132MB。pdfjs-dist 移走后 `@napi-rs/canvas` 链自动消失。
+   - **无需先 `npm install`**：electron-builder 按磁盘 node_modules + 根 package.json 收集，与 lockfile 无关；
+     `npm run` 不校验 lockfile。但**下次 `npm install` 会同步 package-lock.json**（属预期，diff 大是正常）。
+   - **打包后验证清单**：① 主进程能起（无 `Cannot find module`）；② PDF 阅读；③ TTS 朗读；
+     ④ `resources/app/node_modules` 里 `pdfjs-dist` / `@napi-rs` / `@lucide` 已消失。
+     若未来出现 `Cannot find module 'X'`，先怀疑某包被运行时（主进程/worker/动态 resolve）需要却被搬去了 devDeps —— 搬回 dependencies 即可。
