@@ -35,7 +35,12 @@
       </div>
     </header>
 
-    <ClipboardCardContent :text="item.text" :image="item.image" :keyword="keyword" />
+    <ClipboardCardContent
+      :text="item.text"
+      :image="item.image"
+      :keyword="keyword"
+      @preview-image="$emit('preview-image', $event)"
+    />
   </article>
 </template>
 
@@ -57,6 +62,7 @@ const emit = defineEmits<{
   (e: 'copy', payload: ClipboardCopyPayload): void
   (e: 'delete', item: ClipboardItem): void
   (e: 'toggle-select', id?: number): void
+  (e: 'preview-image', src: string): void
 }>()
 
 // 复制动作：由复制按钮组给出模式（原样 / 纯文本），连同条目一并上抛

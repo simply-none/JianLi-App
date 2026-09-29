@@ -7,10 +7,20 @@
       :class="{ 'is-clamped': clamped && needCollapse }"
       :style="{ '--clamp-lines': maxLines }"
     >
-      <!-- 图片条目：直接渲染缩略图，不参与文本折叠与高亮 -->
-      <div v-if="imageSrc" class="content-image">
+      <!-- 图片条目：渲染缩略图，点击放大查看（放大行为上抛，由页面统一挂查看器） -->
+      <button
+        v-if="imageSrc"
+        type="button"
+        class="content-image"
+        title="点击查看大图"
+        @click.stop="$emit('preview-image', imageSrc)"
+      >
         <img :src="imageSrc" alt="剪贴板图片" />
-      </div>
+        <span class="image-hint">
+          <LucideIcon name="Maximize2" :size="12" />
+          查看
+        </span>
+      </button>
 
       <span v-else-if="isEmpty" class="content-empty">（无文本内容）</span>
       <template v-else>
@@ -45,6 +55,10 @@ const props = withDefaults(
   }>(),
   { maxLines: 5 }
 )
+
+const emit = defineEmits<{
+  (e: 'preview-image', src: string): void
+}>()
 
 const bodyRef = ref<HTMLElement | null>(null)
 // 是否处于折叠态
@@ -126,15 +140,59 @@ watch(
       font-style: italic;
     }
 
-    // 图片缩略图：限高展示，点击区域由卡片统一处理
-    .content-image img {
-      display: block;
+    // 图片缩略图：整块是可点击按钮（点击放大查看）
+    .content-image {
+      position: relative;
+      display: inline-block;
       max-width: 100%;
-      max-height: 180px;
-      object-fit: contain;
-      background: var(--bg-base);
+      padding: 0;
       border: 1px solid var(--border-subtle);
       border-radius: var(--radius-btn);
+      background: var(--bg-base);
+      cursor: zoom-in;
+      overflow: hidden;
+      transition:
+        border-color 0.18s ease,
+        box-shadow 0.18s ease;
+
+      &:hover {
+        border-color: var(--color-primary);
+        box-shadow: 0 4px 14px -6px rgba(0, 0, 0, 0.35);
+      }
+
+      img {
+        display: block;
+        max-width: 100%;
+        max-height: 180px;
+        object-fit: contain;
+      }
+
+      // hover 才浮出的「查看」提示条，不干扰缩略图本身的观感
+      .image-hint {
+        position: absolute;
+        right: 6px;
+        bottom: 6px;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: rgba(12, 14, 20, 0.66);
+        color: #fff;
+        font-size: 11px;
+        line-height: 1.6;
+        opacity: 0;
+        transform: translateY(2px);
+        transition:
+          opacity 0.18s ease,
+          transform 0.18s ease;
+        pointer-events: none;
+      }
+
+      &:hover .image-hint {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
   }
 

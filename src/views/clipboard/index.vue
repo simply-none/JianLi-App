@@ -42,15 +42,24 @@
       @toggle-select="toggleSelect"
       @delete-selected="deleteSelected"
       @clear-selection="clearSelection"
+      @preview-image="openPreview"
+    />
+
+    <!-- 图片查看器：点击卡片缩略图后全屏查看（缩放 / 平移 / 复制） -->
+    <ClipboardImagePreview
+      v-model="previewVisible"
+      :src="previewSrc"
+      @copy="copyPreviewImage"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import ClipboardToolbar from './components/ClipboardToolbar.vue'
 import ClipboardAdvancedSearch from './components/ClipboardAdvancedSearch.vue'
 import ClipboardList from './components/ClipboardList.vue'
+import ClipboardImagePreview from './components/ClipboardImagePreview.vue'
 import { useClipboard } from './composables/useClipboard'
 
 // 组合式逻辑（功能化）：查询/分页/删除/清空/高级查询/去重/复制
@@ -77,6 +86,25 @@ const {
   toggleSelect,
   clearSelection,
 } = useClipboard()
+
+// —— 图片查看器 ——
+// 挂在页面上而非卡片内：卡片由 VirtualList 复用，把全屏遮罩放进卡片会导致
+// 滚动时被卸载、且遮罩被虚拟列表容器裁剪。
+const previewVisible = ref(false)
+const previewSrc = ref('')
+// 记录正在查看的条目 id，供查看器内的「复制」复用 copyItem（会同步累加使用次数）
+const previewId = ref<number | null>(null)
+
+function openPreview(src: string) {
+  previewSrc.value = src
+  previewId.value = items.value.find((i) => i.image === src)?.id ?? null
+  previewVisible.value = true
+}
+
+function copyPreviewImage() {
+  const target = items.value.find((i) => i.id === previewId.value)
+  if (target) void copyItem(target, 'raw')
+}
 
 onMounted(() => {
   search()

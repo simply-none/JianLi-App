@@ -17,6 +17,7 @@
           @copy="$emit('copy', $event)"
           @delete="$emit('delete', $event)"
           @toggle-select="$emit('toggle-select', $event)"
+          @preview-image="$emit('preview-image', $event)"
         />
       </template>
 
@@ -64,6 +65,7 @@ const emit = defineEmits<{
   (e: 'toggle-select', id?: number): void
   (e: 'delete-selected'): void
   (e: 'clear-selection'): void
+  (e: 'preview-image', src: string): void
 }>()
 </script>
 
