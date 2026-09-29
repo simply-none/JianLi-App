@@ -85,14 +85,23 @@ function extractDownloadUrl(text: string): string {
 
 /**
  * 启动剪贴板监视（1s 轮询；配置 clipboardMonitor=false 时只空转不发送）
+ *
+ * ⚠️ Electron 44：`clipboard.readText()` 已是异步 API，故回调改为 async。
+ * 为防止「上一轮未跑完、下一轮又进来」造成 lastText 时序错乱，加 `polling` 重入锁：
+ * 单轮未结束时直接跳过本轮（剪贴板内容不会丢，下一轮仍会读到同一份）。
+ *
  * @returns 轮询 timer 的 stop 函数（测试/关停用）
  */
 export function startClipboardMonitor(): () => void {
   // 上次轮询看到的剪贴板文本（只在文本变化时判定，避免重复弹窗）
   let lastText = "";
-  const timer = setInterval(() => {
+  // 重入锁：上一轮 await 未完成时，本轮直接跳过
+  let polling = false;
+  const timer = setInterval(async () => {
+    if (polling) return;
+    polling = true;
     try {
-      const text = clipboard.readText();
+      const text = await clipboard.readText();
       if (!text || text === lastText) return;
       lastText = text;
       // 开关关闭时静默跳过（仍更新 lastText 防止打开开关后补发旧内容）
@@ -102,6 +111,8 @@ export function startClipboardMonitor(): () => void {
       win?.webContents.send("download:clipboard-detected", { url });
     } catch (e) {
       console.error("[downloader] 剪贴板监视异常:", e);
+    } finally {
+      polling = false;
     }
   }, 1000);
   return () => clearInterval(timer);

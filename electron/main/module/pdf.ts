@@ -622,6 +622,15 @@ export function initPdf(): void {
   );
 
   // ---- 展平标注（annotations → 内容层，不可逆） ----
+  //
+  // ⚠️ 历史说明：本处原写 `p.flatten()`，但 **pdf-lib 从未提供过 `PDFPage.flatten()`**
+  // （已核对 pdf-lib@1.17.1 的 PDFPage.d.ts，方法表里没有 flatten）。原代码包在
+  // `try { } catch {}` 里，TypeError 被静默吞掉 ⇒ 用户拿到的是「原样复制」的 PDF，
+  // 展平功能形同虚设。这不是 Electron 44 引入的问题，是既有缺陷。
+  //
+  // 真正的实现：直接操作页面字典，删掉 /Annots（注释对象数组）与其上的
+  // /Annot 关联，使注释不再随文档携带。这是 pdf-lib 层面能做的「剥除注释」，
+  // 效果 = 标注不再可编辑/可删除（达到展平的不可逆目的）。
   ipcMain.handle(
     'pdf:flatten',
     async (_e, args: { file: string; outputPath: string }): Promise<PdfResult> => {
@@ -632,7 +641,11 @@ export function initPdf(): void {
         for (let i = 0; i < total; i++) {
           const [p] = await out.copyPages(src, [i]);
           try {
-            p.flatten();
+            // p.node 是 PDFPageLeaf（继承 PDFDict），delete(key: PDFName) 返回 boolean。
+            // 这里断言为 PDFDict 以调用其 delete —— pdf-lib 的 PDFPageLeaf 未在
+            // 公开入口导出类型，直接断言最省事且语义等价。
+            const leaf = p.node as unknown as PDFDict;
+            leaf.delete(PDFName.of('Annots'));
           } catch (e) {
             log.warn('[pdf] flatten page', i, 'failed', e);
           }

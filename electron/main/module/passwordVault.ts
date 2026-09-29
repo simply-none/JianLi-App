@@ -72,16 +72,20 @@ function safeWriteBack(): { ok: boolean; error?: string } {
 }
 
 /** 复制文本到系统剪贴板，并安排定时清空（不写入剪贴板历史表） */
-function copyToClipboard(text: string): { ok: boolean; error?: string } {
+async function copyToClipboard(text: string): Promise<{ ok: boolean; error?: string }> {
   try {
-    clipboard.writeText(text);
+    // Electron 44：writeText 已异步，await 后成功才算复制成功
+    await clipboard.writeText(text);
     if (clipboardClearTimer) clearTimeout(clipboardClearTimer);
     clipboardClearTimer = setTimeout(() => {
       // 仅当剪贴板内容仍是我们写入的，才清空，避免误清用户后续复制的内容
-      try {
-        if (clipboard.readText() === text) clipboard.clear();
-      } catch { /* 忽略清空失败 */ }
-      clipboardClearTimer = null;
+      void (async () => {
+        try {
+          // Electron 44：readText 已异步
+          if ((await clipboard.readText()) === text) clipboard.clear();
+        } catch { /* 忽略清空失败 */ }
+        clipboardClearTimer = null;
+      })();
     }, CLIPBOARD_CLEAR_MS);
     return { ok: true };
   } catch (err: any) {
@@ -183,7 +187,7 @@ export function initPasswordVault() {
         if (!e.otpSecret) return { ok: false, error: '该条目未配置 TOTP' };
         text = generateTotpWithMeta(e.otpSecret, { algorithm: 'SHA1', digits: 6, period: 30 }).code;
       }
-      const res = copyToClipboard(text);
+      const res = await copyToClipboard(text);
       return { ok: res.ok, error: (res as any).error };
     },
   );

@@ -100,7 +100,9 @@ function readCachedSpeakers(key: string): number {
 function writeCachedSpeakers(key: string, numSpeakers: number): void {
   try {
     fs.mkdirSync(metaDir(), { recursive: true });
-    fs.writeFileSync(path.join(metaDir(), `${key}.json`), JSON.stringify({ numSpeakers }, 'utf-8'));
+    // ⚠️ 原为 JSON.stringify({ numSpeakers }, 'utf-8') —— 第二个参数是 replacer，
+    //    传 'utf-8' 会被 TS 判为不匹配（运行时也无效）。编码应作为 writeFileSync 的参数。
+    fs.writeFileSync(path.join(metaDir(), `${key}.json`), JSON.stringify({ numSpeakers }), 'utf-8');
   } catch (err) {
     log.warn('[vits-tts] 缓存说话人数失败:', err);
   }

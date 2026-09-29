@@ -29,6 +29,12 @@
 - 选区窗、贴图窗均为独立路由小窗，遵循「小窗四件套」；常驻贴图窗须 `mouseEvents:true` 否则点击穿透（见 `small-window.md`）。
 
 ## 特有坑 / 注意
+- **Electron 44 剪贴板迁移（2026-09-29）**：4 处剪贴板调用已全部改走兼容层
+  `module/utils/clipboardCompat.ts`。3 处图片（`finalizeCapture` / `screenshot:copy` / `screenshot:persist`）
+  统一用 `writeClipboardImageFromPng(bufferFromDataUrl(dataUrl))` —— 截图 dataUrl 本就是 PNG，
+  取原始字节直传，**省掉新 API 强制的那次 `toPNG()` 重编码**；1 处文本用 `writeClipboardText()`。
+  `screenshot:persist` 的内层 `try/catch`（复制失败不影响落库）语义**保持原样**。
+  ⚠️ 勿再直接调 `clipboard.writeImage` / `clipboard.writeText`（旧同步 API 已全删）。
 - **坐标缩放**：选区坐标需按 `getTargetDisplay().scaleFactor` 换算（`screenshot.ts` 内 `toCropRect`），高分屏下不做缩放会裁错区域。
 - **常驻贴图穿透**：`sticker` 浮动窗若未在主进程 `createOtherWindow` 时带 `mouseEvents:true`，鼠标事件会穿透到桌面（`newWindow.ts:193` 判定）。
 - `screenshot:result` / `screenshot:select-error` 是主进程主动 `webContents.send` 到对应窗口，渲染端要用 `ipcRenderer.on` 接收并妥善移除监听。

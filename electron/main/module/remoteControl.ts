@@ -199,10 +199,11 @@ function monitorOff(): Promise<void> {
 }
 
 /** 手机文本 → PC 剪贴板（随后 PC 上 Ctrl+V 粘贴；上限 3000 字防滥用） */
-function clipboardText(text: string): void {
+async function clipboardText(text: string): Promise<void> {
   const value = text.slice(0, 3000)
   if (!value.trim()) throw new Error('文本为空')
-  clipboard.writeText(value)
+  // Electron 44：writeText 已异步，需 await 以确保命令真正落盘后再返回成功
+  await clipboard.writeText(value)
 }
 
 /** 让 PC 打开网址（仅 http/https，防任意协议注入） */

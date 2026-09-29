@@ -1,7 +1,6 @@
 import {
   desktopCapturer,
   screen,
-  clipboard,
   ipcMain,
   dialog,
   nativeImage,
@@ -18,10 +17,25 @@ import { win } from "./mainWindow.ts";
 import { store } from "./store.ts";
 import { insert, del, query, update, ensureTableExists } from "./newSql.ts";
 import {
+  writeClipboardImageFromPng,
+  writeClipboardText,
+} from "./utils/clipboardCompat.ts";
+import {
   VITE_DEV_SERVER_URL,
   indexHtml,
   preload,
 } from "../variables.ts";
+
+/**
+ * PNG dataURL → Buffer。
+ * 截图链路的数据源（canvas.toDataURL()）本来就是 PNG，取出原始字节直接喂给
+ * Electron 44 的 ClipboardItem 即可，省掉一次 toPNG() 重编码。
+ * @param dataUrl 必填，形如 `data:image/png;base64,xxxx`
+ */
+function bufferFromDataUrl(dataUrl: string): Buffer {
+  const base64 = dataUrl.replace(/^data:image\/[\w.+-]+;base64,/, "");
+  return Buffer.from(base64, "base64");
+}
 
 /**
  * 截图模块（路由页直接唤起 + 选框层内置标注，Snipaste 风格）
@@ -428,8 +442,9 @@ async function finalizeCapture(dataUrl: string, action: "copy" | "save" | "stick
     const rec = await persistScreenshot(dataUrl, action);
 
     if (action === "copy") {
-      // 复制到剪贴板
-      clipboard.writeImage(image);
+      // 复制到剪贴板（Electron 44：clipboard.writeImage 已移除，改走兼容层；
+      // dataUrl 本身即 PNG，直接以 PNG 字节写入，省掉一次 toPNG() 编码）
+      await writeClipboardImageFromPng(bufferFromDataUrl(dataUrl));
     }
 
     // 回传结果给主窗口的截图页预览
@@ -812,8 +827,8 @@ export function initScreenshot() {
   // 复制到系统剪贴板（路由页手动复制结果，并落库）
   ipcMain.handle("screenshot:copy", async (_e, payload: { dataUrl: string }) => {
     try {
-      const image = nativeImage.createFromDataURL(payload.dataUrl);
-      clipboard.writeImage(image);
+      // Electron 44：改走兼容层，dataUrl 即 PNG，零重编码写入
+      await writeClipboardImageFromPng(bufferFromDataUrl(payload.dataUrl));
       // 落库（自动写入 cache/screenshots）
       await persistScreenshot(payload.dataUrl, "copy");
       return { success: true };
@@ -826,7 +841,7 @@ export function initScreenshot() {
   ipcMain.handle("screenshot:copy-text", async (_e, text: string) => {
     try {
       if (typeof text !== "string" || !text) return { success: false, error: "空内容" };
-      clipboard.writeText(text);
+      await writeClipboardText(text);
       return { success: true };
     } catch (e: any) {
       return { success: false, error: e?.message || String(e) };
@@ -991,7 +1006,9 @@ export function initScreenshot() {
         if (!rec) return { success: false, error: "持久化失败" };
         if (payload.action === "copy") {
           try {
-            clipboard.writeImage(nativeImage.createFromDataURL(payload.dataUrl));
+            // Electron 44：clipboard.writeImage 已移除；dataUrl 即 PNG，零重编码写入。
+            // 复制失败不影响落库结果（保持原有容错语义）
+            await writeClipboardImageFromPng(bufferFromDataUrl(payload.dataUrl));
           } catch {
             /* 复制失败不影响落库结果 */
           }

@@ -521,7 +521,11 @@ export function initShellMenu(): void {
 
   ipcMain.on('shell-menu:set-default-open', async (_e, payload: { ext: string; enabled: boolean }) => {
     if (!payload || !payload.ext) return;
-    setDefaultOpen(payload.ext, !!payload.enabled);
+    // setDefaultOpen 的签名是 (ops, ext, enabled) —— 它只「把注册表操作推进 ops」，
+    // 不自己执行。故这里必须自备 ops 并真正跑一次，否则默认打开设置不会落盘到注册表。
+    const ops: RegOp[] = [];
+    setDefaultOpen(ops, payload.ext, !!payload.enabled);
+    await runShellMenuWorker(ops);
     const cur = new Set(await readDefaultOpen());
     if (payload.enabled) cur.add(payload.ext);
     else cur.delete(payload.ext);

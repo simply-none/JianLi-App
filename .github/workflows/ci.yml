@@ -24,13 +24,13 @@ jobs:
           list-files: json
           filters: |
             change:
-              - 'package-lock.json'
-              - 'yarn.lock'
-              - 'pnpm-lock.yaml'
+              - ':**/package-lock.json'
+              - ':**/yarn.lock'
+              - ':**/pnpm-lock.yaml'
 
       # ref: https://github.com/github/docs/blob/main/.github/workflows/triage-unallowed-contributions.yml
       - name: Comment About Changes We Can't Accept
-        if: ${{ steps.filter_not_allowed.outputs.change == 'true' }}
+        if: ${{ steps.filter_not_allowed.outputs.change == 'false' }}
         uses: actions/github-script@v6
         with:
           script: |
@@ -63,7 +63,7 @@ jobs:
           list-files: shell
           filters: |
             change:
-              - added|modified: '*.md'
+              - added|modified: ':**/*.md'
 
 
   job2:

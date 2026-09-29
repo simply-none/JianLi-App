@@ -35,7 +35,9 @@ export class SherpaOnnxProvider implements ITTSProvider {
   readonly type: TTSProviderType;
   private readonly ns: 'kokoro' | 'piper' | 'vits';
   private readonly storeKey: string;
-  private readonly voicePrefix: string;
+  // protected：子类 PiperProvider / SherpaVitsProvider 需要读取它来拼音色名
+  // （它们只读、不写；改 private 会导致 TS2341）。
+  protected readonly voicePrefix: string;
   protected readonly mapVoices: (raw: any[]) => RawSherpaVoice[];
 
   private audio: HTMLAudioElement | null = null;

@@ -5,14 +5,14 @@
  * 这里仅做「强类型封装」并 re-export，保证 twoFactor.ts 的既有调用
  * 签名完全不变，且 2FA 与新增的密码保险库共用同一套安全架构。
  */
-import type { TwoFactorAccount } from './types';
+import type { TwoFactorAccount } from './types.ts';
 import {
   encryptVault as _encrypt,
   decryptVault as _decrypt,
   writeVaultFile as _write,
   readVaultFile as _read,
   type VaultEnvelope,
-} from '../vault/crypto';
+} from '../vault/crypto.ts';
 
 export type { VaultEnvelope };
 

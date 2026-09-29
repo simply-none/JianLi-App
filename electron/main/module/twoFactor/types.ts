@@ -1,7 +1,7 @@
 /**
  * 2FA 账户模型（主进程内部使用）
  */
-import type { TotpAlgorithm } from './otp';
+import type { TotpAlgorithm } from './otp.ts';
 
 /** 完整账户（含 secret 明文，仅存于内存 / 加密文件，绝不进应用数据库） */
 export interface TwoFactorAccount {

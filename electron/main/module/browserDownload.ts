@@ -176,7 +176,9 @@ export function initBrowserDownload() {
     const item = items.get(id);
     const rec = records.get(id);
     if (item) {
-      if (item.canCancel()) {
+      // Electron 44 移除了 DownloadItem.canCancel()（该方法在旧版用于判断能否取消）。
+      // 等价语义：下载仍在进行中（state === 'progressing'）时即可取消。
+      if (item.getState() === "progressing") {
         item.cancel();
         if (rec) rec.state = "cancelled";
       }

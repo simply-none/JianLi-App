@@ -139,7 +139,9 @@ export async function initBrowserPermission() {
 
   const s = session.fromPartition("persist:browser");
   s.setPermissionRequestHandler(async (_webContents, permission, callback, details) => {
-    const url = details?.requestingUrl || details?.embeddingOrigin || "";
+    // Electron 44：PermissionRequest 只剩 isMainFrame / requestingUrl 两个字段，
+    // 旧的 embeddingOrigin 已被移除（它本就是 requestingUrl 的兜底备选，删掉不影响行为）。
+    const url = details?.requestingUrl || "";
     const origin = originOf(url);
     // 非法来源一律拒绝
     if (!origin || !/^https?:/i.test(origin)) {

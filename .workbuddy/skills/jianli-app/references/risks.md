@@ -2,7 +2,10 @@
 
 > 封装 / 开发前必读，避免踩历史雷。以下为代码探查时发现的与文档 / 规范不符或易错处。
 
-1. **node 版本不一致**：README「安装」写 v20.13.1，但 `package.json` `engines` 要求 `>=22` 且 `prestart` 跑 `check-node-version.js` 会拦截——**以代码为准，需 node 22+**。
+1. **node 版本要求 `>=24.0.0`**：`package.json` `engines` 与 `check-node-version.js`（挂 `prestart`，每次 dev/build 拦截）统一要求 **24.x**，与 Electron 44 内嵌的 Node 24 对齐；`@types/node` 同步为 `^24.19.0`。CI（`.github/workflows/build.yml`）`actions/setup-node@v4` + `node-version: 24` + `cache: npm`。
+   - ⚠️ `check-node-version.js` 只比较**主版本号**（`compareVersions(a.split('.')[0], b.split('.')[0])`），24.0.0 与 24.99.99 等价放行；写 23.x 会被拦。
+   - ⚠️ **升级 Node 主版本后原生模块 ABI 失效**（`sqlite3` 等）：必须删 `node_modules` 重新 `npm install`，否则报 `NODE_MODULE_VERSION` 不匹配。
+   - 注：Electron 内嵌 Node（运行时）与本机 Node（构建侧）是两回事，前者不可改。
 2. **get-store typo**：`store.ts` 注册的是 `get-stort-all`（疑似拼写错误），调用方若用 `get-store-all` 将失效。
 3. **双数据层已合并（2026-09-03）**：`module/sql.ts` 已删除，`newSql.ts` 为唯一连接池（启动按打包路径打开只读 `shiciDb` 并跳过 WAL）。渲染端旧通道 `query-data`/`set-data`/`delete-data` 早已迁移到 `new-sql:query`/`upsert`/`delete`；`utils/sql.ts` 仅留无独立连接的回调式辅助函数。新增业务一律走 newSql 三件套，语义差异：旧层 `whereStr`/`limit`/`orderBy` 塞 `conditions` 内，新层必须放顶层 options。详见 `data-layer.md`。
 4. **死 / 未接通道**：渲染端 `invoke`/`send` 的 `save-file`、`get-file-list`、`save-debug-data` 在主进程未找到 handler（可能走 worker 或已废弃），封装前核实。
@@ -52,3 +55,237 @@
 ## 维护建议
 - 每次大改动后更新对应 `references/modules/*.md` 与 `risks.md`，保持 skill 与代码同步。
 - skill 内容会随代码演进过时，把它作为「项目知识基线」，发现不符就改。
+
+## 环境与包管理器（2026-09-29 迁移）
+
+30. **包管理器已从 cnpm 迁到原生 npm（2026-09-29）**。「项目只支持 cnpm」是三重历史遗留造成的假象，**并非真实限制**，耦合点已全部解除：
+    - `check-node-version.js` 曾硬编码「请使用 cnpm 安装依赖包」文案（挂 `prestart`，每次 dev/build 都打印，是印象的主要来源）→ 已改为 npm 文案。
+    - `.gitignore` 曾把 `package-lock.json` / `pnpm-lock.yaml` / `yarn.lock` **三个 lockfile 全部忽略** → 现**放行 `package-lock.json`**（**锁文件必须提交**，这是依赖可复现的根本）、忽略 `pnpm-lock.yaml` 与 `yarn.lock`。
+    - `package.json` 的 `scripts` 保持 `npm run xxx` 嵌套（npm 下本就正确，无需改动）。
+    - `increase-memory-limit`：它扫 `node_modules/.bin` 注入 `--max-old-space-size`，**npm 扁平布局下工作正常**，故 `build` 脚本保持原样调用它。
+31. **`sqlite3` 装不上 = 下载被墙 + `node-gyp@8` 不支持新 Node（2026-09-29 二次定位，最终解法：升 sqlite3@6.0.1）**：`npm install` 报
+    ```
+    prebuild-install warn install read ECONNRESET
+    gyp ERR! find VS Could not find any Visual Studio installation to use
+    ```
+    **两个独立原因叠加**，只解决第一个不够：
+    - **原因① 下载被墙（表层）**：`prebuild-install` 从 GitHub Releases 下预编译包被 ECONNRESET 打断 → 走 install 脚本里的 `|| node-gyp rebuild` 回退本地编译 → 本机没有 VS C++ 工具链 → 失败。cnpm 之所以"能用"是因为它内置二进制镜像加速。
+    - **原因② `node-gyp` 版本与 Node 不匹配（深层，之前漏掉）**：`sqlite3@5.1.7` 的 `optionalDependencies` **和** `peerDependencies` 都钉死 `node-gyp: "8.x"`，而 **`node-gyp@8` 只支持到 Node 18**。所以报错里会出现 `gyp info using node@24.18.1 ... node-gyp@8.4.1` —— 这个组合本身就是坏的，**即使下载成功也白搭，一旦回退编译必失败**。
+    - ✅ **最终解法（已落地）**：`sqlite3` 从 `^5.1.7` 升到 **`^6.0.1`**。对比：
+
+      | | `sqlite3@5.1.7` | `sqlite3@6.0.1` |
+      |---|---|---|
+      | 绑定 `node-gyp` | **`8.x`**（≤ Node 18） | **`12.x`**（`^20.17.0 \|\| >=22.9.0`，含 Node 24）|
+      | `engines.node` | 未声明 | `>=20.17.0` |
+      | 官方 CI 覆盖 Node | 18 / 20 / 22 | **18 / 20 / 22 / 24** |
+      | `node-addon-api` | `^7.0.0` | `^8.0.0` |
+      | `prebuild-install` | `^7.1.1` | `^7.1.3` |
+
+      ⇒ **无需安装 Visual Studio**，官方 6.x 已覆盖 Node 24。API 无破坏性变更（仍是 `new sqlite3.Database()` / `verbose()`，仍支持 CJS `require` / 默认导入），代码零改动。
+    - **镜像配置**：`sqlite3_binary_host=https://registry.npmmirror.com/-/binary/sqlite3`（**不要**写项目级 `.npmrc`，见第 33 条；写 shell 环境变量或用户级 `~/.npmrc`）。
+    - **键名规则（实证自 `prebuild-install@7` 的 `util.js: getEnvPrefix()`）**：它读的是
+      `npm_config_<包名>_binary_host` **或** `npm_config_<包名>_binary_mirror`（包名中非字母数字字符替换为 `_`）。
+      **所以每个原生模块必须单独配一行**，形如 `<包名>_binary_host=...`。
+      ⚠️ 写成 `prebuild_install_mirror` / `node_pre_gyp_mirror` 这类**全局键是无效的**（已实测返回 `undefined`，会回落 GitHub）。
+    - **URL 拼接**：`<host>/{tag_prefix}{version}/{name}-v{version}-{runtime}-v{abi}-{platform}{libc}-{arch}.tar.gz`。
+      镜像前缀是 `/-/binary/`（**不是** `/mirrors/`）。`v6.0.1-napi-v3/v6-win32-x64` 与 `v5.1.7` 同名文件均实测 HTTP 200 + 有效 gzip。
+      **校验手法**：镜像的 napi-v3 包 sha256 与 GitHub 官方 Release 页公布的 `b0c4734551c661f8...` **完全一致**，证明镜像是官方同步的真包。
+    - **`target=undefined` 的成因（源码级确认，别误判）**：`prebuild-install@7.1.3` 的 `rc.js` L50 判断
+      `if (napi.isNapiRuntime(rc.runtime) && rc.target === process.versions.node) rc.target = napi.getBestNapiBuildVersion()`；
+      只有 `target === process.versions.node` 才会推导出 napi 版本。若 `target` 变成字符串 `"undefined"` 就跳过推导，`abi` 也成了 `"undefined"` → 报 `does not support N-API version undefined`。
+      **该值只可能来自 `npm_config_target=undefined`（字符串）或命令行 `--target=undefined`**，不是 npm 默认行为。本次报错**不影响最终解法**（升级 sqlite3 后走预编译包，压根不进这条路径）。
+    - **新增原生模块时**，查镜像目录 `https://registry.npmmirror.com/-/binary/<包名>/` 确认文件名与 `v<版本>/` 路径，再补一行。
+32. **`.npmrc` 注入的环境变量带 `npm_config_` 前缀（实测确认）**：经 `npm run`/`npm exec` 执行的子进程能拿到 `npm_config_xxx`，直接 `node xxx` 则拿不到。**推论**：任何只读无前缀环境变量（如 puppeteer 的 `PUPPETEER_DOWNLOAD_BASE_URL`、`PUPPETEER_SKIP_DOWNLOAD`）的工具，**在 `.npmrc` 里配置无效**，必须在 shell 里 `set` 后再执行 npm。
+33. **`.npmrc` 关键项（npm 版，2026-09-29 二次修定）**：**项目级 `.npmrc` 现在只留 `registry=https://registry.npmmirror.com`**。
+    - ⚠️ **不要**在项目级 `.npmrc` 写 `electron_mirror` / `electron_builder_binaries_mirror` / `sqlite3_binary_host` 等**自定义键** —— npm 11 起会报
+      `npm warn Unknown project config "xxx". This will stop working in the next major version of npm.`
+      这些键**从来不是 npm 的配置项**，而是 electron / prebuild-install / node-pre-gyp 的**环境变量**（读 `process.env`）；旧版 npm 对未知键"
+      沉默地"注入 `npm_config_xxx` 环境变量，顺手实现了镜像用途。npm 11 起警告并将在下个大版本**移除该注入行为**。
+    - **镜像的正确落点（已改好）**：
+      - 运行时 Electron 二进制 → `electron-builder.json5` 的 **`electronGet.mirrorOptions.mirror`**；
+      - 原生模块预编译包 → **shell 环境变量**，或**用户级 `~/.npmrc`**（`C:\Users\<你>\.npmrc`）。**用户级不触发该警告**（npm 只对项目级的未知键报警），且全局生效；
+      - puppeteer → 只能在 shell `set`（见第 32 条，它读无前缀变量）。
+    - ⚠️ **`electron-builder.json5` 里不存在 `electronMirror` / `electronBuilderBinariesMirror` 这两个字段**（已查 `app-builder-lib` 的 `configuration.ts` 与 `scheme.json` 确认；`Configuration` 接口里**没有任何含 "Mirror" 的属性**）。正确字段是 `electronGet: { mirrorOptions: { mirror } }`（`ElectronGetOptions` 直接透传给 `@electron/get`）。
+    - ⚠️ **`.npmrc` 里 `key[]=...` 是错的**：`key` 是 npm **已存在的内置配置项**（TLS 客户端密钥，与 `cert` 配对），不是"自定义键容器"。
+      实测后果：`key` 被解析成数组、触发 `npm warn config key 'key' and 'cert' are no longer used...`，
+      并且 `npm exec` 会因把数组当密钥读而报 `ERR_OSSL_UNSUPPORTED`（OpenSSL DECODER routines::unsupported）。
+    - **不要**添加 pnpm 专属项（`shamefully-hoist` / `hoist-pattern` / `enable-pre-post-scripts`）或 `legacy-peer-deps`（后者跳过 peer 校验、掩盖真实版本冲突）。
+34. **曾短暂试验 pnpm 的方案（备查，未采用）**：用户评估后选定**原生 npm**。若将来重新考虑 pnpm 需处理：① pnpm 10 默认禁止依赖跑 postinstall，`sqlite3`/`puppeteer`/`sherpa-onnx-node`/`clipboard-event`/`font-list`/`say` 会静默缺二进制，须在 `pnpm-workspace.yaml` 声明 `onlyBuiltDependencies`；② `increase-memory-limit` 会改坏 `.bin` 符号链接（须改用 `NODE_OPTIONS`）；③ 需 `shamefully-hoist=true` + `hoist-pattern[]=*`（electron-builder 收集依赖必需）。
+35. **Electron 二进制下载慢 → 走镜像（实测 16 倍差距，2026-09-29）**：首次 `npm install` / `npm run dev` 要下 **~116MB** 的 Electron zip。
+    - **实测同网络对比**：GitHub 官方 **372 KB/s**（约 5 分 20 秒）vs npmmirror 镜像 **5.9 MB/s**（约 20 秒）。
+    - **`@electron/get` 的镜像读取链（源码级，`artifact-utils.ts: mirrorVar()`）**：
+      `npm_config_electron_mirror` → `NPM_CONFIG_ELECTRON_MIRROR` → `npm_config_electron_<snake>` → `npm_package_config_electron_*` → **`ELECTRON_MIRROR`** → `options.mirror` → 默认 GitHub。
+      ⇒ **`.npmrc` 写 `electron_mirror` 是有效的**（它确实读 npm 注入的变量），`electron-builder.json5` 的 `electronGet.mirrorOptions.mirror` 对应最末的 `options.mirror`。
+    - **URL 拼接**：`<mirror><version>/electron-v<version>-<platform>-<arch>.zip`（镜像上**不需要** `v` 前缀，带与不带都实测 HTTP 206）。
+    - **镜像真伪校验**：镜像上 `SHASUMS256.txt` 可读且与官方值一致，可用来核对下载完整性。
+    - **配置落点**：写**用户级 `~/.npmrc`**（不出警告、全局生效）；临时覆盖用 shell `set ELECTRON_MIRROR=...`（优先级高于 `.npmrc`）。
+    - **断点续传**：内置 `npm run fetch-electron`（`scripts/fetch-electron.cjs`），走 `curl -C - --retry 10 --retry-all-errors`，中断后重跑接着下。
+    - **缓存位置**：`%LOCALAPPDATA%\electron\Cache\<url 的 sha256>\electron-v<版本>-<platform>-<arch>.zip`（按 URL 哈希分目录，换镜像会导致目录不同）。
+36. **electron 相关依赖升级后的版本基线（2026-09-29）**：`electron@^44.4.5`、`electron-builder@^26.17.0`、`electron-store@^11.0.2`、`vite-plugin-electron@^1.1.2`、`electron-log@^5.4.4`、`electron-devtools-installer@^4.0.0`、**`sqlite3@^6.0.1`**（原 `^5.1.7`，为支持 Node 24 而升，见第 31 条）。**`vite-plugin-electron-renderer` 已移除**（1.0.0 起零依赖零 peer，是空壳；`vite.config.ts` 里原 `renderer: {}` 本就是空对象）。注意：
+    - `electron-builder` 的 npm `latest` 标签曾停在 `26.15.3`（发布流水线问题），**真实最高稳定版看 `v26` dist-tag**，查版本别只信 `latest`。
+    - `electron-store@11` 是**纯 ESM**（`conf@15` → `dot-prop@10`），dev 若报 `ERR_REQUIRE_ESM` 需处理；`vite.config.ts` 的 `optimizeDeps.include: ['electron-store']` 必须保留。
+    - Electron 36 → 44 跨 8 个 Chromium 大版本，**重点回归** `features/ebook`（epubjs / pdfjs 的 webview 渲染）与 `features/browser`（多标签 WebView）。
+    - 未来若升 **Vite 8**，`vite.config.ts` 需把 `build.rollupOptions` 改为 `build.rolldownOptions`（vite-plugin-electron v1 迁移要求）；当前 Vite 6 继续用 `rollupOptions`。
+37. **`vite.config.flat.txt` 是无效文件**：它是从 `vite-plugin-electron` 官方模板拷来的「flat API」参考备忘（后缀 `.txt`，不被 Vite 加载），内部 import 了**已移除的** `vite-plugin-electron-renderer`。勿被它误导；实际配置是 `vite.config.ts`（使用 `vite-plugin-electron/simple`）。
+38. **排查此类「装不上」问题的通用方法（值得复用）**：不要停留在「报错就说环境不行」，要**顺着失败链路定位到可验证的真相**：
+    ① 从报错首行找**分叉点**（此处是 `prebuild-install X || node-gyp rebuild` 的 `||`，说明下载失败才转编译）；
+    ② 解包目标 npm 包**读源码**（`curl <pkg>.tgz` → gunzip → 手工解 tar → 读 `util.js`/`rc.js`）确认它**真正读哪个键名/环境变量**，别照抄博客；
+    ③ 用镜像的**目录列表 API**（`https://registry.npmmirror.com/-/binary/<pkg>/<ver>/` 返回 JSON）确认**真实文件名**，别凭模板猜（本例漏了 `sqlite3-` 前缀导致误判 404）；
+    ④ 用 `curl -I -L` **实测 HTTP 200** 而非假设；
+    ⑤ 写探针脚本**实测环境变量注入**，而非推断 npm 的行为。
+    ⑥ **听到一个说法先想"它是不是本来就是别人的东西"** —— 本次「`key[]=` 能当自定义键容器」的推断，错在没先查 `key` 在 npm 里是否**已存在**（它是 TLS 密钥项）。**已存在的内置键不能借用**，借用代价是静默改语义或报错。同类：`electron_builder_binaries_mirror` 我先假设是 electron-builder 的 config 字段，实际它只是环境变量、config 里根本没有该键。
+    ⑦ **报错里的"版本不匹配"要当成一等线索**：本次真正卡死的是 `gyp info using node@24.18.1 ... node-gyp@8.4.1`——一眼可见 `node-gyp@8` 不可能支持 Node 24。查包的 `optionalDependencies`/`peerDependencies` 就发现 `sqlite3@5.1.7` 把 `node-gyp` 钉在 `8.x`。**顺带教训：只修「下载镜像」是治标**（表层 ECONNRESET），**要往下一层看「回退路径本身是否可行」**。
+    ⑧ **优先"升级依赖"而不是"装工具链"**：用户诉求是「不装 VS 也能解决」。正解不是绕开本地编译，而是**升到官方已支持目标 Node 的版本**（sqlite3 6.x 的 CI 矩阵含 Node 24）——比装 6GB VS Build Tools 干净得多。评估时**去查上游 CI 矩阵 / `engines` / Release Notes**，那是"官方是否支持某运行时"的最硬证据。
+    ⑨ **校验镜像真伪用哈希对账**：拿镜像包 sha256 跟 GitHub 官方 Release 页公布的比对（本次 napi-v3 完全一致），远比"能下载"更能证明是官方同步包。
+39. **⚠️ Electron 44 把 `clipboard` 整个重写成 W3C 异步 API（2026-09-29 迁移完成，**必读**）**：
+    - **破坏面**：`interface Clipboard` 只剩 **7 个成员**（`clear` / `has` / `read` / `readText` / `write` / `writeText` / `selection`），
+      **旧的同步 API 一个不剩全部移除**（已逐个搜 `electron.d.ts`，0 命中）：`readImage` / `writeImage` / `availableFormats` /
+      `readBuffer` / `writeBuffer` / `readHTML` / `writeHTML` / `readRTF` / `writeRTF` / `readBookmark` / `writeBookmark` /
+      **`readFindText` / `writeFindText`** / `hasImage`。
+      ⇒ **`readText()` 现在返回 `Promise<string>`**。旧代码 `clipboard.readText().trim()` 会得到
+      `TypeError: text.trim is not a function`（Promise 上没有该方法）——**这正是本次运行时崩溃的根因**。
+    - **兼容层**：`electron/main/module/utils/clipboardCompat.ts`（**新增，唯一入口，勿绕过**）。
+      业务侧只需「加 await + 换函数名」，旧调用形式基本保留：
+      | 旧 | 新 |
+      |---|---|
+      | `clipboard.readText()` | `await readClipboardText()` |
+      | `clipboard.writeText(t)` | `await writeClipboardText(t)` |
+      | `clipboard.readImage()` | `await readClipboardImage()`（**无图时返回空 NativeImage，`isEmpty()` 语义不变**）|
+      | `clipboard.writeImage(img)` | `await writeClipboardImage(img)` / `await writeClipboardImageFromPng(pngBuf)` |
+      | `clipboard.availableFormats()` | `await readClipboardFormats()` |
+      | `clipboard.write({text,html})` | `await writeClipboardRich({text,html})` |
+      | `clipboard.readHTML()` / `readRTF()` | `await readClipboardHtml()` / `readClipboardRtf()` |
+      | `clipboard.readBookmark()` | `await readClipboardBookmark()`（无书签返回 `{title:'',url:''}`，**不抛错**，保持旧语义）|
+      | `clipboard.readFindText()` | **已移除** → 用 `""`（DB 列保留，值恒空）|
+    - **性能反转（重要）**：旧 `writeImage(nativeImage)` 同步、内部零拷贝；新 API 只能
+      `clipboard.write([new ClipboardItem({ 'image/png': Blob })])`，**必须先把图编码成 PNG**。
+      故兼容层提供两条路径：**手里已有 PNG 字节就走 `writeClipboardImageFromPng()`（零重复编码）**，
+      只有 NativeImage 时才用 `writeClipboardImage()`（内部 `toPNG()`，数 MB 图约 10–50ms 阻塞主进程）。
+      截图 / 二维码链路的数据源本来就是 PNG dataURL，全部走前者（见 `bufferFromDataUrl()`）。
+    - **⚠️ 三个类型坑（都在兼容层文件里写了注释，别重踩）**：
+      1. **`ClipboardItem` 同名冲突**：项目 tsconfig 带 `lib:["ESNext","DOM"]`，DOM 也有 `ClipboardItem`；
+         直接用全局名会解析成 **DOM 版**，与 `clipboard.write()` 要求的 `Electron.ClipboardItem` 不兼容
+         （DOM 版 `getType()` 返回 `Promise<Blob>`，Electron 版可返回 `ClipboardBookmark`）。
+      2. **★ `ClipboardItem` 在 Electron 主进程里不是全局，必须从 `'electron'` import（2026-09-29 二次修正，
+         曾因此线上崩溃，务必记住）★**：
+         - **踩坑经过**：初版误以为「Node 18+ 内置全局 `ClipboardItem`」，直接裸用全局名。
+           **类型检查通过、构建通过**，但运行时报
+           `ReferenceError: ClipboardItem is not defined`（`dist-electron/main/index-*.js` 顶层求值即抛，
+           **整个主进程起不来**）。
+         - **根因**：`ClipboardItem` 是 **Web/浏览器**全局，**不是 Node 全局**，Node 18+ 并未内置它；
+           Electron 主进程也**没有**把它挂到 `globalThis` 上。
+           「编译能过」是因为**类型空间里恰有 DOM 的 `ClipboardItem`** ——
+           **典型陷阱：类型存在 ≠ 运行时有值**（与第 29 条 v2 的 `getChangeCount` 同源）。
+         - **实测结论（真实 Electron 44 主进程，逐个 `typeof` 过）**：
+           ```
+           globalThis.ClipboardItem              → undefined   ✗
+           globalThis.clipboard                   → undefined   ✗
+           require('electron').ClipboardItem      → 'function'  ✓   ← 唯一正确来源
+           require('electron') 的 clipboard 相关键 = ['clipboard', 'ClipboardItem']
+           ```
+           用法：`import { clipboard, ClipboardItem } from 'electron'`，
+           再断言成构造签名 `as unknown as new (items) => Electron.ClipboardItem`。
+         - **为什么 `'electron'` 里有**：`electron.d.ts` 的 `namespace CrossProcessExports` 内声明了
+           `class ClipboardItem extends Electron.ClipboardItem {}`（L26709），
+           并由 `declare module 'electron' { export = Electron.CrossProcessExports; }`（L27164）暴露。
+           ⚠️ 注意 `declare namespace Electron` 里那个 `class ClipboardItem`（L7045）**只是类型**，
+           但那不代表运行时没有 —— 别据此推断"不能 import"（这正是初版误判的原因）。
+         - **已加兜底**：`makeClipboardItem()` 在 `typeof ClipboardItemCtor !== 'function'` 时
+           打日志并返回 null（调用方安全降级）。**目的是别再把主进程整体打挂** ——
+           最坏只是「写图片/富文本失效」，而不是白屏启动失败。
+         - **同类排查结论（一并实测）**：主进程里 `Blob` / `File` / `FormData` / `fetch` / `Request` /
+           `Response` / `TextEncoder` / `URLSearchParams` / `structuredClone` / `crypto` **全部存在**，
+           **只有 `ClipboardItem` 缺失**。故 `netRequest.ts` 的 `new Blob([buf])` 是安全的，无需改动。
+      3. **`Buffer` 不是合法 `BlobPart`**：`Buffer.buffer` 可能是 `SharedArrayBuffer`；且 TS 5.7+ 的
+         `Uint8Array<TArrayBuffer>` 泛型下，`new Uint8Array(n)` 推成 `ArrayBufferLike`（不合格）、
+         `new Uint8Array<ArrayBuffer>(n)` 又被当「参数是 ArrayBuffer」而报错。
+         ⇒ 唯一稳妥写法：先 `new ArrayBuffer(n)`，再 `new Uint8Array(buffer).set(src)` 包装。
+    - **📌 验证这类「运行时全局/导出是否存在」的方法（可复用）**：写一个探针脚本用真 Electron 跑，
+      **必须 `unset ELECTRON_RUN_AS_NODE`**（本环境该变量默认为 `1`，会让 Electron 退化成纯 Node 模式：
+      `require('electron')` 返回**路径字符串**、`app` 为 `undefined`，得到全是假阴性）。
+      ```bash
+      cd C:/cod/jianli/jianli-app && unset ELECTRON_RUN_AS_NODE && \
+        ./node_modules/electron/dist/electron.exe "C:/cod/jianli/jianli-app/_probe.mjs"
+      ```
+      探针要放在**项目目录内**（否则解析不到 `electron` 模块）；用 `app.whenReady()` 包住逻辑。
+    - **⚠️ 轮询异步化的新风险 = 重入**：`setInterval` 不等 async 回调完成就进下一轮。
+      若单轮因 PNG 编码 + DB 写入耗时超过间隔，两执行流会并发读写状态缓存 → **同条内容记两次**或**缓存被覆盖丢写入**。
+      解法（`clipboard.ts` / `downloadInterceptor.ts` 均已落地）：**`busy`/`polling` 重入锁**
+      （单轮未结束直接跳过本轮；状态是「读到才更新」，天然幂等可重试，内容不会丢）+
+      外层 `try/catch/finally`（保证异常不停摆、锁必然释放）。
+      **四层守卫链的 await 顺序一字未改**，第 3 层「廉价指纹不编码」的经济性完整保留（见第 29 条）。
+    - **`findText` 处理**：`clipboard.ts` 的 `const findText = clipboard.readFindText()` → `const findText = ""`。
+      按约定「保留 DB 列、采集值置空」——它是 macOS 搜索框专用，Windows 上历史基本恒空，
+      删列涉及旧库迁移风险，不值得。
+    - **改动清单（21 处 / 8 文件）**：`preload/index.ts`(2)、`download/downloadInterceptor.ts`(1)、
+      `passwordVault.ts`(2)、`qrcode.ts`(1)、`remoteControl.ts`(1)、`screenshot.ts`(4)、
+      `clipboard.ts`(10)、`noteSlip.ts`(1)。
+      注意 `noteSlip.ts` 原来是 `clipboard.readText?.() ?? ""` 的可选调用写法，现在直接 `await` 即可。
+    - **✅ 升级 Electron 44 带来的 18 行其它模块类型报错已全部修完**（2026-09-29），
+      `tsc -p tsconfig.node.json --noEmit` 与 `tsc -p tsconfig.json --noEmit` **双双 exit 0**。
+      **逐处定性比"修掉"更重要**，因为其中 5 处是**与新版本无关的历史真 bug**，被升级后的严格检查翻出来：
+
+      **① 真 bug（历史遗留，一直被静默吞掉或从未生效）**：
+      | 位置 | 问题 | 修复 |
+      |---|---|---|
+      | `pdf.ts:635` | `p.flatten()` —— **pdf-lib 从来没有这个 API**；外层 `try/catch` 静默吞异常 ⇒ **去注释功能形同虚设** | `(p.node as unknown as PDFDict).delete(PDFName.of('Annots'))`（`PDFName` 该文件早已 import） |
+      | `shellMenu.ts:524` | `setDefaultOpen(payload.ext, !!payload.enabled)` —— **漏传第一个 `ops` 参数**（签名 `setDefaultOpen(ops, ext, enabled)`）⇒ 默认打开设置永远不落盘 | 补 `const ops: RegOp[] = []` 并 `await runShellMenuWorker(ops)` |
+      | `transfer/transferModule.ts:1221` | `orderByDesc: "created_at"` —— 该参数是**布尔开关**不是列名（见第 3 条：新层 `orderBy` 放顶层 options）⇒ 排序完全失效 | 拆成 `orderBy: "created_at", orderByDesc: true` |
+      | `tts-kokoro.ts:185` | `new Worker(kokoroWorkerPath, ...)` —— **该变量从未定义**（正确名是第 25 行 import 的 `sherpaTtsWorkerPath`） | 改用 `sherpaTtsWorkerPath` |
+      | `tts-vits.ts:103` | `JSON.stringify({numSpeakers}, 'utf-8')` —— 把编码当 **replacer** 传给了 stringify | 编码参数移到 `fs.writeFileSync(path, data, 'utf-8')` 第三位 |
+
+      **② Electron 44 真删了 API**：
+      | 位置 | 删掉的 | 替代 |
+      |---|---|---|
+      | `browserDownload.ts:179` | `DownloadItem.canCancel()` | `item.getState() === 'progressing'`（等价语义）|
+      | `browserPermission.ts:142` | `PermissionRequest.embeddingOrigin` | 删 fallback（原逻辑本就优先 `requestingUrl`，取 `details?.requestingUrl \|\| ""`）|
+      | `ferry.ts:143` | `PermissionType` 的 `'camera'`/`'microphone'` | 只有 **`'media'`** 一个枚举值，删多余比较 |
+
+      **③ 配置/解析层（3 处，非 API 变化）**：
+      - `twoFactor/types.ts:4` + `twoFactor/vault.ts:8,15`：补 `.ts` 扩展名（**全仓 178 处在用 `.ts` 显式扩展名，仅这 3 处漏**，见 tsconfig `allowImportingTsExtensions`）。
+      - `vite.config.ts:6`：JSON 导入加 `with { type: 'json' }`（`resolveJsonModule` 下的 `ESNext` 模块要求 import attribute）。
+
+      > **⚠️ 上游声明 bug（渲染端，`src/`）**：另有 9 处报错全部来自 **epubjs 的 `.d.ts` 写错**，已逐行核对
+      > `node_modules/epubjs/src/` 源码证实（**不要照 .d.ts 修业务代码，要去读 src**）：
+      > | 声明 | .d.ts 写的 | 源码真实行为 | 结论 |
+      > |---|---|---|---|
+      > | `types/rendition.d.ts:91` | `getContents(): Contents` | `src/managers/default/index.js`：`var contents=[]` + 逐个 view `contents.push(viewContents)` | **真返回 `Contents[]`，声明漏了 `[]`** ⇒ 7 处报错（`.length` TS2339 / `[0]` 索引 TS7053 / `as any[]` TS2352）|
+      > | `types/rendition.d.ts:77` | `currentLocation(): DisplayedLocation` | `rendition.js` 的 `located()` 返回 `{start:{index,href,cfi,displayed}, end:{...}}` | **实际是包一层的 `Location`**，不是裸 `DisplayedLocation` ⇒ `loc?.start` 报 TS2339 |
+      >
+      > **修法（`useEpubTts.ts`）**：新增**唯一的类型收口**
+      > `takeContents(rendition: { getContents: () => unknown } \| null \| undefined): Contents[]`
+      > （内部 `Array.isArray(list) ? (list as Contents[]) : []`，**保留强类型不退化成 any**），
+      > 三处取 Contents 的地方统一改走它（原 L117/L137 各自手写 `as Contents[]`、L228 裸调，风格不一）；
+      > `currentLocation()` 处 `as unknown as { start?: { href?: string } } \| undefined` 再窄化
+      > （**类型与真值不重叠时 TS 要求先过 `unknown`**，直接 `as` 会报 TS2352）。
+      > 两处都留了长注释标注「依据是 src 第几行、上游修正后即可改回直调」。
+ 40. **TS2367「无重叠」在 async 循环里可能是误报（2026-09-29）**：`useBookTts.ts` 的 `runLoop` 内
+    `if (status.value === 'paused') break;` 报
+    `TS2367: types '"playing"' and '"paused"' have no overlap`。
+    - **成因**：`status: Ref<TtsStatus>`，循环开头 `status.value = 'playing'` 让 TS 把该表达式**窄化**成字面量 `'playing'`；
+      而真正的暂停来自**外部同步调用** `pause()`（`status.value = 'paused'`），发生在循环内某个 `await` 挂起期间 ——
+      **TS 控制流分析不跨 `await` 感知外部对同一引用的改写**，于是判定两次比较无交集。
+      **是 TS 局限，不是逻辑错误**（运行时完全可能成立）。
+    - **❌ 错误修法**：删掉这个判断（会丢暂停能力）、或改逻辑去迎合报错、或就地 `as TtsStatus` 把类型撒谎。
+    - **✅ 正解**：加一个显式返回 `TtsStatus` 的**读取函数**，用函数调用读即可绕开窄化，
+      同时把「该值可能在 await 期间被外部改动」这层意图写进代码：
+      ```ts
+      function readStatus(r: Ref<TtsStatus>): TtsStatus { return r.value; }
+      // 调用点： if (readStatus(status) === 'paused') break;
+      ```
+      （`useBookTts.ts` 模块级已落地，与同文件 `resume()` 的 `status.value !== 'paused'` 判断形成对照。）
+    - **通用教训**：「跨 `await` 的外部状态修改」是 TS2367 的高发场景，**报警 ≠ 该删判断**。
+      修之前先问「这个值会在 await 期间被谁改」，再决定是用读取函数收口还是重构状态机。
+ 41. **`voicePrefix` 必须是 `protected` 而非 `private`（2026-09-29）**：`src/utils/tts/SherpaOnnxProvider.ts`
+    的 `private readonly voicePrefix: string` 被子类 `PiperProvider` / `SherpaVitsProvider` 读取（拼音色名），
+    报 TS2341。子类**只读不写** ⇒ 改 `protected` 是正解（不要改成 public，也不要给子类开 getter 绕）。
+42. **本机类型校验命令（2026-09-29 实测）**：本机 bash 缺 `sed` / `dirname`（`ls`/`grep`/`cp` 也都没有），
+    ⇒ **`node_modules/.bin/tsc` 的 shell shim 会直接崩**（`sed: command not found` → `Cannot find module 'C:\typescript\bin\tsc'`）。
+    必须**直调 JS 入口**（用隔离的 managed node）：
+    ```bash
+    cd C:/cod/jianli/jianli-app
+    C:/Users/风起/.workbuddy/binaries/node/versions/22.22.2-3/node.exe \
+      ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit
+    ```
+    两侧都要跑：`tsconfig.json`（渲染端 `src/`）与 `tsconfig.node.json`（electron 侧）。
+

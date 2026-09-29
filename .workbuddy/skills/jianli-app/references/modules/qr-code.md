@@ -77,6 +77,10 @@
 - **历史来源**：任意模块调用 `addQrHistory({ source: '<自己的来源标识>', ... })`；`getQrHistory({ source })` 可按来源筛。页面统一记、`source` 区分。
 
 ## 特有坑 / 注意
+- **Electron 44 剪贴板迁移（2026-09-29）**：`qr:copy-image` 已改用兼容层
+  `module/utils/clipboardCompat.ts` 的 `writeClipboardImageFromPng()`。
+  二维码数据源本身就是 PNG dataURL，故取原始字节直传，**省掉新 API 强制的那次 `toPNG()` 重编码**。
+  非 PNG 数据源才回落到 `writeClipboardImage(nativeImage)`（内部 `toPNG()`）。勿再直接调 `clipboard.writeImage`（该 API 已移除）。
 - **中文乱码**：务必走 `engine.renderQr`（已内置 `toUtf8Data`），不要直接用裸 `qr-code-styling` 喂中文原文。
 - **UMD 导入**：`jsqr` 导出既是函数又带 `.default`，`mod.default ?? mod` 防御；若 Vite 预打包报 `require is not defined`，回退 `jsqr-es6`（同 API 的 ESM 分发）。
 - **ECC 与 logo**：带 logo 时建议容错 ≥ M，否则可能扫不出。

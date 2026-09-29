@@ -4,14 +4,139 @@
 
 环境：
 
-- node: v20.13.1
+- node: >= 24.0.0（与 Electron 44 内嵌的 Node 24 对齐）
+- npm: 随 Node 附带（npm 10.x / 11.x）
+- **不需要** Visual Studio / C++ 工具链（原生模块走镜像下载预编译包，不本地编译）
 
-安装：cnpm install @vueup/vue-quill@latest --save --registry=https://registry.npmjs.org/
+安装依赖：
 
-安装：
+```shell
+npm install
+```
 
-- npm i -g cnpm
-- cnpm i xxx
+> ⚠️ 本项目使用 **npm** 管理依赖，`package-lock.json` 已纳入版本控制，请勿删除或忽略。
+> 如需添加依赖，使用 `npm install <pkg>`；升级全部依赖用 `npm update`。
+
+### 安装失败排查（国内网络）
+
+> **关于 npm 警告**：如果看到 `npm warn Unknown project config "electron_mirror"` 之类的提示，
+> 属于**预期行为**，不是配置错误。这些键是 electron / prebuild-install 等**第三方工具的环境变量**，
+> 不是 npm 的配置项；npm 11 起对项目级未知键发出警告，并将在下个大版本移除该注入行为。
+> 本项目已迁到官方支持的方式（见下节），按 README 配置即可，无需理会历史警告。
+
+#### 一、`sqlite3` 报 `Could not find any Visual Studio installation`（已修复）
+
+原因有二，**升级到 `sqlite3@^6.0.1` 后两者都已解决**：
+
+1. **下载失败回退本地编译**：`prebuild-install` 默认从 GitHub Releases 取预编译二进制，
+   国内网络常被 `ECONNRESET` 重置，于是走 `|| node-gyp rebuild` 回退本地编译，而本机没有 VS C++ 工具链。
+2. **`node-gyp` 版本太老，压根不支持 Node 24**：`sqlite3@5.1.7` 把 `node-gyp` 钉死在 **`8.x`**
+   （`optionalDependencies` + `peerDependencies`），而 `node-gyp@8` 只支持到 **Node 18**。
+   所以一旦回退编译，报错里会出现 `gyp info using node@24.18.1 ... node-gyp@8.4.1` 这种不匹配组合。
+
+`sqlite3@6.0.1` 的两处关键变化：
+
+| | `sqlite3@5.1.7` | `sqlite3@6.0.1` |
+|---|---|---|
+| 绑定的 `node-gyp` | **`8.x`**（仅支持 ≤ Node 18） | **`12.x`**（`^20.17.0 \|\| >=22.9.0`）|
+| `engines.node` | 未声明 | `>=20.17.0` |
+| CI 覆盖的 Node | 18 / 20 / 22 | **18 / 20 / 22 / 24** |
+
+> 即：`sqlite3@6.0.1` 官方 CI 已覆盖 Node 24，**无需安装 Visual Studio**。
+
+**镜像配置的正确位置**（`.npmrc` 里不再写这些键）：
+
+| 下载对象 | 配置位置 | 键 / 字段 |
+|---|---|---|
+| 运行时 Electron 二进制 | `electron-builder.json5` | `electronGet.mirrorOptions.mirror` |
+| 打包期 Electron 二进制 | 同上（打包时生效） | 同上 |
+| 原生模块预编译包 | shell 环境变量 | `sqlite3_binary_host`（每包一行）|
+
+**原生模块镜像**需要在 **shell 里设环境变量**（写进项目 `.npmrc` 会触发 npm 警告）：
+
+```shell
+rem Windows CMD —— 每次开新终端都要设，或用 setx 永久写入
+set sqlite3_binary_host=https://registry.npmmirror.com/-/binary/sqlite3
+npm install
+```
+
+或者写进**用户级** `~/.npmrc`（`C:\Users\<你>\.npmrc`），一次配置全局生效，
+且不会触发 npm 的「Unknown project config」警告：
+
+```ini
+sqlite3_binary_host=https://registry.npmmirror.com/-/binary/sqlite3
+electron_mirror=https://npmmirror.com/mirrors/electron/
+electron_builder_binaries_mirror=https://npmmirror.com/mirrors/electron-builder-binaries/
+```
+
+键名规则（依据 `prebuild-install@7` 的 `util.js`）：它读的是
+`npm_config_<包名>_binary_host`，因此**每个原生模块需单独配一行**。
+⚠️ 全局键（`prebuild_install_mirror` / `node_pre_gyp_mirror`）**无效**，别写。
+⚠️ npm 会规范化键名，所以 `.npmrc` 里写 `sqlite3_binary_host` 即可（自动变 `npm_config_sqlite3_binary_host`）。
+
+镜像上 `sqlite3` 的可用二进制（已实测可下载）：
+
+```
+https://registry.npmmirror.com/-/binary/sqlite3/v6.0.1/
+  sqlite3-v6.0.1-napi-v3-win32-x64.tar.gz
+  sqlite3-v6.0.1-napi-v6-win32-x64.tar.gz
+```
+
+#### 二、`npm warn cleanup Failed to remove some directories ... EPERM`（无害）
+
+安装中途失败时，npm 清理 `node_modules` 可能因**文件被占用**而报 `EPERM`（常见于
+`@vueup/vue-quill/node_modules/quill`）。这是**清理阶段的次生噪声，不是失败原因**——
+真正的失败是它上面那条 `npm error`。关闭正在运行的应用 / 编辑器占用后重装即可。
+
+#### 三、`Downloading electron-v44.4.5-win32-x64.zip` 很慢
+
+首次 `npm install` / `npm run dev` 需要下载 **~116MB** 的 Electron 官方 zip。
+实测同一网络环境下：
+
+| 来源 | 平均速度 | 116MB 预计耗时 |
+|---|---|---|
+| GitHub 官方（默认） | **372 KB/s** | 约 **5 分 20 秒** |
+| npmmirror 镜像 | **5.9 MB/s** | 约 **20 秒** |
+
+**已配好镜像加速**（用户级 `~/.npmrc`，不触发 npm 警告）：
+
+```ini
+electron_mirror=https://npmmirror.com/mirrors/electron/
+electron_builder_binaries_mirror=https://npmmirror.com/mirrors/electron-builder-binaries/
+sqlite3_binary_host=https://registry.npmmirror.com/-/binary/sqlite3
+```
+
+> `@electron/get` 的 `mirrorVar()` 会依次读 `npm_config_electron_mirror` → `npm_config_electron_<snake>` →
+> `ELECTRON_MIRROR`，所以写在 `.npmrc` 里是有效的（源码见 `@electron/get` 的 `artifact-utils.ts`）。
+> 拼接出的地址 `https://npmmirror.com/mirrors/electron/44.4.5/electron-v44.4.5-win32-x64.zip`
+> 已实测 HTTP 206，且镜像上的 `SHASUMS256.txt` 与官方一致。
+
+**临时覆盖**（只影响当前终端，优先级高于 `.npmrc`）：
+
+```shell
+set ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/
+npm run dev
+```
+
+**断点续传（网络抖动时推荐）**：116MB 一次下不完会从头再来很浪费。用内置脚本预下载：
+
+```shell
+npm run fetch-electron
+```
+
+它走 `curl -C -` 断点续传 + 自动重试，**中断后重跑即接着下**；完成后 Electron 会命中缓存。
+
+#### 四、`puppeteer` 下载 Chromium 卡住
+
+可跳过它（本项目跑在 Electron 内，通常用不到）：
+
+```shell
+set PUPPETEER_SKIP_DOWNLOAD=true
+npm install
+```
+
+> ⚠️ puppeteer 读的是**无前缀**变量 `PUPPETEER_DOWNLOAD_BASE_URL`，npm 注入的变量一律带
+> `npm_config_` 前缀，因此 puppeteer 的镜像**无法**通过 `.npmrc` 配置，只能在 shell 里设环境变量。
 
 ## 版本管理
 
@@ -26,6 +151,14 @@
 - 发布自定义版本：`npm run release -- --release-as 1.1.0`
 
 ## 打包
+
+镜像已在 `electron-builder.json5` 的 `electronGet.mirrorOptions.mirror` 中配好，直接打包即可：
+
+```shell
+npm run build
+```
+
+如需临时覆盖（例如换用其他镜像），可在 shell 里设环境变量后执行：
 
 ```shell
 set ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/

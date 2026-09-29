@@ -140,7 +140,9 @@ async function openFerry(): Promise<void> {
   // 摄像头权限：对 localhost 源自动放行 media（getUserMedia）
   const ferrySession = ferryWin.webContents.session;
   ferrySession.setPermissionRequestHandler((_wc, permission, callback) => {
-    if (permission === "media" || permission === "camera" || permission === "microphone") {
+    // ⚠️ Electron 的 PermissionType 枚举里摄像头/麦克风统一为 'media'，
+    // **没有** 'camera' / 'microphone' 这两个值（历史上误写过，会走 TS2367 报错）。
+    if (permission === "media") {
       callback(true);
     } else {
       callback(false);

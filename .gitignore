@@ -32,6 +32,6 @@ cache-data/*
 *.sw?
 
 # lockfile
-package-lock.json
+# package-lock.json 必须提交，以保证依赖树可复现（本项目使用 npm）
 pnpm-lock.yaml
 yarn.lock

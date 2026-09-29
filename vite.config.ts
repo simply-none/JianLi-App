@@ -3,7 +3,10 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueJsx from '@vitejs/plugin-vue-jsx'
 import electron from 'vite-plugin-electron/simple'
-import pkg from './package.json'
+// ⚠️ tsconfig.node.json 的 module 是 NodeNext，从这个版本起「在 ESM 里 import JSON」
+// 必须显式带 import attribute，否则 TS1543。Vite 自身用 esbuild 加载本文件，
+// 该语法同样被支持，行为与原来的默认导入完全一致。
+import pkg from './package.json' with { type: 'json' }
 import { jsonX } from 'vite-plugin-jsonx';
 import { resolve } from 'node:path'
 
@@ -78,10 +81,6 @@ export default defineConfig(({ command }) => {
             },
           },
         },
-        // Ployfill the Electron and Node.js API for Renderer process.
-        // If you want use Node.js in Renderer process, the `nodeIntegration` needs to be enabled in the Main process.
-        // See 👉 https://github.com/electron-vite/vite-plugin-electron-renderer
-        renderer: {},
       }),
     ],
     server: process.env.VSCODE_DEBUG && (() => {

@@ -1218,7 +1218,11 @@ export function initTransfer(): void {
         await trimHistory();
         const rows = (await query({
           tableName: "file_transfer",
-          orderByDesc: "created_at",
+          // ⚠️ 原为 `orderByDesc: "created_at"` —— 参数用错了：
+          //    newSql 的 orderBy 是「列名」，orderByDesc 是「是否降序」的布尔开关。
+          //    旧写法既没传 orderBy（等于不排序）又把列名塞进布尔位（判真值 → 恒 DESC 但无列名）。
+          orderBy: "created_at",
+          orderByDesc: true,
           limit,
           offset,
         })) as Record<string, unknown>[];

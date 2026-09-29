@@ -6,7 +6,8 @@
 ## 关键文件
 - 主页面：`src/views/clipboard/index.vue`、`components/ClipboardList.vue`、`components/ClipboardItem.vue`、`api/clipboardApi.ts`（封装 clipboard:*）、`composables/`、`types.ts`
 - 小窗：`src/views/clipboardMiniWindow/index.vue` + `QuickPastePanel.vue`、`QuickPasteItem.vue`
-- 关联主进程：`electron/main/module/clipboard.ts`（`initClipboard`：建表 + `setInterval` 每秒监控落库；无独立 store，**数据落库发生在主进程，渲染端只读/回写**）
+- 关联主进程：`electron/main/module/clipboard.ts`（`initClipboard`：建表 + `setInterval` 每 1.5s 监控落库；无独立 store，**数据落库发生在主进程，渲染端只读/回写**）
+- **剪贴板兼容层：`electron/main/module/utils/clipboardCompat.ts`**（⚠️ Electron 44 起 **所有剪贴板调用必须经它**，勿直接 `import { clipboard } from 'electron'` 调旧 API——旧 API 已全删，见下方「二、Electron 44 异步化改造」）
 - 小窗开关：`src/store/useWindowMode.ts` 的 `clipboardWindowConfig` / `setShowClipboardWindow`
 
 ## 路由
@@ -16,9 +17,9 @@
 ## 用到的 IPC 通道
 - `clipboard:query`（关键词+时间范围+类型筛选+分页；`clipboardApi.ts:19`）
 - `clipboard:delete` / `clipboard:delete-many` / `clipboard:clear` / `clipboard:delete-by-condition` / `clipboard:dedup`
-- `clipboard:write`（写回系统剪贴板，`mode:'raw'` 保留格式 / `'text'` 纯文本，并累加 `use_count`）
-- `clipboard:simulate-paste`（仅 Windows；`clipboard.ts:214` 用 WScript SendKeys `^v`，小窗隐藏后发送）
-- 主进程监控无渲染端触发；图片经 `clipboard.readImage().toDataURL()` 落库。
+- `clipboard:write`（写回系统剪贴板，`mode:'raw'` 保留格式 / `'text'` 纯文本，并累加 `use_count`；**4 条分支全部 await 后才记账**）
+- `clipboard:simulate-paste`（仅 Windows；用 WScript SendKeys `^v`，小窗隐藏后发送）
+- 主进程监控无渲染端触发；图片经 `await readClipboardImage()` → `toDataURL()` 落库。
 
 ## 复用 / 集成点
 - **小窗四件套**：`windowSections.ts:240`（key=`clipboard`，storeKey=`clipboardMiniWindow`），`useWindowModeSetting.ts` 三映射（storeConfig/showSetter/storeVisible），`useWindowMode` store，router `/clipboardMiniWindow`；常驻需 `mouseEvents:true`（穿透见坑）。
@@ -36,12 +37,15 @@
 
 ### 一、轮询必须做到「图片没变就零编码」——四层守卫，顺序不可调整
 ```
-┌─ 1. readText() 文本未变 ────────────────────── 最便宜
-├─ 2. availableFormats() 无 image/* ─────────── 便宜（纯文本剪贴板到此结束）
+┌─ 1. readClipboardText() 文本未变 ───────────── 最便宜
+├─ 2. readClipboardFormats() 无 image/* ──────── 便宜（纯文本剪贴板到此结束）
 ├─ 3. cheapImageKey() 尺寸+位图长度，不编码 ──── 便宜 ← 关键！
 └─ 4. toDataURL()（PNG 编码）仅新图片才做 ────── 昂贵
 ```
 `startClipboardMonitor` 的守卫条件 `!hasText || text === lastClipboardText` 决定了：**剪贴板里停留一张图片时 `readText()` 恒为空**，所以只要剪贴板里有图，每轮都会走进图片分支。因此**第 3 层是这个函数的全部要点**——它必须在 `toDataURL()` 之前拦掉「图片没变」的情况。
+
+> ⚠️ Electron 44 起上述 API 全部改为**异步**（`clipboard.readText()` → `await readClipboardText()` 等），
+> 故所有守卫条件前都要 `await`。**顺序一字未改**，经济性完整保留。详见下方「五、Electron 44 异步化改造」。
 
 **用户可复现的判定依据**（非常有用的症状指纹）：**最近一条剪贴板记录是文本时不卡，是图片时就卡。**
 
@@ -73,15 +77,53 @@
 
 #### 另一个剪贴板轮询器（易漏）
 `modules/download/downloadInterceptor.ts` 的 `startClipboardMonitor()` 也有一套 **1s 轮询**，由 `download/index.ts` 的 `initDownloader()` 启动。它只做 `readText()`（较便宜，不做图片读取），但**改剪贴板相关逻辑时别忘了它的存在**——同一进程里跑着两个 1s 剪贴板轮询。
+（Electron 44 迁移时它也已加 `polling` 重入锁，见下方第五节。）
 
-### 二、大表必须有排序索引
+### 二、Electron 44 异步化改造（2026-09-29）
+
+**破坏面**：Electron 44 把 `clipboard` 整体重写为 W3C 异步 API，`interface Clipboard` 只剩 7 个成员
+（`clear` / `has` / `read` / `readText` / `write` / `writeText` / `selection`）。旧同步 API **全部移除**：
+`readImage` / `writeImage` / `availableFormats` / `readBuffer` / `readHTML` / `readRTF` / `readBookmark` /
+**`readFindText`**（macOS 专属）。
+⇒ 旧代码 `clipboard.readText().trim()` 会得到 **`TypeError: text.trim is not a function`**（Promise 上没有该方法）。
+
+**兼容层：`module/utils/clipboardCompat.ts`（唯一入口，勿绕过）**。业务侧改动 = 「加 await + 换函数名」：
+
+| 旧 | 新 |
+|---|---|
+| `clipboard.readText()` | `await readClipboardText()` |
+| `clipboard.writeText(t)` | `await writeClipboardText(t)` |
+| `clipboard.readImage()` | `await readClipboardImage()`（**无图时返回空 NativeImage，`isEmpty()` 语义不变**）|
+| `clipboard.writeImage(img)` | `await writeClipboardImage(img)` / `writeClipboardImageFromPng(pngBuf)` |
+| `clipboard.availableFormats()` | `await readClipboardFormats()` |
+| `clipboard.write({text,html})` | `await writeClipboardRich({text,html})` |
+| `clipboard.readHTML()` / `readRTF()` | `await readClipboardHtml()` / `readClipboardRtf()` |
+| `clipboard.readBookmark()` | `await readClipboardBookmark()`（无书签返回 `{title:'',url:''}`，不抛错）|
+| `clipboard.readFindText()` | **已移除** → 用 `""`（DB 列保留，值恒空）|
+
+**性能反转（重要）**：旧 `writeImage(nativeImage)` 同步零拷贝；新 API 只能
+`clipboard.write([new ClipboardItem({'image/png': Blob})])`，**必须先编码成 PNG**。
+故兼容层给两条路径：**已有 PNG 字节就走 `writeClipboardImageFromPng()`（零重复编码）**，
+只有 NativeImage 时才用 `writeClipboardImage()`（内部 `toPNG()`，数 MB 图约 10–50ms 阻塞主进程）。
+本模块的 `clipboard:write` 图片分支与 `screenshot.ts` / `qrcode.ts` 全部走前者。
+
+**⚠️ 轮询异步化的新风险 = 重入**（最高优先级）：
+`setInterval` **不会等** async 回调完成就进下一轮。若单轮因 PNG 编码 + DB 写入耗时超过 `POLL_INTERVAL`(1500ms)，
+两个执行流会并发读写 `lastClipboardText` / `lastImageCheapKey` → **同条内容记两次**，或**缓存被后一轮覆盖导致写入丢失**。
+解法（三层防护）：
+1. **`busy` 重入锁**：单轮未结束直接跳过本轮。内容不会丢 —— 状态是「读到才更新」，天然幂等可重试；
+2. **await 顺序不变**：仍是「读文本 → 判格式 → 算廉价指纹 → 最后才编码」；
+3. **缓存只在成功后刷新**：赋值位置与原版逐字一致，失败则下轮重试。
+另加**外层 `try/catch/finally`**：任何未捕获异常都不让轮询停摆，且锁必然释放。
+
+### 三、大表必须有排序索引
 `ensureClipboardIndexes` 建 `idx_clipboard_create_time(create_time DESC, id DESC)`。列表分页与启动预热都是 `ORDER BY create_time DESC, id DESC`，无索引时执行计划是 `SCAN` + `USE TEMP B-TREE FOR ORDER BY`。
 - 实测（121MB / 2.6 万行）：列表 **444ms → 15ms**；启动预热 **107ms → 16ms**，约 30 倍。这解释了"一周前不卡、现在卡"——表在长，扫描线性变慢。
 
-### 三、列表查询禁 `SELECT *`
+### 四、列表查询禁 `SELECT *`
 只取 `id, text, html, image, create_time, use_count, last_used`。`rtf` / `bookmark` / `findText` 渲染端**从未读取**（`types.ts` 里只是类型占位），原来每次分页都把它们搬过 IPC 结构化克隆。
 
-### 四、入库长度必须设上限
+### 五、入库长度必须设上限
 `MAX_TEXT_LENGTH`（512KB，超限截断而非丢弃）；`safeText.length > 8192` 时**跳过合并查找**直接新增（`text` 等值匹配无法走索引，成本线性上涨）。库里曾出现 **7.3MB 单条 text**。
 
 **渲染端同步加固**（`utils/clipboardFormat.ts`）：`splitByKeyword` 增加了 `PREVIEW_CHAR_LIMIT`(20000) 截断 + `MAX_SEGMENTS`(300) 封顶。卡片折叠用 `max-height` + mask 裁剪，**DOM 节点仍真实存在**——7.3MB 文本 + 关键词搜索会切出上万个 `<span>` 直接卡死渲染进程。`countChars` 同样改为截断计数。

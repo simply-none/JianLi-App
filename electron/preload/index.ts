@@ -7,11 +7,13 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     return ipcRenderer.invoke(onName, args)
   },
   clipboard: {
-    readText() {
+    // Electron 44 起 clipboard 全面改为 W3C 异步 API：readText/writeText 均返回 Promise。
+    // 这里直接把 Promise 透传给渲染端（渲染端 await 即可），保持原有调用形式不变。
+    readText(): Promise<string> {
       return clipboard.readText()
     },
-    writeText(text: string) {
-      clipboard.writeText(text)
+    writeText(text: string): Promise<void> {
+      return clipboard.writeText(text)
     },
   },
   // TTS 语音合成 API

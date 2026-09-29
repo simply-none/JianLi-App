@@ -9,11 +9,13 @@
  *
  * ⚠️ 改动本文件后必须重启 Electron 才生效。
  */
-import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeImage } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, nativeImage } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import AdmZip from 'adm-zip';
 import { ensureTableExists } from './newSql.ts';
+// Electron 44：clipboard 已全面异步化，统一走兼容层（见 clipboardCompat.ts）
+import { writeClipboardImage, writeClipboardImageFromPng } from './utils/clipboardCompat.ts';
 
 interface SaveResult {
   ok: boolean;
@@ -106,9 +108,17 @@ async function handleCopyImage(
   try {
     const dataUrl = String(params?.dataUrl || '');
     if (!dataUrl.startsWith('data:image')) return { ok: false, error: '无效的图片数据' };
-    const image = nativeImage.createFromBuffer(dataUrlToBuffer(dataUrl));
+    const raw = dataUrlToBuffer(dataUrl);
+    // 数据源本身即 PNG（qrcode 库输出），直接以 PNG 字节写入剪贴板，
+    // 省掉 Electron 44 新 API 强制的那次 toPNG() 编码（见 clipboardCompat 说明）。
+    if (/^data:image\/png/i.test(dataUrl)) {
+      await writeClipboardImageFromPng(raw);
+      return { ok: true };
+    }
+    // 非 PNG 数据源：解码为 NativeImage 后再走兜底编码路径
+    const image = nativeImage.createFromBuffer(raw);
     if (image.isEmpty()) return { ok: false, error: '图像解析失败' };
-    clipboard.writeImage(image);
+    await writeClipboardImage(image);
     return { ok: true };
   } catch (err: any) {
     return { ok: false, error: err?.message || String(err) };

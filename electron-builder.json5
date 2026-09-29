@@ -4,6 +4,17 @@
   "appId": "leave.to.do.something",
   "asar": false,
   "productName": "渐离App",
+
+  // Electron 下载镜像：显式声明，不依赖包管理器注入环境变量
+  //   - electronGet 类型为 ElectronGetOptions，其 mirrorOptions 直接透传给 @electron/get
+  //   - 环境变量 ELECTRON_MIRROR 与这里的 mirror 等价，两者任选其一即可（这里优先）
+  //   - 注意：不存在 electronMirror / electronBuilderBinariesMirror 这两个配置项
+  "electronGet": {
+    "mirrorOptions": {
+      "mirror": "https://npmmirror.com/mirrors/electron/",
+    },
+  },
+
   "directories": {
     "output": "release/${version}"
   },

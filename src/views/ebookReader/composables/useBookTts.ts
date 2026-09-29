@@ -103,6 +103,23 @@ function clearBreakpoint(): void {
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /**
+ * 实时读取状态机的**当前值**。
+ *
+ * 为什么需要它：`runLoop` 里写 `status.value = 'playing'` 之后，TS 会把
+ * `status.value` 的局部类型**窄化**为字面量 `'playing'`；而真正的「暂停」是
+ * 外部同步调用 `pause()`（第 347 行 `status.value = 'paused'`）触发的 —— 它发生在
+ * 循环内某个 `await` 挂起期间，TS 的控制流分析**不会**跨 `await` 感知外部对
+ * 同一引用的改写，于是 `status.value === 'paused'` 被判成「两个不重叠的类型比较」
+ * (TS2367)，即便运行时完全可能成立。
+ *
+ * 用一个显式返回 `TtsStatus` 的函数去读，既绕开窄化、又把「这个值可能在 await
+ * 期间被外部改动」这层意图写进代码里（而不是就地 `as` 断言把类型撒谎成别的）。
+ */
+function readStatus(r: Ref<TtsStatus>): TtsStatus {
+  return r.value;
+}
+
+/**
  * 单例实现。模块级只创建一次，EpubReader / TxtReader 共用同一实例（同一时刻仅一个挂载）。
  */
 function createBookTts() {
@@ -208,7 +225,7 @@ function createBookTts() {
     let i = startIndex;
     while (i < queue.length) {
       if (myToken !== runToken) return; // 被 stop / 新的 runLoop 取代
-      if (status.value === 'paused') break;
+      if (readStatus(status) === 'paused') break;
 
       const sentence = queue[i];
       try {

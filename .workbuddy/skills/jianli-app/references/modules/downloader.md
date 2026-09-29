@@ -42,7 +42,7 @@ HTTP 状态码统一经 `httpErrors.ts` 的 `httpErrorMessage()` 翻译为中文
 
 ## 集成点
 - 浏览器接管：`browserDownload.ts` 的 will-download 里先判断 `shouldTakeOverDownload()`（electron-store `downloader:config.takeOverBrowser`），为真则 `preventDefault + item.cancel` 后交 `takeOverBrowserDownload`（收集会话 Cookie/UA 再 createTask，支持登录后下载）。**接管钩子只在 browserDownload 一处，勿在 interceptor 重复挂 will-download**。
-- 剪贴板监视：主进程 1s 轮询 `clipboard.readText()`，http 直链 + 扩展名命中分类表才发事件；页面通过 `onClipboardDetected` 弹新建窗。
+- 剪贴板监视：主进程 1s 轮询 `await clipboard.readText()`（**Electron 44 起为异步**，且带 `polling` 重入锁），http 直链 + 扩展名命中分类表才发事件；页面通过 `onClipboardDetected` 弹新建窗。
 - 菜单：侧边栏/routeSetting 已加 `downloader`（效率工具组，icon `Download`）；路由 `/downloader`。
 
 ## 特有坑 / 注意

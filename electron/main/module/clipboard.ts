@@ -1,10 +1,23 @@
 import { createTable } from "../utils/sql.ts";
 import { myDb } from "./newSql.ts";
-import { clipboard, ipcMain, nativeImage } from "electron";
+import { ipcMain } from "electron";
 import { exec } from "child_process";
 import moment from 'moment';
 // 数据库操作统一迁移到 newSql（替代旧 sql.ts 的 queryByConditions/upsertData）
 import { del as newSqlDel, execute as newSqlExecute } from "./newSql.ts";
+// Electron 44：clipboard 已全面异步化，统一走兼容层（见 utils/clipboardCompat.ts）。
+// 本文件是迁移重点 —— 1.5s 轮询的四层守卫链必须保持「便宜判断在前」的顺序不变。
+import {
+  readClipboardText,
+  readClipboardImage,
+  readClipboardFormats,
+  readClipboardHtml,
+  readClipboardRtf,
+  readClipboardBookmark,
+  writeClipboardText,
+  writeClipboardRich,
+  writeClipboardImageFromPng,
+} from "./utils/clipboardCompat.ts";
 
 export const tableName = "clipboard_history";
 
@@ -208,6 +221,9 @@ function registerClipboardIpc() {
   /**
    * 写回系统剪贴板并累加使用次数。
    * mode='text' 只写纯文本（去格式）；mode='raw' 保留 html / 图片原格式。
+   *
+   * ⚠️ Electron 44：全部写入 API 已异步，必须 await 后再计入 use_count，
+   * 否则写失败也会被记成「已使用」。
    */
   ipcMain.handle("clipboard:write", async (_e, { id, mode = 'raw' }) => {
     try {
@@ -220,14 +236,15 @@ function registerClipboardIpc() {
 
       if (mode === 'text') {
         // 纯文本模式：只写 text，丢弃富文本与图片
-        clipboard.writeText(row.text || '');
+        await writeClipboardText(row.text || '');
       } else if (row.image) {
-        // 图片条目：写回图片（text 可能为空）
-        clipboard.writeImage(nativeImage.createFromDataURL(row.image));
+        // 图片条目：写回图片（text 可能为空）。
+        // row.image 存的就是 PNG dataURL，取原始字节直接写入，省掉一次编码。
+        await writeClipboardImageFromPng(bufferFromDataUrl(row.image));
       } else if (row.html) {
-        clipboard.write({ text: row.text || '', html: row.html });
+        await writeClipboardRich({ text: row.text || '', html: row.html });
       } else {
-        clipboard.writeText(row.text || '');
+        await writeClipboardText(row.text || '');
       }
 
       // 复制即使用：累加次数并刷新最近使用时间
@@ -291,6 +308,17 @@ function imageFingerprint(dataUrl: string): string {
 }
 
 /**
+ * PNG dataURL → Buffer。
+ * 库里 `image` 列存的就是 PNG dataURL，写回剪贴板时取原始字节直接构造
+ * ClipboardItem，省掉 Electron 44 新 API 强制的那次 `toPNG()` 重编码。
+ * @param dataUrl 必填，形如 `data:image/png;base64,xxxx`
+ */
+function bufferFromDataUrl(dataUrl: string): Buffer {
+  const base64 = dataUrl.replace(/^data:image\/[\w.+-]+;base64,/, "");
+  return Buffer.from(base64, "base64");
+}
+
+/**
  * 廉价图片指纹：**不做 PNG 编码**。
  *
  * ⚠️ 关键取舍（2026-09-28 修正）：**不要用 `readBuffer('image/png')`**。
@@ -308,10 +336,15 @@ function imageFingerprint(dataUrl: string): string {
  *
  * 极端情况：两张尺寸相同、且像素长度也相同的不同图片会碰撞 → 漏记一条。
  * 这个概率远低于「同尺寸截图」的必然碰撞，且代价只是少存一条历史，可接受。
+ *
+ * ⚠️ Electron 44 迁移说明：`readClipboardImage()` 内部用的是
+ * `clipboard.has('image/png')` + `item.getType('image/png')`，
+ * 拿到的 PNG Blob 解码成 NativeImage 后，`getSize()` / `toBitmap()` 的行为与旧
+ * `clipboard.readImage()` 完全一致 —— **指纹语义不变，去重能力不变**。
  */
-function cheapImageKey(): string {
+async function cheapImageKey(): Promise<string> {
   try {
-    const img = clipboard.readImage();
+    const img = await readClipboardImage();
     if (img.isEmpty()) return "";
     const { width, height } = img.getSize();
     if (!width || !height) return "";
@@ -377,8 +410,8 @@ async function saveClipboardItem(payload: {
  *
  * 性能红线（2026-09-28 修复，**四层守卫，顺序不可调整**）：
  *
- *   ┌─ 1. readText() 文本未变 ─────────────────────────── 最便宜
- *   ├─ 2. availableFormats() 无 image/* ───────────────── 便宜
+ *   ┌─ 1. readClipboardText() 文本未变 ─────────────────── 最便宜
+ *   ├─ 2. readClipboardFormats() 无 image/* ────────────── 便宜
  *   ├─ 3. cheapImageKey() 尺寸+位图长度，**不编码** ────── 便宜 ← 关键！
  *   └─ 4. toDataURL()（PNG 编码）仅新图片才做 ──────────── 昂贵
  *
@@ -399,6 +432,29 @@ async function saveClipboardItem(payload: {
  *
  * 序列号守卫实测无效已移除；`readBuffer('image/png')` 亦被否决。**两者都不要重新引入**，
  * 原因见上方 `cheapImageKey()` 的注释。
+ *
+ * ══════════════════════════════════════════════════════════════════
+ * ⚠️ Electron 44 异步化改造（2026-09-29）—— 三层防护，缺一不可
+ * ══════════════════════════════════════════════════════════════════
+ * Electron 44 起 `clipboard` 全异步，轮询回调因此变成 async 函数。这带来一个
+ * **旧同步版本不存在的新风险：重入**。
+ *
+ *   setInterval 不会等 async 回调完成就进入下一轮。若某轮因图片 PNG 编码 +
+ *   DB 写入耗时超过 POLL_INTERVAL，下一轮会**并发**进来 —— 两个执行流同时读写
+ *   `lastClipboardText` / `lastImageCheapKey`，导致：
+ *     · 同一条内容被记录两次（两轮都读到「新」内容）；
+ *     · 或反过来，缓存被后一轮覆盖，前一轮的写入结果丢失。
+ *
+ * 三层防护：
+ *   1. **`busy` 重入锁**：单轮未结束时直接跳过本轮。剪贴板内容不会丢 ——
+ *      下一轮仍会读到同一份内容并处理（状态是「读到才更新」，天然幂等可重试）。
+ *   2. **await 顺序不变**：仍是「先读文本 → 再判格式 → 再算廉价指纹 → 最后才编码」，
+ *      守卫链的经济性完全保留。异步改造**不改变**哪一层先付代价。
+ *   3. **缓存只在成功后刷新**：`lastImageCheapKey` / `lastClipboardText` 的赋值位置
+ *      与原版逐字一致（在落库成功之后），失败则下轮重试。
+ *
+ * 另外：`readFindText()` 已被 Electron 44 移除（macOS 专属同步 API，无直接等价物），
+ * 按约定「保留 DB 列、采集值置空」——见下方 `const findText = ""`。
  */
 function startClipboardMonitor() {
   // 启动时用最新一条文本预热缓存，避免重启后首次复制重复落库
@@ -418,83 +474,98 @@ function startClipboardMonitor() {
     })
     .catch((err) => console.error("clipboard seed last text error:", err));
 
-  setInterval(async () => {
-    const text = clipboard.readText();
-    const hasText = !!text && !!text.trim();
+  // 重入锁：上一轮 await 尚未完成时，本轮直接跳过（见上方「三层防护」第 1 条）
+  let busy = false;
 
-    // ── 文本未变化：再判断图片 ──
-    if (!hasText || text === lastClipboardText) {
-      // 第 2 层：格式守卫（避免对纯文本剪贴板做任何图片读取）
-      const formats = clipboard.availableFormats();
-      const hasImageFormat = formats.some((f: string) => f.toLowerCase().startsWith("image/"));
-      if (!hasImageFormat) {
-        // 剪贴板是纯文本：清空图片缓存，避免「文本 → 图片 → 文本」来回切时误判
-        lastImageCheapKey = "";
-        lastImageFingerprint = "";
+  setInterval(async () => {
+    if (busy) return;
+    busy = true;
+    try {
+      const text = await readClipboardText();
+      const hasText = !!text && !!text.trim();
+
+      // ── 文本未变化：再判断图片 ──
+      if (!hasText || text === lastClipboardText) {
+        // 第 2 层：格式守卫（避免对纯文本剪贴板做任何图片读取）
+        const formats = await readClipboardFormats();
+        const hasImageFormat = formats.some((f: string) => f.startsWith("image/"));
+        if (!hasImageFormat) {
+          // 剪贴板是纯文本：清空图片缓存，避免「文本 → 图片 → 文本」来回切时误判
+          lastImageCheapKey = "";
+          lastImageFingerprint = "";
+          return;
+        }
+
+        // 第 3 层（关键）：廉价指纹 —— 只读尺寸 + 位图长度，**不做 PNG 编码**
+        const cheapKey = await cheapImageKey();
+        if (cheapKey && cheapKey === lastImageCheapKey) return; // 图片没变 → 零编码返回
+
+        // 第 4 层：确认是新图片，才付编码代价
+        const img = await readClipboardImage();
+        if (img.isEmpty()) return;
+        const dataUrl = img.toDataURL();
+        const fingerprint = imageFingerprint(dataUrl);
+
+        // 廉价指纹可能因读取失败而为空，此时回落到昂贵指纹兜底去重
+        if (!cheapKey && fingerprint === lastImageFingerprint) return;
+
+        const now = moment().format("YYYY-MM-DD HH:mm:ss");
+        try {
+          // 超过体积上限的图片不入库，仅记录一条占位说明
+          if (dataUrl.length > MAX_IMAGE_DATAURL_LENGTH) {
+            await saveClipboardItem({
+              text: "[图片过大，未保存]",
+              html: "",
+              image: "",
+              rtf: "",
+              bookmark: "",
+              findText: "",
+              now,
+            });
+          } else {
+            await saveClipboardItem({
+              text: "",
+              html: "",
+              image: dataUrl,
+              rtf: "",
+              bookmark: "",
+              findText: "",
+              now,
+            });
+          }
+          lastImageFingerprint = fingerprint;
+          // 只有成功落库/记账后才刷新廉价指纹，失败则下轮重试
+          lastImageCheapKey = cheapKey;
+        } catch (err) {
+          console.error("clipboard image insert error:", err);
+        }
         return;
       }
 
-      // 第 3 层（关键）：廉价指纹 —— 只读尺寸 + 位图长度，**不做 PNG 编码**
-      const cheapKey = cheapImageKey();
-      if (cheapKey && cheapKey === lastImageCheapKey) return; // 图片没变 → 零编码返回
+      // 文本确为新内容，再读取重型格式并落库
+      // ⚠️ readFindText() 已在 Electron 44 移除（macOS 专属，无直接等价物）；
+      //    该列保留但恒为空值，避免 DB 迁移风险。
+      const html = await readClipboardHtml();
+      const rtf = await readClipboardRtf();
+      const bookmark = JSON.stringify(await readClipboardBookmark());
+      const findText = "";
 
-      // 第 4 层：确认是新图片，才付编码代价
-      const img = clipboard.readImage();
-      if (img.isEmpty()) return;
-      const dataUrl = img.toDataURL();
-      const fingerprint = imageFingerprint(dataUrl);
-
-      // 廉价指纹可能因 readBuffer 失败而为空，此时回落到昂贵指纹兜底去重
-      if (!cheapKey && fingerprint === lastImageFingerprint) return;
-
-      const now = moment().format("YYYY-MM-DD HH:mm:ss");
       try {
-        // 超过体积上限的图片不入库，仅记录一条占位说明
-        if (dataUrl.length > MAX_IMAGE_DATAURL_LENGTH) {
-          await saveClipboardItem({
-            text: "[图片过大，未保存]",
-            html: "",
-            image: "",
-            rtf: "",
-            bookmark: "",
-            findText: "",
-            now,
-          });
-        } else {
-          await saveClipboardItem({
-            text: "",
-            html: "",
-            image: dataUrl,
-            rtf: "",
-            bookmark: "",
-            findText: "",
-            now,
-          });
-        }
-        lastImageFingerprint = fingerprint;
-        // 只有成功落库/记账后才刷新廉价指纹，失败则下轮重试
-        lastImageCheapKey = cheapKey;
+        const now = moment().format("YYYY-MM-DD HH:mm:ss");
+        await saveClipboardItem({ text, html, image: "", rtf, bookmark, findText, now });
+        lastClipboardText = text;
+        // 剪贴板已换成文本，图片缓存作废
+        lastImageCheapKey = "";
+        lastImageFingerprint = "";
       } catch (err) {
-        console.error("clipboard image insert error:", err);
+        console.error("clipboard insert error:", err);
       }
-      return;
-    }
-
-    // 文本确为新内容，再读取重型格式并落库
-    const html = clipboard.readHTML();
-    const rtf = clipboard.readRTF();
-    const bookmark = JSON.stringify(clipboard.readBookmark());
-    const findText = clipboard.readFindText();
-
-    try {
-      const now = moment().format("YYYY-MM-DD HH:mm:ss");
-      await saveClipboardItem({ text, html, image: "", rtf, bookmark, findText, now });
-      lastClipboardText = text;
-      // 剪贴板已换成文本，图片缓存作废
-      lastImageCheapKey = "";
-      lastImageFingerprint = "";
     } catch (err) {
-      console.error("clipboard insert error:", err);
+      // 兜底：单轮内任何未捕获异常都不能让轮询停摆
+      console.error("clipboard monitor error:", err);
+    } finally {
+      // 无论成功失败都释放锁，保证下一轮能进来
+      busy = false;
     }
   }, POLL_INTERVAL);
 }

@@ -260,7 +260,8 @@ async function pushTo(
 export async function sendClipboardSlip(
   ip?: string,
 ): Promise<{ ok: boolean; error?: string; unsupported?: boolean; ip?: string; name?: string }> {
-  const text = clipboard.readText?.() ?? "";
+  // Electron 44：readText 已异步（且必然存在），直接 await 即可
+  const text = (await clipboard.readText()) ?? "";
   if (!text.trim()) return { ok: false, error: "剪贴板为空" };
   const target = resolveTarget(ip);
   if (!target) return { ok: false, error: "未选择设备（请先在小纸条页选择）" };

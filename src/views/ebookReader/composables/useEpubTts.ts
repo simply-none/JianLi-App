@@ -23,6 +23,28 @@ import type { TTSBoundaryEvent } from '@/utils/tts/types';
 import { splitSentences } from './ttsSentences';
 
 /**
+ * 读取 rendition 当前渲染的 Contents 列表（**真实返回的就是数组**）。
+ *
+ * 为什么要写这个包装（而不是直接用 `rendition.getContents()`）：
+ * epubjs 的 .d.ts **类型声明写错了** —— `types/rendition.d.ts` 里签名为
+ * `getContents(): Contents;`（漏了一个 `[]`）。而实际实现对
+ * distribution/epub.js 源码 `src/managers/default/index.js` 逐行核对，返回的是
+ * `contents = []` 并对每个 view `contents.push(viewContents)` —— 即 `Contents[]`。
+ * 所以直接用官方签名会让 `.length` / `[0]` / `.find()` 全部报 TS2339 / TS7053，
+ * 而错误类型恰好又被 TS 当作「非数组」，连 `as any[]` 转换都会报 TS2352。
+ *
+ * 这里做**唯一的类型收口**：保留 `Contents[]` 的强类型（不是退化成 any），
+ * 全文件所有取 Contents 的地方都走它，避免一处 as any[]、一处裸调用
+ * （历史遗留的 117/137 行就是各自手写 `as Contents[]`）。
+ * 若将来 epubjs 修正了官方声明，删掉本函数、改回直调即可。
+ */
+function takeContents(rendition: { getContents: () => unknown } | null | undefined): Contents[] {
+  if (!rendition) return [];
+  const list = rendition.getContents();
+  return Array.isArray(list) ? (list as Contents[]) : [];
+}
+
+/**
  * EPUB 朗读高亮配色（用于 epub.js `annotations.highlight` 的 SVG 样式）。
  * 关键：必须走 **hex fill + fill-opacity（≤0.4）**，**绝不可传 rgba() 作 fill 属性**，
  * 也**不可开 mix-blend-mode**（深色主题下 multiply 会把色块压暗看不见）。
@@ -114,8 +136,8 @@ export function useEpubTts(ctx: EpubCtx) {
       range = null;
     }
     if (range) return range;
-    const list = ctx.rendition?.getContents() as Contents[] | undefined;
-    if (list && list.length) {
+    const list = takeContents(ctx.rendition);
+    if (list.length) {
       for (const c of list) {
         try {
           const r = c.range(cfiRange);
@@ -134,8 +156,8 @@ export function useEpubTts(ctx: EpubCtx) {
   /** 找持有指定 document 的 Contents（用于把「词 Range」反算成 CFI） */
   function findContentsForDoc(doc: Document | null): Contents | null {
     if (!doc) return null;
-    const list = ctx.rendition?.getContents() as Contents[] | undefined;
-    if (!list || !list.length) return null;
+    const list = takeContents(ctx.rendition);
+    if (!list.length) return null;
     return list.find((c) => c.document === doc) || null;
   }
 
@@ -225,16 +247,16 @@ export function useEpubTts(ctx: EpubCtx) {
   function getContents(): Contents | null {
     const r = ctx.rendition;
     if (!r) return null;
-    const list = r.getContents();
-    if (!list || list.length === 0) return null;
+    const list = takeContents(r);
+    if (list.length === 0) return null;
     if (list.length === 1) return list[0];
     // 分页模式会预载相邻章，getContents 可能含多个视图：
     // 优先取与「当前阅读位置」同 section 的内容，避免取到相邻章而读错章节
     const loc = r.currentLocation() as any;
     const idx = loc?.start?.index;
     if (typeof idx === 'number') {
-      const hit = (list as any[]).find((c) => c.sectionIndex === idx);
-      if (hit) return hit as Contents;
+      const hit = list.find((c) => (c as any).sectionIndex === idx);
+      if (hit) return hit;
     }
     return list[0];
   }
@@ -500,8 +522,14 @@ export function useEpubTts(ctx: EpubCtx) {
     hasNextQueue(): boolean {
       const book = ctx.book as Book | null;
       if (!book || !(book.spine as any)?.spineItems || !currentHref) {
-        const loc = ctx.rendition?.currentLocation();
-        currentHref = ((loc?.start as any)?.href as string) || currentHref;
+        // epubjs 声明同样写错：types/rendition.d.ts 里
+        // `currentLocation(): DisplayedLocation`，但实际返回的是包了一层的
+        // `Location`（rendition.js `located()` 返回 { start: {index,href,cfi,displayed}, end: {...} }）。
+        // 类型与真值不重叠，TS 要求先过 unknown 再窄化。
+        const loc = ctx.rendition?.currentLocation() as unknown as
+          | { start?: { href?: string } }
+          | undefined;
+        currentHref = loc?.start?.href || currentHref;
         if (!book || !(book.spine as any)?.spineItems || !currentHref) return false;
       }
       const items = (book.spine as any).spineItems as any[];

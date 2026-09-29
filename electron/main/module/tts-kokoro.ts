@@ -182,7 +182,9 @@ class KokoroSynthHost {
         reject(new Error('未找到 sherpa-onnx-node 依赖，请先安装：pnpm add sherpa-onnx-node sherpa-onnx-win-x64'));
         return;
       }
-      const worker = new Worker(kokoroWorkerPath, {
+      // ⚠️ 原为 `kokoroWorkerPath` —— 该变量从未定义/导入，正确名是
+      //    `sherpaTtsWorkerPath`（文件顶部已 import，Kokoro/Piper/VITS 共用同一 Worker）。
+      const worker = new Worker(sherpaTtsWorkerPath, {
         workerData: {
           sherpaModulePath,
           numThreads: 2,
