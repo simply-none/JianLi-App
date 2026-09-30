@@ -88,7 +88,8 @@ function pickHm(iso?: string): string {
  * @param config 运行期配置
  */
 async function fetchFromOpenMeteo(city: string, config: any): Promise<WeatherData> {
-  const coords = lookupCityCoords(city);
+  // 有消歧提示（adcode / 坐标）时优先按其定位，跳过名称猜测
+  const coords = lookupCityCoords(city, config?.cityRef);
   if (!coords) {
     throw new Error(`本地坐标表未收录「${city}」，Open-Meteo 无法定位（可先启用和风天气）`);
   }

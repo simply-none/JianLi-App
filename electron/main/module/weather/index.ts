@@ -3,17 +3,20 @@
  * ------------------------------------------------------------------
  * 通道契约：
  * 【保持兼容，渲染端旧代码零改动】
- * - get-weather（invoke，{city, forceRefresh?}）→ WeatherData | null | { error }
+ * - get-weather（invoke，{city, forceRefresh?, providerId?, cityRef?}）→ WeatherData | null | { error }
+ *   cityRef 为可选消歧提示（adcode / 坐标），有则精确定位，无则按名称分层匹配
  * - get-weather-broadcast（on，cityName）→ 广播 get-weather-broadcast-reply
  *
  * 【本期新增】
+ * - weather:resolve-city（invoke，name）→ CityCandidate[]（重名下拉候选，含路径）
  * - weather:get-config（invoke）→ WeatherConfigForUi（脱敏，绝不含明文凭据）
  * - weather:save-config（invoke，WeatherConfigForUi 的可写子集）→ { ok, message }
  * - weather:probe-provider（invoke，{ id, options, credentials, timeout }）→ { ok, message }
  * - weather:available-providers（invoke）→ ProviderSummary[]
  *
  * 缓存策略：
- * - 内存缓存 key = `${providerId}:${city}`，命中任一 provider 均复用；
+ * - 内存缓存 key = `${providerId}:${city}#${adcode}`（有 cityRef 时带 adcode，
+ *   避免同名城市串号），命中任一 provider 均复用；
  * - 另存一份「城市 → 最近一次成功结果」，让同一城市切换数据源时优先回显；
  * - 时长取配置项 cacheDuration（默认 2h），forceRefresh 跳过。
  */
@@ -29,7 +32,8 @@ import {
   saveWeatherConfig,
   DEFAULT_WEATHER_CONFIG,
 } from './config.ts';
-import type { ProviderId, WeatherData, WeatherModuleConfig } from './types.ts';
+import { resolveCityCandidates } from './data/cnCities.ts';
+import type { CityRef, ProviderId, WeatherData, WeatherModuleConfig } from './types.ts';
 
 /** 天气缓存容器：键为 `${providerId}:${城市名小写}` */
 const WEATHER_CACHE: Record<string, { data: WeatherData; timestamp: number }> = {};
@@ -42,15 +46,20 @@ const CITY_LAST: Record<string, { data: WeatherData; timestamp: number }> = {};
  * @param cityName 城市名
  * @param forceRefresh 是否强制刷新
  * @param onlyId 指定单一数据源（不降级）
+ * @param cityRef 城市消歧提示（渲染端选定候选后回传）
  * @returns 成功返回天气数据，失败返回 null
  */
 async function getWeather(
   cityName: string,
   forceRefresh = false,
-  onlyId?: ProviderId
+  onlyId?: ProviderId,
+  cityRef?: CityRef
 ): Promise<WeatherData | null> {
   const cityKey = String(cityName || '').toLowerCase();
   if (!cityKey) return null;
+
+  // 缓存键纳入 adcode：同名城市（如北京朝阳区 vs 长春朝阳区）各自独立，避免串号
+  const refKey = cityRef?.adcode ? `${cityKey}#${cityRef.adcode}` : cityKey;
 
   const cfg = await loadWeatherConfig();
   const ttl = cfg.cacheDuration || DEFAULT_WEATHER_CONFIG.cacheDuration;
@@ -58,18 +67,18 @@ async function getWeather(
   // 指定数据源时按其自身缓存；否则查该城市的任意命中缓存
   if (!forceRefresh) {
     if (onlyId) {
-      const hit = WEATHER_CACHE[`${onlyId}:${cityKey}`];
+      const hit = WEATHER_CACHE[`${onlyId}:${refKey}`];
       if (hit && Date.now() - hit.timestamp < ttl) {
         console.log(colors.gray(`[weather] 命中缓存(${onlyId}): ${cityName}`));
         return hit.data;
       }
       // 同城市曾由其它源成功过，且未禁用该源时，直接复用（省一次网络）
-      const last = CITY_LAST[cityKey];
+      const last = CITY_LAST[refKey];
       if (last && Date.now() - last.timestamp < ttl && last.data._trace?.some((t) => t.id === onlyId && t.ok)) {
         return last.data;
       }
     } else {
-      const last = CITY_LAST[cityKey];
+      const last = CITY_LAST[refKey];
       if (last && Date.now() - last.timestamp < ttl) {
         console.log(colors.gray(`[weather] 命中缓存: ${cityName}`));
         return last.data;
@@ -77,7 +86,7 @@ async function getWeather(
     }
   }
 
-  const { data, trace, providerId } = await fetchWithFallback(cityName, forceRefresh, onlyId);
+  const { data, trace, providerId } = await fetchWithFallback(cityName, forceRefresh, onlyId, cityRef);
 
   if (!data) {
     const detail = trace.map((t) => `${t.label}(${t.error || '失败'})`).join(' → ');
@@ -85,8 +94,8 @@ async function getWeather(
     return null;
   }
 
-  WEATHER_CACHE[`${providerId}:${cityKey}`] = { data, timestamp: Date.now() };
-  CITY_LAST[cityKey] = { data, timestamp: Date.now() };
+  WEATHER_CACHE[`${providerId}:${refKey}`] = { data, timestamp: Date.now() };
+  CITY_LAST[refKey] = { data, timestamp: Date.now() };
   console.log(colors.bgGreen(`[weather] 获取成功: ${cityName} ← ${data.source}`));
   return data;
 }
@@ -99,19 +108,38 @@ export function initWeather() {
 
   ipcMain.handle(
     'get-weather',
-    async (_event, params: { city: string; forceRefresh?: boolean; providerId?: ProviderId } | string) => {
+    async (
+      _event,
+      params: { city: string; forceRefresh?: boolean; providerId?: ProviderId; cityRef?: CityRef } | string
+    ) => {
       try {
         const cityName = typeof params === 'string' ? params : params?.city;
         const forceRefresh = typeof params === 'object' ? !!params?.forceRefresh : false;
         const onlyId = typeof params === 'object' ? params?.providerId : undefined;
+        const cityRef = typeof params === 'object' ? params?.cityRef : undefined;
         if (!cityName) return { error: '缺少城市名' };
-        return await getWeather(cityName, forceRefresh, onlyId);
+        return await getWeather(cityName, forceRefresh, onlyId, cityRef);
       } catch (error) {
         console.error('[weather] get-weather 失败:', error);
         return { error: (error as Error).message };
       }
     }
   );
+
+  /* ---------- 城市消歧通道 ---------- */
+
+  /**
+   * 解析城市候选（渲染端重名下拉用）。
+   * 返回全部同 named 候选 + 「省 · 市 · 区县」路径，最优在前。
+   */
+  ipcMain.handle('weather:resolve-city', async (_event, name: string) => {
+    try {
+      return resolveCityCandidates(String(name || ''));
+    } catch (error) {
+      console.error('[weather] resolve-city 失败:', error);
+      return [];
+    }
+  });
 
   ipcMain.on('get-weather-broadcast', async (_event, cityName: string) => {
     try {

@@ -4,7 +4,8 @@
  * 把主进程通道名与返回结构收敛到一处，组件不直接拼字符串。
  *
  * 通道清单（详见 electron/main/module/weather/index.ts）：
- * - get-weather                取天气（兼容旧契约）
+ * - get-weather                取天气（兼容旧契约，可携带 CityRef 消歧）
+ * - weather:resolve-city       解析城市候选（消歧下拉用）
  * - weather:get-config         读脱敏配置 + 数据源快照
  * - weather:save-config        保存配置（凭据自动加密）
  * - weather:probe-provider     测试单个数据源连通性
@@ -12,6 +13,7 @@
  */
 import { toRaw } from 'vue'
 import type {
+  CityRef,
   ProviderId,
   ProviderSummary,
   WeatherConfigForUi,
@@ -47,17 +49,49 @@ function toPlain<T>(value: T): T {
  * @param city 城市名
  * @param forceRefresh 是否强制刷新
  * @param providerId 指定单一数据源（不降级），省略则走降级链
+ * @param cityRef 城市消歧提示（含 adcode 时主进程直接按行政区划代码定位坐标）
  */
 export async function fetchWeather(
   city: string,
   forceRefresh = false,
-  providerId?: ProviderId
+  providerId?: ProviderId,
+  cityRef?: CityRef
 ): Promise<WeatherData> {
-  const result = await window.ipcRenderer.invoke('get-weather', toPlain({ city, forceRefresh, providerId }))
+  const result = await window.ipcRenderer.invoke(
+    'get-weather',
+    toPlain({ city, forceRefresh, providerId, cityRef })
+  )
   if (!result || result.error) {
     throw new Error(result?.error || '获取天气失败')
   }
   return result as WeatherData
+}
+
+/**
+ * 解析城市候选（消歧用）
+ * ------------------------------------------------------------------
+ * 数据源：主进程 DataV.GeoAtlas 全国快照（3237 条），渲染端不落数据副本。
+ * @param keyword 查询词（空串返回省级列表）
+ * @returns 候选数组（含 adcode/坐标/所属省市区路径）
+ */
+export async function resolveCityCandidates(keyword: string): Promise<CityCandidate[]> {
+  const result = await window.ipcRenderer.invoke('weather:resolve-city', keyword)
+  return Array.isArray(result) ? (result as CityCandidate[]) : []
+}
+
+/** 主进程返回的城市候选结构 */
+export interface CityCandidate {
+  adcode: number
+  name: string
+  short: string
+  level: number
+  lng: number
+  lat: number
+  province: string
+  provinceShort: string
+  city: string
+  cityShort: string
+  path: string
 }
 
 /** 读取脱敏配置与数据源快照 */

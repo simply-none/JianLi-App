@@ -20,12 +20,20 @@
  *   2. execute 会按默认 schema（id 主键 + TEXT 列）自动建表，
  *      因此本模块不重建表（SQLite 无法 ALTER 加主键），按项目惯例改为：
  *      id 主键 + city 唯一索引（CREATE UNIQUE INDEX）+ 缺列时 ALTER 补充
+ *
+ * 城市消歧（CityRef）落地方式：
+ *   表结构**不加列**，CityRef 序列化后塞进 data JSON 的 `_cityRef` 字段。
+ *   理由：主键仍需是 city 字符串以兼容历史数据，且老行没有该字段时
+ *   回落到名称匹配（主进程 lookupCityCoords），零迁移成本。
  */
 
-import type { WeatherData } from './types'
+import type { CityRef, WeatherData } from './types'
 
 /** 天气表名 */
 const WEATHER_TABLE = 'weather_data'
+
+/** data JSON 内嵌 CityRef 的键名（下划线前缀，与天气字段区隔） */
+const CITY_REF_KEY = '_cityRef'
 
 /** 天气表行结构（数据库读取后的解析形态） */
 export interface WeatherRow {
@@ -33,6 +41,8 @@ export interface WeatherRow {
   city: string
   /** 天气数据 */
   data: WeatherData
+  /** 城市消歧标识（老行无此字段时返回 null） */
+  cityRef: CityRef | null
   /** 最近更新时间戳（ms） */
   updatedAt: number
   /** 是否星标 */
@@ -143,9 +153,14 @@ async function ensureWeatherTable(): Promise<void> {
  */
 function parseRow(row: any): WeatherRow | null {
   try {
+    const data = JSON.parse(row.data) as WeatherData & { [CITY_REF_KEY]?: CityRef }
+    // 内嵌的 CityRef 从 data 中摘出，避免污染天气字段
+    const cityRef = (data?.[CITY_REF_KEY] as CityRef | undefined) ?? null
+    if (data && CITY_REF_KEY in data) delete data[CITY_REF_KEY]
     return {
       city: row.city,
-      data: JSON.parse(row.data) as WeatherData,
+      data,
+      cityRef,
       updatedAt: row.updated_at,
       isStarred: !!row.is_starred,
     }
@@ -159,10 +174,13 @@ function parseRow(row: any): WeatherRow | null {
  * 采用「先查后插/更」而非 ON CONFLICT，兼容旧 SQLite 与被错误建的表
  * @param city 城市查询词
  * @param data 优化后的天气数据
+ * @param cityRef 城市消歧标识（内嵌进 data JSON，表结构不变）
  */
-export async function saveWeatherToDb(city: string, data: WeatherData): Promise<void> {
+export async function saveWeatherToDb(city: string, data: WeatherData, cityRef?: CityRef): Promise<void> {
   await ensureWeatherTable()
-  const json = JSON.stringify(data)
+  // CityRef 并入 data JSON：避免加列，也保证老行读出来仍是合法 WeatherData
+  const payload = cityRef ? { ...data, [CITY_REF_KEY]: cityRef } : data
+  const json = JSON.stringify(payload)
   const now = Date.now()
   const exists = await dbQuery(`SELECT city FROM ${WEATHER_TABLE} WHERE city = ?`, [city])
   if (exists && exists.length > 0) {

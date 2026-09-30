@@ -5,7 +5,13 @@
       :history="historyList"
       :starred="starredCities"
       :loading="loading"
+      :active-path="currentCityRef?.path || ''"
+      :remembered="isCurrentRemembered"
+      :disambiguation="disambiguation"
       @search="handleSearch"
+      @searchTag="handleTagSearch"
+      @searchRef="handleSearchRef"
+      @cancelDisambiguation="disambiguation = null"
       @toggleStar="toggleStarCity"
       @removeHistory="history.remove"
       @clearHistory="history.clear"
@@ -118,6 +124,9 @@ import { useStarredCities } from './composables/useStarredCities'
 import { useWeatherTheme } from './composables/useWeatherTheme'
 import { useDebugLog } from './composables/useDebugLog'
 import { useWeatherCapability } from './capability'
+import { rememberCityChoice, resolveCityForQuery, resolveCityRefByName, getRememberedAdcode } from './cityResolver'
+import type { CityCandidate } from './cityResolver'
+import type { CityRef } from './types'
 
 /** 调试日志控制器 */
 const debug = useDebugLog()
@@ -127,6 +136,7 @@ const weather = useWeather(debug.addLog)
 const {
   weatherData,
   currentCity,
+  currentCityRef,
   rawData,
   loading,
   loadByCity,
@@ -160,18 +170,83 @@ const settingsVisible = ref(false)
 /** 是否正在强制刷新（刷新按钮旋转） */
 const refreshing = ref(false)
 
+/** 重名消歧状态（候选 ≥2 时交由 WeatherSearch 弹下拉；null 表示无需消歧） */
+const disambiguation = ref<{ keyword: string; candidates: CityCandidate[] } | null>(null)
+
+/** 当前城市是否来自「记住的选择」（回显角标用） */
+const isCurrentRemembered = computed(() => {
+  const adcode = currentCityRef.value?.adcode
+  if (!adcode) return false
+  return getRememberedAdcode(currentCity.value) === adcode
+})
+
 /**
- * 按城市查询天气（查询成功后刷新历史与星标列表，两者均来自数据库）
- * @param city 城市名
+ * 带 CityRef 执行查询并同步列表（内部入口，所有查询最终都汇聚到这里）
+ * @param city 城市名（作为历史/缓存主键）
+ * @param cityRef 已确定的消歧标识（可为 null，主进程回落名称匹配）
  */
-async function handleSearch(city: string) {
+async function runQuery(city: string, cityRef: CityRef | null) {
   try {
-    await loadByCity(city)
+    await loadByCity(city, false, undefined, cityRef)
     await Promise.all([history.add(), reloadStarred()])
   } catch (error) {
     debug.addLog(`获取失败: ${(error as Error).message}`, 'error')
     ElMessage.error('获取天气失败，请稍后重试')
   }
+}
+
+/**
+ * 按城市查询天气（统一入口）
+ * ------------------------------------------------------------------
+ * 先解析候选决定是否需要消歧：
+ *   - 已记住选择 / 候选唯一 → 直接查询；
+ *   - 候选多个 → 弹下拉让用户选（选定后走 handleSearchRef）；
+ *   - 无候选 → 交给主进程按名称兜底匹配（支持拼音外的其他写法）。
+ * @param city 城市名
+ */
+async function handleSearch(city: string) {
+  try {
+    const { ref: cityRef, candidates } = await resolveCityForQuery(city)
+    if (cityRef) {
+      disambiguation.value = null
+      await runQuery(city, cityRef)
+      return
+    }
+    if (candidates.length >= 2) {
+      debug.addLog(`「${city}」有 ${candidates.length} 个匹配，等待用户选择`, 'info')
+      disambiguation.value = { keyword: city, candidates }
+      return
+    }
+    // 无候选：老行为，交由主进程分层匹配
+    debug.addLog(`「${city}」无候选，回落主进程名称匹配`, 'warning')
+    await runQuery(city, null)
+  } catch (error) {
+    debug.addLog(`查询失败: ${(error as Error).message}`, 'error')
+    ElMessage.error('获取天气失败，请稍后重试')
+  }
+}
+
+/**
+ * 携带已确定 CityRef 的查询（选中搜索建议 / 选定重名候选后触发）
+ * @param city 城市名
+ * @param cityRef 消歧标识
+ */
+async function handleSearchRef(city: string, cityRef: CityRef) {
+  disambiguation.value = null
+  if (cityRef.adcode) rememberCityChoice(city, cityRef.adcode)
+  debug.addLog(`已选定「${cityRef.path || city}」(adcode=${cityRef.adcode})`, 'success')
+  await runQuery(city, cityRef)
+}
+
+/**
+ * 历史 / 星标标签点击（只有城市名，需按名称重建 CityRef）
+ * 标签不弹下拉：按排序首位或已记住的选择直接查，保持点击即响应的手感。
+ * @param city 城市名
+ */
+async function handleTagSearch(city: string) {
+  const cityRef = await resolveCityRefByName(city)
+  if (cityRef?.adcode) rememberCityChoice(city, cityRef.adcode)
+  await runQuery(city, cityRef)
 }
 
 /**
@@ -235,7 +310,8 @@ onMounted(async () => {
   const lastCity = historyList.value[0]
   if (lastCity) {
     debug.addLog(`默认加载上次查询城市: ${lastCity}`, 'info')
-    handleSearch(lastCity)
+    // 自动加载不弹消歧下拉（用户此刻并未发起选择），直接按记住的选择 / 排序首位重建
+    handleTagSearch(lastCity)
   }
 })
 </script>

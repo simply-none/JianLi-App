@@ -28,6 +28,33 @@ export type WeatherCondition =
   | 'wind'      // 大风
   | 'unknown';  // 未知
 
+/* ===================== 城市标识（消歧用） ===================== */
+
+/**
+ * 结构化城市标识（与渲染端 src/views/weather/types.ts 一一对应）。
+ * ------------------------------------------------------------------
+ * 区县级行政区划有 30 组重名（如「朝阳区」北京/长春各一），仅靠城市名
+ * 无法唯一定位。渲染端在搜索建议中选定候选后生成 CityRef，随查询一路携带
+ * ⇒ 主进程用 adcode / 坐标精确命中，不再猜测。
+ *
+ * 兼容性：老历史/老缓存无 cityRef，回落到 name 走分层匹配。
+ */
+export interface CityRef {
+  /** 城市全名（如「朝阳区」「赣州市」） */
+  name: string;
+  /** 国家行政区划代码（唯一，首选定位依据） */
+  adcode?: number;
+  /** 省级全名 */
+  province?: string;
+  /** 上级地级市全名 */
+  city?: string;
+  /** 展示路径 */
+  path?: string;
+  /** 已确定的坐标 */
+  lng?: number;
+  lat?: number;
+}
+
 /* ===================== 数据源标识 ===================== */
 
 /** Provider 唯一标识 */
@@ -281,6 +308,11 @@ export interface ProviderRuntimeConfig {
   timeout: number;
   /** 强制刷新 */
   forceRefresh: boolean;
+  /**
+   * 城市消歧提示（渲染端选定候选后回传）。
+   * 有 adcode / 坐标时，provider 应优先按它定位，跳过名称猜测。
+   */
+  cityRef?: CityRef;
 }
 
 /** Provider 适配器接口 */

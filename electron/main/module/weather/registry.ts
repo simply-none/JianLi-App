@@ -16,7 +16,7 @@
 import { getProvider } from '../weatherProviders.ts';
 import { loadWeatherConfig, toRuntimeConfig, isProviderConfigured } from './config.ts';
 import { isUsableWeatherData } from './normalize.ts';
-import type { ProviderId, ProviderTrace, WeatherData, WeatherModuleConfig } from './types.ts';
+import type { CityRef, ProviderId, ProviderTrace, WeatherData, WeatherModuleConfig } from './types.ts';
 
 /** 跳过原因文案 */
 const SKIP_DISABLED = '未启用';
@@ -103,12 +103,14 @@ export interface FallbackResult {
  * @param city 城市名（中文）
  * @param forceRefresh 是否强制刷新（透传给 provider，仅作语义提示）
  * @param onlyId 仅使用指定 provider（不降级），用于「指定数据源」调试或预览
+ * @param cityRef 城市消歧提示（渲染端选定候选后回传），有则 provider 优先按它定位
  * @returns 结果数据 + 完整轨迹
  */
 export async function fetchWithFallback(
   city: string,
   forceRefresh = false,
-  onlyId?: ProviderId
+  onlyId?: ProviderId,
+  cityRef?: CityRef
 ): Promise<FallbackResult> {
   const cfg = await loadWeatherConfig();
   let chain = resolveChain(cfg);
@@ -137,7 +139,7 @@ export async function fetchWithFallback(
 
     const started = Date.now();
     try {
-      const runtime = { ...toRuntimeConfig(entry.id, cfg), forceRefresh };
+      const runtime = { ...toRuntimeConfig(entry.id, cfg), forceRefresh, cityRef };
       const raw = await withTimeout(
         provider.fetch(city, runtime),
         cfg.requestTimeout,
