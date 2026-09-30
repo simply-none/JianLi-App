@@ -26,9 +26,10 @@
 | 纯逻辑 | `utils/xmind.ts` | XMind `.xmind` 互转（zip + `content.json`，走**已在依赖里的** `jszip`） |
 | 纯逻辑 | `utils/svgExport.ts` | **由树 + 布局结果直接生成独立 SVG**（换行、几何、主题色归一化） |
 | 纯逻辑 | `utils/generate.ts` | 待办 / 笔记 / 主题对话 → 树（**只读**映射） |
+| 纯逻辑 | `utils/popup.ts` | **浮层定位几何**：`placePopup()`（光标落点 → 越界翻转 → 夹视口）+ `clampInto()`；纯算术、可断言，右键菜单与将来的浮层共用 |
 | 状态 | `composables/useMindDoc.ts` | 模块级单例文档状态 + **全部树操作唯一写入口 `commit`**（含 `duplicateById` / `setNodeBg` / `setNodeTextColor`） |
 | 状态 | `composables/useMindHistory.ts` | 撤销 / 重做快照栈（上限 80，模块级单例） |
-| 状态 | `composables/useMindView.ts` | 一次性视图信号：`requestFit/consumeFit`、`requestFocus/consumeFocus`、**浮层单例 `nodePanelId`（属性弹窗）与 `menuNodeId`/`menuX`/`menuY`（右键菜单）** |
+| 状态 | `composables/useMindView.ts` | 一次性视图信号：`requestFit/consumeFit`、`requestFocus/consumeFocus`、**浮层单例 `nodePanelId`（属性弹窗）与 `menuNodeId`/`menuX`/`menuY`/`menuAnchor`（右键菜单）** |
 | 状态 | `composables/useMindPersist.ts` | newSql 三件套薄封装（list/load/save/remove） |
 | 状态 | `composables/useMindActions.ts` | 动作编排：状态 + 持久化 + 提示/确认策略 |
 | 状态 | `composables/useMindTransfer.ts` | 导入导出编排（7 种格式；导出菜单 `EXPORT_ITEMS` 也在这里定义） |
@@ -37,9 +38,9 @@
 | 状态 | `composables/useMindShortcuts.ts` | 键盘 → 意图映射（IME 安全） |
 | 画布 | `composables/useMindGraph.ts` | 树 ⇄ vue-flow 元素编译 + 两段式布局 + 分支色继承 + 拖动整棵子树（**松手时把坐标写进树**）+ `centerOn` |
 | 视图 | `components/MindCanvas.vue` | **唯一持有 `<VueFlow>` 的地方**；定义 `--mm-*` 主题变量；挂载右键菜单与缩放条 |
-| 视图 | `components/MindNode.vue` | 自定义节点（Handle 由 **`nodeHandles()` 派生**、折叠钮、选中环、分支色条、备注浮标、**右键上报坐标**、**背景 / 文字色 fallback 链**） |
+| 视图 | `components/MindNode.vue` | 自定义节点（Handle 由 **`nodeHandles()` 派生**、折叠钮、选中环、分支色条、备注浮标、**右键上报坐标 + 节点锚点矩形**、**背景 / 文字色 fallback 链**） |
 | 视图 | `components/MindNodeEditor.vue` | 内联文本编辑（原子，不碰树） |
-| 视图 | `components/MindNodeMenu.vue` | **节点右键菜单**（teleport 到 body 的浮层；结构操作 + 三行内联色板 + 删除；自己夹视口边界、Esc / 遮罩 / 滚轮 / 失焦关闭） |
+| 视图 | `components/MindNodeMenu.vue` | **节点右键菜单**（teleport 到 body 的浮层；结构操作 + 三行内联色板 + 删除；落点交给 `utils/popup.ts` 算；**定位完成前 `visibility: hidden` 防闪**；点外 / Esc / 滚轮 / 失焦关闭） |
 | 视图 | `components/MindColorRow.vue` | **一行色板**（分支 / 背景 / 文字三处共用；`variant` 决定色块画实色还是低透铺底色） |
 | 视图 | `components/MindNodeDialog.vue` | 节点属性弹窗（备注 + **分支色 / 背景色 / 文字色三行色板** + **位置状态与「恢复自动」**） |
 | 视图 | `components/MindGenerateDialog.vue` | 「从待办 / 笔记 / 主题对话生成导图」弹窗（只读查询 + 预览节点数） |
@@ -258,8 +259,9 @@ ColorKey = 'blue'|'teal'|'green'|'amber'|'coral'|'purple'   // 只存 key，不�
     - **不能把菜单画在节点里**：节点在 `.vue-flow__viewport` 内部，而 viewport 带 `transform: translate(...) scale(...)` —— 菜单会跟着画布一起缩放 / 平移，还会被 `.mind-canvas { overflow: hidden }` 裁掉（缩到 0.5 倍时菜单字都糊了）。
     - 因此 `openNodeMenu(id, clientX, clientY)` 存的是 **`clientX / clientY`**，菜单用 `position: fixed`。⚠️ **不要混用两套坐标**：存画布坐标就得在打开时反算一次 viewport 变换，而菜单本身又跟着视口走，早晚错位。
     - **打开 / 换位置都要重新定位**，所以 watcher 的键是 `` `${menuNodeId}@${menuX},${menuY}` `` —— 同一个节点**再右键一次**（比如往上挪一点）时 id 没变，只监听 id 会让菜单停在旧位置。
-    - **越界要「翻转」而不是「夹进视口」**（`place()`）：菜单高 ~490px，若按 `innerHeight - height` 去夹 y，窗口下半部分右键时菜单左上角会被拽到光标上方几百像素、整个盖住刚右键的节点。系统右键菜单的规矩是右 / 下放不下就**翻到光标的左侧 / 上方**；只有菜单比视口还大才退化成夹边界。量尺寸必须**渲染之后**（高度取决于有没有子节点、是不是根节点）⇒ 先按光标渲染一帧再 `nextTick` 后量。
-    - `place()` 末尾有一次**实测自检**：拿 `getBoundingClientRect()` 与期望落点比对，差超过 1px 就按实测差值（除以实测缩放比）拉回 —— 防「祖先带 transform / 系统缩放让 fixed 改基准」这类运行时才暴露的偏移，正常情况零开销。
+    - **越界要「翻转」而不是「夹进视口」**：菜单高 ~400px，若按 `innerHeight - height` 去夹 y，窗口下半部分右键时菜单左上角会被拽到光标上方几百像素、整个盖住刚右键的节点。翻转规则见坑 43（**基准是节点矩形，不是光标**）；只有菜单比视口还大才退化成夹边界。量尺寸必须**渲染之后**（高度取决于有没有子节点、是不是根节点）⇒ 先按光标渲染一帧再 `nextTick` 后量。
+    - 几何已抽到 `utils/popup.ts` 的 `placePopup()`（纯算术、33 条断言覆盖），组件只负责「量真实尺寸 → 调它 → 写 style」。
+    - `place()` 末尾有一次**实测自检**：拿 `getBoundingClientRect()` 与期望落点比对，差超过 1px 就按实测差值（除以实测缩放比）拉回 —— 防「祖先带 transform / 系统缩放让 fixed 改基准」这类运行时才暴露的偏移，正常情况零开销。⚠️ **必须 `await nextTick()` 之后再量**，否则读到上一帧（坑 43）。
     - 关闭路径：**window 捕获阶段 `pointerdown` 判「点在面板外」**（替代全屏遮罩，见坑 42）+ 面板外 `wheel` + `Esc`（捕获阶段）+ `resize` / window `blur` + 节点消失（`watch(node)`）+ **组件 `onUnmounted` 时清 `menuNodeId`**（否则路由切走再回来会「凭空弹出一个菜单」）。
 
 37. **菜单项的动作 id 必须在「关菜单」之前取出来**（P4 真踩到的静默 bug）。
@@ -297,6 +299,17 @@ ColorKey = 'blue'|'teal'|'green'|'amber'|'coral'|'purple'   // 只存 key，不�
     - **链路**：遮罩盖住全屏 ⇒ 第二次右键的 `contextmenu` 先落到遮罩上 ⇒ 遮罩的处理是立刻把自己 `v-if` 掉 ⇒ **事件派发到一半目标元素被移除**，Chromium 重新命中测试、给底下的节点**补发一个 `clientX/Y = 0` 的 contextmenu** ⇒ 节点拿着 `(0,0)` 开菜单 ⇒ `place()` 的 clamp 把它钉到 `EDGE_GAP` 角上。静态看代码完全看不出来（`clientX` 语义、`position: fixed`、clamp 全都「正确」），只有实机复现才抓得到。
     - **修复**：拆掉遮罩，改 **window 捕获阶段 `pointerdown` 判「点在面板外」**（面板内不关）—— 全程不改 DOM，菜单先关、随后的 contextmenu 正常落到节点上、带真实光标坐标重新打开。副产品：**「开着菜单换一个节点右键」一步到位**（旧方案只会把菜单关掉，得再右键一次）。
     - **双保险**：`MindNode.anchorOf()` 对**没有坐标的 contextmenu**（键盘 Menu 键 / Shift+F10、以及任何被重发的合成事件，`clientX/Y` 均为 0）退回到**节点卡片自身的 rect**（卡片右缘偏下），保证这类事件也把菜单开在节点旁边而不是左上角。
+
+43. **翻转的基准是「节点矩形」，不是光标；且自检必须等下一帧再量**（P4 第二次修「右键菜单偏移太远」）。
+    - **现象（用户报）**：节点在**右下角**右键 ⇒ 菜单「直接到顶部」；节点在**右侧边缘**右键 ⇒ 菜单「偏移左侧好远」。
+    - **链路（实测复现，不是推理）**：`place()` 写完新坐标后**立刻**读 `getBoundingClientRect()` —— 而 Vue 的 DOM 更新排在下一次微任务里，此刻 `style.left/top` 还是**上一帧（光标处）**的值。于是 `dx/dy` 正好等于这一次的翻转位移，自检把它当成「fixed 基准偏了」又**再翻一次** ⇒ 菜单被推到光标外侧**两个菜单宽 / 高**处（右下角 ⇒ 纵向多退 400px，直接飞出视口顶部 / 被 clamp 钉到 y=6）。**静态看每步都「正确」**，`clientX` 语义、`position: fixed`、clamp 全都没问题。
+      最小复现（`C:\src\tmp\mm_rect_timing.cjs`，项目自带 puppeteer + `vue.global.js`）：赋新值后立刻量 ⇒ `dx=248, dy=400`；`await nextTick()` 后再量 ⇒ `dx=0, dy=0`。
+    - **修复①**：自检前补一次 `await nextTick()`；再加 `placeSeq` 并发保护（快速换节点右键时只让最后一次 `place()` 写坐标）。
+    - **修复②（用户要的「常规优化」）**：翻转的基准改成**节点矩形** `menuAnchor`（`MindNode.vue` 右键时顺手量好，随 `openNodeMenu(id, x, y, anchor)` 传上来）：
+      `右放不下 ⇒ 浮层右缘 = 节点左缘 - 4`（向左展开）；`下放不下 ⇒ 浮层下缘 = 节点上缘 - 4`（**向上展开，即「以该节点为底部定位点」**）。光标落在节点里的哪个角落是随机的，拿它当基准会让同一个节点在不同角落右键差出大半个菜单的高度。
+      ⇒ 不变式（84 个节点位置 × 2 个光标点的网格断言）：**菜单与节点的水平 / 垂直间隙恒 ≤ 4px，且菜单始终完整落在视口内**。
+    - **修复③**：定位完成前挂 `visibility: hidden`（**不能用 `display: none`**，那会把 `offsetWidth/Height` 量成 0）⇒ 消灭「先在光标处闪一下再跳走」。
+    - ⚠️ 由此推论：**凡「写完响应式样式 → 立刻读 DOM 几何」的自检，都读的是上一帧**。要么 `await nextTick()`，要么读 `offsetWidth/Height` 这种不依赖本次写入的量。
     - ⚠️ 由此推论：**凡是「浮层 + 全屏遮罩 + 遮罩上关浮层」的组合，只要浮层打开期间用户还会再触发同一种指针事件，都有同样的重发风险** —— 优先用「捕获阶段监听 + 点外即关」，而不是改 DOM 的遮罩。
 
 ## 验证方式（沙箱内可跑）
@@ -309,22 +322,24 @@ ColorKey = 'blue'|'teal'|'green'|'amber'|'coral'|'purple'   // 只存 key，不�
 - P2：`wrapText` 五种情形 / SVG 结构（画布尺寸、矩形数、文本数、连线几何、折叠钮、备注浮标、向下布局连线坐标）/ 三源生成（多父、断链、自环、环形、跳过空笔记、对话开关、备注落位）/ OPML 与 FreeMind 往返 / XMind 打包解包往返与三种失败输入（72 条）
 - P3：**Handle 不变量**（4 布局 × 2 侧 × 根/非根 / nodeHandles 结构 / 不同侧约束 / id 合法性 / 无重复）/ 布局的 `pos` 行为（基线手算值 / 固定节点采用 pos / 子树跟随 / 兄弟与祖先不受影响 / 换布局仍固定 / down）/ `setNodePos`·`clearPositions`·`countFixedPositions` 的 immutable 与「无改动返回同引用」/ `normalizeDocData` 保留合法 pos（含 `{0,0}`）与丢弃 8 种脏 pos / JSON 往返（79 条）
 - **P4**：色板函数（`MIND_COLORS` 的 6 个 key、`toneVar` / `toneSoftVar` / `branchVar` 的变量名、旧名 `BRANCH_COLORS` 已不存在）/ `setNodeBg`·`setNodeTextColor` 的写入·清除·同值短路·三者互不干扰 / `normalizeDocData` 保留合法 `bgColor`·`textColor` 并丢弃非法值（含数字型）+ 老数据零迁移 + 往返不丢色 / `cloneSubtree` 的「换新 id、保留六类语义字段、丢掉 pos、不动原件」/ 复制后的插入位置（原节点之后、对根退化为挂到根下、父级折叠会被展开、副本保留自身折叠态）（30 条）
+- **P4 补（浮层定位）**：`placePopup` 的四种方向（不翻 / 只翻 x / 只翻 y / 双翻）+ 无锚点退化 + 翻转后仍越界的 clamp + 视口比菜单还小的 `max < min` 退化 + `clampInto` 五种边界 + **84 个节点位置 × 2 个光标点的网格不变式**（菜单始终完整落在视口内、与节点的两个方向间隙恒 ≤ `ANCHOR_GAP`）+ 与旧算法在右下角场景的落点对比（33 条，`C:\src\tmp\mm_popup_test.cjs`）
 
-**合计 265 条断言全通过**（84 + 72 + 79 + 30）。
+**合计 298 条断言全通过**（84 + 72 + 79 + 30 + 33）。
 
 组件层三重扫描（`references/tools/check-renderer.cjs`，Node + `@vue/compiler-sfc`）：
 ```
 node .workbuddy/skills/jianli-app/references/tools/check-renderer.cjs src/views/mindmap
 ```
 ① `parse` + `compileScript` + `compileTemplate` 结构校验（本次 13 个 .vue 通过）；
-② 相对 import 与 `@/` 别名是否能解析到真实文件，含 `styles/palette.scss`（本次 36 个文件全部命中）；
+② 相对 import 与 `@/` 别名是否能解析到真实文件，含 `styles/palette.scss`（本次 37 个文件全部命中）；
 ③ **`<LucideIcon name="...">` 与 `icon: 'X'` 用到的名字是否都在 `LucideIcon.vue` 的 nameMap 里登记**（漏登记会静默 fallback 成 CloudAlert，肉眼极难发现；本次 23 个名字全部已登记）。
    ⚠️ P4 新加的 `MindNodeMenu.vue` 把图标名写在 `icon: 'Plus'` 这样的对象字面量里，**正是第 ③ 项要覆盖的形态** —— 别只用 `<LucideIcon name="X">` 的正则去扫，会漏掉它们。
 
 类型校验：`vue-tsc --noEmit -p tsconfig.json`（全项目零报错）。
 
 ⚠️ **本模块有两类改动无法在沙箱内自动化验证，必须本地 `npm run dev` 人工过一遍**：
-   - 浮层的定位与关闭（右键菜单的翻转 / 实测自检、点外关闭、Esc、滚轮、窗口 resize/blur）—— 全是 DOM 尺寸与事件，纯逻辑断言覆盖不到；**且「事件派发中途移除元素 → Chromium 重发零坐标事件」这类坑只有实机才复现得出**（坑 42）。
+   - 浮层的**关闭**路径（点外关闭、Esc、滚轮、窗口 resize/blur）—— 全是 DOM 事件，纯逻辑断言覆盖不到；**且「事件派发中途移除元素 → Chromium 重发零坐标事件」这类坑只有实机才复现得出**（坑 42）。
+     （**定位几何**已经抽成 `utils/popup.ts` 并有 33 条断言；「写完响应式样式立刻读 rect 读到上一帧」这类 DOM 时序坑，可用项目自带的 puppeteer + `node_modules/vue/dist/vue.global.js` 起一张本地静态页做最小复现 —— 见坑 43，别靠读代码下结论。）
    - 颜色在 26 套主题下的实际观感（尤其「背景色 + 文字色同色系」的低对比、以及浅色主题下低透铺底是否够淡）。
 
 样式块校验（改 `<style>` 时用，尤其是 Sass 语法迁移）：`@vue/compiler-sfc` 的 `parse` 取出真实 `<style>` 块 → `compileStyleAsync`（`scoped` 按块给、`id: 'data-v-test'`、`preprocessOptions.logger` 收集警告）⇒ 断言「零 error + 零 deprecation 警告 + 目标规则已内联且 scoped 后缀正确」。**这样能在不启动 Electron 的前提下证明「迁移前后产物等价」**（比较 `code` 按空白归一后的字符串即可）。sass 侧的纯语法问题（如 `@use` 位置约束）用 `sass.compileString(..., { url, loadPaths })` 更快 —— ⚠️ 此时**必须给 `url` 并用相对说明符**，绝对路径 `C:/...` 会被 Sass 当成 URL scheme 而解析失败。

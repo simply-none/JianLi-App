@@ -15,7 +15,7 @@
   走 props 得从画布再穿一层。
 
   ⚠️ 坐标是**视口坐标**（`clientX / clientY`），不是画布坐标 —— 见 useMindView.openNodeMenu。
-  ⚠️ 越界时**翻转**到光标左侧 / 上方，**不是**夹进视口 —— 详见 `place()`。
+  ⚠️ 越界时**翻转**到节点的另一侧，以**节点矩形**为基准展开，而不是夹进视口 —— 详见 `place()`。
 -->
 <template>
   <Teleport to="body">
@@ -95,13 +95,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch, type CSSProperties } from 'vue'
 
 import LucideIcon from '@/components/LucideIcon.vue'
 import { useMindActions } from '../composables/useMindActions'
 import { useMindDoc } from '../composables/useMindDoc'
 import { useMindView } from '../composables/useMindView'
 import type { MindColorKey } from '../types'
+import { placePopup } from '../utils/popup'
 import { findNode } from '../utils/tree'
 import MindColorRow from './MindColorRow.vue'
 
@@ -240,49 +241,67 @@ function onPickText(key?: MindColorKey) {
 
 /* -------------------------------------------------------- 定位与关闭 */
 
-/** 与视口边缘的最小间距 */
-const EDGE_GAP = 6
-
 const panelRef = ref<HTMLElement>()
 const pos = ref({ x: 0, y: 0 })
-const panelStyle = computed(() => ({ left: `${pos.value.x}px`, top: `${pos.value.y}px` }))
 
 /**
- * 把菜单摆到光标处。
+ * 定位完成前先**藏起来**。
  *
- * ⚠️ 越界时**翻转**而不是「夹进视口」：菜单高 ~490px，若按 `innerHeight - height`
- *    去夹 y，窗口下半部分右键时菜单左上角会被拽到光标上方几百像素处、
- *    整个盖住刚右键的节点 —— 系统右键菜单的规矩是右 / 下放不下就
- *    **翻到光标的左侧 / 上方**，始终贴着光标。
- *    只有菜单比视口还大（翻转也放不下）时才退化成夹边界，保证左 / 上边缘可见。
+ * 菜单高 ~400px，翻转时整体要挪几百像素：若先按光标渲染一帧再挪，
+ * 用户会看到它「在光标处闪一下、再跳到节点上方」。
+ * 用 `visibility: hidden` 而不是 `display: none` —— 后者会把
+ * `offsetWidth / offsetHeight` 量成 0，定位就全废了。
+ */
+const placed = ref(false)
+
+/** 并发保护：快速换节点右键时，只让**最后一次** `place()` 写坐标 */
+let placeSeq = 0
+
+const panelStyle = computed<CSSProperties>(() => ({
+  left: `${pos.value.x}px`,
+  top: `${pos.value.y}px`,
+  visibility: placed.value ? 'visible' : 'hidden',
+}))
+
+/**
+ * 把菜单摆到光标处，放不下就翻到**节点**的另一侧（几何见 `utils/popup.ts`）。
  *
- * 必须**渲染之后**才能量尺寸（高矮取决于节点有没有子节点、是不是根节点），
- * 所以先按光标渲染一帧，`nextTick()` 后再量、再翻转。
+ * 这里只做三件组件该做的事：
+ *   1. **渲染之后**量真实尺寸（高矮取决于节点有没有子节点、是不是根节点，估不准）；
+ *   2. 把「光标 / 节点矩形 / 尺寸 / 视口」交给 `placePopup()` 算落点；
+ *   3. 校对实测落点（见下方 `nextTick` 那段注释）。
+ *
+ * ⚠️ 翻转的基准是**节点矩形**而不是光标：光标只是落在节点里的某个随机角落，
+ *    用它当基准，同一个节点在左上角右键与在右下角右键会差出大半个菜单的高度，
+ *    表现就是「菜单一会儿贴着节点、一会儿飞到屏幕另一头」。
+ * ⚠️ 更不能「直接夹进视口」：菜单高 ~400px，按 `innerHeight - height` 夹 y，
+ *    窗口下半部分右键时菜单会被整体拽到光标上方几百像素处，离节点极远。
  */
 async function place() {
+  const seq = ++placeSeq
   const cursorX = view.menuX.value
   const cursorY = view.menuY.value
-  // 先落到光标上：否则第一帧会从视口左上角闪一下
+  const anchor = view.menuAnchor.value
+
+  // 先落到光标上：否则第一帧会从视口左上角闪一下（此帧被 placed 藏住，看不见）
+  placed.value = false
   pos.value = { x: cursorX, y: cursorY }
 
   await nextTick()
   const el = panelRef.value
-  if (!el) return
+  if (!el || seq !== placeSeq) return
 
   const width = el.offsetWidth
   const height = el.offsetHeight
-  const vw = window.innerWidth
-  const vh = window.innerHeight
-
-  let x = cursorX
-  let y = cursorY
-  // 右 / 下放不下 ⇒ 翻到光标另一侧（这一步是「贴着光标」的关键）
-  if (x + width + EDGE_GAP > vw) x = cursorX - width
-  if (y + height + EDGE_GAP > vh) y = cursorY - height
-  // 翻转后仍越界（菜单比视口还大）⇒ 才夹边界，保证左 / 上边缘可见
-  x = Math.min(Math.max(x, EDGE_GAP), Math.max(EDGE_GAP, vw - width - EDGE_GAP))
-  y = Math.min(Math.max(y, EDGE_GAP), Math.max(EDGE_GAP, vh - height - EDGE_GAP))
-  pos.value = { x, y }
+  const next = placePopup({
+    cursorX,
+    cursorY,
+    width,
+    height,
+    viewport: { width: window.innerWidth, height: window.innerHeight },
+    anchor,
+  })
+  pos.value = { x: next.x, y: next.y }
 
   /*
     自检兜底：比对「期望落点」与「实测落点」。
@@ -291,15 +310,25 @@ async function place() {
     这段不会触发。但 fixed 的基准会被祖先的 `transform` / `filter` / 系统缩放改掉
     （Electron 下偶发），一旦发生，实测矩形就会偏 —— 此刻按实测差值把自己拉回光标：
     除以实测缩放比是为了「有缩放时也能一次拉准」，而不是试一次差一次。
+
+    ⚠️⚠️ **必须等这一帧真正渲染完再量**（上面那次 `await nextTick()`）。
+        刚给 `pos.value` 赋了新值，而 Vue 的 DOM 更新排在下一次微任务里 ——
+        若紧接着读 `getBoundingClientRect()`，量到的是**上一帧**的位置：
+        `dx`/`dy` 会正好等于这次翻转的位移，于是「再翻一次」（实测：右下角右键
+        ⇒ 菜单被推到光标外侧**两个菜单宽 / 高**处 —— 正是「偏移太远 / 直接到顶部」）。
+        这段静态看每步都「正确」，只有量过才知道 —— 别再把它搬回同步路径上。
   */
+  await nextTick()
+  if (seq !== placeSeq) return
   const rect = el.getBoundingClientRect()
-  const dx = rect.left - x
-  const dy = rect.top - y
+  const dx = rect.left - next.x
+  const dy = rect.top - next.y
   if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
     const scaleX = width ? rect.width / width : 1
     const scaleY = height ? rect.height / height : 1
-    pos.value = { x: x - dx / scaleX, y: y - dy / scaleY }
+    pos.value = { x: next.x - dx / scaleX, y: next.y - dy / scaleY }
   }
+  placed.value = true
 }
 
 /**

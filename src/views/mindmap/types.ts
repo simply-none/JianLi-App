@@ -39,6 +39,19 @@ export interface MindPoint {
   y: number
 }
 
+/**
+ * 视口坐标下的矩形（右键菜单的「节点锚点」）。
+ *
+ * 与 `MindPoint` 的区别有两处：一是**视口**坐标（`clientX/Y` 那一套）而非画布坐标，
+ * 二是矩形而非点 —— 菜单越界翻转时要贴着节点的**边缘**展开，只给一个点不够用。
+ */
+export interface MindMenuAnchor {
+  left: number
+  top: number
+  right: number
+  bottom: number
+}
+
 /** 树节点（唯一真源：语义 + 可选的「手动固定坐标」） */
 export interface MindNode {
   /** 节点 id，形如 `n_lx2k9_3`，仅在本图内唯一 */

@@ -7,7 +7,7 @@
       · 有子节点时在「子节点生长的那一侧」浮出一个折叠圆钮（`down` 时在下边缘）
       · 带分支色时描边与色条跟随；带备注时右上角浮一个小标记
       · 带背景色 / 文字色时覆盖层级默认底色与主题默认字色（三者互相独立）
-      · 右键把「节点 id + 视口坐标」报给 useMindView，菜单本体在 MindNodeMenu.vue
+      · 右键把「节点 id + 视口坐标 + 节点锚点矩形」报给 useMindView，菜单本体在 MindNodeMenu.vue
         —— 本组件不渲染菜单：菜单必须 teleport 到 body，而这里是 vue-flow 的
            节点插槽内部（在带 transform 的 viewport 里，菜单会被一起缩放/平移）。
 
@@ -164,7 +164,7 @@ import LucideIcon from '@/components/LucideIcon.vue'
 import { HANDLE, branchVar, nodeHandles, toneSoftVar, toneVar } from '../constants'
 import { useMindDoc } from '../composables/useMindDoc'
 import { useMindView } from '../composables/useMindView'
-import type { MindFlowNodeData } from '../types'
+import type { MindFlowNodeData, MindMenuAnchor } from '../types'
 import MindNodeEditor from './MindNodeEditor.vue'
 
 /**
@@ -285,7 +285,24 @@ function onContextMenu(event: MouseEvent) {
   event.stopPropagation()
   mind.select(props.id)
   const [x, y] = anchorOf(event)
-  view.openNodeMenu(props.id, x, y)
+  view.openNodeMenu(props.id, x, y, nodeRectOf(event))
+}
+
+/**
+ * 菜单的**节点锚点矩形**（视口坐标）—— 越界翻转时贴着它展开，见 `MindNodeMenu.place()`。
+ *
+ * 为什么不能拿光标当翻转基准：光标只是落在节点里的某个**随机角落**，
+ * 「节点右下角右键」和「同一节点左上角右键」会算出差出整个菜单尺寸的落点，
+ * 表现为「菜单一会儿贴着节点、一会儿飞到屏幕另一头」。
+ *
+ * 取不到时返回 undefined（`@contextmenu` 就挂在 `.mind-node` 上，理论上不会发生），
+ * 由 `place()` 退回「以光标为基准」的老行为 —— 宁可不够好，也不能不开菜单。
+ */
+function nodeRectOf(event: MouseEvent): MindMenuAnchor | undefined {
+  const el = event.currentTarget instanceof HTMLElement ? event.currentTarget : null
+  const rect = el?.getBoundingClientRect()
+  if (!rect || (rect.width <= 0 && rect.height <= 0)) return undefined
+  return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom }
 }
 
 /**

@@ -21,6 +21,8 @@
 
 import { ref } from 'vue'
 
+import type { MindMenuAnchor } from '../types'
+
 /** 待消费的「适应画布」请求（模块级单例，与文档状态同生命周期） */
 const pendingFit = ref(false)
 /** 待消费的「定位到某节点」请求 */
@@ -34,6 +36,18 @@ const menuNodeId = ref('')
 /** 右键菜单的视口坐标（相对 window，`position: fixed` 用） */
 const menuX = ref(0)
 const menuY = ref(0)
+/**
+ * 右键菜单的**节点锚点**：节点卡片自身的视口矩形（`MindNode.vue` 在右键时顺手量好）。
+ *
+ * 为什么菜单要额外知道「节点在哪」：光标只是落在节点里的某个随机角落，
+ * 用它当翻转基准 ⇒ 同一个节点在左上角右键和在右下角右键会得到差出整个菜单尺寸的落点。
+ * 有了锚点矩形，翻转时就能贴着**节点的边缘**展开（下放不下 ⇒ 菜单下缘贴节点上缘），
+ * 而不是贴着光标。
+ *
+ * 拿不到时（键盘 Menu 键、`currentTarget` 异常等）保持 undefined，
+ * 由 `MindNodeMenu.place()` 退回「以光标为基准」的旧行为。
+ */
+const menuAnchor = ref<MindMenuAnchor>()
 
 export function useMindView() {
   /* ------------------------------------------------------------ 适应画布 */
@@ -89,12 +103,15 @@ export function useMindView() {
    *
    * 同一个节点重复右键（换个位置）也要能生效 ⇒ 不能像 `openNodePanel` 那样
    * 「同 id 就短路」，坐标必须每次覆盖。
+   *
+   * @param anchor 节点卡片自身的视口矩形（可选）。翻转时贴它展开，见 `menuAnchor` 的说明。
    */
-  function openNodeMenu(id: string, x: number, y: number) {
+  function openNodeMenu(id: string, x: number, y: number, anchor?: MindMenuAnchor) {
     if (!id) return
     menuNodeId.value = id
     menuX.value = x
     menuY.value = y
+    menuAnchor.value = anchor
   }
 
   function closeNodeMenu() {
@@ -107,6 +124,7 @@ export function useMindView() {
     menuNodeId,
     menuX,
     menuY,
+    menuAnchor,
     requestFit,
     consumeFit,
     requestFocus,
