@@ -4,13 +4,24 @@
  * 从原 electron/main/module/weather.ts 迁移而来，作为**最后一层兜底**：
  * 它虽慢且脆，但中国天气网的**生活指数**是和风不可用时的唯一指数来源。
  *
+ * ⚠️ 从 2026-09-30 起，中国天气网已有更稳的 HTTP 接口方案（见 `cnweather.ts`，
+ *    走 `https://d1.weather.com.cn/weather_index/{citycode}.html`）。
+ *    本爬虫**保留为最后兜底**：接口失效 / 城市码未收录时它仍能顶上。
+ *
  * 链路：必应搜索「{城市}天气」→ pickHref 挑第一个 weather.com.cn 链接
- *       → 点击/跳转 → 等待加载 → 页面内抽取 → 有效性校验
+ *       → 点击/跳转 → 等待 `#hidden_title` 出现 → 页面内抽取 → 有效性校验
+ *
+ * ⚠️ 两处防「进错页面」的关键设计（勿回退）：
+ *   1. `clickSelector` 不再包含 `#b_results li:first-child a` 兜底项
+ *      —— pickHref 未命中时直接失败降级，而不是乱点一个第三方站点；
+ *   2. `waitForSelector: '#hidden_title'` 强制校验落地页正确性
+ *      —— 该元素不出现即判失败，避免抽出无效数据。
  *
  * 注意：extract / pickHref 函数会被序列化注入页面执行，**禁止引用外部变量**。
  */
 
 import { crawlPage } from '../../crawler.ts';
+import { lookupCnWeatherCode } from '../data/cnWeatherCodes.ts';
 import { PROVIDER_CAPABILITIES } from '../capability.ts';
 import { isValidWeatherData, normalizeCondition } from '../normalize.ts';
 import type { ForecastDay, WeatherCapability, WeatherData, WeatherProvider } from '../types.ts';
@@ -240,37 +251,17 @@ function pickWeatherSiteHref() {
   return '';
 }
 
-/* ===================== 主流程 ===================== */
+/* ===================== 结果组装 ===================== */
 
 /**
- * 通过 Puppeteer 爬取指定城市的天气数据
- * @param city 城市名
- * @param config 运行期配置（crawler 无需凭据，仅用 timeout）
+ * 把页面抽取出的原始对象组装成标准 WeatherData
+ *
+ * 直连与搜索兜底两条路径共用此函数，确保两者产出的结构完全一致。
+ *
+ * @param raw  `extractWeatherFromPage` 在页面内抽到的原始对象
+ * @param city 用户请求的城市名（raw.city 缺失时回退使用）
  */
-async function fetchFromCrawler(city: string, config: any): Promise<WeatherData> {
-  const crawlResult = await crawlPage({
-    url: `https://cn.bing.com/search?q=${encodeURIComponent(city + '天气')}`,
-    pickHref: pickWeatherSiteHref,
-    clickSelector: [
-      '#b_results > li > div.b_tpcn > a',
-      '#b_results li.b_algo a',
-      '#b_results li:first-child a',
-    ],
-    extract: extractWeatherFromPage,
-    saveHtml: true,
-    saveName: city,
-    timeout: Math.max(config.timeout ?? 15000, 45000), // 爬虫链路天然慢，下限 45s
-  });
-
-  if (!crawlResult.success) {
-    throw new Error(`爬取失败: ${crawlResult.reason || '未知原因'}`);
-  }
-
-  const raw: any = crawlResult.extracted;
-  if (!isValidWeatherData(raw)) {
-    throw new Error('页面抽取结果无效（结构可能已变更）');
-  }
-
+function buildFromRaw(raw: any, city: string): WeatherData {
   const forecast: ForecastDay[] = (raw.forecast || []).map((day: any) => ({
     ...day,
     icon: normalizeCondition(day.description || ''),
@@ -286,7 +277,7 @@ async function fetchFromCrawler(city: string, config: any): Promise<WeatherData>
     return true;
   });
 
-  const data: WeatherData = {
+  return {
     /* ---- 基础字段 ---- */
     temperature: raw.temperature ?? 0,
     feelsLike: raw.feelsLike || raw.temperature || 0,
@@ -306,8 +297,77 @@ async function fetchFromCrawler(city: string, config: any): Promise<WeatherData>
     indices: (raw.indices || []).length ? raw.indices : undefined,
     warnings: (raw.warnings || []).length ? raw.warnings : undefined,
   };
+}
 
-  return data;
+/* ===================== 主流程 ===================== */
+
+/**
+ * 通过 Puppeteer 爬取指定城市的天气数据
+ *
+ * 两段式：
+ *   ① **直连优先** —— 若本地 citycode 表能查到，直接打开
+ *      `https://www.weather.com.cn/weather1d/{code}.shtml`，
+ *      完全绕过必应搜索（更快、且不可能进错站）。
+ *   ② **搜索兜底** —— 城市码未收录时才退回「必应搜索 → 挑 weather.com.cn 链接」。
+ *
+ * @param city 城市名
+ * @param config 运行期配置（crawler 无需凭据，仅用 timeout；`cityRef` 用于重名消歧）
+ */
+async function fetchFromCrawler(city: string, config: any): Promise<WeatherData> {
+  const timeout = Math.max(config.timeout ?? 15000, 45000); // 爬虫链路天然慢，下限 45s
+
+  // ① 直连优先：城市码已知时直接构造详情页 URL，无需搜索引擎
+  const code = lookupCnWeatherCode(city, config?.cityRef ?? null);
+  if (code) {
+    const direct = await crawlPage({
+      url: `https://www.weather.com.cn/weather1d/${code}.shtml`,
+      waitForSelector: '#hidden_title',
+      extract: extractWeatherFromPage,
+      saveHtml: true,
+      saveName: city,
+      timeout,
+    });
+    if (direct.success) {
+      const raw: any = direct.extracted;
+      if (isValidWeatherData(raw)) return buildFromRaw(raw, city);
+    }
+    // 直连失败（页面改版 / 网络）→ 继续走搜索兜底
+  }
+
+  // ② 搜索兜底：城市码未收录或直连失败
+  const crawlResult = await crawlPage({
+    url: `https://cn.bing.com/search?q=${encodeURIComponent(city + '天气')}`,
+    pickHref: pickWeatherSiteHref,
+    // ⚠️ 只保留「结果标题链接」这一种点击目标，**不要**再追加
+    //    `#b_results li:first-child a` 之类的兜底项 —— 一旦 pickHref 未命中
+    //    中国天气网链接，那些兜底会把浏览器点进任意第三方站点
+    //    （实测缓存 `深圳_*_invalid.html` 正是「停留在必应结果页」的产物）。
+    //    命中不了就让本链路直接失败，交给上层降级，比进错页面更可控。
+    clickSelector: [
+      '#b_results > li.b_algo a',
+      '#b_results > li > div.b_tpcn > a',
+    ],
+    // ⚠️ 进入目标页后必须等到 `#hidden_title` 出现才算落地成功。
+    //    该隐藏输入框是中国天气网详情页的标志性元素，也是抽取函数的首个分支依据；
+    //    它不出现即说明落到了别的页面（或页面结构已变），此时应尽早失败而非
+    //    白等 45s 后抽出一堆无效数据（实测缓存 `天津_*_invalid.html` 即此情形）。
+    waitForSelector: '#hidden_title',
+    extract: extractWeatherFromPage,
+    saveHtml: true,
+    saveName: city,
+    timeout,
+  });
+
+  if (!crawlResult.success) {
+    throw new Error(`爬取失败: ${crawlResult.reason || '未知原因'}`);
+  }
+
+  const raw: any = crawlResult.extracted;
+  if (!isValidWeatherData(raw)) {
+    throw new Error('页面抽取结果无效（结构可能已变更）');
+  }
+
+  return buildFromRaw(raw, city);
 }
 
 /** 内置爬虫 Provider（最后一层兜底） */

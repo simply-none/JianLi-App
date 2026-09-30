@@ -3,7 +3,7 @@
 ## 职责
 按城市查询实时天气/预报。**数据由主进程的多数据源适配器架构获取（2026-09-29 起）**：按用户配置的优先级依次尝试多个数据源，任一成功即返回，失败自动降级并记录轨迹。页面为动态天气背景风格（Apple Weather 式渐变 + 毛玻璃卡片），**展示字段按数据源能力清单（capabilities）分级渲染**。
 
-## ✅ 数据源总览（2026-09-30 已补齐 8 源）
+## ✅ 数据源总览（2026-09-30 已补齐 9 源）
 | # | id | 展示名 | 免费额度 | 需 Key | 定位方式 | 能力亮点 / 短板 |
 |---|---|---|---|---|---|---|
 | 1 | `qweather` | 和风天气 | 5 万次/月 | ✅ JWT/APIKEY | GeoAPI（中文+县级） | **字段最全**（26 项）；指数/AQI/预警/分钟级降水 |
@@ -13,10 +13,11 @@
 | 5 | `caiyun` | 彩云天气 | 500 次/日 | ✅ Token | 本地坐标表 | **分钟级降水最准**+实时/逐日/逐小时+指数+AQI |
 | 6 | `openWeather` | OpenWeatherMap | 1000 次/日 | ✅ API Key | 本地坐标表 | 实时+逐日+逐小时+AQI；描述已中文；**无生活指数/预警** |
 | 7 | `wttr` | wttr.in | 免费无限 | ❌ 零配置 | 本地坐标表 | 实时+3 天+逐小时+天文/月相；**描述需自映射中文**、服务稳定性一般 |
-| 8 | `crawler` | 中国天气网（爬虫） | — | ❌ 零配置 | Bing 搜索抓取 | 生活指数（和风不可用时的兜底）；**慢且脆**，始终留最后 |
+| 8 | `cnweather` | 中国天气网（接口） | — | ❌ 零配置 | **本地 citycode 表**（3221 条） | 实况+AQI+7 天+**30 项生活指数**+三级预警；**纯 HTTP 接口，不用浏览器**（2026-09-30 新增） |
+| 9 | `crawler` | 中国天气网（爬虫） | — | ❌ 零配置 | **citycode 直连优先** → Bing 搜索兜底 | 生活指数（接口失效时的最后兜底）；**慢且脆**，始终留最后 |
 
-> **降级链默认顺序**：`qweather → openMeteo → seniverse → amap → caiyun → openWeather → wttr → crawler`
-> —— 原则「字段最全优先，慢且脆的爬虫永远最后」。默认 **8 源全 `enabled: true`**：需 Key 的源未填凭据时会被 `resolveChain` 标「未配置凭据」自动跳过，用户填好即生效，无需再手动开开关。
+> **降级链默认顺序**：`qweather → openMeteo → seniverse → amap → caiyun → openWeather → wttr → cnweather → crawler`
+> —— 原则「字段最全优先，慢且脆的爬虫永远最后」。默认 **9 源全 `enabled: true`**：需 Key 的源未填凭据时会被 `resolveChain` 标「未配置凭据」自动跳过，用户填好即生效，无需再手动开开关。
 
 ## ✅ 架构：多数据源可插拔 + 字段分级展示（2026-09-29 已实施）
 > 完整方案见 `C:\cod\jianli\天气接口免费方案调研_2026-09-29.md`（v2）。
@@ -26,8 +27,8 @@
 |---|---|
 | `index.ts` | **IPC 注册 + 内存缓存**（入口）。缓存 key = `${providerId}:${city}#${adcode}`；另有 `CITY_LAST[city]` 做跨源回显；保存配置后清空两者 |
 | `registry.ts` | **降级链调度**：`resolveChain` / `fetchWithFallback` / `withTimeout` / `probeProvider`；`_trace` 记录每个源的成功/跳过/失败与耗时；**统一解析 `__coords`**（见下） |
-| `config.ts` | **配置读写 + 凭据加密**。存 SQLite `basic_info`，key = `weatherConfig`；`splitSecrets`/`mergeSecrets` 把 `secret:true` 字段抽进 `__secret` 信封；`DEFAULT_WEATHER_CONFIG` 定义 8 源默认顺序与开关 |
-| `capability.ts` | `ALL_CAPABILITIES`(26) / `CAPABILITY_LABEL` / `CAPABILITY_GROUP` / `PROVIDER_CAPABILITIES`（**8 源能力矩阵**）/ `hasCapabilityDomain` / `capabilityLabel` |
+| `config.ts` | **配置读写 + 凭据加密**。存 SQLite `basic_info`，key = `weatherConfig`；`splitSecrets`/`mergeSecrets` 把 `secret:true` 字段抽进 `__secret` 信封；`DEFAULT_WEATHER_CONFIG` 定义 9 源默认顺序与开关 |
+| `capability.ts` | `ALL_CAPABILITIES`(26) / `CAPABILITY_LABEL` / `CAPABILITY_GROUP` / `PROVIDER_CAPABILITIES`（**9 源能力矩阵**）/ `hasCapabilityDomain` / `capabilityLabel` |
 | `normalize.ts` | `normalizeCondition` / `isValidWeatherData`（严格，爬虫用）/ `isUsableWeatherData`（宽松，adapter 用）/ `compassToCn` / `degreeToCn` / `windScaleToText` / `round` / `isoToHm` / `maskSecret` / `validateQWeatherHost` |
 | `types.ts` | 全部共享类型（`WeatherData` / `WeatherProvider` / `ProviderConfigField` / `WeatherModuleConfig` / `WeatherConfigForUi` 等）；`ProviderRuntimeConfig` 含 `__coords` |
 | `providers/qweather.ts` | 和风适配器（JWT Ed25519 + GeoAPI + 6 接口 `Promise.allSettled`） |
@@ -37,10 +38,12 @@
 | `providers/caiyun.ts` | 彩云适配器（Token + 实况/分钟级降水/逐日/逐小时） |
 | `providers/openWeather.ts` | OpenWeatherMap 适配器（API Key + 实况/3h 预报/AQI） |
 | `providers/wttr.ts` | wttr.in 适配器（零配置，需显式 UA，英文描述→中文映射） |
-| `providers/crawler.ts` | 内置爬虫适配器（原实现迁移，另抽 warnings） |
+| `providers/cnweather.ts` | **中国天气网 HTTP 接口适配器**（零配置；`d1.weather.com.cn` 公开 JSON；含天气码表 / 生活指数聚合 / 三级预警；2026-09-30 新增） |
+| `providers/crawler.ts` | 内置爬虫适配器（**两段式：citycode 直连优先 → Bing 搜索兜底**；原实现迁移，另抽 warnings） |
 | `data/cnCities.ts` | **全国省/市/区县三级坐标表**（3237 条，DataV.GeoAtlas 快照；含 `adcode`；`lookupCityCoords` / `resolveCityCandidates` / `toShortName` / `getAllAreas`），供 Open-Meteo 定位与渲染端消歧 |
+| `data/cnWeatherCodes.ts` | **中国天气网 citycode 表**（3221 条，官方 `j.i8tq.com/weather2020/search/city.js` 快照；`getAllCnWeatherCodes` / `lookupCnWeatherCode(city, ref?)`）；供 `cnweather` 接口与 `crawler` 直连共用 |
 
-**`electron/main/module/weatherProviders.ts`**（barrel）：`PROVIDERS` 数组（8 源）+ `getAllProviders()` / `getProvider(id)`。**新增数据源只需：① 写 `providers/xxx.ts`；② 在此 import 并加入数组；③ 在 `capability.ts` 的 `PROVIDER_CAPABILITIES` 登记能力矩阵；④ 在 `config.ts` 的 `DEFAULT_WEATHER_CONFIG` 加进 `providerOrder` 与 `providers`。渲染端 / IPC / 配置页零改动**（配置页表单由 `configSchema` 驱动，能力 tags 由能力矩阵驱动）。此文件独立存在是为打破 `weather/config.ts` ↔ `providers` 的循环依赖。
+**`electron/main/module/weatherProviders.ts`**（barrel）：`PROVIDERS` 数组（9 源）+ `getAllProviders()` / `getProvider(id)`。**新增数据源只需：① 写 `providers/xxx.ts`；② 在此 import 并加入数组；③ 在 `capability.ts` 的 `PROVIDER_CAPABILITIES` 登记能力矩阵；④ 在 `config.ts` 的 `DEFAULT_WEATHER_CONFIG` 加进 `providerOrder` 与 `providers`。渲染端 / IPC / 配置页零改动**（配置页表单由 `configSchema` 驱动，能力 tags 由能力矩阵驱动）。此文件独立存在是为打破 `weather/config.ts` ↔ `providers` 的循环依赖。
 
 **⚠️ `__coords` 统一注入机制（2026-09-30 新增）**：`registry.fetchWithFallback` 用 `lookupCityCoords(city, cityRef)` **统一解析一次坐标**，塞进运行期配置的 `__coords` 字段，供需要经纬度的源（openMeteo / 彩云 / OpenWeather / wttr / 高德反查 adcode）直接复用 ⇒ **各 adapter 不再各自重复解析**。为 `null` 表示本地表未收录，相关源应抛「本地坐标表未收录「X」」并降级。
 
@@ -111,6 +114,33 @@
 - ⚠️ **`astronomy.sunrise/sunset` 是 12 小时制文本**（`"6:09 AM"` / `"5:59 PM"`），**不是 ISO** ⇒ 必须 AM/PM → 24h 换算（`to24h()`），否则界面显示原文
 - 数据来自 World Weather Online；结构：`current_condition[0]` / `nearest_area[0]` / `weather[]`（逐日，含 `astronomy[0]`、`hourly[]` 3 小时粒度）
 - 免费服务稳定性一般 ⇒ 置于降级链靠后位置
+
+#### 中国天气网接口 `cnweather`（`providers/cnweather.ts`，2026-09-30 新增）
+
+**背景**：原先中国天气网只能靠 `crawler`（Puppeteer 走必应搜索）获取，实测**频繁「进错页面」**（缓存样本 `深圳_*_invalid.html` 的 `<title>` 是「深圳天气 - 搜索」、`og:url` 指向 `cn.bing.com/search` ⇒ 压根没离开必应）。后发现官方**公开 JSON 接口**，故新增本源走纯 HTTP，与爬虫并列：
+
+```
+GET https://d1.weather.com.cn/weather_index/{citycode}.html
+```
+
+- **零配置**（`configSchema: []`），一次返回 5 个 JS 变量：`dataSK`（实况+AQI）/ `cityDZ`（今日）/ `fc`（7 天预报）/ `dataZS`（30 项生活指数）/ `alarmDZ`（省/市/区三级预警）
+- ⚠️ **三条实测硬约束（缺一 403）**：
+  1. **必须 HTTPS** —— 明文 `http://` 一律 403（换任意 UA / Referer 都无效）
+  2. **带 `https://` 协议的 `Referer`** —— `Referer: https://www.weather.com.cn/weather1d/{code}.shtml`；用 `http://` 的 Referer 同样 403
+  3. UA 非必需但建议带（本 adapter 发 `JianliApp-Weather/1.0`）
+- ⚠️ **响应体是 `var xxx = {...};` 拼接的 JS，不是纯 JSON** ⇒ 解析器**必须用引号感知的括号配对扫描器**（`pickVar<T>(raw, name)`）。**非贪婪正则 `[\s\S]*?` 会在嵌套对象的第一个 `};` 处截断**（`dataSK` 内含子对象，必踩）
+- ⚠️ **`fc` 项只有纯数字天气码**（`fa` 白天 / `fb` 夜间），**没有天气文本字段** ⇒ 自建 `WEATHER_CODE_CN` 码表 + `weatherCodeToCn()`；码表由 57 份缓存页实测反查得出 17 个码，再按官方标准补全 33 项。实测确认 **`d`（白天）与 `n`（夜间）前缀的数字部分含义相同**，带前缀时剥掉前缀再查
+- 城市码表：官方 `https://j.i8tq.com/weather2020/search/city.js` → `var city_data = {省:{市:{区:{AREAID,NAMECN}}}}`，生成 `data/cnWeatherCodes.ts`（**3221 条 AREAID、0 重复**，紧凑格式 `'province,city,district,code'`）。`lookupCnWeatherCode(city, ref?)` 匹配优先级：**区县名精确 → 地级市 → 省级 → 包含匹配**；同级多条时用 `ref.province`/`ref.city` 消歧，否则优先「直辖市记录（`province === city`）」
+- AQI：`WeatherData` **没有顶层 `aqi` 字段** ⇒ 组装 `airQuality: AirQuality` 对象（`aqi`/`category`/`primary`/`pm25`），等级用本地 `aqiCategory()` 按 GB/T 3095 六档换算
+- 预警 `severity` 是**蓝/黄/橙/红中文文字** ⇒ `SEVERITY_MAP`（`Record<string, string>`，因 `WeatherWarning['severity']` 类型为 `string` 而非联合类型）映射为 Minor/Moderate/Severe/Extreme；`w14 === 'cancel'` 的已取消预警需过滤
+- 运行期配置取城市消歧用 **`config.cityRef`**（不是 `__cityRef` —— 见 `registry.ts` line 178 的 `runtime` 注入）；`__coords` 对本源无用
+- 能力矩阵比 `crawler` 多 `air.quality`：`current.temperature` / `current.humidity` / `current.windDirection` / `current.windSpeed` / `current.visibility` / `forecast.daily` / `forecast.dailyWind` / `indices.life` / `alert.warning` / `air.quality`
+
+> **配套改动：`crawler.ts` 两段式改造（同日）** —— 既然已有 citycode 表，爬虫也不必再走必应：
+> ① **直连优先**：`lookupCnWeatherCode` 命中时直接打开 `https://www.weather.com.cn/weather1d/{code}.shtml`（绕过搜索、不可能进错站）；
+> ② **搜索兜底**：城市码未收录 / 直连失败才退回必应。
+> 两段路径共用 `buildFromRaw(raw, city)` 组装，产出结构完全一致。
+> 另外**去掉 `clickSelector` 里的 `#b_results li:first-child a`**（它是「进错页面」的直接元凶：`pickHref` 未命中时会把浏览器点进任意第三方站点），并给两段都加 `waitForSelector: '#hidden_title'` 守卫（该元素不出现即判失败，避免白等 45s 后抽出一堆无效数据）。
 
 > **通用教训（本次 5 源实测）**：
 > 1. **`Promise.allSettled` 会吞掉主请求的具体错误** ⇒ 必需项（实况）失败时必须**把 `settled[0].reason.message` 抛出来**，否则用户只看到「XX 实时天气获取失败」，无法区分是 Key 错、超时还是网络问题。**五源已全部改为透传真实原因**。
@@ -644,7 +674,7 @@ type PreferredDraft = ProviderId | typeof PREFERRED_AUTO
 
 ## 数据源配置界面（抽屉）
 - 入口：天气页搜索栏右侧「数据源」按钮（`WeatherSearch.vue` emit `openSettings`）→ `index.vue` 挂 `WeatherProviderSettings`（`el-drawer`，620px，rtl）
-- `WeatherProviderSettings.vue`：**顶部「首选数据源」下拉**（`.preferred-block`，选项 `自动（按优先级降级）` + 8 源，`preferredHint` 对「已停用 / 凭据未填齐」的首选源给预警）→ 下方源列表（**可上移/下移调整优先级** + 启停开关 + 免配置/已配置/待配置 tag）+ 全局缓存时长与超时；右侧选中源的动态表单 + 「测试连接」按钮（调 `weather:probe-provider`，**用草稿值**）
+- `WeatherProviderSettings.vue`：**顶部「首选数据源」下拉**（`.preferred-block`，选项 `自动（按优先级降级）` + 9 源，`preferredHint` 对「已停用 / 凭据未填齐」的首选源给预警）→ 下方源列表（**可上移/下移调整优先级** + 启停开关 + 免配置/已配置/待配置 tag）+ 全局缓存时长与超时；右侧选中源的动态表单 + 「测试连接」按钮（调 `weather:probe-provider`，**用草稿值**）
 - `ProviderForm.vue`：按 `configSchema` 动态渲染（text/password/textarea/select/number），支持 `when` 条件显示（如和风 `authMode === 'jwt'` 才显 kid/projectId/developerId/privateKey）；敏感字段**留空 = 保持原值**，占位提示显示「已保存：`abc****xyz`」；底部按 `CAPABILITY_GROUP` 罗列该源支持的能力 tags
 - 保存成功后 `index.vue` 的 `handleSettingsSaved` 会**强制刷新当前城市**，让新链路立即生效
 
@@ -677,7 +707,7 @@ type PreferredDraft = ProviderId | typeof PREFERRED_AUTO
   ✅ 正确做法：**UI 层用空串哨兵，领域值仍是 `null`，在两个边界互转**
   （`onOpen: cfg.x ?? ''` / `handleSave: draft.x || null`）。详见「首选数据源 preferredProvider」小节。
   ⚠️ `el-radio` 的限制比 `el-option` **更严**（无 `Object`，且 emit 校验器只认 string/number/boolean）。
-- **新增 Lucide 图标必须同时改 `LucideIcon.vue` 的 import 与 nameMap 两处**（漏一处静默 fallback 成 CloudAlert）。天气模块**已注册**的扩展图标：`Leaf` `Activity` `CloudSunRain` `Tornado` `Waves` `UmbrellaIcon` `ChartLine`（`List` 早已注册）。⚠️ **`Cyclone` 在 `@lucide/vue` 中不存在**（会报 TS2305），阵风用 `Wind`、气旋类语义用 `Tornado`
+- **新增 Lucide 图标必须同时改 `LucideIcon.vue` 的 import 与 nameMap 两处**（漏一处静默 fallback 成 CloudAlert）。天气模块**已注册**的扩展图标：`Leaf` `Activity` `CloudSunRain` `Tornado` `Waves` `UmbrellaIcon` `ChartLine` `Satellite`（`List` 早已注册）。⚠️ **加图标前必须先验证它在 `@lucide/vue` 里真的存在**：`Cyclone` **不存在**（会报 TS2305），阵风用 `Wind`、气旋语义用 `Tornado`。验证方法：在 `node_modules/@lucide/vue/dist/lucide-vue.d.ts` 里搜符号名。
 - **⚠️ 校验 `.vue` 必须用 `vue-tsc`，`tsc` 会假绿**：`tsc -p tsconfig.json` **不解析 SFC**，`.vue` 内 `<script setup>` 的类型错误它**完全不报**（本次 4 个 ECharts 类型错误全是 `vue-tsc` 抓到的）。命令：`node ./node_modules/vue-tsc/bin/vue-tsc.js --noEmit -p tsconfig.json`
 - **⚠️ ECharts option 的运行时正确性可用 SSR 渲染器在 Node 里实跑**：`echarts.init(null, null, { renderer: 'svg', ssr: true, width: 800, height: 200 })` **不需要 jsdom / canvas**，`setOption` + `renderToSVGString()` 即可验证 option 合法性与元素数量，比只看类型可靠得多
 - **⚠️ ECharts 图表不要读 `--text-*` 那套不透明实色 CSS 变量**（本页特有）：天气页是动态渐变背景 + 毛玻璃卡片，**没有明暗主题变量体系**，`readVar('--text-muted')` 一类取色在渐变底上会发灰发糊。图表的正确做法是**走 `composables/useGlassChartTheme.ts`（天气页图表配色的唯一来源，白字系 + 明暗档语义色）**；DOM 部分则走页面内定义的 **`--glass-*` 玻璃层语义变量**。
@@ -688,6 +718,10 @@ type PreferredDraft = ProviderId | typeof PREFERRED_AUTO
 - **⚠️ `preferredProvider` 读库必须过 `normalizePreferred`**：非字符串 / 空串 / 不在已注册列表的值一律回 `null`；`save-config` 的 payload 语义是 **`undefined` = 保持原值**、**`null` = 显式「自动」**，两者不可混用（`undefined` 会被当成「不改」而不落库）。
 - **⚠️ 新增主题必须同步 `THEME_COLORS`**（2026-09-30）：`themeMode()` 按 `THEME_COLORS[theme].cardBg` 亮度判明暗，未登记的主题会**静默回落 light 档**（暗色主题被当亮色 ⇒ 文字在深底上看不见）。加主题时 `useTheme.ts` 的 `themeOptions` 与 `chartTheme.ts` 的 `THEME_COLORS` **两处都要加**。
 - **⚠️ 单例 composable 按 key 取值必须用可写 `computed`，禁用 `ref(单例.value[key])`**（2026-09-30）：后者是游离值拷贝，静默断掉持久化与跨组件共享（类型检查也查不出）。且持久化要**同步落盘**，不能只靠 `watch` 的异步 flush。详见「预报区块 列表/图表 双形态」小节。
+- **⚠️ `d1.weather.com.cn` 接口三条硬约束（2026-09-30 实测，缺一 403）**：① **必须 HTTPS**（明文 `http://` 一律 403，换任意 UA/Referer 都无效）；② **`weather_index` 必须带 `https://` 协议的 Referer**（`http://` 的 Referer 同样 403，所以不能用它在浏览器里直接测）；③ UA 非必需但建议带。改这个 adapter 的请求头前先想清楚这三条。
+- **⚠️ 解析中国天气网响应不能用非贪婪正则**：响应体是 `var xxx = {...};` 拼接的 JS，**`[\s\S]*?` 会在嵌套对象的第一个 `};` 处截断**（`dataSK` 内含子对象，必踩）⇒ 必须用 `pickVar()` 的**引号感知括号配对扫描器**。
+- **⚠️ `fc` 预报项没有天气文本字段**：只有纯数字码 `fa`(白天)/`fb`(夜间) ⇒ 必须走 `weatherCodeToCn()` 查 `WEATHER_CODE_CN` 码表。实测确认 **`d`/`n` 前缀的数字部分含义相同**，带前缀时剥掉再查。另外**该接口只返回 5 天**（不是 7 天），`slice(0, 7)` 是上限而非预期值。
+- **⚠️ 爬虫「进错页面」的两道防线不可回退**（2026-09-30）：① `clickSelector` **不要**包含 `#b_results li:first-child a` 之类的兜底项（`pickHref` 未命中时会把浏览器点进任意第三方站点 —— 实测 `深圳_*_invalid.html` 即此产物）；② 必须配 `waitForSelector: '#hidden_title'` 守卫（该元素不出现即判失败，避免白等 45s 后抽出一堆无效数据）。**若能直连就不要走搜索引擎**（`cnweather.ts` 的 citycode 方案即为此）。
 - **Open-Meteo 坐标系已全国覆盖**：`cnCities.ts` 收录全国 34 省 + 363 地级市 + 2840 区县（共 3237 条），查不到的只剩极冷门乡镇/村级名称 ⇒ 未命中时降级（这是刻意的诚实行为，不做坐标造假）。**更新数据见上方「坐标表」小节，不要手改数据行**。
 - **⚠️ 重名城市必须带 `CityRef`**：`朝阳区`/`新华区`/`城区` 等 30 组重名，**不带 adcode 时结果由排序决定且用户无法察觉**（返回的是真实天气，只是几百公里外）。改动查询链路时**务必把 `cityRef` 一路透传**（`index.vue` → `useWeather.loadByCity` → `api.fetchWeather` → 主进程 `registry.fetchWithFallback` → `openMeteo`），断一环就退回「永远查到知名城市那个」的老行为。
 - **⚠️ 主进程缓存 key 必须含 adcode**：`index.ts` 的 `refKey = cityRef?.adcode ? \`${city}#${cityRef.adcode}\` : city`，否则北京朝阳与长春朝阳**共用一条缓存**（先查哪个就一直返回哪个）。

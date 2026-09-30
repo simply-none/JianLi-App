@@ -12,6 +12,7 @@
 import type { WeatherProvider } from './weather/types.ts';
 import { openMeteoProvider } from './weather/providers/openMeteo.ts';
 import { qweatherProvider } from './weather/providers/qweather.ts';
+import { cnweatherProvider } from './weather/providers/cnweather.ts';
 import { crawlerProvider } from './weather/providers/crawler.ts';
 import { seniverseProvider } from './weather/providers/seniverse.ts';
 import { amapProvider } from './weather/providers/amap.ts';
@@ -31,6 +32,7 @@ export const PROVIDERS: WeatherProvider[] = [
   caiyunProvider,
   openWeatherProvider,
   wttrProvider,
+  cnweatherProvider,
   crawlerProvider,
 ];
 

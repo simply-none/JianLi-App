@@ -51,6 +51,8 @@ const icon = computed(() => {
   switch (usedId.value) {
     case 'qweather': return 'CloudSun'
     case 'openMeteo': return 'Globe'
+    // 中国天气网（接口）：纯 HTTP 取得，用 Satellite 区别于爬虫的 MonitorCloud
+    case 'cnweather': return 'Satellite'
     case 'crawler': return 'MonitorCloud'
     default: return 'Cloud'
   }

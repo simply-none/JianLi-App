@@ -164,4 +164,18 @@ agent_created: true
   - **✅ 修法：UI 层引入空串哨兵 `PREFERRED_AUTO = ''`，领域值仍是 `null`，在边界互转** —— `draft.preferredProvider` 类型改 `PreferredDraft = ProviderId | ''`；`onOpen` 做 `cfg.preferredProvider ?? PREFERRED_AUTO`；`handleSave` 做 `draft.preferredProvider || null`。**主进程契约完全不变**（`null` = 显式自动 / `undefined` = 保持原值）—— 因为保存时**始终传 `null` 或字符串、绝不传 `undefined`**。`preferredHint` 的 `if (!id) return ''` 守卫天然兼容哨兵，且守卫后 TS 收窄回 `ProviderId`（`vue-tsc` exit 0）。
   - **⚠️ 同类隐患（已扫描全库）**：`el-radio` 的 `value` **更严**（`[String, Number, Boolean]`，**连 `Object` 都没有**，且 `radioEmits` 校验器要求 `isString||isNumber||isBoolean`）。全库仅剩 **`todoList/TodoDetailDialog.vue:80`** 的 `<el-radio :value="null">不重复</el-radio>` 属同类问题（**未改，待用户确认**）。
   - **实测**：20 项断言全通过（源码断言 6 + prop 类型合规 3 + `===` 匹配语义 3 + 边界互转 5 + 往返一致性 3）。`vue-tsc --noEmit -p tsconfig.json` → **exit 0**。**纯渲染端改动 ⇒ 热重载即可。**
+- 2026-09-30（补 10）：**新增第 9 个数据源 `cnweather`「中国天气网（接口）」，并根治爬虫「进错页面」**。用户报「中国天气网爬虫兜底时**会进入到其他页面获取不到天气信息**」。
+  - **❗根因（实证，非猜测）**：翻 `cache-data/` 的失败文件 —— `深圳_*_invalid.html` 的 `<title>` 是「深圳天气 - 搜索」、`og:url` 指向 `cn.bing.com/search` ⇒ **爬虫压根没离开必应**（`pickWeatherSiteHref` 未命中 → `clickSelector` 回退项 `#b_results li:first-child a` 把浏览器点进了别家）。第二类失败：`天津_*_invalid.html` title 正常但**全文件无 `hidden_title`** ⇒ 抽取函数失效也照样跑满 45s。
+  - **✅ 方案（用户拍板「加一个数据源、和爬虫并列、新增独立 provider」）**：
+    1. **新增 `providers/cnweather.ts`** —— 走中国天气网**公开 JSON 接口** `GET https://d1.weather.com.cn/weather_index/{citycode}.html`，纯 HTTP、零配置、不启动浏览器 ⇒ **从源头消除「进错页面」**。一次返回 5 个 JS 变量：`dataSK`(实况+AQI) / `cityDZ`(今日) / `fc`(逐日) / `dataZS`(30 项生活指数) / `alarmDZ`(省市区三级预警)。
+    2. **新增 `data/cnWeatherCodes.ts`** —— 官方 `j.i8tq.com/weather2020/search/city.js` 快照，**3221 条 AREAID、0 重复**；`lookupCnWeatherCode(city, ref?)` 按「区县精确 → 地级市 → 省级 → 包含」匹配，同级多条用 `ref.province`/`ref.city` 消歧。
+    3. **`crawler.ts` 两段式改造** —— ① **直连优先**（citycode 命中则直接打开 `weather.com.cn/weather1d/{code}.shtml`，绕过搜索）+ ② **搜索兜底**（城市码未收录/直连失败）；**删掉元凶 `#b_results li:first-child a`**、两段都加 `waitForSelector: '#hidden_title'` 守卫（落地页不对就尽早失败，不白等 45s）；两段共用新抽出的 `buildFromRaw(raw, city)`。降级链顺序 `…wttr → cnweather → crawler`（接口在前、爬虫仍最后）。
+  - **⚠️ 接口三条硬约束（实测，缺一 403）**：① **必须 HTTPS**（明文 `http://` 一律 403，换任意 UA/Referer 都无效）；② **`weather_index` 必须带 `https://` 协议的 Referer**（用 `http://` 的 Referer 同样 403）；③ UA 非必需但建议带。
+  - **⚠️ 解析必须用「引号感知的括号配对扫描器」**（`pickVar<T>`）：响应体是 `var xxx = {...};` 拼接的 JS，**非贪婪正则 `[\s\S]*?` 会在嵌套对象第一个 `};` 处截断**（`dataSK` 内含子对象，必踩）。
+  - **⚠️ `fc` 项只有纯数字天气码**（`fa`/`fb`，**无天气文本**）⇒ 自建 `WEATHER_CODE_CN` 码表（57 份缓存实测反查 17 码 + 官方标准补全 33 项），带 `d`/`n` 前缀时剥掉再查（实测**昼夜同码含义相同**）。
+  - **⚠️ 字段坑**：`WeatherData` **无顶层 `aqi`** ⇒ 组装 `airQuality` 对象，等级用 `aqiCategory()` 按 GB/T 3095 六档本地换算；`WeatherWarning['severity']` 类型是 **`string`** ⇒ `SEVERITY_MAP` 用 `Record<string, string>`；预警 `w14==='cancel'` 需过滤；运行期消歧取 **`config.cityRef`**（**不是** `__cityRef`，见 `registry.ts` 的 `runtime` 注入）。
+  - **渲染端**：`SourceBadge.vue` 的 `switch(usedId)` 加 `case 'cnweather' → 'Satellite'`；**`Satellite` 已在 `@lucide/vue` 验证存在**（`Cyclone` 那种不存在的会报 TS2305，必须先查），并按规矩在 `LucideIcon.vue` 的 **import 与 nameMap 两处**同时登记。
+  - **实测**：Node 里用真实接口跑通全链路 —— 赣州/南康两城 `temperature/description/weatherCode→中文/5 天预报含 icon 与风向/30 项指数/AQI/三级预警` 全部正确；`lookupCnWeatherCode` 5 城（北京/上海/深圳/赣州/南康）全命中期望 code；`probe()` 连通（「北京实况 19°C」）。另单独抓原始响应确认 **`fc` 数组确实是 5 条**（排除解析截断）。双端类型校验 `tsc -p tsconfig.node.json` + `vue-tsc -p tsconfig.json` → **均 exit 0**。
+  - **⚠️ 改了主进程（`weather/` 下 6 个文件 + `weatherProviders.ts`）⇒ 必须重启 Electron 才生效。**
+
 

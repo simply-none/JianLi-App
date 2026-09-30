@@ -135,6 +135,24 @@ export const PROVIDER_CAPABILITIES: Record<ProviderId, WeatherCapability[]> = {
   ],
 
   /**
+   * 中国天气网 HTTP 接口（零配置）
+   * ------------------------------------------------------------------
+   * 与 crawler 同为「中国天气网」数据源，但走纯 HTTP 接口
+   * （`https://d1.weather.com.cn/weather_index/{citycode}.html`），
+   * 不依赖搜索引擎与页面 DOM 渲染 ⇒ 比 crawler 快且稳。
+   *
+   * 相比 crawler 多一项 `air.quality`（实况 `dataSK.aqi` 自带）。
+   * 生活指数为 30 项结构化返回（crawler 需从 DOM 剪裁，易失效）。
+   */
+  cnweather: [
+    'current.temperature', 'current.humidity',
+    'current.windDirection', 'current.windSpeed', 'current.visibility',
+    'forecast.daily', 'forecast.dailyWind',
+    'indices.life', 'alert.warning',
+    'air.quality',
+  ],
+
+  /**
    * 心知天气：实时 + 逐日 + 生活指数 + 空气质量；中文城市名（支持拼音 / 中文 / 坐标）。
    * 免费版只返回 3 天预报与 6 项基本指数（brief 无 details），故能力清单按「付费口径」静态声明，
    * 实际返回时再按「本次真拿到数据」二次裁剪（见 providers/seniverse.ts）。

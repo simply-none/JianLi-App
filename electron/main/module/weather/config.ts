@@ -40,16 +40,18 @@ const CONFIG_DB_KEY = 'weatherConfig';
  * ------------------------------------------------------------------
  * 降级链顺序：和风（字段最全，需 Key）→ Open-Meteo（零 Key）
  *   → 心知 → 高德 → 彩云 → OpenWeatherMap（以上均需 Key，未配置会被自动跳过）
- *   → wttr.in（零配置）→ 爬虫（慢且脆，始终留最后兜底）。
+ *   → wttr.in（零配置）
+ *   → 中国天气网接口（零配置，快且稳，含生活指数与空气质量）
+ *   → 爬虫（慢且脆，始终留最后兜底）。
  *
  * enabled 策略：需 Key 的源默认「开」（未填凭据时 resolveChain 会标「未配置凭据」跳过，
- * 用户填好即生效，无需再手动开启）；零配置的 wttr / openMeteo / crawler 同样默认开。
+ * 用户填好即生效，无需再手动开启）；零配置的 wttr / openMeteo / cnweather / crawler 同样默认开。
  */
 export const DEFAULT_WEATHER_CONFIG: WeatherModuleConfig = {
   providerOrder: [
     'qweather', 'openMeteo',
     'seniverse', 'amap', 'caiyun', 'openWeather',
-    'wttr', 'crawler',
+    'wttr', 'cnweather', 'crawler',
   ],
   /** 默认不指定首选源，纯按 providerOrder 降级 */
   preferredProvider: null,
@@ -61,6 +63,7 @@ export const DEFAULT_WEATHER_CONFIG: WeatherModuleConfig = {
     caiyun: { enabled: true, options: {}, credentials: {} },
     openWeather: { enabled: true, options: {}, credentials: {} },
     wttr: { enabled: true, options: {}, credentials: {} },
+    cnweather: { enabled: true, options: {}, credentials: {} },
     crawler: { enabled: true, options: {}, credentials: {} },
   },
   requestTimeout: 15000,

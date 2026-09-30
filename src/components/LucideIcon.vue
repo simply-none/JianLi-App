@@ -141,6 +141,8 @@ import { AlarmClock, AlarmClockCheck, AlarmClockMinus, AlarmClockPlus, ArrowDown
   ArrowUpRight,
   // —— 天气「列表 / 图表」切换用图标 ——
   ChartLine,
+  // —— 天气数据源标识用图标（中国天气网 HTTP 接口） ——
+  Satellite,
 } from '@lucide/vue';
 import { ArrowLeftRight } from '@lucide/vue';
 import { ref } from 'vue';
@@ -339,6 +341,7 @@ let nameMap = ref<Record<any, any>>({
   Pencil,
   Keyboard,
   RefreshCcw,
+  Satellite,
   RefreshCw,
   OrbitIcon,
   Clock1,

@@ -61,6 +61,7 @@ export interface CityRef {
 export type ProviderId =
   | 'qweather'    // 和风天气
   | 'openMeteo'   // Open-Meteo（零 Key）
+  | 'cnweather'   // 中国天气网 HTTP 接口（零配置）
   | 'crawler'     // 内置爬虫（中国天气网）
   | 'seniverse'   // 心知天气（预留）
   | 'amap'        // 高德（预留）
