@@ -54,6 +54,7 @@ const EXPORT_GROUPS = [
   { key: "downloader", label: "下载器", tables: ["download_task"] },
   { key: "screenshot", label: "截图", tables: ["screenshots", "settings"] },
   { key: "flow", label: "流程图", tables: ["flow"] },
+  { key: "mindmap", label: "思维导图", tables: ["mindmap"] },
   { key: "basic", label: "应用配置", tables: ["basic_info"] },
 ];
 

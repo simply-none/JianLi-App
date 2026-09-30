@@ -148,6 +148,7 @@ export const iconMap: Record<string, string> = {
   netRequest: 'MapPin',
   highPerfSql: 'Database',
   flow: 'Share2',
+  mindmap: 'Network',
   function: 'Wrench',
   weather: 'CloudSun',
   about: 'Info',

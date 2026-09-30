@@ -57,6 +57,7 @@ export const PREFERRED_ROUTES: string[] = [
   'home',
   'todoList',
   'categorizableNotes',
+  'mindmap',
   'clipboard',
   'accounting',
   'newTips',

@@ -27,6 +27,7 @@ export const RouteNames = {
   NET_REQUEST: "netRequest",
   HIGH_PERF_SQL: "highPerfSql",
   FLOW: "flow",
+  MINDMAP: "mindmap",
   FUNCTION: "function",
   WEATHER: "weather",
   ABOUT: "about",
@@ -253,6 +254,14 @@ export const layoutRouters: RouteRecordRaw[] = [
     component: () => import("@/views/flow/index.vue"),
     meta: {
       title: "流程图",
+    },
+  },
+  {
+    path: "/思维导图",
+    name: RouteNames.MINDMAP,
+    component: () => import("@/views/mindmap/index.vue"),
+    meta: {
+      title: "思维导图",
     },
   },
   {

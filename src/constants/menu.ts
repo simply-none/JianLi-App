@@ -49,6 +49,7 @@ export const menuGroupDefs: MenuGroupDef[] = [
       'pomodoroRecord',
       'clipboard',
       'categorizableNotes',
+      'mindmap',
       'themeConversation',
       'todoList',
       'habit',

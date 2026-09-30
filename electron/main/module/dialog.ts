@@ -8,7 +8,6 @@ import { Worker } from "worker_threads";
 import { scanWorkerPath } from "../variables.ts";
 import { globby } from 'globby'
 import fastGlob from 'fast-glob'
-import { execSync, exec } from "child_process";
 import colors from 'colors';
 import { store } from "./store.ts";
 // 扫描进程worker
@@ -850,25 +849,44 @@ export function exportBufferToCache(
   }
 }
 
-export function openFileInAssetsManager(filePath: string) {
-  const fullPath = filePath.replace(/\//g, '\\');
-  if (process.platform === 'win32') {
-    try {
-      exec(`explorer.exe /select,"${fullPath}"`);
-    } catch {
-      const dirPath = fullPath.substring(0, fullPath.lastIndexOf('\\'));
-      shell.openPath(dirPath);
+/**
+ * 在系统资源管理器中定位并「选中」文件（点导出提示里的路径 → 跳过去高亮）。
+ *
+ * 实现改用 Electron 原生 `shell.showItemInFolder`，不再走 `exec('explorer.exe /select,...')`：
+ *  1. **`exec` 的失败兜不住**：它是异步的，外层 try/catch 只能接住同步抛错；
+ *     而 Windows 上 `explorer.exe` 无论成功失败都返回 exit code 1，
+ *     child_process 会把它当成 `Command failed` 抛成异步错误 ⇒ 历史上多次以
+ *     `Unhandled Error: Command failed: explorer.exe /select,...` 打进日志，
+ *     后来被 try/catch「看起来修好了」，其实只是没人接这个异步错误。
+ *  2. **不必经过 cmd.exe**：中文 / 空格 / 特殊字符路径都要靠 cmd 的编码与引号解析，
+ *     `shell.showItemInFolder` 直接走 shell API，原生支持 Unicode 路径。
+ *  3. 全项目其它模块（下载器 / 数据采集 / 简历 / 文件转移）本来就统一用
+ *     `shell.showItemInFolder`，这里与它们对齐，消除「同一个能力两套实现」。
+ *
+ * 文件已不存在时退化为「打开所在目录」，比毫无反应更友好。
+ *
+ * @param filePath 目标文件绝对路径（正 / 反斜杠均可）
+ * @returns 是否成功触发定位（仅表示调用成功，不代表用户一定看到了窗口）
+ */
+export function openFileInAssetsManager(filePath?: string): boolean {
+  if (!filePath) return false;
+  const fullPath = path.normalize(filePath);
+  try {
+    if (fs.existsSync(fullPath)) {
+      shell.showItemInFolder(fullPath);
+      return true;
     }
-  } else if (process.platform === 'darwin') {
-    try {
-      exec(`open -R "${fullPath}"`);
-    } catch {
-      const dirPath = fullPath.substring(0, fullPath.lastIndexOf('/'));
+    // 文件不在了：至少把所在目录打开，让用户知道落点
+    const dirPath = path.dirname(fullPath);
+    if (fs.existsSync(dirPath)) {
       shell.openPath(dirPath);
+      return true;
     }
-  } else {
-    const dirPath = fullPath.substring(0, fullPath.lastIndexOf('/'));
-    shell.openPath(dirPath);
+    console.warn("[dialog] 定位失败，路径不存在:", fullPath);
+    return false;
+  } catch (err) {
+    console.error("[dialog] 定位文件失败:", err);
+    return false;
   }
 }
 
@@ -928,8 +946,13 @@ export function initFile() {
     e.returnValue = exportBufferToCache(base64, filename, dir);
   });
 
-  ipcMain.on("open-file-in-assets-manager", (e, { path }) => {
-    openFileInAssetsManager(path);
+  // 在资源管理器定位并选中文件（导出成功提示里的可点击路径）。
+  // payload 做兜底解构，避免异常 payload 让主进程抛错（历史上这类错误是静默的）。
+  ipcMain.on("open-file-in-assets-manager", (e, payload) => {
+    const target = payload && typeof payload === 'object' ? (payload as { path?: string }).path : undefined;
+    if (!openFileInAssetsManager(target)) {
+      console.warn('[dialog] open-file-in-assets-manager 未成功定位:', target);
+    }
   });
 
   // 打开目标目录（文件转移成功后点击打开）

@@ -1,0 +1,28 @@
+/*
+  思维导图 —— 分支色板（非 scoped，**被多个组件共用**）。
+
+  为什么要单独一个文件：
+    这些变量原本定义在 `.mind-canvas` 上（见 MindCanvas.vue）。但「节点属性」弹窗是
+    el-dialog，内容被 teleport 到 body 下 —— 那里拿不到 `.mind-canvas` 上的自定义属性，
+    于是弹窗里的色板会全部变成透明。
+    把定义抽到这里、两个组件各 import 一次，依赖关系写在明面上，
+    比「靠 MindCanvas 挂载了才生效」这种隐性耦合可靠。
+
+  为什么用两个选择器：
+    `.mind-canvas`     —— 画布（节点描边、色条、连线都取这里的变量）
+    `.mind-palette-scope` —— 弹窗内容根节点，仅仅是为了把变量带进去
+
+  原则：**只用主题令牌 + color-mix() 派生，不写死任何色号**，26 套主题自动适配。
+  ⚠️ 少数主题里 `--color-info` 与 `--color-primary` 同值（如 brackets-dark），
+     此时「蓝 / 紫」两支看起来会接近 —— 那是主题本身的设计，不额外做区分。
+*/
+
+.mind-canvas,
+.mind-palette-scope {
+  --mm-branch-blue: var(--color-info);
+  --mm-branch-teal: color-mix(in srgb, var(--color-info) 55%, var(--color-success));
+  --mm-branch-green: var(--color-success);
+  --mm-branch-amber: var(--color-warning);
+  --mm-branch-coral: color-mix(in srgb, var(--color-warning) 45%, var(--color-error));
+  --mm-branch-purple: var(--color-primary);
+}

@@ -9,7 +9,7 @@
 2. **默认直写缓存目录 `fileCachePath`**（来自 `useCacheSet` 的 `fileCachePathC`），
    渲染端把该值作为 `dir` 透传给主进程；用户可在设置里改缓存目录。
 3. **成功反馈统一用 `src/utils/fileNotify.ts` 的 `fileNotify`**：顶部居中、蓝色可点击路径，
-   点击 `explorer /select` 在资源管理器定位文件。
+   **整条提示都是点击热区**，点击后在资源管理器「定位并选中」该文件（见第六节）。
 
 ## 二、统一入口（渲染端）
 
@@ -67,7 +67,42 @@ const r2: ExportResult = exportBufferToCache(base64, 'qr.png', { title: '二维�
 选择安全落点**（沿用各自原生保存对话框，**不**强制缓存目录）。仅把成功 `ElMessage` 换成
 `fileNotify({ title, filePath })`（filePath 为所选路径/目录），保持反馈一致且可点击定位。
 
-## 六、新增导出功能 Checklist
+## 六、「点提示 → 定位文件」的实现与两个坑（2026-09-30 修）
+
+链路：`fileNotify` 渲染提示 → 用户点击 → `revealInExplorer(path)`
+→ `window.ipcRenderer.send('open-file-in-assets-manager', { path })`
+→ 主进程 `dialog.ts` 的 `openFileInAssetsManager()` → **`shell.showItemInFolder(path)`**。
+
+### 坑 1：点击热区必须是「整条提示」，不能只绑在那串蓝色路径上
+
+`ElMessage` 把内容塞进 `.el-message__content`（一个 `<p>`），提示自身还有 11×15 内边距、
+左边图标、右边关闭按钮。最初把 `onClick` 只挂在路径 `<span>` 上 ⇒ 用户点**标题**、
+**行尾空白**、**提示内边距**都毫无反应；而用户的心智模型是「点这条提示 → 跳过去」，
+于是直接判定「功能坏了」。
+
+修法：`ElMessage` 传 `customClass: 'file-notify-message'`，路径 span 上带 `data-path`，
+再在 `document` 上装**一次性捕获阶段委托**（`ensureDelegate()`）：
+命中 `.file-notify-message` 就取其中的 `[data-path]` 去 reveal。
+用捕获阶段是为了不受上层 `stopPropagation` 影响；命中 `.el-message__closeBtn` 时直接 return
+（点 × 只关闭、不跳转）。**不要再退回「只给 span 挂 onClick」的写法。**
+
+### 坑 2：主进程别再 `exec('explorer.exe /select,...')`
+
+- **`exec` 的失败兜不住**：它是**异步**的，外层 `try/catch` 只能接住同步抛错；
+  而 Windows 上 `explorer.exe` 无论成功失败都返回 **exit code 1**，child_process 会当成
+  `Command failed` 抛成**异步错误** ⇒ 历史上多次以
+  `Unhandled Error: Command failed: explorer.exe /select,...` 打进 `logs/main.log`，
+  后来加了 `try/catch` 只是「看起来修好了」，其实没人接这个异步错误。
+- **不必经过 cmd.exe**：中文 / 空格路径全靠 cmd 的编码与引号解析，脆弱。
+- `shell.showItemInFolder` 是全项目既有统一做法（`downloader/downloadIpc.ts`、
+  `dataAcquisition/index.ts`、`resume.ts`、`transfer/transferModule.ts` 都在用），
+  原生支持 Unicode 路径，**实测**（真 Electron 主进程 + COM 枚举资源管理器窗口）
+  能把选中项从 A 文件切到 B 文件。
+
+`openFileInAssetsManager` 现在返回 `boolean`，并做了两层兜底：文件不存在 → 打开其所在目录；
+目录也不存在 → `console.warn` 打点（不再静默）。
+
+## 七、新增导出功能 Checklist
 
 - [ ] 文本 → 调 `exportTextToCache`；二进制（渲染端有 base64）→ 调 `exportBufferToCache`。
 - [ ] 文件名含模块名与时间戳；不弹保存框。

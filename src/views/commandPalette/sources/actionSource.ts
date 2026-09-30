@@ -78,6 +78,16 @@ const ACTIONS: ActionDef[] = [
     },
   },
   {
+    id: 'action:new-mindmap',
+    title: '新建思维导图',
+    subtitle: '跳转到思维导图页',
+    icon: 'Network',
+    run: ({ hidePalette, navigate }) => {
+      hidePalette()
+      navigate('mindmap')
+    },
+  },
+  {
     id: 'action:lock-app',
     title: '立即锁定',
     subtitle: '锁定应用（需已在设置中开启应用锁）',
