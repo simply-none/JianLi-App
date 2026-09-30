@@ -235,7 +235,7 @@ hint adcode=410402 新华区 → 113.299,33.738  (平顶山) ← 无 hint 时恒
 - `src/views/weather/cityData.ts`：**搜索建议（委托主进程全量快照，异步）**；`CityEntry` 含 `ref: CityRef`；`CITY_LEVEL_LABEL`
 - `src/views/weather/cityResolver.ts`：**城市消歧**（候选查询缓存 / 记住选择 / CityRef 构造）
 - `src/views/weather/db.ts`：天气表 `weather_data`（city 主键 / data JSON / updated_at / is_starred）读写；**data 存 `WeatherData` 全量 JSON ⇒ 新增的 `capabilities`/`_trace` 自动持久化，无需迁移**；`CityRef` 以 `_cityRef` 键内嵌在 data JSON 里（`saveWeatherToDb(city, data, cityRef?)`，`WeatherRow.cityRef` 读出时**自动摘除**）
-- `src/views/weather/composables/`：`useWeather`（数据+缓存，支持 `providerId`，记降级链日志）、`useCityHistory`、`useWeatherTheme`、`useDebugLog`、**`useForecastView`（预报区块 列表/图表 形态，含 localStorage 持久化）**
+- `src/views/weather/composables/`：`useWeather`（数据+缓存，支持 `providerId`，记降级链日志）、`useCityHistory`、`useWeatherTheme`、`useDebugLog`、**`useForecastView`（预报区块 列表/图表 形态，含 localStorage 持久化）**、**`useGlassChartTheme`（天气页玻璃底图表配色唯一来源，2026-09-30 新建）**
 - `src/views/weather/components/`：`WeatherSearch` `WeatherHero` `WeatherDetails` `DailyForecast` `LifeIndices` `WeatherSkeleton` `DebugPanel` + **`HourlyForecast` `AirQuality` `WeatherAlert` `MinutelyRain` `AstroCard` `SourceBadge` `WeatherProviderSettings` `ProviderForm`** + **`HourlyForecastChart` `DailyForecastChart`（ECharts 图表形态）**
 - 主进程：`electron/main/module/weather/`（见上）、`weatherProviders.ts`（registry barrel）、`weather.ts`（转发层）、`crawler.ts`（通用爬虫工具）、`location.ts`、`dialog.ts`（`save-debug-data`）
 - 无独立 store；城市历史走 localStorage，天气缓存走主进程内存 `WEATHER_CACHE` / `CITY_LAST`
@@ -284,12 +284,15 @@ export function useForecastView(key: keyof ForecastViewState): ComputedRef<Forec
 - **图例**：两图都有（`legend`，右上角 `top:0, right:0`），降水概率缺失时 hourly 图例只显示「温度」
 - **x 轴标签抽稀**：`labelInterval(count) = count<=8 ? 0 : ceil(count/8)-1`（只对 `xAxis.axisLabel.interval` 有效）
 - **series 数值标签抽稀**：⚠️ **`series.label` 没有 `interval` 选项**（只有 `xAxis.axisLabel` 有），抽稀必须走 `formatter` 回调返回空串：`formatter: (p) => p.dataIndex % step === 0 ? \`${p.value}°\` : ''`
-- **tooltip**：`trigger:'axis'` + `confine:true`，深色半透明底（`rgba(20,26,40,0.88)`）配白字，避免在渐变背景上不可读；hourly 显示「温度 + 降水概率」，daily 显示「描述 + 最高/最低 + 风」
+- **tooltip**：`trigger:'axis'` + `confine:true`，**深色玻璃底 + 白字**（色值来自 `useGlassChartColors()`，见下方「玻璃底配色」）；hourly 显示「温度 + 降水概率」，daily 显示「描述 + 最高/最低 + 风」
 
 **⚠️ 主题适配的关键取舍：图表不读 CSS 变量**
-天气页是**动态渐变背景 + 毛玻璃卡片**（`.glass-card`），页面上根本没有明暗主题变量体系。若照搬 `HabitHeatmap.vue` 那套 `readVar('--text-muted')` 取色，在渐变底上会**发灰发糊**。因此两个图表组件的配色走**另一条路**（2026-09-30 主题适配改造后的最终方案，见下方「主题适配」小节）：复用 `utils/chartTheme.ts` 的 `THEME_COLORS`（主题色）+ 按明暗档压亮度的语义色。
+天气页是**动态渐变背景 + 毛玻璃卡片**（`.glass-card`），页面上根本没有明暗主题变量体系。若照搬 `HabitHeatmap.vue` 那套 `readVar('--text-muted')` 取色，在渐变底上会**发灰发糊**。因此两个图表组件的配色走**专门的一层**：`composables/useGlassChartTheme.ts`（2026-09-30 二次修正后的最终方案，详见下方「主题适配」第 5 点）。
 
-> **历史变更**：改造前这里是**硬编码白色系色值**（`文字 rgba(255,255,255,.92)/.65/.45`、`网格 rgba(255,255,255,.12)`、`温度 #ffd57c`、`降水 #9fd6ff`、`低温 #7cc4f5`）——那套只在「页面恒为深色渐变」时才成立；用户反馈「主题变化时色彩不跟随」，故改为跟随主题。**别再退回硬编码白色系。**
+> **历史变更（三段式，别再走弯路）**：
+> ① 初版**硬编码白色系**（`文字 rgba(255,255,255,.92)/.65/.45`、`网格 rgba(255,255,255,.12)`、`温度 #ffd57c`、`降水 #9fd6ff`、`低温 #7cc4f5`）——只在「页面恒深色渐变」时成立，**不随主题**；
+> ② 二审改用 `THEME_COLORS` 的 `labelColor`/`axisLabel`/`gridLine` 跟随 26 主题 —— 但那是**实色卡片**色板，亮档主题下是深灰 `#374151`，压在渐变蓝底上**发灰发脏**，用户反馈「图表不协调」；
+> ③ **最终版 = 白色文字系 + 明暗档区分**（`useGlassChartColors`），既跟随明暗、又保持玻璃页的白色文字体系。
 
 **切换按钮**：`.view-switch` 分段控件（两个 24×22 图标按钮，`List` / `ChartLine`），`active` 态 `rgba(255,255,255,.28)` 高亮。
 - ⚠️ **hourly 区块的 `.source-tag` 原占 `margin-left:auto`**，加按钮后靠「source-tag 保持 auto + 按钮 `margin-left:8px`」；daily 区块无 source-tag，按钮用 `margin-left:auto` 推到右端。
@@ -396,33 +399,159 @@ document.documentElement.setAttribute('data-mode', themeMode(theme))   // 新增
 2. **图形标记色不能用文字色** —— `AirQuality.vue` 的 AQI 刻度指针三角 `border-bottom` 被脚本按「border 属性」误改为 `--glass-text-primary`；为此**新增 `--glass-mark`** 语义（图形标记 ≠ 文字）。
 3. **本身已跟主题的面板不要动** —— `DebugPanel.vue` 本就用全局主题变量（`var(--bg-hover, rgba(255,255,255,.05))` 这种带 fallback 的写法已跟随主题），脚本把它的 **fallback 值**也改了，需手工还原 3 处硬编码 fallback。
 
-### 5. 图表：接入 `chartTheme` + 明暗语义色
+### 5. 图表：玻璃底专用配色（~~chartTheme~~ 已弃用于本页）
 
-两个图表组件（`HourlyForecastChart.vue` / `DailyForecastChart.vue`）把原来的**大写硬编码常量**全部改为 **`computed`**：
+> ⚠️ **2026-09-30 二次修正（重要）**：初版让两个图表读 `THEME_COLORS` 的
+> `labelColor` / `axisLabel` / `gridLine`，结果**亮档主题下图表发灰发脏** ——
+> 那三个色是给**实色卡片**设计的（light 档 `#374151` / `#6b7280` / `#e5e7eb`），
+> 而天气页底**恒为深色渐变**（`sunny.day` 是 `#1d6fc4→#8fc9ef` 的中深蓝）。
+> 深灰文字压在渐变蓝上 → 与页面 `--glass-text-*` 的白色文字体系**两个口径**，
+> 这正是用户截图反馈的「图表样式不协调」。**已改为玻璃底专用配色，别再回落 `THEME_COLORS`。**
+
+> ⚠️ **2026-09-30 三次修正（数据可读性）**：文字改白只是第一步 —— 用户反馈
+> **「浅色主题下图表数据不直观」**，即**数据本身没在蓝底上「跳」出来**。
+> 根因是整个数据标记层（折点、降水柱、区间带）用了与蓝底**同色相 + 低对比**的色，
+> 且**极值、降水概率、温差这些关键数字都要靠 hover 或心算**。三条措施 + 一批信息前置，见下。
+
+正确做法：**`composables/useGlassChartTheme.ts`（新建）** —— 天气页所有图表配色的**唯一来源**：
 
 ```ts
-const { currentTheme } = storeToRefs(useThemeStore())
 const { isDark } = useThemeMode()
-const themeColors = computed(() => THEME_COLORS[currentTheme.value] || THEME_COLORS.light)
-// 主题色（随 26 主题切换）
-const colorText = computed(() => themeColors.value.labelColor)
-const colorTextSoft = computed(() => themeColors.value.axisLabel)
-const colorGrid = computed(() => themeColors.value.gridLine)
-const colorTooltipBg / Border / Text = computed(() => themeColors.value.tooltipBg / tooltipBorder / tooltipText)
-// 语义色：保留天气色相，只按明暗调明度
-const colorTemp   = computed(() => isDark.value ? '#ffd57c' : '#c9971f')   // 亮档压深以在浅底可读
-const colorPrecip = computed(() => isDark.value ? '#9fd6ff' : '#3d8fc4')
-const colorHigh / colorLow（daily，同色相规则）
-const colorInk     = computed(() => isDark.value ? 'rgba(255,255,255,.9)' : 'rgba(0,0,0,.45)')  // 折线点描边
-const colorInkSoft = computed(() => isDark.value ? 'rgba(255,255,255,.35)' : 'rgba(0,0,0,.3)')
+export function useGlassChartColors(): ComputedRef<GlassChartColors> {
+  return computed(() => {
+    const dark = isDark.value
+    return {
+      text:      dark ? 'rgba(255,255,255,.97)' : 'rgba(255,255,255,.92)',  // 主文字
+      textSoft:  dark ? 'rgba(255,255,255,.80)' : 'rgba(255,255,255,.68)',  // 图例 / x 轴
+      textFaint: dark ? 'rgba(255,255,255,.62)' : 'rgba(255,255,255,.5)',   // 次 Y 轴
+      // 网格：亮档再压暗一档（.1 → .07），把注意力让给数据而非网格
+      grid:      dark ? 'rgba(255,255,255,.13)' : 'rgba(255,255,255,.07)',
+      tooltipBg:     dark ? 'rgba(12,18,30,.94)' : 'rgba(20,26,40,.9)',
+      tooltipBorder: 'rgba(255,255,255,.16)',
+      tooltipText:   dark ? 'rgba(255,255,255,.97)' : 'rgba(255,255,255,.94)',
+      ink:       dark ? 'rgba(255,255,255,.9)'  : 'rgba(255,255,255,.75)',  // 折线点描边
+      inkSoft:   dark ? 'rgba(255,255,255,.42)' : 'rgba(255,255,255,.34)',  // 轴指示器
+      // ⚠️ 区间带：必须半透明（不透明竖条会盖住折线）
+      bandFill:  dark ? hexToRgba('#9ecbff', .3) : hexToRgba('#cbe6ff', .36),
+      // ⚠️ 折线 vs 折点拆成两组色：
+      high: dark ? '#ffd57c' : '#e0aa3a',   // 高温暖黄 —— 折线（长线条，亮档略压深即可）
+      low:  dark ? '#9ecbff' : '#3e93cc',   // 低温冷蓝 —— 折线
+      highPoint: '#ffd57c',                 // 高温暖黄 —— 折点圆点 / 数值标签（高明度）
+      lowPoint:  '#cbe6ff',                 // 低温冷蓝 —— 折点圆点 / 数值标签（高明度）
+    }
+  })
+}
 ```
-- **`hexAlpha(color, alpha)`** helper：`#rgb`/`#rrggbb` → `rgba()`，用于把语义色按透明度派生（渐变 / 区间带 / 阴影）。**已是 `rgba()` 的输入原样返回**（不叠加透明度）。
-- **主题切换必须主动重绘**：`watch([currentTheme, isDark], () => nextTick(render))`（配色在 `buildOption()` 里一次性取值，不重绘不会更新）
-- 图表容器背景保持 `transparent`，仍由底层渐变透出
 
-**实测验证**（Node + 真 echarts SSR）：**34 项断言全通过** —— 25 主题明暗判定、`hexAlpha` 4 项单元、light/nord/catppuccin/dracula 四主题 × 两种图的 SSR 渲染 + 语义色出现校验（亮档断言 `#c9971f`/`#2f7fb8`、暗档断言 `#ffd57c`/`#7cc4f5`）、亮暗 SVG 必须不同、单点/单日边界。`vue-tsc --noEmit -p tsconfig.json` → **exit 0**。
+**三条设计依据（第一轮：协调性）**：
+1. **文字层恒为白色系**：页面底是深色渐变，与 `--glass-text-*` 同口径（亮档 `.92/.68/.5`，
+   暗档提亮到 `.97/.80/.62`）。**图上文字和页面文字必须是一套白色层级**，这是「协调」的关键。
+2. **网格线用白色低透明**（`.07` / `.13`）而非浅灰实色 `#e5e7eb` —— 浅灰压在蓝底上会发白显脏。
+3. **tooltip 恒为深色玻璃 + 白字**：这是**深底与浅底上都能保证可读**的唯一通用解，
+   也顺带修掉了 `DailyForecastChart` 此前**漏改**的硬编码 tooltip。
+
+**三条第二批次措施（数据可读性）+ 信息前置**：
+
+| # | 措施 | 做法 | 解决什么 |
+|---|---|---|---|
+| 1 | **折线 / 折点拆两组色** | `high`/`low` 给折线（亮档压深 `#e0aa3a`/`#3e93cc` 以在浅底「立」住）；`highPoint`/`lowPoint` 给**折点圆点与数值标签**，亮暗档统一高明度 `#ffd57c`/`#cbe6ff` | 原亮档折点用压深色 ⇒ **圆点融进蓝底几乎看不见**（截图症状） |
+| 2 | **区间带改半透明** | 新增 `bandFill`，暗档 `rgba(158,203,255,.3)` / 亮档 `rgba(203,230,255,.36)`，`buildRangeBand` 的 `style.fill` 从 `hexAlpha(low,.28)` 换过去 | 原不透明竖条**盖住两条折线**，越画越难读 |
+| 3 | **网格再压暗** | 亮档 `.1 → .07` | 网格抢注意力 |
+| 4 | **轴范围取整** | 两图 `axisMin = floor(min - pad)` / `axisMax = ceil(max + pad)` | 原轴界是 `21.5~37.5` 这类**半度值**，几何上正好让折线贴到网格线上 |
+| 5 | **极值 / 温差信息前置** | hourly 用 `markPoint` 打「最高」「最低」标签；daily 打「温差 N°」角标；降水柱标签阈值 `12 → 16`（24 点视图下柱顶数值直接可读） | 原「几点最热 / 今天差几度 / 降水概率」都要自己扫折线或 hover |
+| 6 | **折点放大** | `symbolSize: 7` + 白描边 `borderColor:'#fff', borderWidth:1.5` | 小圆点在渐变底上不可见 |
+
+**⚠️⚠️ `markPoint` 只画文字的致命坑（2026-09-30 三次修正时踩到，务必记住）**：
+想让 markPoint 只显示文字标签、不画默认「水滴 pin」，直觉写法是 `symbol: 'none'` ——
+**但这会让整条标注（含 label 文字）被静默丢弃**，与是否给 `value` 无关（实测分离过 8 个变量组合）：
+
+| `symbol` | `value` | 结果 |
+|---|---|---|
+| `'none'` | 无 | **不渲染** |
+| `'none'` | 有 | **不渲染** |
+| 默认 | 无 | 渲染 |
+| `symbolSize: 0` | 无 / 有 | 渲染 |
+
+根因：**`symbol:'none'` 时 label 的锚点无从计算**（label 位置以 symbol bounding box 为基准），
+ECharts 直接把这一项丢掉，**不报错、不打日志**。
+✅ **正确写法：不要写 `symbol:'none'`，改用 `symbolSize: 0` + `label.show: true`**
+（symbol 保留但缩到 0 ⇒ 锚点可算、文字照画、无多余图形）。
+
+```ts
+// ✅ 正确：只留文字
+{ coord: [i, temp], symbolSize: 0, label: { show: true, formatter: '最高', /* … */ } }
+// ❌ 错误：文字直接消失
+{ coord: [i, temp], symbol: 'none', label: { show: true, formatter: '最高' } }
+```
+
+组件侧消费方式（两图统一）：
+```ts
+const C = useGlassChartColors()       // ← 唯一色源
+function buildOption() {
+  const c = C.value                   // 一次性取值（ECharts option 是 JS 对象，吃不到 CSS 变量）
+  return { /* ... backgroundColor: c.tooltipBg, lineStyle: { color: c.high }, ... */ }
+}
+// ⚠️ 主题切换必须主动重绘
+watch([currentTheme, () => C.value], () => nextTick(render))
+```
+- **`hexAlpha(color, alpha)`** helper（两图各留一份）：`#rgb`/`#rrggbb` → `rgba()`，用于派生
+  渐变 / 阴影。**已是 `rgba()` 的输入原样返回**（不叠加透明度）。
+- **`hexToRgba(color, alpha)`**（`useGlassChartTheme.ts` 内私有）：同实现，供 `bandFill` 派生。
+- 图表容器背景保持 `transparent`，仍由底层渐变透出。
+- **两图高度统一 200px**（此前 190 / 200 不齐），`.chart-card` padding 统一 `12px 14px`。
+
+**CSS 侧同步新增天气语义色**（`index.vue` 的 `--glass-*` 定义区，亮 + 暗各一份），
+给**列表态 / SVG 组件**用，与图表口径一一对应 —— 这是唯一「同一语义在两处取色」的桥梁，
+**改一侧必须同步另一侧**：
+
+| 变量 | 亮档 | 暗档 | 消费方 |
+|---|---|---|---|
+| `--glass-precip` | `#9fd6ff` | `#cbe6ff` | `MinutelyRain.vue` 的 SVG 描边 / 渐变 |
+| `--glass-warm` | `#ffd57c` | `#ffe3a3` | `AstroCard.vue` 的 `.daylight-fill`、`DailyForecast.vue` 范围条右端 |
+| `--glass-cool` | `#9ecbff` | `#bfe0ff` | `DailyForecast.vue` 范围条左端（与图表 `low` 折线同口径） |
+| `--glass-precip-point` | `#cbe6ff` | `#cbe6ff` | `HourlyForecast.vue` 的 `.col-precip`（11px 图标 + 小号数字 = **数据标记**） |
+| `--glass-warm-point` | `#ffd57c` | `#ffe3a3` | 备用（与图表 `highPoint` 同口径） |
+| `--glass-cool-point` | `#cbe6ff` | `#bfe0ff` | 备用（与图表 `lowPoint` 同口径） |
+
+> **`-point` 后缀的语义**：这组是「**图形 / 数据标记**」档，不是正文档。
+> 亮档也保持**高明度** —— 数据标记要「跳」出来，不能跟着文字一起压暗。
+> 图表侧对应 `highPoint` / `lowPoint`；列表侧 `.col-precip` 已从 `--glass-precip` 切到
+> `--glass-precip-point`（实测对比度：`#cbe6ff` vs 渐变三停点 = **3.95 / 2.01 / 1.39**，
+> 高于 `#9fd6ff` 的 **3.28 / 1.67 / 1.15** ⇒ 不是平移而是真实改善）。
+> ⚠️ 但 `DailyForecast.vue` 的 `.range-bar`（6px 高的**面**渐变条）**应继续用
+> `--glass-cool`→`--glass-warm`**，不要改 `-point`：它对应的是图表里的**区间带 / 折线**（面 / 线），
+> 不是折点标记。**判断标准是「这个元素的视觉体量是点、还是线 / 面」**。
+
+> `MinutelyRain.vue` 的 SVG `<stop>` / `stroke` 已从硬编码 `rgba(124,196,245,…)` / `#9fd6ff`
+> 改为 `var(--glass-precip)` + `stop-opacity`。**SVG 的 `stop-color` 支持 CSS 变量，
+> 但 `stop-opacity` 必须单独写属性**，不能合并进 `color` —— 这是本轮的一个实现细节。
+
+**实测验证**（Node + 真 echarts SSR）：**第一轮 37 项断言全通过** —— 亮/暗档两图 SSR 渲染成功、
+产物中**不含任何旧主题灰**（`#374151`/`#6b7280`/`#e5e7eb`/`#c0caf5`/`#9aa5ce`/`#3b4261`）、
+白色文字层命中、网格白色低透明命中、亮暗 SVG 必须不同、语义色与 `--glass-*` 口径一致，
+外加 **tooltip 源码断言**（见下）。`vue-tsc --noEmit -p tsconfig.json` → **exit 0**。
+**第三轮（数据可读性）29 项断言全通过**（含「最高/最低/温差」文字命中、`#ffd57c`/`#cbe6ff`
+折点色命中、亮暗折线色命中、**`symbol:'none'` 坑的回归防护用例**），`vue-tsc` → **exit 0**。
+
+**⚠️⚠️ ECharts SVG SSR 渲染器的四个断言陷阱（前三个第一轮踩过，第四个第三轮新增）**：
+1. **rgba 会被拆成两个属性**：`color: 'rgba(255,255,255,.92)'` 在 SVG 里输出成
+   `fill="rgb(255,255,255)" fill-opacity="0.92"` —— **断言前必须归一化**（把
+   `fill|stroke="rgb(...)"` + 同名 `-opacity` 属性合回 `rgba(...)`），否则「明明写了却断言不到」。
+2. **`tooltip` 与 `axisPointer` 根本不渲染**：它们是**交互浮层**，hover 时才创建 DOM 节点，
+   SSR 产物里**完全没有**。**别用 SSR 去断言 tooltip 配色** —— 改为「读源码断言」
+   （`src.includes('backgroundColor: c.tooltipBg')` + 「旧硬编码字符串已不存在」）。
+3. **hex 会被小写化**：`#C9971F` 输出成 `#c9971f`，断言要统一 `toLowerCase()`。
+   另：3 位 hex 会缩成 `#fff` 这类写法，比较时别硬记原串。
+4. **⚠️ 渐变色（`LinearGradient`）的 `<stop>` 在 SSR 产物里根本不存在**：
+   `renderToSVGString()` 输出的 SVG **没有 `<defs>` 段**，图形只留一个
+   `fill="url(#zr0-c0)"` 引用 ⇒ **凡是用渐变的色值（降水柱、面积填充）都无法用 SSR 断言**。
+   ✅ 正确做法：**做一份「纯色对照渲染」**（把该 series 的 `itemStyle.color` 临时换成纯色），
+   证明图形本体在位 + 色值正确；再用原始版本断言 `url(#...)` 引用存在。
+   ⚠️ 别把这个当成 bug 去查（第三轮此处白排查了一轮）。
 
 > **改完无需重启 Electron**：本次改动**全在渲染端 `src/**`**，热重载即可生效。但 `App.vue` 的 `data-mode` 是首次写入，**建议刷新一次页面**确保属性已设置。
+
+> **历史变更**：改造前这里是**硬编码白色系色值**（`文字 rgba(255,255,255,.92)/.65/.45`、`网格 rgba(255,255,255,.12)`、`温度 #ffd57c`、`降水 #9fd6ff`、`低温 #7cc4f5`）——那套只在「页面恒为深色渐变」时才成立，但**不带明暗区分**；中间一版改成读 `THEME_COLORS`（跟随 26 主题，但亮档下图发灰，见本节开头）；**最终版 = 白色系 + 明暗档区分**（`useGlassChartColors`），即「既跟随明暗，又保持玻璃页的白色文字体系」。
 
 
 ## ✅ 首选数据源 preferredProvider（2026-09-30 实施）
@@ -456,7 +585,28 @@ if (preferred) {
 2. 首选源**不可用**（未启用 / 未配置凭据 / 未注册）⇒ **忽略首选**，完全按 providerOrder（它在原位被标 `未启用` / `未配置凭据`）
 3. 首选源**请求失败**（报错 / 超时 / 数据不完整）⇒ 记 trace 后继续按 providerOrder 降级其余源（`fetchWithFallback` 循环天然支持，**零改动**）
 
-**UI（`WeatherProviderSettings.vue`）**：`el-select` 放在「数据源优先级」列表**上方**（`.preferred-block` + `.list-divider-block` 分割线），选项 = `自动（按优先级降级）`（`:value="null"`）+ 8 个源。`preferredHint` computed 会在「所选源已停用 / 凭据未填齐」时给出预警文案（提示首选会被忽略）。
+**UI（`WeatherProviderSettings.vue`）**：`el-select` 放在「数据源优先级」列表**上方**（`.preferred-block` + `.list-divider-block` 分割线），选项 = `自动（按优先级降级）`（`:value="PREFERRED_AUTO"`）+ 8 个源。`preferredHint` computed 会在「所选源已停用 / 凭据未填齐」时给出预警文案（提示首选会被忽略）。
+
+**⚠️ `el-option` 的 `value` 不能传 `null`（2026-09-30 修，消除控制台告警）**：
+`el-option` 的 `value` prop 类型是 **`[String, Number, Boolean, Object]`**（Element Plus 至今未含 `null`，**其 `dev` 分支源码亦同**），传 `null` 会触发
+`Invalid prop: type check failed for prop "value"` 告警（纯告警，不影响选中逻辑，但污染控制台）。
+
+⚠️ **不能简单改成 `''` 却又让模型留 `null`** —— `useSelect` 对非对象值走 **`===` 严格比较**
+（`cachedOption.value === value`，见 `useSelect.mjs` 的 `getOption`），模型与 option 的 `value`
+**必须是同一个值**，否则选项永远匹配不上（下拉显示 placeholder、回显空白）。
+
+✅ **做法：UI 层引入空串哨兵，领域值仍是 `null`，在边界互转**：
+```ts
+const PREFERRED_AUTO = ''                       // el-option 合规（String）
+type PreferredDraft = ProviderId | typeof PREFERRED_AUTO
+// 打开：null → ''        onOpen:  draft.preferredProvider = cfg.preferredProvider ?? PREFERRED_AUTO
+// 保存：'' → null        handleSave: preferredProvider: draft.preferredProvider || null
+```
+**主进程契约完全不变**（`null` = 显式「自动」/ `undefined` = 保持原值）—— 因为保存时**始终传 `null` 或字符串，绝不传 `undefined`**。
+`preferredHint` 的 `if (!id) return ''` 守卫天然兼容空串哨兵，且守卫后 TS 能收窄回 `ProviderId`。
+> **同类隐患**：`el-radio` 的 `value` 更严（`[String, Number, Boolean]`，**连 `Object` 都没有**，
+> 且 `radioEmits` 校验器要求 `isString || isNumber || isBoolean`）⇒ 同样不能传 `null`。
+> 全库还有一处 `todoList/TodoDetailDialog.vue:80` 的 `<el-radio :value="null">不重复</el-radio>` 属同类问题（**未改，待用户确认**）。
 
 **实测验证**：从真实源文件截取 `resolveChain` / `normalizePreferred` 源码，`ts.transpileModule` 编译后沙箱执行 ⇒ **25 项断言全通过**。覆盖：A 未指定 / B 首选可用源 / C 首选被停用 / D 首选缺凭据 / D2 首选补齐凭据 / **E 首选已是首个可用源 ⇒ 整链幂等不变**（含不可用节点位置）/ **E2 首选前方有不可用节点 ⇒ 只提可用节点、不可用节点原地不动** / F 首选原本在末尾 / G 其余源相对序不变 / H `normalizePreferred` 10 种脏值 / I 幂等性 / J 全不可用不抛错。双端类型校验 `tsc -p tsconfig.node.json` + `vue-tsc -p tsconfig.json` → **均 exit 0**。
 > **方法论**：主进程模块依赖链深（`electron-store` 需 Electron app 上下文，硬引会报 `Please specify the projectName option`），"把整个模块图跑起来"代价高。**从真实源文件截取待测函数源码 + `ts.transpileModule` + `new Function` 沙箱**是轻量替代——测的仍是真实代码，不是复刻版。
@@ -503,11 +653,34 @@ if (preferred) {
 - **`types.ts` 双份需同步**：主进程 `electron/main/module/weather/types.ts` 与渲染端 `src/views/weather/types.ts` 结构一一对应，改一侧必须同步另一侧
 - **`../types` vs `./types`**：`src/views/weather/` 目录内的**文件**（`capability.ts`/`api.ts`）必须用 `./types`，写成 `../types` 会解析到不存在的 `src/views/types`（TS2307）；而**子目录**里的组件才用 `../types`
 - **⚠️ 传 IPC 的 payload 必须先剥 Proxy**（2026-09-29 修）：Electron IPC 用结构化克隆算法，**Proxy 不可克隆**。Vue `reactive()` / `ref()` 包装的值都是 Proxy，直接 `invoke` 会抛 **`An object could not be cloned.`**（表象是「保存失败」）。已修位置：① `WeatherProviderSettings.vue` 的 `handleSave` 传 `providerOrder: [...draft.order]`（原先直接传 `draft.order`，是 reactive Proxy 数组 —— 本次报错的根因）；② `api.ts` 新增 `toPlain()` **统一在 invoke 前剥离**：`toRaw()` 递归下钻（`toRaw` 只剥最外层，深层仍是 Proxy）+ 丢弃函数/Symbol。**凡是把 reactive 数据发给主进程，一律经 `toPlain()` 或先展开成普通数组/对象。**
-- **`Partial<Record<ProviderId, X>>` 直索引会报 TS7053**（隐式 any）⇒ 加一层类型安全读写函数，别用 `as any`
+- **⚠️ ECharts `markPoint` 想「只显示文字」绝不能写 `symbol:'none'`**（2026-09-30 踩到）：
+  `symbol:'none'` 时 label 锚点算不出来 ⇒ **整条标注（含文字）被静默丢弃**，不报错、不打日志，
+  与是否给 `value` 无关（8 种变量组合实测分离过）。✅ 正确写法 **`symbolSize: 0` + `label.show: true`**
+  （symbol 保留但缩到 0 ⇒ 锚点可算、文字照画、无多余图形）。症状是「明明写了 formatter 但图上什么都没有」。
+- **⚠️ 天气图表「数据标记色」与「正文色」是两套**（2026-09-30 三次修正）：
+  折点圆点 / 数值标签 / 列表态小图标这类**数据标记**要**高明度**（`highPoint`/`lowPoint`、
+  CSS 侧 `--glass-*-point`），亮档也**不能跟着正文一起压暗**，否则会融进渐变蓝底（用户截图里
+  「几乎看不见的浅蓝点」即此）。而折线（线）与区间带（面）用 `high`/`low` / `--glass-warm`/`-cool`。
+  **判断标准：这个元素的视觉体量是「点」还是「线 / 面」** —— `DailyForecast.vue` 的 6px `.range-bar` 是**面**，
+  必须继续用 `--glass-cool`→`--glass-warm`，不要改成 `-point`。
+- **⚠️ 天气图表轴范围必须取整**（2026-09-30）：`floor(min-pad)` / `ceil(max+pad)`。
+  否则轴界是 `21.5~37.5` 这类**半度值**，几何上正好让折线贴到网格线上，加剧「不直观」。
+- **⚠️ ECharts `LinearGradient` 的色值无法用 SSR 断言**：`renderToSVGString()` 产物**无 `<defs>`**，
+  只留 `fill="url(#zr0-c0)"` 引用。要验证渐变 series 的色值只能做「纯色对照渲染」。
+  别把它当 bug 查（见本节 SSR 陷阱第 4 条）。
+- **⚠️ `el-option` / `el-radio` 的 `value` 不能传 `null`**（2026-09-30 修，消除控制台告警）：
+  prop 类型分别是 `[String, Number, Boolean, Object]` 与 `[String, Number, Boolean]`，
+  **都未含 `null`**（Element Plus 至今如此，`dev` 分支同样）⇒ 触发
+  `Invalid prop: type check failed for prop "value"` 告警。
+  ⚠️ **但也不能只把 option 改成 `''` 而让 v-model 留 `null`** —— `useSelect` 用 **`===` 严格比较**
+  匹配选项，两边必须同值，否则选项**永远选中不了**（显示 placeholder）。
+  ✅ 正确做法：**UI 层用空串哨兵，领域值仍是 `null`，在两个边界互转**
+  （`onOpen: cfg.x ?? ''` / `handleSave: draft.x || null`）。详见「首选数据源 preferredProvider」小节。
+  ⚠️ `el-radio` 的限制比 `el-option` **更严**（无 `Object`，且 emit 校验器只认 string/number/boolean）。
 - **新增 Lucide 图标必须同时改 `LucideIcon.vue` 的 import 与 nameMap 两处**（漏一处静默 fallback 成 CloudAlert）。天气模块**已注册**的扩展图标：`Leaf` `Activity` `CloudSunRain` `Tornado` `Waves` `UmbrellaIcon` `ChartLine`（`List` 早已注册）。⚠️ **`Cyclone` 在 `@lucide/vue` 中不存在**（会报 TS2305），阵风用 `Wind`、气旋类语义用 `Tornado`
 - **⚠️ 校验 `.vue` 必须用 `vue-tsc`，`tsc` 会假绿**：`tsc -p tsconfig.json` **不解析 SFC**，`.vue` 内 `<script setup>` 的类型错误它**完全不报**（本次 4 个 ECharts 类型错误全是 `vue-tsc` 抓到的）。命令：`node ./node_modules/vue-tsc/bin/vue-tsc.js --noEmit -p tsconfig.json`
 - **⚠️ ECharts option 的运行时正确性可用 SSR 渲染器在 Node 里实跑**：`echarts.init(null, null, { renderer: 'svg', ssr: true, width: 800, height: 200 })` **不需要 jsdom / canvas**，`setOption` + `renderToSVGString()` 即可验证 option 合法性与元素数量，比只看类型可靠得多
-- **⚠️ ECharts 图表不要读 `--text-*` 那套不透明实色 CSS 变量**（本页特有）：天气页是动态渐变背景 + 毛玻璃卡片，**没有明暗主题变量体系**，`readVar('--text-muted')` 一类取色在渐变底上会发灰发糊。图表的正确做法是**复用 `utils/chartTheme.ts` 的主题色 + 按明暗档压亮度的语义色**（见「预报区块 列表/图表 双形态」与「主题适配」小节）；DOM 部分则走页面内定义的 **`--glass-*` 玻璃层语义变量**。
+- **⚠️ ECharts 图表不要读 `--text-*` 那套不透明实色 CSS 变量**（本页特有）：天气页是动态渐变背景 + 毛玻璃卡片，**没有明暗主题变量体系**，`readVar('--text-muted')` 一类取色在渐变底上会发灰发糊。图表的正确做法是**走 `composables/useGlassChartTheme.ts`（天气页图表配色的唯一来源，白字系 + 明暗档语义色）**；DOM 部分则走页面内定义的 **`--glass-*` 玻璃层语义变量**。
 - **⚠️ 天气页配色不能套不透明实色 token**（2026-09-30）：`--bg-card` / `--text-primary` 会盖掉动态渐变、失去毛玻璃质感。必须用 `--glass-*` 一组变量，**亮档白叠加提亮、暗档翻转成黑叠加压暗**（在 `index.vue` 用 `[data-mode='dark']` 覆盖）。详见「主题适配」小节第 4 点。
 - **⚠️ 批处理替换脚本在「定义区与使用区同文件」时极度危险**（2026-09-30 实惨）：`index.vue` 的 `--glass-*` 定义被自己的替换规则改成 `var(--glass-divider)` 造成自引用循环；`AirQuality` 的图形标记被误改成文字色；`DebugPanel` 本已跟主题的 fallback 被改花。**跑批量替换前先排除变量定义块，跑完必须逐文件 review，别只看 diff 行数。**
 - **降级链不降级「配置错误」**：和风 host 非法 / 私钥格式错等会在 `probe` 阶段就拦下并给出中文提示；运行时失败会写入 `_trace` 的 `error`

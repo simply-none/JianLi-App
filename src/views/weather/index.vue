@@ -346,6 +346,17 @@ onMounted(async () => {
   --glass-text-muted: rgba(255, 255, 255, 0.45);
   // 图形标记色（刻度指针、装饰性色块等「非文字」元素）
   --glass-mark: rgba(255, 255, 255, 0.85);
+  // 天气语义色：降水蓝 / 高温暖黄 / 低温冷蓝
+  // 页面底恒为深色渐变，故亮暗档差异只体现在「提亮程度」上；
+  // ECharts 侧由 composables/useGlassChartTheme.ts 取同口径色值，两边必须一致。
+  // ⚠️ `*Point` 三个无后缀变量是「图形 / 数据标记」色（列表态图标、折点、范围条端点），
+  // 亮档也保持高明度 —— 数据标记要「跳」出来，不能跟着文字一起压暗。
+  --glass-precip: #9fd6ff;
+  --glass-warm: #ffd57c;
+  --glass-cool: #9ecbff;
+  --glass-precip-point: #cbe6ff;
+  --glass-warm-point: #ffd57c;
+  --glass-cool-point: #cbe6ff;
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
 }
 
@@ -364,6 +375,12 @@ onMounted(async () => {
   --glass-text-secondary: rgba(255, 255, 255, 0.74);
   --glass-text-muted: rgba(255, 255, 255, 0.52);
   --glass-mark: rgba(255, 255, 255, 0.8);
+  --glass-precip: #cbe6ff;
+  --glass-warm: #ffe3a3;
+  --glass-cool: #bfe0ff;
+  --glass-precip-point: #cbe6ff;
+  --glass-warm-point: #ffe3a3;
+  --glass-cool-point: #bfe0ff;
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 

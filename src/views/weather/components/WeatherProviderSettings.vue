@@ -20,7 +20,13 @@
             class="preferred-select"
             placeholder="自动（按优先级）"
           >
-            <el-option label="自动（按优先级降级）" :value="null" />
+            <!-- ⚠️ 「自动」项的值用空串哨兵而非 null：
+                 `el-option` 的 `value` prop 类型是 `[String, Number, Boolean, Object]`，
+                 传 null 会触发 Vue 的 prop 类型告警（Element Plus 至今未支持 null，dev 分支亦然）。
+                 而 `useSelect` 对非对象值走 **`===` 严格比较**（`cachedOption.value === value`），
+                 故哨兵值必须与 v-model 里的值**完全一致** ⇒ 模型侧也用 `''`。
+                 真正存库时在 handleSave / onOpen 与 null 互转，主进程契约不变。 -->
+            <el-option :value="PREFERRED_AUTO" label="自动（按优先级降级）" />
             <el-option
               v-for="p in orderedProviders"
               :key="p.id"
@@ -180,6 +186,22 @@ const visible = ref(props.modelValue)
 watch(() => props.modelValue, (v) => (visible.value = v))
 watch(visible, (v) => emit('update:modelValue', v))
 
+/**
+ * 「首选数据源 = 自动」在 **UI 层**的哨兵值
+ *
+ * ⚠️ 刻意不用 `null`：`el-option` 的 `value` prop 只允许
+ * `String | Number | Boolean | Object`（Element Plus 至今未含 null，见其 dev 分支源码），
+ * 传 `null` 会触发 `Invalid prop: type check failed for prop "value"` 告警。
+ * 且 `useSelect` 对非对象值走 **`===` 严格比较**，
+ * 故模型与 option 必须存**同一个**值 —— 这里统一用空串。
+ * 真正的领域值仍是 `null`（主进程语义：`null` = 显式自动 / `undefined` = 保持原值），
+ * 二者在 `onOpen` 与 `handleSave` 两处互转。
+ */
+const PREFERRED_AUTO = ''
+
+/** 草稿里的首选源类型（`PREFERRED_AUTO` 表示自动） */
+type PreferredDraft = ProviderId | typeof PREFERRED_AUTO
+
 /** 脱敏配置快照 */
 const config = ref<WeatherConfigForUi | null>(null)
 /** 加载中 */
@@ -198,8 +220,8 @@ type ValuesMap = Partial<Record<ProviderId, Record<string, string>>>
 const draft = reactive({
   /** 数据源顺序 */
   order: [] as ProviderId[],
-  /** 首选数据源（null = 自动按优先级降级） */
-  preferredProvider: null as ProviderId | null,
+  /** 首选数据源（`PREFERRED_AUTO` = 自动按优先级降级） */
+  preferredProvider: PREFERRED_AUTO as PreferredDraft,
   /** 各源启用状态 */
   enabled: {} as EnabledMap,
   /** 各源表单值（含敏感字段的本次输入） */
@@ -282,7 +304,8 @@ async function onOpen() {
     const cfg = await fetchWeatherConfig()
     config.value = cfg
     draft.order = [...cfg.providerOrder]
-    draft.preferredProvider = cfg.preferredProvider ?? null
+    // `null`（自动）→ UI 哨兵空串；主进程契约不变
+    draft.preferredProvider = cfg.preferredProvider ?? PREFERRED_AUTO
     draft.cacheTtl = cfg.cacheDuration
     draft.timeoutSec = Math.round(cfg.requestTimeout / 1000)
 
@@ -381,7 +404,8 @@ async function handleSave() {
     const res = await saveWeatherConfig({
       // 注意：draft.order 是 reactive 数组（Proxy），必须拷成普通数组再传
       providerOrder: [...draft.order],
-      preferredProvider: draft.preferredProvider,
+      // UI 哨兵空串 → `null`（主进程语义：显式「自动」，区别于 undefined = 保持原值）
+      preferredProvider: draft.preferredProvider || null,
       providers,
       requestTimeout: draft.timeoutSec * 1000,
       cacheDuration: draft.cacheTtl,

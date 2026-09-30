@@ -3,13 +3,12 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, nextTick, ref, watch, computed } from 'vue'
+import { onBeforeUnmount, onMounted, nextTick, ref, watch } from 'vue'
 import * as echarts from 'echarts'
 import { installPassiveScrollListeners } from '@/utils/passiveEvents'
 import { storeToRefs } from 'pinia'
 import useThemeStore from '@/store/useTheme'
-import { THEME_COLORS } from '@/utils/chartTheme'
-import { useThemeMode } from '@/utils/themeMode'
+import { useGlassChartColors } from '../composables/useGlassChartTheme'
 import type { ForecastDay } from '../types'
 
 // 与 habit / accounting 模块一致：兜底 ECharts 的非 passive wheel 监听器（Chrome 警告）
@@ -25,44 +24,21 @@ const chartRef = ref<HTMLElement | null>(null)
 let chart: echarts.ECharts | null = null
 let ro: ResizeObserver | null = null
 
-/** 当前主题（用于图表配色随主题切换） */
+/** 当前主题（用于主题切换时触发重绘） */
 const { currentTheme } = storeToRefs(useThemeStore())
-/** 当前主题明暗档 */
-const { isDark } = useThemeMode()
 
-/** 当前主题配色（与记账 / 番茄钟图表同源，见 utils/chartTheme.ts） */
-const themeColors = computed(() => THEME_COLORS[currentTheme.value] || THEME_COLORS.light)
+/** 玻璃底图表配色（白字系 + 深色 tooltip + 明暗档语义色） */
+const C = useGlassChartColors()
 
 /* ---------------- 视觉常量 ----------------
- * 天气页是「动态渐变背景 + 毛玻璃卡片」，不读 --text-primary 那套不透明实色
- * token（会盖掉渐变、发灰发糊），而是复用 chartTheme 的主题配色：
- * 网格线 / 轴标签 / 标签文字走主题色（随 26 个主题切换）；
- * 温度色保留列表态范围条的语义（低温蓝 #7cc4f5 → 高温暖黄 #ffd57c），
- * 仅按明暗档调明度：暗档用亮色保证在深底上可读，亮档压深保证在浅底上可读。
- * 全部色值都是 computed，主题或明暗变化后由 watch 触发重绘。
+ * 天气页是「动态渐变背景 + 毛玻璃卡片」，页面底**恒为深色渐变**，故图表文字层
+ * 一律走白色系（与 `--glass-text-*` 同口径），**不用 `THEME_COLORS` 的
+ * `labelColor` / `axisLabel`**（那是给实色卡片的，亮档主题下是深灰 `#374151`，
+ * 在渐变蓝底上会发灰发脏，用户反馈的「图表不协调」正源于此）。
+ * 网格线同理改用白色低透明（替代浅灰实色）。
+ * 温度色保留列表态范围条的语义（低温蓝 → 高温暖黄），仅按明暗档调明度。
+ * 全部色值集中在 `useGlassChartColors()`，主题或明暗变化后由其响应式驱动重绘。
  * ------------------------------------------ */
-/** 主文字：折线数值标签 */
-const colorText = computed(() => themeColors.value.labelColor)
-/** 次文字：图例、x 轴标签、最低温标签 */
-const colorTextSoft = computed(() => themeColors.value.axisLabel)
-/** 网格 / 分割线 */
-const colorGrid = computed(() => themeColors.value.gridLine)
-/** tooltip 底色 / 边框 / 文字 */
-const colorTooltipBg = computed(() => themeColors.value.tooltipBg)
-const colorTooltipBorder = computed(() => themeColors.value.tooltipBorder)
-const colorTooltipText = computed(() => themeColors.value.tooltipText)
-/** 折线点描边：暗档白色、亮档深色半透明 */
-const colorInk = computed(() => (isDark.value ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.45)'))
-/** 次透明中性色：tooltip 指示器 / 区间带未着色部分 */
-const colorInkSoft = computed(() => (isDark.value ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.3)'))
-/** tooltip 轴指示器阴影 */
-const colorAxisShadow = computed(() =>
-  isDark.value ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'
-)
-/** 高温暖黄：暗档用原亮度，亮档压深 */
-const colorHigh = computed(() => (isDark.value ? '#ffd57c' : '#c9971f'))
-/** 低温冷蓝：暗档用原亮度，亮档压深 */
-const colorLow = computed(() => (isDark.value ? '#7cc4f5' : '#2f7fb8'))
 
 /**
  * 把 #rgb / #rrggbb 转成带透明度的 rgba 字符串
@@ -95,6 +71,8 @@ function hexAlpha(color: string, alpha: number): string {
  */
 function buildRangeBand(list: ForecastDay[]): echarts.CustomSeriesOption {
   const count = Math.max(list.length, 1)
+  // ⚠️ 区间带必须半透明：不透明竖条会盖住两条折线，越画越难读（用户反馈点之一）
+  const bandFill = C.value.bandFill
   return {
     name: '温差区间',
     type: 'custom',
@@ -120,7 +98,7 @@ function buildRangeBand(list: ForecastDay[]): echarts.CustomSeriesOption {
           height: h,
           r: bandWidth / 2,
         },
-        style: { fill: hexAlpha(colorLow.value, 0.28) },
+        style: { fill: bandFill },
       }
     },
   }
@@ -136,6 +114,7 @@ function buildRangeBand(list: ForecastDay[]): echarts.CustomSeriesOption {
  * @returns ECharts 配置对象
  */
 function buildOption(): echarts.EChartsOption {
+  const c = C.value
   const list = props.forecast
   const dates = list.map((d) => d.date)
   const lows = list.map((d) => d.low)
@@ -144,11 +123,16 @@ function buildOption(): echarts.EChartsOption {
   const minLow = Math.min(...lows)
   const maxHigh = Math.max(...highs)
   const pad = Math.max((maxHigh - minLow) * 0.2, 2)
+  // ⚠️ 上下界取整：避免 14.6~36.4 这类「半度」轴范围，几何上也让折线贴到网格线
+  const axisMin = Math.floor(minLow - pad)
+  const axisMax = Math.ceil(maxHigh + pad)
 
   /** 只有 1 天时画不了区间带（无宽度），直接退化成两个点 */
   const hasRange = list.length > 1
   /** 数值标签抽稀步长（series.label 无 interval，用 formatter 返回空串跳过） */
   const labelStep = list.length <= 10 ? 1 : Math.ceil(list.length / 8)
+  /** 首日温差：只标一次，让「今日温差几度」不用自己减（数据直观性的关键补充） */
+  const todaySpan = Math.round((list[0].high - list[0].low) * 10) / 10
 
   return {
     backgroundColor: 'transparent',
@@ -158,14 +142,14 @@ function buildOption(): echarts.EChartsOption {
     tooltip: {
       trigger: 'axis',
       confine: true,
-      backgroundColor: 'rgba(20, 26, 40, 0.88)',
-      borderColor: 'rgba(255, 255, 255, 0.18)',
+      backgroundColor: c.tooltipBg,
+      borderColor: c.tooltipBorder,
       borderWidth: 1,
       padding: [8, 12],
-      textStyle: { color: '#fff', fontSize: 12 },
+      textStyle: { color: c.tooltipText, fontSize: 12 },
       axisPointer: {
         type: 'shadow',
-        shadowStyle: { color: 'rgba(255, 255, 255, 0.08)' },
+        shadowStyle: { color: c.inkSoft },
       },
       formatter: (params: unknown) => {
         const arr = params as { dataIndex: number }[]
@@ -189,26 +173,26 @@ function buildOption(): echarts.EChartsOption {
       itemHeight: 10,
       itemGap: 12,
       icon: 'roundRect',
-      textStyle: { color: colorTextSoft.value, fontSize: 11 },
+      textStyle: { color: c.textSoft, fontSize: 11 },
       data: ['最高温', '最低温'],
     },
     xAxis: {
       type: 'category',
       data: dates,
       boundaryGap: true,
-      axisLine: { lineStyle: { color: colorGrid.value } },
+      axisLine: { lineStyle: { color: c.grid } },
       axisTick: { show: false },
-      axisLabel: { color: colorTextSoft.value, fontSize: 11, margin: 8 },
+      axisLabel: { color: c.textSoft, fontSize: 11, margin: 8 },
     },
     yAxis: {
       type: 'value',
-      min: minLow - pad,
-      max: maxHigh + pad,
+      min: axisMin,
+      max: axisMax,
       // 数值由折线标签直接给出，坐标轴只保留极淡的分隔线作参考
       axisLabel: { show: false },
       axisLine: { show: false },
       axisTick: { show: false },
-      splitLine: { show: true, lineStyle: { color: colorGrid.value, type: 'dashed' } },
+      splitLine: { show: true, lineStyle: { color: c.grid, type: 'dashed' } },
     },
     series: [
       // 温差区间带：在 low / high 之间画圆角竖条（等价于列表态的范围条）
@@ -219,24 +203,49 @@ function buildOption(): echarts.EChartsOption {
         data: highs,
         smooth: true,
         symbol: 'circle',
-        symbolSize: 6,
-        itemStyle: { color: colorHigh.value, borderColor: colorInk.value, borderWidth: 1 },
+        // 折点放大 + 亮色填充 + 白描边：在渐变蓝底上是「一眼可见」的关键
+        symbolSize: 7,
+        itemStyle: { color: c.highPoint, borderColor: '#fff', borderWidth: 1.5 },
         lineStyle: {
-          width: 2.4,
-          color: colorHigh.value,
+          width: 2.6,
+          color: c.high,
           shadowBlur: 8,
           // ECharts 的 lineStyle 没有 shadowOpacity，透明度得从颜色本身派生
-          shadowColor: hexAlpha(colorHigh.value, 0.35),
+          shadowColor: hexAlpha(c.high, 0.35),
         },
         label: {
           show: true,
           position: 'top',
-          color: colorText.value,
+          color: c.text,
           fontSize: 11,
           fontWeight: 600,
           // 天数多时按步长抽稀，避免标签互相压叠
           formatter: (p: echarts.DefaultLabelFormatterCallbackParams) =>
             p.dataIndex % labelStep === 0 ? `${p.value}°` : '',
+        },
+        // 首日温差角标：直接给出「今天差几度」，省掉心算
+        markPoint: {
+          // ⚠️ 不要写 `symbol:'none'`：会让 label 锚点算不出来、整条标注被静默丢弃。
+          // 用 `symbolSize: 0` 抹掉默认 pin 图形，只留文字。
+          silent: true,
+          data: [
+            {
+              name: '今日温差',
+              coord: [0, list[0].low],
+              symbolSize: 0,
+              label: {
+                show: true,
+                offset: [0, -30],
+                formatter: `温差 ${todaySpan}°`,
+                color: '#2b2205',
+                backgroundColor: c.highPoint,
+                padding: [2, 5],
+                borderRadius: 4,
+                fontSize: 10,
+                fontWeight: 600 as const,
+              },
+            },
+          ],
         },
         z: 3,
       },
@@ -246,18 +255,19 @@ function buildOption(): echarts.EChartsOption {
         data: lows,
         smooth: true,
         symbol: 'circle',
-        symbolSize: 6,
-        itemStyle: { color: colorLow.value, borderColor: colorInk.value, borderWidth: 1 },
+        symbolSize: 7,
+        itemStyle: { color: c.lowPoint, borderColor: '#fff', borderWidth: 1.5 },
         lineStyle: {
-          width: 2.4,
-          color: colorLow.value,
+          width: 2.6,
+          color: c.low,
           shadowBlur: 8,
-          shadowColor: hexAlpha(colorLow.value, 0.35),
+          shadowColor: hexAlpha(c.low, 0.35),
         },
         label: {
           show: true,
           position: 'bottom',
-          color: colorTextSoft.value,
+          // 低温标签用 textSoft 而非 textFaint：标签落在区间带上方，需保证可读
+          color: c.textSoft,
           fontSize: 11,
           formatter: (p: echarts.DefaultLabelFormatterCallbackParams) =>
             p.dataIndex % labelStep === 0 ? `${p.value}°` : '',
@@ -310,8 +320,8 @@ watch(
   { deep: true }
 )
 
-// 主题切换（含明暗档翻转）时重绘：配色全部来自 computed，需主动 setOption
-watch([currentTheme, isDark], () => nextTick(render))
+// 主题切换（含明暗档翻转）时重绘：配色全部来自 C，需主动 setOption
+watch([currentTheme, () => C.value], () => nextTick(render))
 </script>
 
 <style scoped lang="scss">

@@ -3,13 +3,12 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, nextTick, ref, watch, computed } from 'vue'
+import { onBeforeUnmount, onMounted, nextTick, ref, watch } from 'vue'
 import * as echarts from 'echarts'
 import { installPassiveScrollListeners } from '@/utils/passiveEvents'
 import { storeToRefs } from 'pinia'
 import useThemeStore from '@/store/useTheme'
-import { THEME_COLORS } from '@/utils/chartTheme'
-import { useThemeMode } from '@/utils/themeMode'
+import { useGlassChartColors } from '../composables/useGlassChartTheme'
 import type { HourlyForecast } from '../types'
 
 // ECharts 在 init 时会给容器注册非 passive 的 wheel 监听器（Chrome 警告），
@@ -26,42 +25,22 @@ const chartRef = ref<HTMLElement | null>(null)
 let chart: echarts.ECharts | null = null
 let ro: ResizeObserver | null = null
 
-/** 当前主题（用于图表配色随主题切换） */
+/** 当前主题（用于主题切换时触发重绘） */
 const { currentTheme } = storeToRefs(useThemeStore())
-/** 当前主题明暗档 */
-const { isDark } = useThemeMode()
 
-/** 当前主题配色（与记账 / 番茄钟图表同源，见 utils/chartTheme.ts） */
-const themeColors = computed(() => THEME_COLORS[currentTheme.value] || THEME_COLORS.light)
+/** 玻璃底图表配色（白字系 + 深色 tooltip + 明暗档语义色） */
+const C = useGlassChartColors()
 
 /* ---------------- 视觉常量 ----------------
- * 天气页是「动态渐变背景 + 毛玻璃卡片」，不读 --text-primary 那套不透明实色
- * token（会盖掉渐变、发灰发糊），而是复用 chartTheme 的主题配色：
- * 网格线 / 轴标签 / 标签文字走主题色（随 26 个主题切换）；
- * 温度暖黄与降水浅蓝保留天气语义色相，仅按明暗档调明度
- * （暗档用亮色保证在深底上可读，亮档压深保证在浅底上可读）。
+ * 天气页是「动态渐变背景 + 毛玻璃卡片」，页面底**恒为深色渐变**，故图表文字层
+ * 一律走白色系（与 `--glass-text-*` 同口径），**不用 `THEME_COLORS` 的
+ * `labelColor` / `axisLabel`**（那是给实色卡片的，亮档主题下是深灰 `#374151`，
+ * 在渐变蓝底上会发灰发脏，用户反馈的「图表不协调」正源于此）。
+ * 网格线同理改用白色低透明（替代浅灰实色）。
+ * 温度暖黄与降水浅蓝保留天气语义色相，仅按明暗档调明度。
  * 图表容器背景透明，仍由底层渐变透出。
- * 全部色值都是 computed，主题或明暗变化后由 watch 触发重绘。
+ * 全部色值集中在 `useGlassChartColors()`，主题或明暗变化后由其响应式驱动重绘。
  * ------------------------------------------ */
-/** 主文字：折线数值标签 */
-const colorText = computed(() => themeColors.value.labelColor)
-/** 次文字：图例、x 轴标签 */
-const colorTextSoft = computed(() => themeColors.value.axisLabel)
-/** 弱文字：次坐标轴标签 */
-const colorTextFaint = computed(() => themeColors.value.axisLabel)
-/** 网格 / 分割线 */
-const colorGrid = computed(() => themeColors.value.gridLine)
-/** tooltip 底色与文字 */
-const colorTooltipBg = computed(() => themeColors.value.tooltipBg)
-const colorTooltipBorder = computed(() => themeColors.value.tooltipBorder)
-const colorTooltipText = computed(() => themeColors.value.tooltipText)
-/** 温度暖黄：暗档用亮暖黄，亮档压深以在浅底上可读 */
-const colorTemp = computed(() => (isDark.value ? '#ffd57c' : '#c9971f'))
-/** 降水冷蓝：同上 */
-const colorPrecip = computed(() => (isDark.value ? '#9fd6ff' : '#3d8fc4'))
-/** 折线点描边 / tooltip 竖线：暗档白色、亮档深色半透明 */
-const colorInk = computed(() => (isDark.value ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.45)'))
-const colorInkSoft = computed(() => (isDark.value ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.3)'))
 
 /**
  * 把 #rgb / #rrggbb 转成带透明度的 rgba 字符串
@@ -99,6 +78,7 @@ function labelInterval(count: number): number {
  * @returns ECharts 配置对象
  */
 function buildOption(): echarts.EChartsOption {
+  const c = C.value
   const list = props.hourly
   // 首点显示「现在」，其余只取 HH:mm（数据源已归一化，兜底防脏值）
   const times = list.map((h, i) => (i === 0 ? '现在' : h.time))
@@ -111,11 +91,62 @@ function buildOption(): echarts.EChartsOption {
   const minTemp = Math.min(...temps)
   const maxTemp = Math.max(...temps)
   const pad = Math.max((maxTemp - minTemp) * 0.25, 2)
+  // ⚠️ 上下界取整：否则轴范围会是 21.5~37.5 这种「半度」值，
+  // 几何上又正好让折线贴到网格线上（用户反馈「不直观」的一个成因）
+  const axisMin = Math.floor(minTemp - pad)
+  const axisMax = Math.ceil(maxTemp + pad)
 
-  /** 降水柱是否统一显示数值：点少时显示，点多时靠 tooltip 即可 */
-  const showPrecipLabel = list.length <= 12
+  /**
+   * 降水柱数值标签是否显示
+   *
+   * ⚠️ 阈值从 12 放宽到 16：24 小时视图下柱顶数值直接可读，
+   * 减少「必须 hover 才看得到降水概率」的负担（用户反馈的「不直观」）。
+   */
+  const showPrecipLabel = list.length <= 16
   /** 温度折线数值标签的抽稀步长（series.label 无 interval，只能用 formatter 返回空串跳过） */
   const tempLabelStep = list.length > 14 ? 2 : 1
+  /** 温度极值标注：只标一次，让「今天最热 / 最冷几点」一眼可见 */
+  const maxTempIdx = temps.indexOf(maxTemp)
+  const minTempIdx = temps.indexOf(minTemp)
+  /** 极值标注仅在两端不重合时显示（等温直线画两个标签没有意义） */
+  const tempMaxLabelEnabled = maxTempIdx !== minTempIdx
+
+  /**
+   * 构造单点「极值标注」对象（复用 computed 色值，做成函数避免重复字面量）
+   *
+   * 用 `markPoint` 而非改 label：极值点本来就在 label 抽稀网格上概率不高，
+   * 单独标注才能保证「最高 / 最低」永远可见。
+   *
+   * ⚠️ **不要写 `symbol: 'none'`**（实测 ECharts SVG 渲染）：
+   * `symbol:'none'` 时 label 的锚点无从计算 ⇒ **整条标注（含文字）被静默丢弃**，
+   * 与是否给 `value` 无关。正确做法是让 symbol 保留但缩到 0：
+   * `symbolSize: 0` + `label.show: true`，这样锚点可算、文字照画。
+   * （本坑是「标注整条不出现」而非「样式不对」，排查时先怀疑 symbol。）
+   * @param name 标注文案
+   * @param coord 数据点下标
+   * @param bg 底色
+   * @returns markPoint 数据项
+   */
+  function tempMark(name: string, coord: number, bg: string) {
+    return {
+      name,
+      coord: [coord, temps[coord]],
+      /** 保留 symbol 但缩为 0：只留文字标签，同时保证 label 锚点可计算 */
+      symbolSize: 0,
+      label: {
+        show: true,
+        // 顶部留白有限：极值点靠近顶边时让标签落到下方，避免被裁切
+        offset: [0, temps[coord] > (axisMin + axisMax) / 2 ? 22 : -14],
+        formatter: name,
+        color: '#2b2205',
+        backgroundColor: bg,
+        padding: [2, 5],
+        borderRadius: 4,
+        fontSize: 10,
+        fontWeight: 600 as const,
+      },
+    }
+  }
 
   return {
     backgroundColor: 'transparent',
@@ -125,14 +156,14 @@ function buildOption(): echarts.EChartsOption {
     tooltip: {
       trigger: 'axis',
       confine: true,
-      backgroundColor: colorTooltipBg.value,
-      borderColor: colorTooltipBorder.value,
+      backgroundColor: c.tooltipBg,
+      borderColor: c.tooltipBorder,
       borderWidth: 1,
       padding: [8, 12],
-      textStyle: { color: colorTooltipText.value, fontSize: 12 },
+      textStyle: { color: c.tooltipText, fontSize: 12 },
       axisPointer: {
         type: 'line',
-        lineStyle: { color: colorInkSoft.value, type: 'dashed' },
+        lineStyle: { color: c.inkSoft, type: 'dashed' },
       },
       formatter: (params: unknown) => {
         const arr = params as { dataIndex: number }[]
@@ -155,17 +186,17 @@ function buildOption(): echarts.EChartsOption {
       itemHeight: 10,
       itemGap: 12,
       icon: 'roundRect',
-      textStyle: { color: colorTextSoft.value, fontSize: 11 },
+      textStyle: { color: c.textSoft, fontSize: 11 },
       data: hasPrecip ? ['温度', '降水概率'] : ['温度'],
     },
     xAxis: {
       type: 'category',
       data: times,
       boundaryGap: true,
-      axisLine: { lineStyle: { color: colorGrid.value } },
+      axisLine: { lineStyle: { color: c.grid } },
       axisTick: { show: false },
       axisLabel: {
-        color: colorTextSoft.value,
+        color: c.textSoft,
         fontSize: 11,
         interval: labelInterval(list.length),
         margin: 8,
@@ -174,8 +205,8 @@ function buildOption(): echarts.EChartsOption {
     yAxis: [
       {
         type: 'value',
-        min: minTemp - pad,
-        max: maxTemp + pad,
+        min: axisMin,
+        max: axisMax,
         // 温度轴：只留刻度线，不显示数值（数值由折线标签直接给出）
         axisLabel: { show: false },
         axisLine: { show: false },
@@ -189,7 +220,7 @@ function buildOption(): echarts.EChartsOption {
         show: hasPrecip,
         axisLabel: {
           show: hasPrecip,
-          color: colorTextFaint.value,
+          color: c.textFaint,
           fontSize: 10,
           formatter: '{value}%',
         },
@@ -197,7 +228,7 @@ function buildOption(): echarts.EChartsOption {
         axisTick: { show: false },
         splitLine: {
           show: hasPrecip,
-          lineStyle: { color: colorGrid.value, type: 'dashed' },
+          lineStyle: { color: c.grid, type: 'dashed' },
         },
       },
     ],
@@ -209,31 +240,45 @@ function buildOption(): echarts.EChartsOption {
         data: temps,
         smooth: true,
         symbol: 'circle',
-        symbolSize: 5,
+        // 折点放大到 7 + 亮色填充 + 白色描边：在渐变蓝底上是「一眼可见」的关键
+        symbolSize: 7,
         showSymbol: true,
-        itemStyle: { color: colorTemp.value, borderColor: colorInk.value, borderWidth: 1 },
+        itemStyle: { color: c.highPoint, borderColor: '#fff', borderWidth: 1.5 },
         lineStyle: {
-          width: 2.4,
-          color: colorTemp.value,
+          width: 2.6,
+          color: c.high,
           shadowBlur: 8,
           // ECharts 的 lineStyle 没有 shadowOpacity，透明度得从颜色本身派生
-          shadowColor: hexAlpha(colorTemp.value, 0.35),
+          shadowColor: hexAlpha(c.high, 0.35),
         },
         label: {
           show: true,
           position: 'top',
-          color: colorText.value,
+          color: c.text,
           fontSize: 11,
           fontWeight: 600,
           // 点太密时按步长抽稀，避免标签互相压叠
           formatter: (p: echarts.DefaultLabelFormatterCallbackParams) =>
             p.dataIndex % tempLabelStep === 0 ? `${p.value}°` : '',
         },
+        // 面积渐变收敛到折线下方一小段，避免大面积填充把柱状降水压成背景
         areaStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: hexAlpha(colorTemp.value, 0.3) },
-            { offset: 1, color: hexAlpha(colorTemp.value, 0.02) },
+            { offset: 0, color: hexAlpha(c.high, 0.22) },
+            { offset: 1, color: hexAlpha(c.high, 0) },
           ]),
+        },
+        // 最高 / 最低温各打一枚标签：让「几点最热」不再需要自己扫折线
+        markPoint: {
+          // ⚠️ 这里刻意不写 `symbol:'none'`：它会让 label 锚点算不出来、
+          // 整条标注被静默丢弃（见 `tempMark` 注释）。图形改用 `symbolSize: 0` 抹掉。
+          silent: true,
+          data: tempMaxLabelEnabled
+            ? [
+                tempMark('最高', maxTempIdx, c.highPoint),
+                tempMark('最低', minTempIdx, c.lowPoint),
+              ]
+            : [],
         },
         z: 3,
       },
@@ -247,16 +292,19 @@ function buildOption(): echarts.EChartsOption {
               barMaxWidth: 14,
               itemStyle: {
                 borderRadius: [3, 3, 0, 0],
+                // 渐变更「实」：降水柱原来半透明渐隐，在蓝底上几乎看不见
                 color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                  { offset: 0, color: hexAlpha(colorPrecip.value, 0.75) },
-                  { offset: 1, color: hexAlpha(colorPrecip.value, 0.1) },
+                  { offset: 0, color: hexAlpha(c.lowPoint, 0.95) },
+                  { offset: 1, color: hexAlpha(c.lowPoint, 0.35) },
                 ]),
               },
               label: {
                 show: showPrecipLabel,
                 position: 'top' as const,
-                color: colorPrecip.value,
+                // 与柱身取同一亮色，保证「哪根柱子对应哪个数字」不会看错
+                color: c.lowPoint,
                 fontSize: 10,
+                fontWeight: 600 as const,
                 formatter: '{c}%',
               },
               z: 1,
@@ -310,13 +358,14 @@ watch(
   { deep: true }
 )
 
-// 主题切换（含明暗档翻转）时重绘：配色全部来自 computed，需主动 setOption
-watch([currentTheme, isDark], () => nextTick(render))
+// 主题切换（含明暗档翻转）时重绘：配色全部来自 C，需主动 setOption
+watch([currentTheme, () => C.value], () => nextTick(render))
 </script>
 
 <style scoped lang="scss">
+/* 与 DailyForecastChart 统一高度，两个图表形态视觉一致 */
 .forecast-chart {
   width: 100%;
-  height: 190px;
+  height: 200px;
 }
 </style>

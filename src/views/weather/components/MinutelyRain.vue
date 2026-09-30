@@ -8,15 +8,15 @@
 
     <div class="rain-card glass-card">
       <svg class="rain-chart" :viewBox="`0 0 ${W} ${H}`" preserveAspectRatio="none">
-        <!-- 面积填充 -->
+        <!-- 面积填充：色值取自 --glass-precip（与图表降水柱同口径） -->
         <defs>
           <linearGradient id="rainFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="rgba(124, 196, 245, 0.55)" />
-            <stop offset="100%" stop-color="rgba(124, 196, 245, 0.05)" />
+            <stop offset="0%" stop-color="var(--glass-precip)" stop-opacity="0.55" />
+            <stop offset="100%" stop-color="var(--glass-precip)" stop-opacity="0.05" />
           </linearGradient>
         </defs>
         <path :d="areaPath" fill="url(#rainFill)" />
-        <path :d="linePath" fill="none" stroke="#9fd6ff" stroke-width="1.5" vector-effect="non-scaling-stroke" />
+        <path :d="linePath" fill="none" stroke="var(--glass-precip)" stroke-width="1.5" vector-effect="non-scaling-stroke" />
       </svg>
 
       <div class="rain-axis">

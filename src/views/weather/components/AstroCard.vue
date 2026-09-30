@@ -158,7 +158,8 @@ const daylightHint = computed(() => {
       .daylight-fill {
         height: 100%;
         border-radius: 3px;
-        background: linear-gradient(90deg, #ffd57c 0%, #ff9d5c 100%);
+        /* 日照暖色：取自 --glass-warm，与图表高温线 / 列表态范围条同口径 */
+        background: linear-gradient(90deg, var(--glass-warm) 0%, #ff9d5c 100%);
         transition: width 0.4s;
       }
     }

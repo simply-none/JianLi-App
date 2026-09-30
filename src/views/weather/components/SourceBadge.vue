@@ -95,7 +95,8 @@ const tooltip = computed(() => {
       margin-left: 4px;
       padding-left: 7px;
       border-left: 1px solid var(--glass-border);
-      color: #ffd57c;
+      /* 降级警告暖色：与图表高温线 / 日照条同口径 */
+      color: var(--glass-warm);
     }
   }
 

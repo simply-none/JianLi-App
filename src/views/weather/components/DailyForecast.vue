@@ -257,7 +257,8 @@ function getIcon(conditionText: string): string {
           top: 0;
           height: 100%;
           border-radius: 3px;
-          background: linear-gradient(90deg, #7cc4f5 0%, #ffd57c 100%);
+          /* 低温蓝 → 高温暖黄：与 DailyForecastChart 的区间带 / 折线同口径 */
+          background: linear-gradient(90deg, var(--glass-cool) 0%, var(--glass-warm) 100%);
           transition: left 0.3s, width 0.3s;
         }
       }

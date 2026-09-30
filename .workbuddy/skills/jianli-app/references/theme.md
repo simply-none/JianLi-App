@@ -74,6 +74,38 @@
 .task-item.is-active { background: color-mix(in srgb, var(--color-primary) 10%, transparent); }
 ```
 
+## 特例：天气页的「玻璃层语义变量」（`--glass-*`）
+
+天气页（`src/views/weather/`）**唯一**不适用上面第 1 条红线的地方 —— 因为它是
+**动态渐变背景 + 毛玻璃卡片**，用 `--bg-card` / `--text-primary` 那套不透明实色 token
+会**盖掉渐变、失去毛玻璃质感、发灰发糊**。
+
+它自己定义了一层玻璃语义变量，**定义处只有 `src/views/weather/index.vue` 一处**
+（亮档默认值 + `:global([data-mode='dark'])` 覆盖），子组件通过 DOM 继承消费：
+
+| 变量 | 语义 |
+|---|---|
+| `--glass-bg` / `-strong` / `-weak` / `--glass-hover` | 玻璃填充面（4 档） |
+| `--glass-border` / `-strong` / `--glass-divider` | 玻璃描边 / 分隔（3 档） |
+| `--glass-text-primary` / `-secondary` / `-muted` | 玻璃上的文字（3 档） |
+| `--glass-mark` | 图形标记色（刻度指针等**非文字**元素） |
+| `--glass-precip` / `--glass-warm` / `--glass-cool` | 天气语义色（降水蓝 / 高温暖黄 / 低温冷蓝），**与 ECharts 侧 `useGlassChartTheme.ts` 同口径** |
+| `--glass-precip-point` / `--glass-warm-point` / `--glass-cool-point` | **「数据标记」档**（列表里的小图标 / 小号数值），亮暗档都保持**高明度** —— 数据标记要「跳」出来，不能跟着正文档一起压暗。图表侧对应 `highPoint` / `lowPoint` |
+| `--glass-shadow` | 卡片阴影 |
+
+> **`--glass-*` vs `--glass-*-point` 怎么选**：看**视觉体量**。
+> **点**（折点圆点、11px 降水图标、小号数值）→ `-point` 档（高明度）；
+> **线 / 面**（折线、6px 范围条、区间带）→ 无后缀档。
+> 例：`HourlyForecast.vue` 的 `.col-precip` 用 `--glass-precip-point`；
+> 而 `DailyForecast.vue` 的 `.range-bar`（6px **面**渐变）仍用 `--glass-cool` → `--glass-warm`。
+
+**亮暗档差异**：亮档 = **白色叠加提亮**；暗档 = **翻转成黑色叠加压暗**（文字反而提亮）。
+`data-mode` 由 `App.vue` 按主题 `cardBg` 亮度自动写入（见 `utils/themeMode.ts`）。
+
+> ⚠️ **在天气页内新增图表 / SVG 取色时**：不要读 `--glass-*`（ECharts option 是 JS 对象，
+> 吃不到 CSS 变量），走 `composables/useGlassChartTheme.ts`；而**列表态 DOM 元素**才用
+> `--glass-*`。**同一语义（如降水蓝）两处都有定义时，必须同步改。**
+
 ## 验证
 - 切换多个主题（尤其暗色：cobalt / dark / dracula 等）目视确认背景与文字同步变化。
 - 查漏：在业务 `.vue` 的 `<style>` 中 grep 是否残留 `--el-(fill-color-|color-primary-light-|bg-color|text-color-)` 或硬编码 `#`，

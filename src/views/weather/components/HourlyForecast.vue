@@ -193,7 +193,10 @@ function getIcon(condition: WeatherCondition): string {
     gap: 2px;
     height: 14px;
     font-size: 0.68rem;
-    color: #9fd6ff;
+    /* 降水语义蓝：这是「数据标记」而非正文（11px 图标 + 小号数字），
+     * 故取 `-point` 档而非正文用的 `--glass-precip`（暗档两者同值，亮档 -point 更亮）。
+     * 与图表降水柱 / 折点圆点（ECharts 侧 `lowPoint`）保持同一口径。 */
+    color: var(--glass-precip-point);
   }
 }
 </style>
