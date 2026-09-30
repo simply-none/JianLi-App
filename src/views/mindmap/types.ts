@@ -23,11 +23,15 @@ export type MindLayoutDir = 'both' | 'right' | 'left' | 'down'
 export type MindSide = 'left' | 'right'
 
 /**
- * 分支色板 key —— **只存 key，不存颜色值**。
- * 具体颜色由渲染端映射到 `.mind-canvas` 内的 `--mm-branch-*`（用主题令牌 color-mix 派生），
- * 于是 26 套主题全部自动适配，也不会把某个主题的色号写死进数据库。
+ * 主题色板 key —— **只存 key，不存颜色值**（分支色 / 背景色 / 文字色共用这一套）。
+ * 具体颜色由渲染端映射到色板变量（`--mm-tone-*` 实色 / `--mm-tone-*-soft` 低透铺底），
+ * 全部用主题令牌 color-mix 派生，于是 26 套主题自动适配，
+ * 也不会把某个主题的色号写死进数据库。
  */
-export type MindBranchColor = 'blue' | 'teal' | 'green' | 'amber' | 'coral' | 'purple'
+export type MindColorKey = 'blue' | 'teal' | 'green' | 'amber' | 'coral' | 'purple'
+
+/** 分支色 = 主题色板 key（语义别名：读代码时一眼看出「这是这一支的颜色」） */
+export type MindBranchColor = MindColorKey
 
 /** 画布坐标（左上角，单位 px） */
 export interface MindPoint {
@@ -50,6 +54,21 @@ export interface MindNode {
   note?: string
   /** 分支色 key；整棵子树默认继承，子节点可覆盖 */
   color?: MindBranchColor
+  /**
+   * 节点**背景色** key —— 覆盖层级默认底色（根 / 一级节点本来各有一层主色淡底）。
+   *
+   * 与 `color`（分支色）是**两个独立维度**：
+   *   - 分支色管「描边 + 左缘色条」，且沿子树继承；
+   *   - 背景色只管这一个节点的底色，**不继承**（颜色是局部强调，继承会很快糊成一片）。
+   * 渲染时取低透铺底变量（`--mm-tone-*-soft`），保证压在上面的文字仍然可读。
+   */
+  bgColor?: MindColorKey
+  /**
+   * 节点**文字色** key —— 覆盖主题默认文字色，同样不继承。
+   * ⚠️ 与背景色是两个独立维度：选了同色系会让对比度变低，交给用户自己权衡
+   *    （预设色都由主题令牌派生，深浅主题下各自拿到一组合适的明度）。
+   */
+  textColor?: MindColorKey
   /**
    * **手动固定坐标**（左上角，画布坐标系）。
    *
@@ -128,6 +147,10 @@ export type MindFlowNodeData = {
   collapsed: boolean
   /** 继承到的分支色 key（自身未设时向上继承父级；都没有则 undefined） */
   branch?: MindBranchColor
+  /** 节点自定义背景色 key（未设 = 用层级默认底色）；不继承 */
+  bg?: MindColorKey
+  /** 节点自定义文字色 key（未设 = 用主题默认文字色）；不继承 */
+  fg?: MindColorKey
   /** 是否有备注（决定是否显示浮标） */
   hasNote: boolean
 }

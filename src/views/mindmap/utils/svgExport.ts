@@ -21,8 +21,8 @@
  *    同时允许注入 `measureText`，这样纯逻辑断言可以在 Node 里跑（见模块文档验证小节）。
  */
 
-import { BRANCH_COLORS, NODE_PADDING_X, fontSizeOf, fontWeightOf } from '../constants'
-import type { MindBranchColor, MindLayoutDir, MindSide } from '../types'
+import { MIND_COLORS, NODE_PADDING_X, fontSizeOf, fontWeightOf } from '../constants'
+import type { MindBranchColor, MindColorKey, MindLayoutDir, MindSide } from '../types'
 import { escapeXml } from './xml'
 
 /* ------------------------------------------------------------------ 类型 */
@@ -43,6 +43,10 @@ export interface SvgExportNode {
   side: MindSide
   /** 继承到的分支色 key */
   branch?: MindBranchColor
+  /** 自定义背景色 key（未设 = 按层级取主题默认底色） */
+  bg?: MindColorKey
+  /** 自定义文字色 key（未设 = 主题默认文字色） */
+  fg?: MindColorKey
   hasNote: boolean
   hasChildren: boolean
   collapsed: boolean
@@ -67,6 +71,16 @@ export interface SvgTheme {
   foldText: string
   fontFamily: string
   branch: Record<MindBranchColor, string>
+  /**
+   * 主题色板实色（文字色用）。
+   * ⚠️ 与 `branch` 是**同一批颜色**，但导出侧刻意分成两张表：
+   *    `branch` 表达「这一支的描边色」，`tone` 表达「这个色 key 的实色」——
+   *    合成一张表会让「背景色节点的文字色」这种用法在代码里读不通。
+   *    解析来源也一致（`--mm-branch-*` 是 `--mm-tone-*` 的别名）。
+   */
+  tone: Record<MindColorKey, string>
+  /** 主题色板低透铺底色（背景色用；与画布上的 `--mm-tone-*-soft` 对应） */
+  toneSoft: Record<MindColorKey, string>
 }
 
 export interface SvgBuildResult {
@@ -310,7 +324,17 @@ export function buildMindSvg(
     const x = node.x + dx
     const y = node.y + dy
     const accent = node.branch ? theme.branch[node.branch] : undefined
-    const bg = node.isRoot ? theme.rootBg : node.level === 1 ? theme.l1Bg : theme.nodeBg
+    // 背景：自定义背景色优先；没设才按层级取主题默认底色（与 MindNode.vue 的
+    // `var(--mm-node-bg-user, var(--mm-root-bg))` fallback 链完全对应）
+    const bg = node.bg
+      ? theme.toneSoft[node.bg]
+      : node.isRoot
+        ? theme.rootBg
+        : node.level === 1
+          ? theme.l1Bg
+          : theme.nodeBg
+    // 文字色同理：自定义优先，否则主题默认
+    const textFill = node.fg ? theme.tone[node.fg] : theme.nodeText
     const border =
       accent ?? (node.isRoot ? theme.rootBorder : node.level === 1 ? theme.l1Border : theme.nodeBorder)
     const fontSize = fontSizeOf(node.level)
@@ -336,7 +360,7 @@ export function buildMindSvg(
     lines.forEach((line, index) => {
       const centerY = startY + lineHeight * (index + 0.5)
       parts.push(
-        `<text x="${round(textX)}" y="${round(centerY)}" text-anchor="${anchor}" dominant-baseline="central" font-size="${fontSize}" font-weight="${weight}" fill="${theme.nodeText}">${escapeXml(line)}</text>`,
+        `<text x="${round(textX)}" y="${round(centerY)}" text-anchor="${anchor}" dominant-baseline="central" font-size="${fontSize}" font-weight="${weight}" fill="${textFill}">${escapeXml(line)}</text>`,
       )
     })
 

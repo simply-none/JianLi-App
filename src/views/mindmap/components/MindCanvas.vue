@@ -11,6 +11,11 @@
   主题：所有 `--mm-*` 语义变量在下方**非 scoped** 的样式块里定义。
       非 scoped 是必须的 —— vue-flow 自己渲染的节点 / 边 / 背景网格都在它的内部 DOM 里，
       拿不到本组件 scoped 样式的作用域属性，只能用 `.mind-canvas` 前缀来圈定范围。
+
+  右键：节点的右键由 `MindNode.vue` 上报、菜单本体 `MindNodeMenu.vue` 挂在**这里**
+      （与 `MindZoomBar` 并列）。同时 `<VueFlow>` 上挂了 `@contextmenu.prevent` ——
+      在画布范围内屏蔽浏览器原生右键菜单；节点自己的处理会 `stopPropagation`，
+      所以节点右键仍然能正常弹出我们自己的菜单。
 -->
 <template>
   <div class="mind-canvas" :class="{ 'is-editing': isEditing }">
@@ -36,6 +41,7 @@
       @node-drag-start="graph.onNodeDragStart"
       @node-drag-stop="graph.onNodeDragStop"
       @pane-click="onPaneClick"
+      @contextmenu.prevent
     >
       <!-- 网格点用 currentColor 传入，再由 CSS 决定实际颜色 —— 比在属性里写 var() 更稳 -->
       <Background :gap="22" :size="1.5" color="currentColor" />
@@ -47,6 +53,9 @@
         <MindNode :id="nodeProps.id" :data="nodeProps.data" />
       </template>
     </VueFlow>
+
+    <!-- 节点右键菜单：teleport 到 body 的浮层，自己按单例里的 menuNodeId 决定开关 -->
+    <MindNodeMenu />
 
     <!-- 缩放条浮在画布右下角；它自己按 store id 取 vue-flow 视口助手，不需要父级传参 -->
     <MindZoomBar />
@@ -64,6 +73,7 @@ import { useMindDoc } from '../composables/useMindDoc'
 import { useMindGraph } from '../composables/useMindGraph'
 import { useMindView } from '../composables/useMindView'
 import MindNode from './MindNode.vue'
+import MindNodeMenu from './MindNodeMenu.vue'
 import MindZoomBar from './MindZoomBar.vue'
 
 const mind = useMindDoc()

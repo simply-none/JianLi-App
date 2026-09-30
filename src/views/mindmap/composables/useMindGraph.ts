@@ -112,6 +112,8 @@ export function useMindGraph() {
           hasChildren: node.children.length > 0,
           collapsed: node.collapsed === true,
           branch,
+          bg: node.bgColor,
+          fg: node.textColor,
           hasNote: Boolean(node.note),
         },
       })

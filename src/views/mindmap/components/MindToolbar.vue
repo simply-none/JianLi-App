@@ -169,7 +169,7 @@
       <button
         type="button"
         class="mind-toolbar__btn"
-        title="节点属性：备注与分支色"
+        title="节点属性：备注 / 分支色 / 背景色 / 文字色"
         :disabled="!hasSelection"
         @click="onNodePanel"
       >

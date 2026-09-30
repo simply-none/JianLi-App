@@ -22,6 +22,7 @@ import { computed, ref } from 'vue'
 import { DEFAULT_DOC_NAME, DEFAULT_ROOT_TEXT, MAX_NODE_TEXT_LEN } from '../constants'
 import type {
   MindBranchColor,
+  MindColorKey,
   MindDocData,
   MindDocState,
   MindLayoutDir,
@@ -30,6 +31,7 @@ import type {
 } from '../types'
 import {
   clearPositions,
+  cloneSubtree,
   collectSubtreeIds,
   countFixedPositions,
   createDocData,
@@ -42,9 +44,11 @@ import {
   navTarget,
   removeNode,
   setAllCollapsed,
+  setNodeBg as setBgInTree,
   setNodeColor as setColorInTree,
   setNodeNote as setNoteInTree,
   setNodePos as setPosInTree,
+  setNodeTextColor as setTextColorInTree,
   toggleCollapsed,
   updateNodeText,
   type NavDirection,
@@ -254,6 +258,39 @@ function setNodeColor(id: string, color?: MindBranchColor): boolean {
   return commit(setColorInTree(doc.value.data.root, id, color))
 }
 
+/** 设置 / 清除节点背景色（传 undefined = 清除，回到该层级的默认底色） */
+function setNodeBg(id: string, color?: MindColorKey): boolean {
+  if (!findNode(doc.value.data.root, id)) return false
+  return commit(setBgInTree(doc.value.data.root, id, color))
+}
+
+/** 设置 / 清除节点文字色（传 undefined = 清除，回到主题默认文字色） */
+function setNodeTextColor(id: string, color?: MindColorKey): boolean {
+  if (!findNode(doc.value.data.root, id)) return false
+  return commit(setTextColorInTree(doc.value.data.root, id, color))
+}
+
+/**
+ * 复制某个节点（连同整棵子树），副本插在原节点之后并成为新的选中节点。
+ *
+ * 根节点的语义退化为「把整棵树复制一份挂到根下」—— 与 `insertSibling`
+ * 对根节点的处理保持一致（根没有同级）。
+ *
+ * 副本不带 `pos`（见 `cloneSubtree`），所以它会由布局算法重新摆到旁边，
+ * 不会盖住原件。走 `commit()` ⇒ 可 Ctrl+Z 撤销。
+ *
+ * @returns 新节点的 id；节点不存在或没有真实改动时返回 undefined
+ */
+function duplicateById(id: string): string | undefined {
+  const root = doc.value.data.root
+  const target = findNode(root, id)
+  if (!target) return undefined
+  const copy = cloneSubtree(target)
+  if (!commit(insertSibling(root, id, copy))) return undefined
+  selectedId.value = copy.id
+  return copy.id
+}
+
 /**
  * 固定某节点的手动坐标；传 undefined 表示恢复自动排版。
  *
@@ -364,9 +401,12 @@ export function useMindDoc() {
     // 树操作
     addChild,
     addSibling,
+    duplicateById,
     renameNode,
     setNodeNote,
     setNodeColor,
+    setNodeBg,
+    setNodeTextColor,
     setNodePos,
     resetPositions,
     removeNodeById,

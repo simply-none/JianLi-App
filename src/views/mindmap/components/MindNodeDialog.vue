@@ -1,17 +1,21 @@
 <!--
-  思维导图 —— 节点属性弹窗（备注 + 分支色）。
+  思维导图 —— 节点属性弹窗（备注 + 位置 + 分支色 / 背景色 / 文字色）。
 
-  为什么把这两件事收进弹窗，而不是直接画在节点上：
+  为什么把这些收进弹窗，而不是直接画在节点上：
     · 备注是长文本，铺在节点里会把布局撑歪（节点宽度上限只有 264px）；
-    · 分支色是一组离散选项，常驻在节点上会喧宾夺主。
+    · 颜色是一组离散选项，常驻在节点上会喧宾夺主。
   收进弹窗之后，节点上只多一个**绝对定位的小浮标**，布局尺寸完全不受影响 ——
   这是「坐标是派生数据」这条设计底线的一部分。
 
-  打开状态存在 useMindView 的单例里（`nodePanelId`），不走父子传参：
-  触发点有两个（节点上的浮标、工具条按钮），走 props 得从页面层再穿一层。
+  弹窗与**右键菜单**共用同一套色板组件（MindColorRow）与同一批 setter，
+  所以两条入口改出来的结果完全一致，不会出现「菜单里能设、弹窗里没有」的缺口。
 
-  ⚠️ 色板变量来自 `--mm-branch-*`：弹窗被 teleport 到 body 下，拿不到 `.mind-canvas`
-     上的自定义属性，所以此处用 `styles/palette.scss` 里的 `.mind-palette-scope` 作用域。
+  打开状态存在 useMindView 的单例里（`nodePanelId`），不走父子传参：
+  触发点有三个（节点上的浮标、工具条按钮、右键菜单），走 props 得从页面层再穿一层。
+
+  ⚠️ 色板变量来自 `--mm-tone-*` / `--mm-branch-*`：弹窗被 teleport 到 body 下，
+     拿不到 `.mind-canvas` 上的自定义属性，所以此处 `@use` 一次 `styles/palette.scss`，
+     让 `.mind-palette-scope` 作用域把变量带进来。
 -->
 <template>
   <AppDialog v-model="opened" title="节点属性" width="520px" :show-fullscreen="false">
@@ -63,31 +67,32 @@
         </div>
       </div>
 
-      <!-- 分支色 -->
+      <!-- 颜色：分支色 / 背景色 / 文字色（三者互相独立，点选即刻生效） -->
       <div class="mind-panel__section">
-        <div class="mind-panel__label">
-          <span>分支色</span>
-          <span class="mind-panel__hint">整棵子树默认继承，子节点可再覆盖</span>
-        </div>
         <div class="mind-panel__colors">
-          <button
-            type="button"
-            class="mind-panel__swatch mind-panel__swatch--none"
-            :class="{ 'is-active': !node.color }"
-            title="跟随父级 / 默认"
-            @click="pickColor(undefined)"
-          >
-            默认
-          </button>
-          <button
-            v-for="item in BRANCH_COLORS"
-            :key="item.value"
-            type="button"
-            class="mind-panel__swatch"
-            :class="{ 'is-active': node.color === item.value }"
-            :style="{ background: branchVar(item.value) }"
-            :title="item.label"
-            @click="pickColor(item.value)"
+          <MindColorRow
+            label="分支色"
+            variant="branch"
+            none-label="默认"
+            hint="整棵子树默认继承，子节点可再覆盖"
+            :model-value="node.color"
+            @pick="onPickBranch"
+          />
+          <MindColorRow
+            label="背景色"
+            variant="bg"
+            none-label="无"
+            hint="只作用这一个节点，不继承"
+            :model-value="node.bgColor"
+            @pick="onPickBg"
+          />
+          <MindColorRow
+            label="文字色"
+            variant="text"
+            none-label="默认"
+            hint="只作用这一个节点，不继承"
+            :model-value="node.textColor"
+            @pick="onPickText"
           />
         </div>
       </div>
@@ -125,11 +130,12 @@ import { ElMessage } from 'element-plus'
 
 import AppDialog from '@/components/AppDialog.vue'
 import LucideIcon from '@/components/LucideIcon.vue'
-import { BRANCH_COLORS, MAX_NOTE_LEN, branchVar } from '../constants'
+import { MAX_NOTE_LEN } from '../constants'
 import { useMindDoc } from '../composables/useMindDoc'
 import { useMindView } from '../composables/useMindView'
-import type { MindBranchColor } from '../types'
+import type { MindColorKey } from '../types'
 import { findNode } from '../utils/tree'
+import MindColorRow from './MindColorRow.vue'
 
 const mind = useMindDoc()
 const view = useMindView()
@@ -164,11 +170,25 @@ watch(node, (value) => {
   if (!value) view.closeNodePanel()
 })
 
-/** 分支色是离散选择，点了立刻生效 —— 不需要再点保存 */
-function pickColor(color?: MindBranchColor) {
+/**
+ * 三类颜色都是离散选择，点了立刻生效 —— 不需要再点保存。
+ * 各自维护一个 handler 而不是传一个「改哪个字段」的参数：
+ * 三个 setter 各自有自己的语义（清除时回落的目标不同），
+ * 用参数拼一个通用写法反而要在调用处写字符串，更容易写错。
+ */
+function onPickBranch(color?: MindColorKey) {
   const target = node.value
-  if (!target) return
-  mind.setNodeColor(target.id, color)
+  if (target) mind.setNodeColor(target.id, color)
+}
+
+function onPickBg(color?: MindColorKey) {
+  const target = node.value
+  if (target) mind.setNodeBg(target.id, color)
+}
+
+function onPickText(color?: MindColorKey) {
+  const target = node.value
+  if (target) mind.setNodeTextColor(target.id, color)
 }
 
 /** 把该节点交回自动排版（只影响这一个节点，后代仍相对它摆放） */
@@ -279,37 +299,11 @@ function onClearNote() {
   color: var(--color-primary);
 }
 
+/* 三行色板纵向排开；每行内部的「标签 + 色块」由 MindColorRow 自己排版 */
 .mind-panel__colors {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.mind-panel__swatch {
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
-
-  &:hover {
-    transform: translateY(-1px);
-  }
-
-  &.is-active {
-    border-color: var(--text-primary);
-    box-shadow: 0 0 0 2px var(--bg-card), 0 0 0 3px var(--text-muted);
-  }
-
-  &--none {
-    width: auto;
-    padding: 0 10px;
-    background: var(--bg-card);
-    color: var(--text-secondary);
-    font-size: 12px;
-  }
+  flex-direction: column;
+  gap: 16px;
 }
 
 .mind-panel__missing {

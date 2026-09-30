@@ -9,15 +9,16 @@
  */
 
 import {
-  BRANCH_COLOR_VALUES,
   DEFAULT_CHILD_TEXT,
   DEFAULT_ROOT_TEXT,
   LAYOUT_DIR_VALUES,
   MAX_NOTE_LEN,
+  MIND_COLOR_VALUES,
   MIND_DOC_VERSION,
 } from '../constants'
 import type {
   MindBranchColor,
+  MindColorKey,
   MindDocData,
   MindFlatNode,
   MindLayoutDir,
@@ -46,6 +47,27 @@ export function createDocData(rootText: string, layout: MindLayoutDir = 'both'):
     version: MIND_DOC_VERSION,
     layout,
     root: createNode(rootText, []),
+  }
+}
+
+/**
+ * 深拷贝一棵子树，并给**每个节点**生成全新 id（「复制节点」用）。
+ *
+ * 保留：文本 / 折叠态 / 备注 / 分支色 / 背景色 / 文字色；
+ * 丢弃：`pos` —— 坐标是派生数据，复制出来的子树应该交回布局算法重新摆。
+ *       若把坐标一起抄过来，副本会**严丝合缝地盖在原件上**（坐标逐个相同），
+ *       看起来就像「右键没反应」。
+ */
+export function cloneSubtree(node: MindNode): MindNode {
+  return {
+    id: createNodeId(),
+    text: node.text,
+    children: node.children.map(cloneSubtree),
+    collapsed: node.collapsed,
+    note: node.note,
+    color: node.color,
+    bgColor: node.bgColor,
+    textColor: node.textColor,
   }
 }
 
@@ -168,6 +190,18 @@ export function setNodeNote(root: MindNode, id: string, note: string): MindNode 
 /** 设置分支色；传 undefined 表示清除，恢复为「继承父级」 */
 export function setNodeColor(root: MindNode, id: string, color?: MindBranchColor): MindNode {
   return replaceNode(root, id, node => (node.color === color ? node : { ...node, color }))
+}
+
+/** 设置节点背景色；传 undefined 表示清除，恢复为「该层级的默认底色」 */
+export function setNodeBg(root: MindNode, id: string, color?: MindColorKey): MindNode {
+  return replaceNode(root, id, node => (node.bgColor === color ? node : { ...node, bgColor: color }))
+}
+
+/** 设置节点文字色；传 undefined 表示清除，恢复为「主题默认文字色」 */
+export function setNodeTextColor(root: MindNode, id: string, color?: MindColorKey): MindNode {
+  return replaceNode(root, id, node =>
+    node.textColor === color ? node : { ...node, textColor: color },
+  )
 }
 
 /**
@@ -348,9 +382,9 @@ function normalizePos(raw: unknown): MindPoint | undefined {
   return { x: source.x as number, y: source.y as number }
 }
 
-/** 是不是合法的分支色 key */
-function isBranchColor(value: unknown): value is MindBranchColor {
-  return typeof value === 'string' && (BRANCH_COLOR_VALUES as string[]).includes(value)
+/** 是不是合法的主题色 key（分支色 / 背景色 / 文字色共用同一套校验） */
+function isColorKey(value: unknown): value is MindColorKey {
+  return typeof value === 'string' && (MIND_COLOR_VALUES as string[]).includes(value)
 }
 
 /**
@@ -384,13 +418,15 @@ function normalizeNode(raw: unknown): MindNode | null {
   const children = Array.isArray(source.children)
     ? source.children.map(normalizeNode).filter((item): item is MindNode => Boolean(item))
     : []
-  // 备注与分支色都是可选的：非法值一律丢弃（而不是回落成空串 / 默认色），
+  // 备注与三类颜色都是可选的：非法值一律丢弃（而不是回落成空串 / 默认色），
   // 否则「导入别人手改的 JSON」会把莫名其妙的默认值写进库里
   const note =
     typeof source.note === 'string' && source.note.trim()
       ? source.note.slice(0, MAX_NOTE_LEN)
       : undefined
-  const color = isBranchColor(source.color) ? source.color : undefined
+  const color = isColorKey(source.color) ? source.color : undefined
+  const bgColor = isColorKey(source.bgColor) ? source.bgColor : undefined
+  const textColor = isColorKey(source.textColor) ? source.textColor : undefined
   // 手动坐标同为可选：非法值丢弃（回到自动排版），而不是回落成 (0,0) —— 那会把节点钉在原点
   const pos = normalizePos(source.pos)
   return {
@@ -400,6 +436,8 @@ function normalizeNode(raw: unknown): MindNode | null {
     collapsed: source.collapsed === true ? true : undefined,
     note,
     color,
+    bgColor,
+    textColor,
     pos,
   }
 }

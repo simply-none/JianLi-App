@@ -6,6 +6,10 @@
       · Handle 按布局方向分组：左右类用左右 Handle，`down` 用上下 Handle
       · 有子节点时在「子节点生长的那一侧」浮出一个折叠圆钮（`down` 时在下边缘）
       · 带分支色时描边与色条跟随；带备注时右上角浮一个小标记
+      · 带背景色 / 文字色时覆盖层级默认底色与主题默认字色（三者互相独立）
+      · 右键把「节点 id + 视口坐标」报给 useMindView，菜单本体在 MindNodeMenu.vue
+        —— 本组件不渲染菜单：菜单必须 teleport 到 body，而这里是 vue-flow 的
+           节点插槽内部（在带 transform 的 viewport 里，菜单会被一起缩放/平移）。
 
   ⚠️ Handle 的 id 必须取自 constants.HANDLE，且渲染矩阵由 `constants.nodeHandles()` 统一裁定
      （本组件只把它的结果摊成布尔量）。边的 sourceHandle / targetHandle 用的是同一套常量。
@@ -31,9 +35,10 @@
     class="mind-node"
     :class="[`mind-node--${levelClass}`, { 'is-selected': isSelected, 'is-editing': isEditing, nodrag: isEditing }]"
     :data-branch="data.branch || undefined"
-    :style="accentStyle"
+    :style="colorStyle"
     @click.stop="onClick"
     @dblclick.stop="onDblClick"
+    @contextmenu="onContextMenu"
   >
     <!-- 备注浮标：有备注才出现，点它打开「节点属性」弹窗 -->
     <button
@@ -156,7 +161,7 @@ import { computed, type CSSProperties } from 'vue'
 import { Handle, Position } from '@vue-flow/core'
 
 import LucideIcon from '@/components/LucideIcon.vue'
-import { HANDLE, branchVar, nodeHandles } from '../constants'
+import { HANDLE, branchVar, nodeHandles, toneSoftVar, toneVar } from '../constants'
 import { useMindDoc } from '../composables/useMindDoc'
 import { useMindView } from '../composables/useMindView'
 import type { MindFlowNodeData } from '../types'
@@ -227,17 +232,30 @@ const foldOnLeft = computed(
 )
 const foldOnBottom = computed(() => props.data.hasChildren && !horizontal.value)
 
-/* --------------------------------------------------------------- 分支色 */
+/* ---------------------------------------------------- 分支色 / 背景 / 文字 */
 
 /**
- * 分支色只传 key，这里映射成 CSS 变量。
- * 变量本身定义在 MindCanvas 的非 scoped 样式块里（用主题令牌派生），
+ * 节点自定义外观：分支色 → 描边与色条；背景色 → 铺底；文字色 → 字色。
+ *
+ * 三者都只从 data 里拿到 **key**，这里映射成 CSS 变量：
+ *   `--mm-node-accent`     分支色实色（描边 + 左缘色条，旧行为）
+ *   `--mm-node-bg-user`    背景色低透铺底
+ *   `--mm-node-text-user`  文字色实色
+ *
+ * 变量本身定义在 MindCanvas / palette.scss 的色板作用域里（用主题令牌派生），
  * 因此换主题时节点、色条与连线会一起变，不需要写任何 JS 判断。
+ *
+ * ⚠️ 用「用户变量 + 层级默认值」的 fallback 链（见下方 CSS 的
+ *    `var(--mm-node-bg-user, var(--mm-root-bg))`）而不是直接覆盖 background：
+ *    层级默认底色是按层级分档的（根 / 一级 / 更深各不相同），
+ *    只有把默认值留在 fallback 位置，才能做到「没设背景色时完全维持原样」。
  */
-const accentStyle = computed<CSSProperties | undefined>(() => {
-  const branch = props.data.branch
-  if (!branch) return undefined
-  return { '--mm-node-accent': branchVar(branch) } as CSSProperties
+const colorStyle = computed<CSSProperties | undefined>(() => {
+  const style: Record<string, string> = {}
+  if (props.data.branch) style['--mm-node-accent'] = branchVar(props.data.branch)
+  if (props.data.bg) style['--mm-node-bg-user'] = toneSoftVar(props.data.bg)
+  if (props.data.fg) style['--mm-node-text-user'] = toneVar(props.data.fg)
+  return Object.keys(style).length ? (style as CSSProperties) : undefined
 })
 
 /* --------------------------------------------------------------- 交互 */
@@ -248,6 +266,43 @@ function onClick() {
 
 function onDblClick() {
   mind.beginEdit(props.id)
+}
+
+/**
+ * 右键：打开节点操作菜单（新增子节点 / 同级 / 复制 / 重命名 / 折叠 / 备注 / 颜色 / 删除）。
+ *
+ * 三件事的顺序都有理由：
+ * 1. **编辑态直接放行**：内联编辑时右键应该给出浏览器原生菜单（要复制 / 粘贴文本），
+ *    所以这里不能挂 `.prevent` 修饰符 —— 那会无条件 preventDefault，
+ *    连「用户想复制自己刚敲的字」都做不到。改成在函数里判断后再 preventDefault。
+ * 2. **先 select 再开菜单**：菜单里的动作（重命名 / 删除）走的是 `selectedId`，
+ *    不先选中就会出现「右键 A、删掉的是 B」这类最说不清的 bug。
+ * 3. **阻止冒泡**：否则画布的 pane 处理也会收到这次右键（会把菜单立刻关掉）。
+ */
+function onContextMenu(event: MouseEvent) {
+  if (isEditing.value) return
+  event.preventDefault()
+  event.stopPropagation()
+  mind.select(props.id)
+  const [x, y] = anchorOf(event)
+  view.openNodeMenu(props.id, x, y)
+}
+
+/**
+ * 菜单锚点。正常右键直接用光标坐标。
+ *
+ * ⚠️ **没有坐标的 contextmenu 必须兜住**：键盘 Menu 键 / Shift+F10 触发的
+ *    contextmenu `clientX/Y` 都是 0；另外「上一个浮层在事件派发中途被移除」时
+ *    Chromium 重发的事件也可能是 0 坐标。直接拿来定位会让菜单被 clamp
+ *    钉在窗口左上角 —— 「右键菜单偏移太远」的另一半元凶。
+ *    这里退回到节点卡片自身的位置（卡片右缘偏下一点），保证菜单总是贴着节点。
+ */
+function anchorOf(event: MouseEvent): [number, number] {
+  if (event.clientX || event.clientY) return [event.clientX, event.clientY]
+  const el = event.target instanceof Element ? event.target.closest('.mind-node') : null
+  const rect = el?.getBoundingClientRect()
+  if (rect) return [rect.right + 4, rect.top + 12]
+  return [24, 24]
 }
 
 function onFold() {
@@ -282,8 +337,9 @@ function onEditCancel() {
   padding: 8px 14px;
   border: 1px solid var(--mm-node-accent, var(--mm-node-border));
   border-radius: 10px;
-  background: var(--mm-node-bg);
-  color: var(--mm-node-text);
+  /* 背景 / 文字色走「用户变量 + 层级默认值」的 fallback 链，未设置时与原来完全一致 */
+  background: var(--mm-node-bg-user, var(--mm-node-bg));
+  color: var(--mm-node-text-user, var(--mm-node-text));
   box-shadow: var(--mm-node-shadow);
   text-align: left;
   transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
@@ -309,7 +365,7 @@ function onEditCancel() {
 /* ---- 层级：根节点主色描边、一级节点淡主色底、更深的层级统一留白 ---- */
 .mind-node--root {
   border-color: var(--mm-node-accent, var(--mm-root-border));
-  background: var(--mm-root-bg);
+  background: var(--mm-node-bg-user, var(--mm-root-bg));
   font-size: 15px;
   font-weight: 600;
   text-align: center;
@@ -317,7 +373,7 @@ function onEditCancel() {
 
 .mind-node--l1 {
   border-color: var(--mm-node-accent, var(--mm-l1-border));
-  background: var(--mm-l1-bg);
+  background: var(--mm-node-bg-user, var(--mm-l1-bg));
   font-size: 13.5px;
   font-weight: 600;
 }
@@ -370,7 +426,7 @@ function onEditCancel() {
   &:hover {
     border-color: var(--mm-selected-border);
     background: var(--mm-selected-glow);
-    color: var(--mm-node-text);
+    color: var(--mm-node-text-user, var(--mm-node-text));
   }
 }
 
@@ -411,7 +467,7 @@ function onEditCancel() {
 
   &:hover {
     background: var(--mm-note-bg-hover);
-    color: var(--mm-node-text);
+    color: var(--mm-node-text-user, var(--mm-node-text));
   }
 }
 

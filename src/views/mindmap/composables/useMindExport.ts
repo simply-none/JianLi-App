@@ -18,8 +18,8 @@ import { ElMessage } from 'element-plus'
 import { useVueFlow } from '@vue-flow/core'
 
 import { exportBufferToCache, exportTextToCache } from '@/utils/exportToFile'
-import { BRANCH_COLORS, MINDMAP_FLOW_ID } from '../constants'
-import type { MindBranchColor, MindFlowNodeData, MindPositions, MindSize } from '../types'
+import { MIND_COLORS, MINDMAP_FLOW_ID } from '../constants'
+import type { MindBranchColor, MindColorKey, MindFlowNodeData, MindPositions, MindSize } from '../types'
 import { pngFileName, svgFileName } from '../utils/exchange'
 import { layoutTree } from '../utils/layout'
 import { estimateSize } from '../utils/measure'
@@ -56,6 +56,9 @@ const FALLBACK = {
   foldBorder: '#d9d9d9',
   foldText: '#666666',
   branch: '#888888',
+  /* 色板实色 / 低透铺底色取不到时的兜底（中灰 / 浅灰，至少能区分出「有设过色」） */
+  tone: '#888888',
+  toneSoft: '#f0f0f0',
 } as const
 
 export function useMindExport() {
@@ -78,8 +81,15 @@ export function useMindExport() {
     const style = getComputedStyle(scope)
 
     const branch = {} as Record<MindBranchColor, string>
-    for (const item of BRANCH_COLORS) {
+    const tone = {} as Record<MindColorKey, string>
+    const toneSoft = {} as Record<MindColorKey, string>
+    for (const item of MIND_COLORS) {
       branch[item.value] = cssColor(style, `--mm-branch-${item.value}`, FALLBACK.branch)
+      tone[item.value] = cssColor(style, `--mm-tone-${item.value}`, FALLBACK.tone)
+      // ⚠️ 低透铺底色是 `color-mix()` 算出来的，resolveCssColor 会借 canvas 折算成 sRGB ——
+      //    导出侧拿到的是**已经折算好的实色**，所以导出的 SVG 与屏幕上看到的底色一致，
+      //    且脱离宿主（Illustrator / Inkscape）打开也不会变成透明。
+      toneSoft[item.value] = cssColor(style, `--mm-tone-${item.value}-soft`, FALLBACK.toneSoft)
     }
 
     return {
@@ -100,6 +110,8 @@ export function useMindExport() {
       foldText: cssColor(style, '--mm-fold-text', FALLBACK.foldText),
       fontFamily: style.fontFamily || 'sans-serif',
       branch,
+      tone,
+      toneSoft,
     }
   }
 
@@ -143,6 +155,10 @@ export function useMindExport() {
         isRoot: !item.parentId,
         side: data?.side ?? 'right',
         branch: data?.branch,
+        // 背景 / 文字色没有「继承」，直接读树节点本身 ——
+        // 比走 flow data 更稳：画布尚未同步（flow 缺节点）时树里的值照样拿得到
+        bg: item.node.bgColor,
+        fg: item.node.textColor,
         hasNote: Boolean(item.node.note),
         hasChildren: item.node.children.length > 0,
         collapsed: item.node.collapsed === true,

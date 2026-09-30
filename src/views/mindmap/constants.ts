@@ -7,7 +7,7 @@
  *   （虽然第二段布局会修正，但首帧跳动会很难看）。改一侧请同步另一侧。
  */
 
-import type { MindBranchColor, MindLayoutDir, MindSide } from './types'
+import type { MindBranchColor, MindColorKey, MindLayoutDir, MindSide } from './types'
 
 /** vue-flow 实例 id：**必须**显式指定，避免与「流程图」模块的默认 store 互相污染 */
 export const MINDMAP_FLOW_ID = 'mindmap'
@@ -176,11 +176,15 @@ export function nodeHandles(isRoot: boolean, side: MindSide, dir: MindLayoutDir)
 /* ------------------------------------------------------------------ 色板 */
 
 /**
- * 可选的**分支色**。
- * 只暴露 key，实际颜色在 `MindCanvas.vue` 的非 scoped 样式块里用主题令牌派生
- * （`--mm-branch-blue` 等），因此换主题时节点与连线会一起变，不需要改任何数据。
+ * 可选的主题色板（分支色 / 背景色 / 文字色**共用同一套 6 色**）。
+ * 只暴露 key，实际颜色在 `styles/palette.scss` 里用主题令牌派生
+ * （`--mm-tone-blue` 等），因此换主题时节点与连线会一起变，不需要改任何数据。
+ *
+ * 为什么三个语义共用一份列表：它们本来就是「同一个色 dim 下的三种用法」
+ * （描边 / 铺底 / 文字），共用之后右键菜单与属性弹窗可以遍历同一个数组渲染色板，
+ * 加一色只需改这里一处。
  */
-export const BRANCH_COLORS: { value: MindBranchColor; label: string }[] = [
+export const MIND_COLORS: { value: MindColorKey; label: string }[] = [
   { value: 'blue', label: '蓝' },
   { value: 'teal', label: '青' },
   { value: 'green', label: '绿' },
@@ -189,10 +193,28 @@ export const BRANCH_COLORS: { value: MindBranchColor; label: string }[] = [
   { value: 'purple', label: '紫' },
 ]
 
-/** 合法分支色集合（反序列化时用于校验，挡住手改 JSON 塞进来的脏值） */
-export const BRANCH_COLOR_VALUES: MindBranchColor[] = BRANCH_COLORS.map((item) => item.value)
+/** 合法色 key 集合（反序列化时用于校验，挡住手改 JSON 塞进来的脏值） */
+export const MIND_COLOR_VALUES: MindColorKey[] = MIND_COLORS.map((item) => item.value)
 
-/** 分支色 → CSS 变量引用（节点与连线共用，保证两者同色） */
+/** 色 key → 实色 CSS 变量引用（分支描边、色条、文字色共用） */
+export function toneVar(color: MindColorKey): string {
+  return `var(--mm-tone-${color})`
+}
+
+/**
+ * 色 key → **低透铺底**色 CSS 变量引用（背景色专用）。
+ * 实色直接当背景会把压在上面的文字吃掉，所以背景色一律走 `-soft` 这一组
+ * （实色与主题卡片底 color-mix 出来的「淡淡一层」）。
+ */
+export function toneSoftVar(color: MindColorKey): string {
+  return `var(--mm-tone-${color}-soft)`
+}
+
+/**
+ * 分支色 → CSS 变量引用（节点描边 / 色条与连线共用，保证两者同色）。
+ * 与 `toneVar` 指向的是同一个实色（`--mm-branch-*` 是 `--mm-tone-*` 的别名），
+ * 保留独立命名只是为了让「分支」这个语义在代码里可读。
+ */
 export function branchVar(color: MindBranchColor): string {
   return `var(--mm-branch-${color})`
 }
@@ -228,6 +250,7 @@ export interface MindShortcutHint {
  *    不存在「文档写了但没实现」或「改了按键忘了改说明」的问题。
  */
 export const SHORTCUT_HINTS: MindShortcutHint[] = [
+  { group: '节点', keys: '节点上右键', desc: '打开节点操作菜单（子节点 / 同级 / 复制 / 颜色…）' },
   { group: '节点', keys: 'Tab', desc: '为选中节点添加子节点' },
   { group: '节点', keys: 'Enter', desc: '添加同级节点（根节点则添加子节点）' },
   { group: '节点', keys: 'F2 / 双击', desc: '重命名选中节点' },

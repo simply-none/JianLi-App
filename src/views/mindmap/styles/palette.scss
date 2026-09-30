@@ -1,16 +1,20 @@
 /*
-  思维导图 —— 分支色板（非 scoped，**被多个组件共用**）。
+  思维导图 —— 主题色板（非 scoped，**被多个组件共用**）。
 
   为什么要单独一个文件：
     这些变量原本定义在 `.mind-canvas` 上（见 MindCanvas.vue）。但「节点属性」弹窗是
-    el-dialog，内容被 teleport 到 body 下 —— 那里拿不到 `.mind-canvas` 上的自定义属性，
-    于是弹窗里的色板会全部变成透明。
-    把定义抽到这里、两个组件各 import 一次，依赖关系写在明面上，
+    el-dialog、右键菜单又是 teleport 到 body 的浮层 —— 它们都拿不到 `.mind-canvas`
+    上的自定义属性，于是色板会全部变成透明。
+    把定义抽到这里、各组件分别 @use 一次，依赖关系写在明面上，
     比「靠 MindCanvas 挂载了才生效」这种隐性耦合可靠。
 
-  为什么用两个选择器：
-    `.mind-canvas`     —— 画布（节点描边、色条、连线都取这里的变量）
-    `.mind-palette-scope` —— 弹窗内容根节点，仅仅是为了把变量带进去
+  为什么用三个选择器：
+    `.mind-canvas`         —— 画布（节点描边、色条、连线都取这里的变量）
+    `.mind-palette-scope`  —— 弹窗 / 浮层的作用域根节点，仅仅是为了把变量带进去
+
+  两族变量的分工：
+    `--mm-tone-{key}`       实色：分支描边、色条、连线、文字色
+    `--mm-tone-{key}-soft`  低透铺底：节点背景色（保证压在上面的文字仍可读）
 
   原则：**只用主题令牌 + color-mix() 派生，不写死任何色号**，26 套主题自动适配。
   ⚠️ 少数主题里 `--color-info` 与 `--color-primary` 同值（如 brackets-dark），
@@ -19,10 +23,36 @@
 
 .mind-canvas,
 .mind-palette-scope {
-  --mm-branch-blue: var(--color-info);
-  --mm-branch-teal: color-mix(in srgb, var(--color-info) 55%, var(--color-success));
-  --mm-branch-green: var(--color-success);
-  --mm-branch-amber: var(--color-warning);
-  --mm-branch-coral: color-mix(in srgb, var(--color-warning) 45%, var(--color-error));
-  --mm-branch-purple: var(--color-primary);
+  /* ---- 实色：6 个色 key 与各自的派生方式 ---- */
+  --mm-tone-blue: var(--color-info);
+  --mm-tone-teal: color-mix(in srgb, var(--color-info) 55%, var(--color-success));
+  --mm-tone-green: var(--color-success);
+  --mm-tone-amber: var(--color-warning);
+  --mm-tone-coral: color-mix(in srgb, var(--color-warning) 45%, var(--color-error));
+  --mm-tone-purple: var(--color-primary);
+
+  /*
+    低透铺底：该色 22% 混主题卡片底。
+    直接拿实色当背景会把文字压得看不见，所以节点背景色一律走这一组 ——
+    深浅主题下都得到「淡淡一层色 + 文字仍然可读」的效果。
+    ⚠️ 这些变量引用的是**同一元素上**先声明的 `--mm-tone-*`（自定义属性的引用
+       在计算值阶段解析，不依赖声明顺序跨元素），因此不能被拆到别的选择器里。
+  */
+  --mm-tone-blue-soft: color-mix(in srgb, var(--mm-tone-blue) 22%, var(--bg-card));
+  --mm-tone-teal-soft: color-mix(in srgb, var(--mm-tone-teal) 22%, var(--bg-card));
+  --mm-tone-green-soft: color-mix(in srgb, var(--mm-tone-green) 22%, var(--bg-card));
+  --mm-tone-amber-soft: color-mix(in srgb, var(--mm-tone-amber) 22%, var(--bg-card));
+  --mm-tone-coral-soft: color-mix(in srgb, var(--mm-tone-coral) 22%, var(--bg-card));
+  --mm-tone-purple-soft: color-mix(in srgb, var(--mm-tone-purple) 22%, var(--bg-card));
+
+  /*
+    历史名 `--mm-branch-*` 保留为「实色」的别名：节点色条与连线一直取它。
+    改别名而不是改消费方，避免一次改名动到五个文件（也保证导出侧读旧名照样拿得到值）。
+  */
+  --mm-branch-blue: var(--mm-tone-blue);
+  --mm-branch-teal: var(--mm-tone-teal);
+  --mm-branch-green: var(--mm-tone-green);
+  --mm-branch-amber: var(--mm-tone-amber);
+  --mm-branch-coral: var(--mm-tone-coral);
+  --mm-branch-purple: var(--mm-tone-purple);
 }

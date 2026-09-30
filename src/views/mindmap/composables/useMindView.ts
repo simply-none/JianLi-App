@@ -1,9 +1,9 @@
 /**
- * 思维导图 —— 视图意图（画布层的轻量一次性信号 + 弹窗开关）。
+ * 思维导图 —— 视图意图（画布层的轻量一次性信号 + 浮层开关）。
  *
- * 存在的意义：把「什么时候该重新适应画布 / 定位到某个节点 / 打开节点属性」
+ * 存在的意义：把「什么时候该重新适应画布 / 定位到某个节点 / 打开节点属性 / 弹出节点右键菜单」
  * 这类**视图层意图**从状态层里摘出来。树的状态（useMindDoc）只关心结构，
- * 本不该知道画布要不要 fitView。
+ * 本不该知道画布要不要 fitView、菜单浮在哪个像素上。
  *
  * fitView / 定位又必须等节点重排完才有意义 —— 于是用「请求 → 消费」的一次性信号：
  *
@@ -29,6 +29,11 @@ const pendingFocusId = ref('')
 const focusToken = ref(0)
 /** 当前打开「节点属性」弹窗的节点 id（空串 = 关闭） */
 const nodePanelId = ref('')
+/** 当前打开右键菜单的节点 id（空串 = 关闭） */
+const menuNodeId = ref('')
+/** 右键菜单的视口坐标（相对 window，`position: fixed` 用） */
+const menuX = ref(0)
+const menuY = ref(0)
 
 export function useMindView() {
   /* ------------------------------------------------------------ 适应画布 */
@@ -73,14 +78,42 @@ export function useMindView() {
     if (nodePanelId.value) nodePanelId.value = ''
   }
 
+  /* ---------------------------------------------------------- 右键菜单 */
+
+  /**
+   * 在鼠标位置打开某个节点的操作菜单。
+   *
+   * ⚠️ 坐标存的是**视口坐标**（`clientX / clientY`），菜单用 `position: fixed` 定位 ——
+   *    不能存画布坐标：画布会平移缩放，存画布坐标就得在打开时反算一次变换，
+   *    而菜单本身又跟着视口走，两套坐标混用必然错位。
+   *
+   * 同一个节点重复右键（换个位置）也要能生效 ⇒ 不能像 `openNodePanel` 那样
+   * 「同 id 就短路」，坐标必须每次覆盖。
+   */
+  function openNodeMenu(id: string, x: number, y: number) {
+    if (!id) return
+    menuNodeId.value = id
+    menuX.value = x
+    menuY.value = y
+  }
+
+  function closeNodeMenu() {
+    if (menuNodeId.value) menuNodeId.value = ''
+  }
+
   return {
     focusToken,
     nodePanelId,
+    menuNodeId,
+    menuX,
+    menuY,
     requestFit,
     consumeFit,
     requestFocus,
     consumeFocus,
     openNodePanel,
     closeNodePanel,
+    openNodeMenu,
+    closeNodeMenu,
   }
 }

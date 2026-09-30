@@ -4,17 +4,18 @@
 基于已有 `@vue-flow/core` 自研的**思维导图**：树形结构编辑 + 自研树布局（左右 / 右向 / 左向 / 向下四种方向）+ 折叠展开 + 内联改名 + 撤销重做 + 节点备注与分支色 + 搜索定位 + JSON / Markdown 导入导出 + 多文档保存。
 **P2 增补**：SVG / PNG 图像导出 + OPML / FreeMind / XMind 互转 + 从「待办 / 笔记 / 主题对话」一键生成导图。
 **P3 增补**：连线锚点修正（`nodeHandles()` 单点真相）+ **拖拽固定节点坐标并持久化**（`node.pos`，可撤销、可「整理布局」一键还原）。
+**P4 增补**：**节点右键菜单**（新增子 / 同级 / 复制 / 重命名 / 折叠 / 备注 / 删除 + 三类颜色内联色板）+ **节点背景色 / 文字色**（与分支色共用同一套 6 色 key，主题自适应、零迁移）。
 与「流程图」(flow) 共用 vue-flow 渲染层，但**数据模型、布局算法、store 全部独立**。
 
 ## 关键文件
-目录：`src/views/mindmap/`（严格按「纯逻辑 / 状态 / 视图」三层拆分，单文件职责单一；P3 后共 34 个 .ts/.vue + 1 个 .scss）
+目录：`src/views/mindmap/`（严格按「纯逻辑 / 状态 / 视图」三层拆分，单文件职责单一；P4 后共 36 个 .ts/.vue + 1 个 .scss）
 
 | 层 | 文件 | 职责 |
 |---|---|---|
-| 类型 | `types.ts` | 纯类型；语义结构 + **唯一位置字段 `MindNode.pos`（可选，仅手动拖过的节点有）** |
-| 常量 | `constants.ts` | 尺寸 / 间距 / Handle id / **`nodeHandles()` 与 `edgeHandles()`** / 分支色板 / 布局选项 / 快捷键文案 |
-| 样式 | `styles/palette.scss` | 分支色板 `--mm-branch-*`（非 scoped，**画布与节点属性弹窗共用**） |
-| 纯逻辑 | `utils/tree.ts` | immutable 树操作（增删改折叠 / 备注 / 分支色 / **pos 读写与清空** / 展开到节点 / 平铺 / 导航 / 反序列化兜底） |
+| 类型 | `types.ts` | 纯类型；语义结构 + **唯一位置字段 `MindNode.pos`（可选，仅手动拖过的节点有）**；`MindColorKey`（分支 / 背景 / 文字色共用） |
+| 常量 | `constants.ts` | 尺寸 / 间距 / Handle id / **`nodeHandles()` 与 `edgeHandles()`** / 色板 `MIND_COLORS` + `toneVar()`·`toneSoftVar()`·`branchVar()` / 布局选项 / 快捷键文案 |
+| 样式 | `styles/palette.scss` | 色板 `--mm-tone-*`（实色）与 `--mm-tone-*-soft`（低透铺底）+ `--mm-branch-*`（实色别名）；非 scoped，**画布 / 属性弹窗 / 右键菜单 / 色板行共用** |
+| 纯逻辑 | `utils/tree.ts` | immutable 树操作（增删改折叠 / 备注 / 分支色 / **背景色 / 文字色** / pos 读写与清空 / **`cloneSubtree()` 复制子树** / 展开到节点 / 平铺 / 导航 / 反序列化兜底） |
 | 纯逻辑 | `utils/measure.ts` | 首帧尺寸估算（中文 1em、半角 0.55em） |
 | 纯逻辑 | `utils/layout.ts` | 自研树布局算法（水平类 / 垂直类两趟递归，O(n)；**`pos` 优先于算法结果**） |
 | 纯逻辑 | `utils/markdown.ts` | Markdown 大纲互转（导出缩进列表；导入吃标题或列表） |
@@ -25,9 +26,9 @@
 | 纯逻辑 | `utils/xmind.ts` | XMind `.xmind` 互转（zip + `content.json`，走**已在依赖里的** `jszip`） |
 | 纯逻辑 | `utils/svgExport.ts` | **由树 + 布局结果直接生成独立 SVG**（换行、几何、主题色归一化） |
 | 纯逻辑 | `utils/generate.ts` | 待办 / 笔记 / 主题对话 → 树（**只读**映射） |
-| 状态 | `composables/useMindDoc.ts` | 模块级单例文档状态 + **全部树操作唯一写入口 `commit`** |
+| 状态 | `composables/useMindDoc.ts` | 模块级单例文档状态 + **全部树操作唯一写入口 `commit`**（含 `duplicateById` / `setNodeBg` / `setNodeTextColor`） |
 | 状态 | `composables/useMindHistory.ts` | 撤销 / 重做快照栈（上限 80，模块级单例） |
-| 状态 | `composables/useMindView.ts` | 一次性视图信号：`requestFit/consumeFit`、`requestFocus/consumeFocus`、`nodePanelId` |
+| 状态 | `composables/useMindView.ts` | 一次性视图信号：`requestFit/consumeFit`、`requestFocus/consumeFocus`、**浮层单例 `nodePanelId`（属性弹窗）与 `menuNodeId`/`menuX`/`menuY`（右键菜单）** |
 | 状态 | `composables/useMindPersist.ts` | newSql 三件套薄封装（list/load/save/remove） |
 | 状态 | `composables/useMindActions.ts` | 动作编排：状态 + 持久化 + 提示/确认策略 |
 | 状态 | `composables/useMindTransfer.ts` | 导入导出编排（7 种格式；导出菜单 `EXPORT_ITEMS` 也在这里定义） |
@@ -35,10 +36,12 @@
 | 状态 | `composables/useMindSearch.ts` | 节点搜索（`searchNodes` 纯函数 + 单例 open/query/hits/activeIndex） |
 | 状态 | `composables/useMindShortcuts.ts` | 键盘 → 意图映射（IME 安全） |
 | 画布 | `composables/useMindGraph.ts` | 树 ⇄ vue-flow 元素编译 + 两段式布局 + 分支色继承 + 拖动整棵子树（**松手时把坐标写进树**）+ `centerOn` |
-| 视图 | `components/MindCanvas.vue` | **唯一持有 `<VueFlow>` 的地方**；定义 `--mm-*` 主题变量 |
-| 视图 | `components/MindNode.vue` | 自定义节点（Handle 由 **`nodeHandles()` 派生**、折叠钮、选中环、分支色条、备注浮标） |
+| 视图 | `components/MindCanvas.vue` | **唯一持有 `<VueFlow>` 的地方**；定义 `--mm-*` 主题变量；挂载右键菜单与缩放条 |
+| 视图 | `components/MindNode.vue` | 自定义节点（Handle 由 **`nodeHandles()` 派生**、折叠钮、选中环、分支色条、备注浮标、**右键上报坐标**、**背景 / 文字色 fallback 链**） |
 | 视图 | `components/MindNodeEditor.vue` | 内联文本编辑（原子，不碰树） |
-| 视图 | `components/MindNodeDialog.vue` | 节点属性弹窗（备注 + 分支色 + **位置状态与「恢复自动」**） |
+| 视图 | `components/MindNodeMenu.vue` | **节点右键菜单**（teleport 到 body 的浮层；结构操作 + 三行内联色板 + 删除；自己夹视口边界、Esc / 遮罩 / 滚轮 / 失焦关闭） |
+| 视图 | `components/MindColorRow.vue` | **一行色板**（分支 / 背景 / 文字三处共用；`variant` 决定色块画实色还是低透铺底色） |
+| 视图 | `components/MindNodeDialog.vue` | 节点属性弹窗（备注 + **分支色 / 背景色 / 文字色三行色板** + **位置状态与「恢复自动」**） |
 | 视图 | `components/MindGenerateDialog.vue` | 「从待办 / 笔记 / 主题对话生成导图」弹窗（只读查询 + 预览节点数） |
 | 视图 | `components/MindSearchBox.vue` | 搜索按钮 + 下拉结果面板（自己接管 ↑↓/Enter/Esc） |
 | 视图 | `components/MindZoomBar.vue` | 右下角悬浮缩放条（自取 vue-flow 视口助手） |
@@ -53,9 +56,10 @@
 ```
 表 mindmap：id INTEGER 自增 PK | name TEXT | type TEXT('mindmap') | data TEXT(树 JSON) | create_time TEXT | update_time TEXT
 data = { version: 1, layout: 'both'|'right'|'left'|'down', root: MindNode }
-MindNode = { id: string, text: string, collapsed?: boolean, note?: string, color?: BranchColor,
+MindNode = { id: string, text: string, collapsed?: boolean, note?: string, color?: ColorKey,
+             bgColor?: ColorKey, textColor?: ColorKey,
              pos?: { x: number, y: number }, children: MindNode[] }   // pos = 手动固定坐标（可选）
-BranchColor = 'blue'|'teal'|'green'|'amber'|'coral'|'purple'   // 只存 key，不存色号
+ColorKey = 'blue'|'teal'|'green'|'amber'|'coral'|'purple'   // 只存 key，不存色号
 ```
 - **树是唯一真源，坐标默认是派生**：结构操作会重新布局，坐标默认不落库 ⇒ 将来换布局（鱼骨图 / 组织结构图 / 径向）历史数据零迁移。
   **唯一例外 = `MindNode.pos`**（P3 起）：只有**用户手动拖过**的节点才有这个字段，布局算法遇到它就采用该坐标，并让它的子节点**相对它**摆放。
@@ -63,7 +67,12 @@ BranchColor = 'blue'|'teal'|'green'|'amber'|'coral'|'purple'   // 只存 key，�
   老数据没有该字段 ⇒ **零迁移**；「整理布局」（`tree.clearPositions`）一键全部还原。
 - **不用 dagre**：项目里的 `@dagrejs/dagre` 是**有向图分层**，`rankdir` 只能单向推进，做不出「根居中 + 子树左右分叉 + 各节点尺寸不一」，所以 `utils/layout.ts` 自研。
 - 所有树操作 **immutable + 结构共享**，因此可用 `next === prev` 判断「无改动」并短路。
-- **分支色只存 key**：颜色由 `styles/palette.scss` 用主题令牌 + `color-mix()` 派生，26 套主题自动适配；节点与连线同色。子树默认继承父级（`useMindGraph.collectBranches` 一次遍历）。
+- **三类颜色都只存 key**（P4）：`color` 分支色 / `bgColor` 背景色 / `textColor` 文字色，共用同一套 6 色。
+  颜色由 `styles/palette.scss` 用主题令牌 + `color-mix()` 派生，26 套主题自动适配 ⇒ **库里不写死任何色号**。
+  - **分支色**管「描边 + 左缘色条 + 连线」，且**沿子树继承**（`useMindGraph.collectBranches` 一次遍历）；
+  - **背景色**管底色、**不继承**（颜色是局部强调，继承会很快糊成一片），渲染取**低透铺底** `--mm-tone-*-soft`（实色当背景会把文字吃掉）；
+  - **文字色**管字色、**不继承**；三个维度互相独立（选同色系会低对比，交给用户权衡）。
+  - 渲染是「**用户变量 + 层级默认值**」的 fallback 链：`background: var(--mm-node-bg-user, var(--mm-root-bg))` —— 层级默认底色按层级分档，只有把默认值放在 fallback 位置才能做到「没设色时与原来逐像素一致」。
 - **备注不参与布局**：节点上只有一个绝对定位的浮标，备注正文收在弹窗里 —— 否则长文本会把节点撑到 264px 上限外。
 - 独立性：**不复用 `flow` 表** —— `flow.vue:213` 读取时只 `limit 1 + orderBy id desc`、**没有 type 过滤**，共用表会双向串数据。
 
@@ -87,6 +96,7 @@ BranchColor = 'blue'|'teal'|'green'|'amber'|'coral'|'purple'   // 只存 key，�
 ## 快捷键（`constants.SHORTCUT_HINTS` 与 `useMindShortcuts` 必须保持一致）
 | 分组 | 按键 | 行为 |
 |---|---|---|
+| 节点 | **节点上右键** | **打开节点操作菜单**（新增子节点 / 新增同级 / 复制节点 / 重命名 / 折叠展开 / 备注与属性 / 三类颜色 / 删除） |
 | 节点 | `Tab` | 为选中节点添加子节点（无选中则以根为父） |
 | 节点 | `Enter` | 添加同级节点（根节点退化为添加子节点） |
 | 节点 | `F2` / 双击 | 重命名（进入内联编辑） |
@@ -104,12 +114,12 @@ BranchColor = 'blue'|'teal'|'green'|'amber'|'coral'|'purple'   // 只存 key，�
 ## 导出 / 导入格式一览
 | 格式 | 方向 | 出口 | 说明 |
 |---|---|---|---|
-| JSON `.mindmap.json` | 双向 | `exportTextToCache` | 完整往返（含备注 / 分支色 / 布局 / 折叠） |
+| JSON `.mindmap.json` | 双向 | `exportTextToCache` | 完整往返（含备注 / 三类颜色 / 布局 / 折叠 / 手动坐标） |
 | Markdown `.md` | 双向 | `exportTextToCache` | 只含层级与文本 |
 | OPML `.opml` | 双向 | `exportTextToCache` | 含 `_note` 备注 |
 | FreeMind `.mm` | 双向 | `exportTextToCache` | 含 `FOLDED` 折叠与 `richcontent` 备注 |
 | XMind `.xmind` | 双向 | `exportBufferToCache` | zip + `content.json`（**只支持新版**） |
-| SVG `.svg` | 只导出 | `exportTextToCache` | 真矢量，可在 AI / Inkscape 继续编辑 |
+| SVG `.svg` | 只导出 | `exportTextToCache` | 真矢量，可在 AI / Inkscape 继续编辑（**含背景 / 文字色**，见「特有坑」36） |
 | PNG `.png` | 只导出 | `exportBufferToCache` | 由同一份 SVG 栅格化，2 倍图 |
 
 ## 特有坑 / 注意
@@ -160,7 +170,7 @@ BranchColor = 'blue'|'teal'|'green'|'amber'|'coral'|'purple'   // 只存 key，�
     ⚠️ 若只监听 `revision`：「命中一个本来就可见的节点」不会改树 → 定位静默不生效。
     `centerOn()` 用 `setCenter(x+w/2, y+h/2, { zoom })`，缩放夹在 `[0.8, 1.4]` 而不是硬回 100%。
 
-17. **分支色板必须单独放 `styles/palette.scss`**：`--mm-branch-*` 原本定义在 `.mind-canvas` 上，但「节点属性」弹窗是 el-dialog，内容被 teleport 到 body 下，**拿不到 `.mind-canvas` 的自定义属性**，色块会全部变透明。抽成共用文件后，弹窗里给内容根节点加 `.mind-palette-scope` 类即可；`MindNodeDialog.vue` 的 scoped 样式块里也 import 了一次（作用域选择器正好落在它的根节点上），依赖关系写在明面上。
+17. **色板必须单独放 `styles/palette.scss`**：`--mm-tone-*` / `--mm-branch-*` 原本定义在 `.mind-canvas` 上，但「节点属性」弹窗是 el-dialog、右键菜单是 `Teleport to="body"` 的浮层，**都拿不到 `.mind-canvas` 的自定义属性**，色块会全部变透明。抽成共用文件后，浮层里给内容根节点加 `.mind-palette-scope` 类即可；`MindNodeDialog.vue` / `MindColorRow.vue` 的 scoped 样式块里各 import 一次（作用域选择器正好落在各自的根节点上），依赖关系写在明面上。
 
 18. **Markdown 导入刻意不做「标题 + 列表混排」解析**：文档里有 `#` 标题行就走标题模式（只认标题），否则走列表模式（缩进决定层级）。
     混排时某个列表项属于上一级还是同级全靠猜，猜错了比不解析更让人困惑。
@@ -220,7 +230,7 @@ BranchColor = 'blue'|'teal'|'green'|'amber'|'coral'|'purple'   // 只存 key，�
 33. **共享 scss 片段必须用 `@use`，且写在样式块里所有规则之前**（本项目 `netRequest` / `highPerfSql` / `backup` 都是这个写法，本模块是最后的例外，已改齐）。
     - 原因：Sass 的 `@import` 已标记弃用、**Dart Sass 3.0 将移除**，引入 scss 时会打 `Deprecation Warning [import]`（`sass ^1.80.5` 开始）。
     - ⚠️ **`@use` 不能出现在其它规则之后，连 plain-CSS `@import` 也算**。`MindCanvas.vue` 的 `<style>` 块原本是「先 `@import '@vue-flow/core/dist/style.css'` + `theme-default.css`，再 `@import '../styles/palette.scss'`」⇒ 改成 `@use` 后**必须把 palette 前移到两条 css 引入之前**，否则 Sass 直接报 `@use rules must be written before any other rules.`。
-    - 前移不改变层叠：palette 只声明 `--mm-branch-*` 六支；两个 vue-flow 样式文件**既不声明也不消费任何 `--mm-*`**（已实测 grep 确认），无同名覆盖、无先后依赖。
+    - 前移不改变层叠：palette 只声明 12 支 `--mm-tone-*` 与 6 支 `--mm-branch-*` 别名；两个 vue-flow 样式文件**既不声明也不消费任何 `--mm-*`**（已实测 grep 确认），无同名覆盖、无先后依赖。
     - ⚠️ **`.css` 的 `@import` 不用动**，也不会报弃用警告 —— Sass 对 `.css` 走 plain-CSS 路径、原样保留，交给 Vite 内联。
     - ⚠️ scoped 场景（`MindNodeDialog.vue`）迁移前后产物**逐字节一致**：`@use` 同样把模块 CSS 内联到该位置，Vue 的 scoped 变换照旧给它加 `[data-v-xxx]`，`@import` 与 `@use` 在这点上无差别。
     - ⚠️ 别用 `vite.config.ts` 的 `silenceDeprecations` 把 `import` 静音 —— 那是把真问题推到 Dart Sass 3.0（`legacy-js-api` 静音是另一回事，那个没有替代方案）。
@@ -244,6 +254,51 @@ BranchColor = 'blue'|'teal'|'green'|'amber'|'coral'|'purple'   // 只存 key，�
     - 入口三处：工具条的 `LayoutGrid`「整理布局」（全局，带确认、`fixedPositionCount === 0` 时禁用）· 节点属性弹窗的「位置」药丸 + 「恢复自动」（只影响该节点）· `useMindDoc.setNodePos(id, undefined)`。
     - **已知取舍**：XMind / SVG 等导出仍**不写坐标**（XMind 刻意不写 `POSITION`），导入一律自动排版 —— 跨软件的位置语义对不上，宁可重排。
 
+36. **右键菜单必须 `Teleport to="body"`，且只存视口坐标**（P4；关闭路径在坑 42 重写过一次）。
+    - **不能把菜单画在节点里**：节点在 `.vue-flow__viewport` 内部，而 viewport 带 `transform: translate(...) scale(...)` —— 菜单会跟着画布一起缩放 / 平移，还会被 `.mind-canvas { overflow: hidden }` 裁掉（缩到 0.5 倍时菜单字都糊了）。
+    - 因此 `openNodeMenu(id, clientX, clientY)` 存的是 **`clientX / clientY`**，菜单用 `position: fixed`。⚠️ **不要混用两套坐标**：存画布坐标就得在打开时反算一次 viewport 变换，而菜单本身又跟着视口走，早晚错位。
+    - **打开 / 换位置都要重新定位**，所以 watcher 的键是 `` `${menuNodeId}@${menuX},${menuY}` `` —— 同一个节点**再右键一次**（比如往上挪一点）时 id 没变，只监听 id 会让菜单停在旧位置。
+    - **越界要「翻转」而不是「夹进视口」**（`place()`）：菜单高 ~490px，若按 `innerHeight - height` 去夹 y，窗口下半部分右键时菜单左上角会被拽到光标上方几百像素、整个盖住刚右键的节点。系统右键菜单的规矩是右 / 下放不下就**翻到光标的左侧 / 上方**；只有菜单比视口还大才退化成夹边界。量尺寸必须**渲染之后**（高度取决于有没有子节点、是不是根节点）⇒ 先按光标渲染一帧再 `nextTick` 后量。
+    - `place()` 末尾有一次**实测自检**：拿 `getBoundingClientRect()` 与期望落点比对，差超过 1px 就按实测差值（除以实测缩放比）拉回 —— 防「祖先带 transform / 系统缩放让 fixed 改基准」这类运行时才暴露的偏移，正常情况零开销。
+    - 关闭路径：**window 捕获阶段 `pointerdown` 判「点在面板外」**（替代全屏遮罩，见坑 42）+ 面板外 `wheel` + `Esc`（捕获阶段）+ `resize` / window `blur` + 节点消失（`watch(node)`）+ **组件 `onUnmounted` 时清 `menuNodeId`**（否则路由切走再回来会「凭空弹出一个菜单」）。
+
+37. **菜单项的动作 id 必须在「关菜单」之前取出来**（P4 真踩到的静默 bug）。
+    `run()` 的顺序是「**取 id → 关菜单 → 执行**」：`view.closeNodeMenu()` 会把 `menuNodeId` 清空，所以 `MenuItem.run` 的签名是 `(id: string) => void`、由 `run()` 把 id 传进去。
+    ❌ 如果让菜单项在闭包里读 `view.menuNodeId.value`，读到的是**空串** ⇒ 「新增子节点 / 复制 / 重命名 / 折叠」全部静默失效（不报错、不提示）。
+    - 唯一例外是**颜色点选**：它刻意**不关菜单**（设完背景往往还想调文字色，每点一次都关掉极难用），所以那三个 handler 直接读 `menuNodeId` 是安全的。
+    - 删除项**不复用 id**：走 `actions.deleteSelected()`（读 `selectedId`），与工具条按钮 / `Delete` 快捷键同一条路径 ⇒ 确认策略只有一份。
+
+38. **右键要先 `select`，编辑态要放行原生右键**（P4）。
+    - `MindNode.vue` 的处理 **不能挂 `.prevent` 修饰符** —— 那会无条件 `preventDefault`，连「内联编辑时想复制自己刚敲的字」都做不到。改成在函数里先判 `isEditing` 再 `preventDefault()`。
+    - 顺序必须是「**先 `mind.select(id)` → 再开菜单**」：菜单里的删除 / 重命名读的是 `selectedId`，不先选中就会出现「右键 A、删掉的是 B」这类最说不清的 bug。
+    - 还要 `stopPropagation()`：`<VueFlow>` 根上挂了 `@contextmenu.prevent`（在画布范围内屏蔽浏览器原生菜单），不拦住的话画布处理也会收到这一次右键。
+    - 菜单项**按节点状态置灰**而不是「点了再弹提示」：根节点没有同级（`addSibling` 对根会**退化成加子节点**，两种语义混在一个按钮里更让人困惑）⇒ `新增同级` / `删除` 对根置灰；`折叠` 在无子节点时置灰。
+
+39. **`cloneSubtree()` 必须丢掉 `pos`**（「复制节点」）。
+    - 坐标是派生数据，副本应该交回布局算法重新摆。若把坐标一起抄过来，副本会**严丝合缝地盖在原件上**（坐标逐个相同），看起来就像「右键没反应」。
+    - 保留：文本 / 折叠态 / 备注 / 三类颜色；**每个节点都换新 id**（递归）。
+    - ⚠️ 副本的折叠态是**照抄**的：复制一个折叠节点，得到的也是一个折叠节点（与原件并排、外观一致，符合直觉）；让副本可见靠的是 `insertSibling` 顺手展开**容纳它的父级**（不是被复制的那个节点）。
+    - 对**根节点**复制 = 把整棵树复制一份挂到根下（根没有同级）—— 与 `insertSibling(root, root.id, x)` 的既有退化行为一致。
+
+40. **色板是「一族主名 + 一族别名」**（P4）。
+    - 主名 `--mm-tone-{key}`（实色）与 `--mm-tone-{key}-soft`（低透铺底，= 实色 22% 混 `--bg-card`）；`--mm-branch-{key}` 保留为**实色的别名**。改别名而不是改消费方，避免一次改名动到五个文件（也保证导出侧读旧名照样拿得到值）。
+    - ⚠️ `-soft` 变量引用的是**同一元素上**先声明的 `--mm-tone-*` —— 自定义属性的引用在**计算值阶段**解析，不依赖声明顺序，但**不能**把这些声明拆到别的选择器里。
+    - ⚠️ **`MindColorRow.vue` 的根节点自带 `.mind-palette-scope`** 并在样式里 `@use` 一次 palette：scoped 后选择器是 `.mind-palette-scope[data-v-xxx]`，正好落在它自己的根上 ⇒ 色板就地生效，**不依赖**父级（弹窗 / 菜单）有没有引来色板。浮层是 teleport 到 body 的，「自带变量」比「靠父级挂载顺序」可靠。
+    - `variant` 决定色块画什么：`branch` 画实色 / `bg` 画**低透铺底色**（画成实色会让人误以为节点会变成那样重）/ `text` 画实色。背景色色块**必须**画低透色，否则预览与真实效果不一致。
+
+41. **导出必须同时解析 `tone` 与 `toneSoft`**（P4）。
+    - `SvgTheme` 增 `tone: Record<MindColorKey, string>` 与 `toneSoft: Record<MindColorKey, string>`；`SvgExportNode` 增 `bg` / `fg`。
+    - 节点填充改为 `node.bg ? theme.toneSoft[node.bg] : (按层级取 rootBg / l1Bg / nodeBg)`，文字色改为 `node.fg ? theme.tone[node.fg] : theme.nodeText` —— 与 `MindNode.vue` 的 fallback 链**一一对应**（否则屏幕上有色、导出后没色）。
+    - ⚠️ 低透铺底色是 `color-mix()` 算出来的，**必须**过 `resolveCssColor()` 折算成 sRGB（见坑 25），否则脱离宿主打开会变成透明。
+    - ⚠️ `bg` / `fg` **直接读树节点**（`item.node.bgColor` / `.textColor`）而不是走 flow data：它们没有「继承」，从树里取更稳（画布尚未同步、flow 缺节点时照样拿得到）。`branch` 仍走 flow data，因为它要在 `useMindGraph.collectBranches` 里做继承计算。
+
+42. **右键菜单的关闭**不能用「全屏遮罩 + 遮罩上 `@contextmenu` 关菜单」**（P4 实测真 bug：「右键菜单偏移太远」的元凶）。
+    - **现象**：菜单开着时再右键另一个节点，菜单被钉在**窗口左上角**（截图实测 `pos ≈ (6,6)`，而光标在画布另一头）。
+    - **链路**：遮罩盖住全屏 ⇒ 第二次右键的 `contextmenu` 先落到遮罩上 ⇒ 遮罩的处理是立刻把自己 `v-if` 掉 ⇒ **事件派发到一半目标元素被移除**，Chromium 重新命中测试、给底下的节点**补发一个 `clientX/Y = 0` 的 contextmenu** ⇒ 节点拿着 `(0,0)` 开菜单 ⇒ `place()` 的 clamp 把它钉到 `EDGE_GAP` 角上。静态看代码完全看不出来（`clientX` 语义、`position: fixed`、clamp 全都「正确」），只有实机复现才抓得到。
+    - **修复**：拆掉遮罩，改 **window 捕获阶段 `pointerdown` 判「点在面板外」**（面板内不关）—— 全程不改 DOM，菜单先关、随后的 contextmenu 正常落到节点上、带真实光标坐标重新打开。副产品：**「开着菜单换一个节点右键」一步到位**（旧方案只会把菜单关掉，得再右键一次）。
+    - **双保险**：`MindNode.anchorOf()` 对**没有坐标的 contextmenu**（键盘 Menu 键 / Shift+F10、以及任何被重发的合成事件，`clientX/Y` 均为 0）退回到**节点卡片自身的 rect**（卡片右缘偏下），保证这类事件也把菜单开在节点旁边而不是左上角。
+    - ⚠️ 由此推论：**凡是「浮层 + 全屏遮罩 + 遮罩上关浮层」的组合，只要浮层打开期间用户还会再触发同一种指针事件，都有同样的重发风险** —— 优先用「捕获阶段监听 + 点外即关」，而不是改 DOM 的遮罩。
+
 ## 验证方式（沙箱内可跑）
 纯逻辑层不依赖 Vue，可直接在 Node 里跑断言：用 `typescript.transpileModule` + 自定义 `require` 扩展直载真实 TS 源码
 （`require.extensions['.ts']` + `module._compile`，并把 `@/` 别名映射到 `src/`）。
@@ -253,23 +308,35 @@ BranchColor = 'blue'|'teal'|'green'|'amber'|'coral'|'purple'   // 只存 key，�
 - P0/P1：Handle 约定 / 树操作 / `expandTo` / 备注与分支色 / 反序列化兜底 / 四种布局方向 / Markdown 往返与四种边界 / 交换文件解析（84 条）
 - P2：`wrapText` 五种情形 / SVG 结构（画布尺寸、矩形数、文本数、连线几何、折叠钮、备注浮标、向下布局连线坐标）/ 三源生成（多父、断链、自环、环形、跳过空笔记、对话开关、备注落位）/ OPML 与 FreeMind 往返 / XMind 打包解包往返与三种失败输入（72 条）
 - P3：**Handle 不变量**（4 布局 × 2 侧 × 根/非根 / nodeHandles 结构 / 不同侧约束 / id 合法性 / 无重复）/ 布局的 `pos` 行为（基线手算值 / 固定节点采用 pos / 子树跟随 / 兄弟与祖先不受影响 / 换布局仍固定 / down）/ `setNodePos`·`clearPositions`·`countFixedPositions` 的 immutable 与「无改动返回同引用」/ `normalizeDocData` 保留合法 pos（含 `{0,0}`）与丢弃 8 种脏 pos / JSON 往返（79 条）
+- **P4**：色板函数（`MIND_COLORS` 的 6 个 key、`toneVar` / `toneSoftVar` / `branchVar` 的变量名、旧名 `BRANCH_COLORS` 已不存在）/ `setNodeBg`·`setNodeTextColor` 的写入·清除·同值短路·三者互不干扰 / `normalizeDocData` 保留合法 `bgColor`·`textColor` 并丢弃非法值（含数字型）+ 老数据零迁移 + 往返不丢色 / `cloneSubtree` 的「换新 id、保留六类语义字段、丢掉 pos、不动原件」/ 复制后的插入位置（原节点之后、对根退化为挂到根下、父级折叠会被展开、副本保留自身折叠态）（30 条）
 
-**合计 235 条断言全通过**（84 + 72 + 79）。
+**合计 265 条断言全通过**（84 + 72 + 79 + 30）。
 
 组件层三重扫描（`references/tools/check-renderer.cjs`，Node + `@vue/compiler-sfc`）：
-① `parse` + `compileScript` + `compileTemplate` 结构校验；
-② 相对 import 与 `@/` 别名是否能解析到真实文件（含 `styles/palette.scss`）；
-③ **`<LucideIcon name="...">` 用到的名字是否都在 `LucideIcon.vue` 的 nameMap 里登记**（漏登记会静默 fallback 成 CloudAlert，肉眼极难发现）。
+```
+node .workbuddy/skills/jianli-app/references/tools/check-renderer.cjs src/views/mindmap
+```
+① `parse` + `compileScript` + `compileTemplate` 结构校验（本次 13 个 .vue 通过）；
+② 相对 import 与 `@/` 别名是否能解析到真实文件，含 `styles/palette.scss`（本次 36 个文件全部命中）；
+③ **`<LucideIcon name="...">` 与 `icon: 'X'` 用到的名字是否都在 `LucideIcon.vue` 的 nameMap 里登记**（漏登记会静默 fallback 成 CloudAlert，肉眼极难发现；本次 23 个名字全部已登记）。
+   ⚠️ P4 新加的 `MindNodeMenu.vue` 把图标名写在 `icon: 'Plus'` 这样的对象字面量里，**正是第 ③ 项要覆盖的形态** —— 别只用 `<LucideIcon name="X">` 的正则去扫，会漏掉它们。
 
 类型校验：`vue-tsc --noEmit -p tsconfig.json`（全项目零报错）。
+
+⚠️ **本模块有两类改动无法在沙箱内自动化验证，必须本地 `npm run dev` 人工过一遍**：
+   - 浮层的定位与关闭（右键菜单的翻转 / 实测自检、点外关闭、Esc、滚轮、窗口 resize/blur）—— 全是 DOM 尺寸与事件，纯逻辑断言覆盖不到；**且「事件派发中途移除元素 → Chromium 重发零坐标事件」这类坑只有实机才复现得出**（坑 42）。
+   - 颜色在 26 套主题下的实际观感（尤其「背景色 + 文字色同色系」的低对比、以及浅色主题下低透铺底是否够淡）。
 
 样式块校验（改 `<style>` 时用，尤其是 Sass 语法迁移）：`@vue/compiler-sfc` 的 `parse` 取出真实 `<style>` 块 → `compileStyleAsync`（`scoped` 按块给、`id: 'data-v-test'`、`preprocessOptions.logger` 收集警告）⇒ 断言「零 error + 零 deprecation 警告 + 目标规则已内联且 scoped 后缀正确」。**这样能在不启动 Electron 的前提下证明「迁移前后产物等价」**（比较 `code` 按空白归一后的字符串即可）。sass 侧的纯语法问题（如 `@use` 位置约束）用 `sass.compileString(..., { url, loadPaths })` 更快 —— ⚠️ 此时**必须给 `url` 并用相对说明符**，绝对路径 `C:/...` 会被 Sass 当成 URL scheme 而解析失败。
 
 ## 未做（后续候选）
+- 节点边框色 / 边框粗细 / 节点形状（当前「分支色」独占描边，背景 / 文字色只覆盖填充与字色）
+- 右键菜单里的「剪切 / 粘贴子树」（当前只有 `复制节点`，没有剪贴板）
+- 框选多选 + 批量改色（当前选中是单选）
 - 命令面板直接打开某份导图（需要跨窗口通知主窗口载入指定 id —— 属跨窗口 IPC）
 - 节点图标 / 超链接 / 附件
 - 节点级「挂到待办 / 笔记」的反向联动（当前是单向：别的模块 → 导图）
 - XMind 旧版 `content.xml` 兼容
 - 导出时带上手动坐标（XMind 的 `POSITION` / SVG；当前刻意不写，导入一律自动排版）
-- 双击空白处新建节点、框选多选（当前选中是单选）
+- 双击空白处新建节点
 - 双端同步（需先确认移动端是否要做思维导图）
