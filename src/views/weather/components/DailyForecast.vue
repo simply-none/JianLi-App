@@ -3,9 +3,31 @@
     <div class="section-title">
       <LucideIcon name="Calendar" :size="15" />
       <span>未来预报</span>
+
+      <!-- 列表 / 图表 形态切换 -->
+      <div class="view-switch" role="group" aria-label="展示形态">
+        <button
+          v-for="opt in VIEW_OPTIONS"
+          :key="opt.value"
+          type="button"
+          class="switch-btn"
+          :class="{ active: view === opt.value }"
+          :title="opt.label"
+          :aria-pressed="view === opt.value"
+          @click="view = opt.value"
+        >
+          <LucideIcon :name="opt.icon" :size="14" :stroke-width="1.8" />
+        </button>
+      </div>
     </div>
 
-    <div class="forecast-card glass-card">
+    <!-- 图表形态 -->
+    <div v-if="view === 'chart'" class="forecast-card glass-card chart-card">
+      <DailyForecastChart :forecast="forecast" />
+    </div>
+
+    <!-- 列表形态（默认） -->
+    <div v-else class="forecast-card glass-card">
       <div v-for="day in forecast" :key="day.date" class="forecast-row">
         <!-- 日期 -->
         <div class="row-date">{{ day.date }}</div>
@@ -41,14 +63,25 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import LucideIcon from '@/components/LucideIcon.vue'
+import DailyForecastChart from './DailyForecastChart.vue'
 import type { ForecastDay } from '../types'
 import { CONDITION_ICON_MAP } from '../constants'
+import { useForecastView } from '../composables/useForecastView'
 
 /** 组件 Props */
 const props = defineProps<{
   /** 未来预报列表 */
   forecast: ForecastDay[]
 }>()
+
+/** 当前展示形态（列表 / 图表），状态跨会话记忆 */
+const view = useForecastView('daily')
+
+/** 切换按钮配置（图标已在 LucideIcon 注册） */
+const VIEW_OPTIONS = [
+  { value: 'list' as const, label: '列表', icon: 'List' },
+  { value: 'chart' as const, label: '图表', icon: 'ChartLine' },
+]
 
 /** 全部预报日中的最低温（用于范围条归一化；空列表时回退 0） */
 const minLow = computed(() =>
@@ -105,8 +138,51 @@ function getIcon(conditionText: string): string {
     margin-bottom: 10px;
   }
 
+  /* 列表 / 图表 分段切换按钮（推到标题行右端） */
+  .view-switch {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: auto;
+    padding: 2px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+
+    .switch-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 22px;
+      padding: 0;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: rgba(255, 255, 255, 0.65);
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+
+      &:hover {
+        color: #fff;
+        background: rgba(255, 255, 255, 0.14);
+      }
+
+      &.active {
+        color: #fff;
+        background: rgba(255, 255, 255, 0.28);
+      }
+    }
+  }
+
   .forecast-card {
     padding: 6px 20px;
+  }
+
+  /* 图表形态：图表自带内边距，卡片内边距收窄 */
+  .chart-card {
+    padding: 12px 14px;
+    overflow: hidden;
   }
 
   .forecast-row {

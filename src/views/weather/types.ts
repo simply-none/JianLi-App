@@ -293,6 +293,8 @@ export interface SecretStatus {
 /** 供配置页读取的脱敏配置（绝不包含明文凭据） */
 export interface WeatherConfigForUi {
   providerOrder: ProviderId[]
+  /** 首选数据源（null = 自动按优先级降级） */
+  preferredProvider: ProviderId | null
   providers: Partial<Record<ProviderId, {
     enabled: boolean
     options?: Record<string, string>
@@ -307,6 +309,8 @@ export interface WeatherConfigForUi {
 /** 保存配置时的入参（credentials 仅含本次用户新填字段） */
 export interface WeatherConfigSavePayload {
   providerOrder?: ProviderId[]
+  /** 首选数据源；null = 自动按优先级，undefined = 不修改 */
+  preferredProvider?: ProviderId | null
   providers?: Partial<Record<ProviderId, {
     enabled?: boolean
     options?: Record<string, string>

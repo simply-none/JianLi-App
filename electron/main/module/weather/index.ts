@@ -175,6 +175,7 @@ export function initWeather() {
       _event,
       payload: {
         providerOrder?: ProviderId[];
+        preferredProvider?: ProviderId | null;
         providers?: Record<string, { enabled?: boolean; options?: Record<string, string>; credentials?: Record<string, string> }>;
         requestTimeout?: number;
         cacheDuration?: number;
@@ -184,6 +185,11 @@ export function initWeather() {
         const current = await loadWeatherConfig();
         const next: WeatherModuleConfig = {
           providerOrder: payload?.providerOrder?.length ? payload.providerOrder : current.providerOrder,
+          // undefined = 未提供该字段（保持原值）；null = 显式「自动」；字符串 = 指定首选源
+          preferredProvider:
+            payload?.preferredProvider === undefined
+              ? (current.preferredProvider ?? null)
+              : payload.preferredProvider,
           providers: { ...current.providers },
           requestTimeout: Number(payload?.requestTimeout) || current.requestTimeout,
           cacheDuration: Number(payload?.cacheDuration) || current.cacheDuration,

@@ -313,6 +313,12 @@ export interface ProviderRuntimeConfig {
    * 有 adcode / 坐标时，provider 应优先按它定位，跳过名称猜测。
    */
   cityRef?: CityRef;
+  /**
+   * 【主进程内部注入】本地坐标表解析出的坐标（由 registry 统一计算）。
+   * 供需要「经纬度定位」的 provider（彩云 / OpenWeather / wttr / 高德 / Open-Meteo）直接复用，
+   * 避免各自重复解析；为 undefined 表示本地表未收录该城市。
+   */
+  __coords?: { lat: number; lon: number } | null;
 }
 
 /** Provider 适配器接口 */
@@ -361,6 +367,14 @@ export interface ProviderUserConfig {
 export interface WeatherModuleConfig {
   /** Provider 优先级顺序（数组即降级顺序） */
   providerOrder: ProviderId[];
+  /**
+   * 首选数据源（可空 = 不指定，纯按 providerOrder 降级）。
+   *
+   * 语义：有值时该源被**提到降级链最前面**优先请求；若它未启用 / 未配置凭据，
+   * 则忽略本项直接走 providerOrder；若它请求失败（报错 / 超时 / 数据不完整），
+   * 记 trace 后继续按 providerOrder 降级到其余源。
+   */
+  preferredProvider?: ProviderId | null;
   /** 各 Provider 的独立配置 */
   providers: Partial<Record<ProviderId, ProviderUserConfig>>;
   /** 请求超时（ms） */
@@ -399,6 +413,8 @@ export interface SecretStatus {
 export interface WeatherConfigForUi {
   /** 优先级顺序 */
   providerOrder: ProviderId[];
+  /** 首选数据源（null = 自动按优先级） */
+  preferredProvider: ProviderId | null;
   /** 各 Provider 非敏感配置 */
   providers: Partial<Record<ProviderId, {
     enabled: boolean;

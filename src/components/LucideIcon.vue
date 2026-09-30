@@ -139,6 +139,8 @@ import { AlarmClock, AlarmClockCheck, AlarmClockMinus, AlarmClockPlus, ArrowDown
   ClipboardCopy,
   ArrowDownLeft,
   ArrowUpRight,
+  // —— 天气「列表 / 图表」切换用图标 ——
+  ChartLine,
 } from '@lucide/vue';
 import { ArrowLeftRight } from '@lucide/vue';
 import { ref } from 'vue';
@@ -329,6 +331,7 @@ let nameMap = ref<Record<any, any>>({
   MessageSquarePlus,
   Tags,
   ShieldCogCorner,
+  ChartLine,
   ShieldQuestionMark,
   Layers,
   ExternalLink,

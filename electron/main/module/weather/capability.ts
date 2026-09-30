@@ -134,12 +134,61 @@ export const PROVIDER_CAPABILITIES: Record<ProviderId, WeatherCapability[]> = {
     'indices.life', 'alert.warning',
   ],
 
-  /* ---------- 以下为预留 Provider，接入时补全 ---------- */
-  seniverse: [],
-  amap: [],
-  caiyun: [],
-  openWeather: [],
-  wttr: [],
+  /**
+   * 心知天气：实时 + 逐日 + 生活指数 + 空气质量；中文城市名（支持拼音 / 中文 / 坐标）。
+   * 免费版只返回 3 天预报与 6 项基本指数（brief 无 details），故能力清单按「付费口径」静态声明，
+   * 实际返回时再按「本次真拿到数据」二次裁剪（见 providers/seniverse.ts）。
+   */
+  seniverse: [
+    'current.temperature', 'current.feelsLike', 'current.humidity',
+    'current.windDirection', 'current.windSpeed', 'current.windScale',
+    'current.pressure', 'current.visibility', 'current.dewPoint', 'current.cloudCover',
+    'current.isDay',
+    'forecast.daily', 'forecast.dailyWind', 'forecast.precipitation',
+    'indices.life', 'air.quality', 'location.geo',
+  ],
+
+  /** 高德天气：实时 + 4 天预报；⚠️ 字段较少（无指数 / AQI / 体感 / 气压 / 能见度） */
+  amap: [
+    'current.temperature', 'current.humidity',
+    'current.windDirection', 'current.windScale',
+    'forecast.daily',
+  ],
+
+  /** 彩云天气：分钟级降水最准；实时 + 逐日 + 逐小时 + 指数 + AQI + 预警 */
+  caiyun: [
+    'current.temperature', 'current.feelsLike', 'current.humidity',
+    'current.windDirection', 'current.windSpeed', 'current.windGust',
+    'current.pressure', 'current.visibility', 'current.cloudCover',
+    'current.precipitation', 'current.uvIndex', 'current.isDay',
+    'forecast.daily', 'forecast.dailyWind', 'forecast.hourly',
+    'forecast.precipitation', 'forecast.uvIndexMax',
+    'astro.sunriseSunset',
+    'indices.life', 'air.quality', 'minutely.precipitation',
+  ],
+
+  /** OpenWeatherMap：字段较全（实时 + 逐日 + 逐小时 + AQI），但天气描述为英文、无中文生活指数 */
+  openWeather: [
+    'current.temperature', 'current.feelsLike', 'current.humidity',
+    'current.windDirection', 'current.windSpeed', 'current.windGust',
+    'current.pressure', 'current.visibility', 'current.cloudCover',
+    'current.precipitation',
+    'forecast.daily', 'forecast.dailyWind', 'forecast.hourly', 'forecast.precipitation',
+    'astro.sunriseSunset',
+    'air.quality',
+  ],
+
+  /** wttr.in：零配置，实时基础字段 + 逐日 + 逐小时 + 天文（无指数 / AQI / 预警） */
+  wttr: [
+    'current.temperature', 'current.feelsLike', 'current.humidity',
+    'current.windDirection', 'current.windSpeed', 'current.windGust',
+    'current.pressure', 'current.visibility', 'current.cloudCover',
+    'current.precipitation', 'current.uvIndex', 'current.isDay',
+    'forecast.daily', 'forecast.dailyWind', 'forecast.hourly',
+    'forecast.precipitation',
+    'astro.sunriseSunset', 'astro.moonPhase',
+    'location.geo',
+  ],
 };
 
 /**

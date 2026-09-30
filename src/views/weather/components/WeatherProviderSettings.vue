@@ -11,6 +11,31 @@
     <div v-else class="settings-layout">
       <!-- 左侧：数据源列表（顺序即降级顺序） -->
       <div class="provider-list">
+        <!-- 首选数据源：有值时优先请求它，失败再按下方优先级降级 -->
+        <div class="preferred-block">
+          <div class="list-title">首选数据源</div>
+          <el-select
+            v-model="draft.preferredProvider"
+            size="small"
+            class="preferred-select"
+            placeholder="自动（按优先级）"
+          >
+            <el-option label="自动（按优先级降级）" :value="null" />
+            <el-option
+              v-for="p in orderedProviders"
+              :key="p.id"
+              :label="p.label"
+              :value="p.id"
+            />
+          </el-select>
+          <p class="list-desc">
+            <template v-if="preferredHint">优先请求 {{ preferredHint }}；失败或不可用时按下方优先级降级</template>
+            <template v-else>不指定，直接按下方优先级依次尝试</template>
+          </p>
+        </div>
+
+        <div class="list-divider-block"></div>
+
         <div class="list-title">数据源优先级</div>
         <p class="list-desc">自上而下依次尝试，失败自动降级到下一个</p>
 
@@ -173,6 +198,8 @@ type ValuesMap = Partial<Record<ProviderId, Record<string, string>>>
 const draft = reactive({
   /** 数据源顺序 */
   order: [] as ProviderId[],
+  /** 首选数据源（null = 自动按优先级降级） */
+  preferredProvider: null as ProviderId | null,
   /** 各源启用状态 */
   enabled: {} as EnabledMap,
   /** 各源表单值（含敏感字段的本次输入） */
@@ -206,6 +233,23 @@ const activeSummary = computed(() =>
   orderedProviders.value.find((p) => p.id === activeId.value) ?? null
 )
 
+/**
+ * 首选数据源的提示文案（含「会被忽略」的预警）
+ *
+ * 与主进程 resolveChain 的判定保持一致：首选源若未启用或凭据未填齐，
+ * 链路会把首选忽略并完全按优先级执行 —— 这里必须提前告知用户，
+ * 否则会出现「选了首选却没生效」的困惑。
+ */
+const preferredHint = computed<string>(() => {
+  const id = draft.preferredProvider
+  if (!id) return ''
+  const p = orderedProviders.value.find((item) => item.id === id)
+  if (!p) return ''
+  if (!enabledOf(id)) return `${p.label}（当前已停用，将按优先级降级）`
+  if (!p.zeroConfig && !p.configured) return `${p.label}（凭据未填齐，将按优先级降级）`
+  return p.label
+})
+
 /** 当前选中源的表单值（与 draft 双向同步） */
 const activeValues = computed<Record<string, string>>({
   get: () => (activeId.value ? draft.values[activeId.value] ?? {} : {}),
@@ -238,6 +282,7 @@ async function onOpen() {
     const cfg = await fetchWeatherConfig()
     config.value = cfg
     draft.order = [...cfg.providerOrder]
+    draft.preferredProvider = cfg.preferredProvider ?? null
     draft.cacheTtl = cfg.cacheDuration
     draft.timeoutSec = Math.round(cfg.requestTimeout / 1000)
 
@@ -336,6 +381,7 @@ async function handleSave() {
     const res = await saveWeatherConfig({
       // 注意：draft.order 是 reactive 数组（Proxy），必须拷成普通数组再传
       providerOrder: [...draft.order],
+      preferredProvider: draft.preferredProvider,
       providers,
       requestTimeout: draft.timeoutSec * 1000,
       cacheDuration: draft.cacheTtl,
@@ -387,6 +433,23 @@ async function handleSave() {
     font-size: 0.7rem;
     line-height: 1.5;
     color: var(--el-text-color-secondary);
+  }
+
+  /* 首选数据源：与下方优先级列表用分割线区隔 */
+  .preferred-block {
+    .preferred-select {
+      width: 100%;
+      margin-top: 6px;
+    }
+
+    .list-desc {
+      margin-bottom: 0;
+    }
+  }
+
+  .list-divider-block {
+    margin: 12px 0;
+    border-top: 1px solid var(--el-border-color-lighter);
   }
 
   .provider-item {

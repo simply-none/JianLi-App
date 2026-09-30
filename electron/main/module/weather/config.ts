@@ -35,12 +35,32 @@ import type {
 /** 配置在 basic_info 中的存储键 */
 const CONFIG_DB_KEY = 'weatherConfig';
 
-/** 默认配置：和风 → Open-Meteo → 爬虫兜底 */
+/**
+ * 默认配置
+ * ------------------------------------------------------------------
+ * 降级链顺序：和风（字段最全，需 Key）→ Open-Meteo（零 Key）
+ *   → 心知 → 高德 → 彩云 → OpenWeatherMap（以上均需 Key，未配置会被自动跳过）
+ *   → wttr.in（零配置）→ 爬虫（慢且脆，始终留最后兜底）。
+ *
+ * enabled 策略：需 Key 的源默认「开」（未填凭据时 resolveChain 会标「未配置凭据」跳过，
+ * 用户填好即生效，无需再手动开启）；零配置的 wttr / openMeteo / crawler 同样默认开。
+ */
 export const DEFAULT_WEATHER_CONFIG: WeatherModuleConfig = {
-  providerOrder: ['qweather', 'openMeteo', 'crawler'],
+  providerOrder: [
+    'qweather', 'openMeteo',
+    'seniverse', 'amap', 'caiyun', 'openWeather',
+    'wttr', 'crawler',
+  ],
+  /** 默认不指定首选源，纯按 providerOrder 降级 */
+  preferredProvider: null,
   providers: {
     qweather: { enabled: true, options: {}, credentials: {} },
     openMeteo: { enabled: true, options: {}, credentials: {} },
+    seniverse: { enabled: true, options: { locationMode: 'coords' }, credentials: {} },
+    amap: { enabled: true, options: {}, credentials: {} },
+    caiyun: { enabled: true, options: {}, credentials: {} },
+    openWeather: { enabled: true, options: {}, credentials: {} },
+    wttr: { enabled: true, options: {}, credentials: {} },
     crawler: { enabled: true, options: {}, credentials: {} },
   },
   requestTimeout: 15000,
@@ -109,6 +129,8 @@ export function splitSecrets(cfg: WeatherModuleConfig): {
 } {
   const plain: any = {
     providerOrder: cfg.providerOrder,
+    // 首选数据源（非敏感），null / undefined 均落库为 null 表示「自动」
+    preferredProvider: cfg.preferredProvider ?? null,
     providers: {},
     requestTimeout: cfg.requestTimeout,
     cacheDuration: cfg.cacheDuration,
@@ -134,6 +156,20 @@ export function splitSecrets(cfg: WeatherModuleConfig): {
 }
 
 /**
+ * 校验并归一化「首选数据源」字段
+ *
+ * 必须做合法性校验：该值会被拼进降级链，若库里被手改成不存在的 id
+ * （旧版本残留 / 人工改库），必须忽略而非透传，否则链路构造会出问题。
+ * @param raw 库中读出的原始值
+ * @returns 合法的 ProviderId；非字符串 / 非法 id / 空值 一律回 null（= 自动按优先级）
+ */
+function normalizePreferred(raw: unknown): ProviderId | null {
+  if (typeof raw !== 'string' || !raw) return null;
+  const exists = getAllProviders().some((p) => p.id === raw);
+  return exists ? (raw as ProviderId) : null;
+}
+
+/**
  * 把「非敏感部分 + 解密后的敏感映射」合并回完整配置
  * @param plain 落库的非敏感部分
  * @param secret 解密后的 { `id.key`: 明文 }
@@ -143,6 +179,7 @@ export function mergeSecrets(plain: any, secret: Record<string, string>): Weathe
     providerOrder: Array.isArray(plain?.providerOrder) && plain.providerOrder.length
       ? plain.providerOrder
       : [...DEFAULT_WEATHER_CONFIG.providerOrder],
+    preferredProvider: normalizePreferred(plain?.preferredProvider),
     providers: {},
     requestTimeout: Number(plain?.requestTimeout) || DEFAULT_WEATHER_CONFIG.requestTimeout,
     cacheDuration: Number(plain?.cacheDuration) || DEFAULT_WEATHER_CONFIG.cacheDuration,
@@ -295,6 +332,7 @@ export async function getConfigForUi(): Promise<WeatherConfigForUi> {
 
   return {
     providerOrder: cfg.providerOrder,
+    preferredProvider: cfg.preferredProvider ?? null,
     providers,
     requestTimeout: cfg.requestTimeout,
     cacheDuration: cfg.cacheDuration,

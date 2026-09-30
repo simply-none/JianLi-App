@@ -16,6 +16,7 @@
 import { getProvider } from '../weatherProviders.ts';
 import { loadWeatherConfig, toRuntimeConfig, isProviderConfigured } from './config.ts';
 import { isUsableWeatherData } from './normalize.ts';
+import { lookupCityCoords } from './data/cnCities.ts';
 import type { CityRef, ProviderId, ProviderTrace, WeatherData, WeatherModuleConfig } from './types.ts';
 
 /** 跳过原因文案 */
@@ -58,12 +59,28 @@ interface ChainEntry {
 }
 
 /**
- * 解析本次请求的候选链路（顺序 = 用户配置的 providerOrder）
+ * 按「首选数据源 + 优先级」解析本次请求的候选链路
+ *
+ * 顺序规则：
+ * 1. 若配置了 preferredProvider 且该源**可用**（启用 + 凭据齐全），把它提到
+ *    「可用节点序列」的最前；
+ * 2. 若首选源存在但**不可用**（未启用 / 未配置凭据 / 未注册），**忽略首选**，
+ *    完全按 providerOrder 顺序执行（此时首选源仍会在原位被标为 skipped）；
+ * 3. 各**可用**源之间的相对顺序除首选外保持不变。
+ *
+ * ⚠️ 重排只在「可用节点」之间做，不可用节点的位置固定不动 —— 因为
+ * fetchWithFallback 是「先一次性记录全部不可用节点（按链序）→ 再循环可用节点」，
+ * 若连不可用节点一起重排，会让 trace 里 skipped 节点的展示顺序偏离用户在列表里
+ * 看到的 providerOrder（实际请求顺序不受影响，但轨迹看起来会「跳序」）。
+ *
+ * ⚠️ 首选源只是「提高尝试优先级」，不改变降级语义：它请求失败（报错 / 超时 /
+ * 数据不完整）后，fetchWithFallback 的循环会继续走后续源。
+ *
  * @param cfg 完整配置（含已解密凭据）
  * @returns 候选节点数组（含被跳过的节点，便于 trace 展示全貌）
  */
 export function resolveChain(cfg: WeatherModuleConfig): ChainEntry[] {
-  const chain: ChainEntry[] = [];
+  let chain: ChainEntry[] = [];
   const seen = new Set<ProviderId>();
 
   for (const id of cfg.providerOrder) {
@@ -84,6 +101,22 @@ export function resolveChain(cfg: WeatherModuleConfig): ChainEntry[] {
     }
     chain.push({ id, label: provider.label, usable: true });
   }
+
+  // 首选数据源：仅在「已注册且可用」时提到「可用段」最前；否则忽略（保持原顺序）
+  const preferred = cfg.preferredProvider;
+  if (preferred) {
+    const order = chain.filter((e) => e.usable);
+    const idx = order.findIndex((e) => e.id === preferred);
+    // idx === 0 表示它本就是首个可用源，重排无意义（保持原样，不扰动不可用节点位置）
+    if (idx > 0) {
+      const [hit] = order.splice(idx, 1);
+      order.unshift(hit);
+      // 把重排后的可用序列按序回填到原链的可用位置上，不可用节点原地不动
+      let cursor = 0;
+      chain = chain.map((e) => (e.usable ? order[cursor++] : e));
+    }
+  }
+
   return chain;
 }
 
@@ -133,13 +166,16 @@ export async function fetchWithFallback(
     });
   }
 
+  // 本地坐标表统一解析一次（供需要经纬度的源复用，避免各自重复计算）
+  const coords = lookupCityCoords(city, cityRef);
+
   for (const entry of chain.filter((e) => e.usable)) {
     const provider = getProvider(entry.id);
     if (!provider) continue;
 
     const started = Date.now();
     try {
-      const runtime = { ...toRuntimeConfig(entry.id, cfg), forceRefresh, cityRef };
+      const runtime = { ...toRuntimeConfig(entry.id, cfg), forceRefresh, cityRef, __coords: coords };
       const raw = await withTimeout(
         provider.fetch(city, runtime),
         cfg.requestTimeout,

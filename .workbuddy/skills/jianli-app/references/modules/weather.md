@@ -1,26 +1,48 @@
 # 天气 (weather)
 
 ## 职责
-按城市查询实时天气/预报。**数据由主进程的多数据源适配器架构获取（2026-09-29 起）**：按用户配置的优先级依次尝试「和风天气 → Open-Meteo → 内置爬虫兜底」，任一成功即返回，失败自动降级并记录轨迹。页面为动态天气背景风格（Apple Weather 式渐变 + 毛玻璃卡片），**展示字段按数据源能力清单（capabilities）分级渲染**。
+按城市查询实时天气/预报。**数据由主进程的多数据源适配器架构获取（2026-09-29 起）**：按用户配置的优先级依次尝试多个数据源，任一成功即返回，失败自动降级并记录轨迹。页面为动态天气背景风格（Apple Weather 式渐变 + 毛玻璃卡片），**展示字段按数据源能力清单（capabilities）分级渲染**。
+
+## ✅ 数据源总览（2026-09-30 已补齐 8 源）
+| # | id | 展示名 | 免费额度 | 需 Key | 定位方式 | 能力亮点 / 短板 |
+|---|---|---|---|---|---|---|
+| 1 | `qweather` | 和风天气 | 5 万次/月 | ✅ JWT/APIKEY | GeoAPI（中文+县级） | **字段最全**（26 项）；指数/AQI/预警/分钟级降水 |
+| 2 | `openMeteo` | Open-Meteo | <1 万次/日 | ❌ 零配置 | 本地坐标表 | 实况/预报很全（19 项）；**无指数/AQI/预警/月相** |
+| 3 | `seniverse` | 心知天气 | 500~1000 次/日 | ✅ 密钥 | 坐标（推荐）或城市名 | 实时+3 天预报+**6 项生活指数**+AQI；免费版实况只有温度/现象 |
+| 4 | `amap` | 高德天气 | 5000 次/月 | ✅ Web Key | **adcode**（本地表反查） | 实时+4 天预报；**字段最少**（5 项，无体感/气压/能见度/指数/AQI） |
+| 5 | `caiyun` | 彩云天气 | 500 次/日 | ✅ Token | 本地坐标表 | **分钟级降水最准**+实时/逐日/逐小时+指数+AQI |
+| 6 | `openWeather` | OpenWeatherMap | 1000 次/日 | ✅ API Key | 本地坐标表 | 实时+逐日+逐小时+AQI；描述已中文；**无生活指数/预警** |
+| 7 | `wttr` | wttr.in | 免费无限 | ❌ 零配置 | 本地坐标表 | 实时+3 天+逐小时+天文/月相；**描述需自映射中文**、服务稳定性一般 |
+| 8 | `crawler` | 中国天气网（爬虫） | — | ❌ 零配置 | Bing 搜索抓取 | 生活指数（和风不可用时的兜底）；**慢且脆**，始终留最后 |
+
+> **降级链默认顺序**：`qweather → openMeteo → seniverse → amap → caiyun → openWeather → wttr → crawler`
+> —— 原则「字段最全优先，慢且脆的爬虫永远最后」。默认 **8 源全 `enabled: true`**：需 Key 的源未填凭据时会被 `resolveChain` 标「未配置凭据」自动跳过，用户填好即生效，无需再手动开开关。
 
 ## ✅ 架构：多数据源可插拔 + 字段分级展示（2026-09-29 已实施）
 > 完整方案见 `C:\cod\jianli\天气接口免费方案调研_2026-09-29.md`（v2）。
 
-**主进程目录（`electron/main/module/weather/`，10 个文件）**：
+**主进程目录（`electron/main/module/weather/`）**：
 | 文件 | 职责 |
 |---|---|
-| `index.ts` | **IPC 注册 + 内存缓存**（入口）。缓存 key = `${providerId}:${city}`；另有 `CITY_LAST[city]` 做跨源回显；保存配置后清空两者 |
-| `registry.ts` | **降级链调度**：`resolveChain` / `fetchWithFallback` / `withTimeout` / `probeProvider`；`_trace` 记录每个源的成功/跳过/失败与耗时 |
-| `config.ts` | **配置读写 + 凭据加密**。存 SQLite `basic_info`，key = `weatherConfig`；`splitSecrets`/`mergeSecrets` 把 `secret:true` 字段抽进 `__secret` 信封 |
-| `capability.ts` | `ALL_CAPABILITIES`(26) / `CAPABILITY_LABEL` / `CAPABILITY_GROUP` / `PROVIDER_CAPABILITIES` / `hasCapabilityDomain` / `capabilityLabel` |
+| `index.ts` | **IPC 注册 + 内存缓存**（入口）。缓存 key = `${providerId}:${city}#${adcode}`；另有 `CITY_LAST[city]` 做跨源回显；保存配置后清空两者 |
+| `registry.ts` | **降级链调度**：`resolveChain` / `fetchWithFallback` / `withTimeout` / `probeProvider`；`_trace` 记录每个源的成功/跳过/失败与耗时；**统一解析 `__coords`**（见下） |
+| `config.ts` | **配置读写 + 凭据加密**。存 SQLite `basic_info`，key = `weatherConfig`；`splitSecrets`/`mergeSecrets` 把 `secret:true` 字段抽进 `__secret` 信封；`DEFAULT_WEATHER_CONFIG` 定义 8 源默认顺序与开关 |
+| `capability.ts` | `ALL_CAPABILITIES`(26) / `CAPABILITY_LABEL` / `CAPABILITY_GROUP` / `PROVIDER_CAPABILITIES`（**8 源能力矩阵**）/ `hasCapabilityDomain` / `capabilityLabel` |
 | `normalize.ts` | `normalizeCondition` / `isValidWeatherData`（严格，爬虫用）/ `isUsableWeatherData`（宽松，adapter 用）/ `compassToCn` / `degreeToCn` / `windScaleToText` / `round` / `isoToHm` / `maskSecret` / `validateQWeatherHost` |
-| `types.ts` | 全部共享类型（`WeatherData` / `WeatherProvider` / `ProviderConfigField` / `WeatherModuleConfig` / `WeatherConfigForUi` 等） |
+| `types.ts` | 全部共享类型（`WeatherData` / `WeatherProvider` / `ProviderConfigField` / `WeatherModuleConfig` / `WeatherConfigForUi` 等）；`ProviderRuntimeConfig` 含 `__coords` |
 | `providers/qweather.ts` | 和风适配器（JWT Ed25519 + GeoAPI + 6 接口 `Promise.allSettled`） |
 | `providers/openMeteo.ts` | Open-Meteo 适配器（零配置，WMO 码→中文映射） |
+| `providers/seniverse.ts` | 心知适配器（密钥 + 实况/3 天/指数/AQI） |
+| `providers/amap.ts` | 高德适配器（Web Key + adcode 双接口 base/all） |
+| `providers/caiyun.ts` | 彩云适配器（Token + 实况/分钟级降水/逐日/逐小时） |
+| `providers/openWeather.ts` | OpenWeatherMap 适配器（API Key + 实况/3h 预报/AQI） |
+| `providers/wttr.ts` | wttr.in 适配器（零配置，需显式 UA，英文描述→中文映射） |
 | `providers/crawler.ts` | 内置爬虫适配器（原实现迁移，另抽 warnings） |
 | `data/cnCities.ts` | **全国省/市/区县三级坐标表**（3237 条，DataV.GeoAtlas 快照；含 `adcode`；`lookupCityCoords` / `resolveCityCandidates` / `toShortName` / `getAllAreas`），供 Open-Meteo 定位与渲染端消歧 |
 
-**`electron/main/module/weatherProviders.ts`**（barrel）：`PROVIDERS` 数组 + `getAllProviders()` / `getProvider(id)`。**新增数据源只需在此 import 并加入数组**。此文件独立存在是为打破 `weather/config.ts` ↔ `providers` 的循环依赖。
+**`electron/main/module/weatherProviders.ts`**（barrel）：`PROVIDERS` 数组（8 源）+ `getAllProviders()` / `getProvider(id)`。**新增数据源只需：① 写 `providers/xxx.ts`；② 在此 import 并加入数组；③ 在 `capability.ts` 的 `PROVIDER_CAPABILITIES` 登记能力矩阵；④ 在 `config.ts` 的 `DEFAULT_WEATHER_CONFIG` 加进 `providerOrder` 与 `providers`。渲染端 / IPC / 配置页零改动**（配置页表单由 `configSchema` 驱动，能力 tags 由能力矩阵驱动）。此文件独立存在是为打破 `weather/config.ts` ↔ `providers` 的循环依赖。
+
+**⚠️ `__coords` 统一注入机制（2026-09-30 新增）**：`registry.fetchWithFallback` 用 `lookupCityCoords(city, cityRef)` **统一解析一次坐标**，塞进运行期配置的 `__coords` 字段，供需要经纬度的源（openMeteo / 彩云 / OpenWeather / wttr / 高德反查 adcode）直接复用 ⇒ **各 adapter 不再各自重复解析**。为 `null` 表示本地表未收录，相关源应抛「本地坐标表未收录「X」」并降级。
 
 **`electron/main/module/weather.ts` 已改为转发层**（~45 行）：只 `export { initWeather, clearWeatherCache }` + 类型/capability 转发 ⇒ `main/index.ts` 的 `['weather', initWeather]` 调用点零改动。
 
@@ -41,6 +63,59 @@
 - 现有 `constants.ts` 的 `LIFE_INDEX_ICON_MAP` 8 项**正好对应 type 3/2/5/1/9/7/6/10，图标无需新增**
 
 **Open-Meteo（兜底）**：非商用 <10000 次/日、**零 Key**、CC BY 4.0。`weather_code` 是 WMO 数字码需自建中文映射（`WMO_CODE_CN`）；**无生活指数、无空气质量、无预警、无月相**；不支持中文城市搜索 ⇒ 依赖 `data/cnCities.ts` 离线坐标表。
+
+---
+
+### 新增 5 源接入要点（2026-09-30 补齐，均据官方文档 + 实测）
+
+#### 心知天气 `seniverse`（`providers/seniverse.ts`）
+- 接口：`/weather/now.json`（实况）、`/weather/daily.json?start=0&days=3`（逐日）、`/life/suggestion.json`（生活指数）、`/air/now.json`（空气质量）；基址 `https://api.seniverse.com/v3`
+- ⚠️ **失败响应无 HTTP 错误码**（可返回 200/403），body 为 `{status:'The API key is invalid.', status_code:'AP010003'}` ⇒ **必须先判 `status_code` 且无 `results`**，再判 `res.ok`（否则错误信息只剩「HTTP 403」）
+- ⚠️ **免费版实况仅返回「现象文字 / 代码 / 气温」3 项** ⇒ 湿度/体感/风向/风级/气压/能见度/云量/露点**全部取不到**；逐日仅 3 天；指数仅 6 项且**只有 `brief` 无 `details`**（tip 回退 brief）。故 `capabilities` 必须**按实际有值二次裁剪**（写死了会出「有格子无数据」的空壳）
+- ⚠️ **坐标格式为 `纬度:经度`（`lat:lon`）**，与常见 `lon,lat` 相反
+- ⚠️ 中国城市**不支持 `clouds`（云量）与 `dew_point`（露点）**
+- 定位双模式（`configSchema.locationMode`）：默认 `coords` 走本地坐标表（精确、支持 adcode 消歧）；`name` 传中文/拼音让心知自解析（县级较弱）
+- 错误码：`AP010003` = 密钥无效
+
+#### 高德天气 `amap`（`providers/amap.ts`）
+- 单接口双模式：`https://restapi.amap.com/v3/weather/weatherInfo?key=&city=&extensions=base|all`（**实况与预报要分别请求两次**）
+- ⚠️ **`city` 官方要求 adcode，不是城市名** ⇒ 有 `cityRef.adcode` 直接用；否则**用 `__coords` 反查本地表**（惰性构建 `coordKey→adcode` 的 Map，O(1)）
+- ⚠️ **字段最少（能力矩阵仅 5 项）**：实况只有 `temperature / weather / winddirection / windpower / humidity`；**无体感 / 气压 / 能见度 / 紫外线 / 指数 / AQI**；预报最多 **4 天**（当天+3）
+- 响应 **`status: '1'` 才是成功**，`'0'` 为失败（`info` 给错误描述，如 `INVALID_USER_KEY` / `infocode:10001`）
+- 风向/风力是**文字**（如 `东北` / `≤3`），风力需正则取数字
+
+#### 彩云天气 `caiyun`（`providers/caiyun.ts`）
+- ⚠️ **Token 内嵌在 URL 路径**：`https://api.caiyunapp.com/v2.6/{token}/{经度},{纬度}/{realtime|minutely|daily|hourly}.json`
+- ⚠️ **路径中经度在前、纬度在后（`lng,lat`）**，而响应里的 `location` 字段是 `[lat,lng]`——两处顺序相反，极易写错
+- ⚠️ **单位陷阱**：`humidity` / `cloudrate` 为 **0–1 小数**需 ×100；**`pressure` 单位为 Pa（约 100000）需 ÷100 转 hPa**；`visibility` 为 km；`wind.speed` 为 km/h
+- ⚠️ **`skycon` 是英文枚举**（`CLEAR_DAY` / `PARTLY_CLOUDY_NIGHT` / `LIGHT_RAIN`…）需本地映射中文；可用 `_NIGHT` 后缀判昼夜
+- **分钟级降水**（`minutely.json`）是特色：`result.minutely.{description, precipitation_2h}`（逐 5 分钟、2 小时共 24 点）
+- 失败：`{status:'failed', error:'token is invalid'}`（HTTP 400/403）⇒ 同样**先读 body 再判 HTTP**
+- 生活指数只有 `ultraviolet` / `comfort`（免费版）
+
+#### OpenWeatherMap `openWeather`（`providers/openWeather.ts`）
+- 接口：`/data/2.5/weather`（实况）、`/data/2.5/forecast`（**5 天 / 3 小时**采样，非逐日）、`/data/2.5/air_pollution`（AQI）；基址 `https://api.openweathermap.org`
+- ⚠️ **内置按城市名 geocoding（`q=`）已废弃且不支持中文** ⇒ 统一用本地坐标表的 `lat`/`lon`
+- 参数：`units=metric`（摄氏度）、`lang=zh_cn`（**描述已中文**）
+- ⚠️ **免费版无逐日接口** ⇒ 逐日预报由 **3 小时采样按天聚合**（`tsToDate` 分组取 max/min）
+- ⚠️ **免费版实况不返回 `dew_point`**（需 One Call 3.0）⇒ 能力矩阵不声明
+- ⚠️ **免费版无天气预警**（Alert API 需付费）⇒ 不声明 `alert.warning`
+- `sunrise` / `sunset` 是 **UTC 秒级时间戳**，须用响应 `timezone`（秒偏移）换算本地时刻
+- AQI 是 **1~5 整数档**，需映射中文等级；错误：HTTP 401（Key 无效）/ 429（超限），body 含 `message`
+
+#### wttr.in `wttr`（`providers/wttr.ts`）
+- 零配置；JSON 模式 = URL 追加 `?format=j1`；基址 `https://wttr.in`
+- ⚠️ **必须显式发送 `User-Agent`**：服务端**按 UA 判断输出格式**，不带 UA（或默认 curl UA）会返回**纯文本**而非 JSON，`JSON.parse` 直接失败。本 adapter 发送 `JianliApp-Weather/1.0`，并额外 try/catch 兜底把纯文本错误页转成可读报错
+- ⚠️ **位置解析精度差**（中文名走 OpenCage，实测「南康」→ `Nankanghsien` 尚可但常有偏差）⇒ 统一用**坐标模式** `/{纬度},{经度}?format=j1`（**lat,lon 顺序**）
+- ⚠️ **`lang=zh` 实测不生效**（仍返回英文）⇒ 自建 `DESC_CN` 英文→中文映射（精确匹配 + 关键词兜底两级）
+- ⚠️ **`astronomy.sunrise/sunset` 是 12 小时制文本**（`"6:09 AM"` / `"5:59 PM"`），**不是 ISO** ⇒ 必须 AM/PM → 24h 换算（`to24h()`），否则界面显示原文
+- 数据来自 World Weather Online；结构：`current_condition[0]` / `nearest_area[0]` / `weather[]`（逐日，含 `astronomy[0]`、`hourly[]` 3 小时粒度）
+- 免费服务稳定性一般 ⇒ 置于降级链靠后位置
+
+> **通用教训（本次 5 源实测）**：
+> 1. **`Promise.allSettled` 会吞掉主请求的具体错误** ⇒ 必需项（实况）失败时必须**把 `settled[0].reason.message` 抛出来**，否则用户只看到「XX 实时天气获取失败」，无法区分是 Key 错、超时还是网络问题。**五源已全部改为透传真实原因**。
+> 2. **部分 API 错误走 HTTP 200**（心知 / 彩云 / 高德）⇒ **必须先解析 body 判业务错误码，再判 `res.ok`**，顺序反了错误信息就只剩 HTTP 状态码。
+> 3. **每个源的「免费版缩水」必须反映到 capabilities 而非硬编码**：免费版字段缺失是常态（心知实况只 3 项、高德只 5 项），静态能力矩阵声明「理论上限」，运行时按「本次真有值」裁剪。
 
 > **⚠️ Open-Meteo 是网格插值模型，没有「城市」概念（2026-09-30 实测确认）**：
 > - **全球任意合法坐标都能查**（WGS84），连南极内陆(−47.8°C)、北冰洋、马里亚纳海沟都返回数据 ⇒ **不存在「收录/未收录」**，它不依赖城市数据库；
@@ -158,10 +233,115 @@ hint adcode=410402 新华区 → 113.299,33.738  (平顶山) ← 无 hint 时恒
 - `src/views/weather/cityData.ts`：**搜索建议（委托主进程全量快照，异步）**；`CityEntry` 含 `ref: CityRef`；`CITY_LEVEL_LABEL`
 - `src/views/weather/cityResolver.ts`：**城市消歧**（候选查询缓存 / 记住选择 / CityRef 构造）
 - `src/views/weather/db.ts`：天气表 `weather_data`（city 主键 / data JSON / updated_at / is_starred）读写；**data 存 `WeatherData` 全量 JSON ⇒ 新增的 `capabilities`/`_trace` 自动持久化，无需迁移**；`CityRef` 以 `_cityRef` 键内嵌在 data JSON 里（`saveWeatherToDb(city, data, cityRef?)`，`WeatherRow.cityRef` 读出时**自动摘除**）
-- `src/views/weather/composables/`：`useWeather`（数据+缓存，支持 `providerId`，记降级链日志）、`useCityHistory`、`useWeatherTheme`、`useDebugLog`
-- `src/views/weather/components/`：`WeatherSearch` `WeatherHero` `WeatherDetails` `DailyForecast` `LifeIndices` `WeatherSkeleton` `DebugPanel` + **`HourlyForecast` `AirQuality` `WeatherAlert` `MinutelyRain` `AstroCard` `SourceBadge` `WeatherProviderSettings` `ProviderForm`**
+- `src/views/weather/composables/`：`useWeather`（数据+缓存，支持 `providerId`，记降级链日志）、`useCityHistory`、`useWeatherTheme`、`useDebugLog`、**`useForecastView`（预报区块 列表/图表 形态，含 localStorage 持久化）**
+- `src/views/weather/components/`：`WeatherSearch` `WeatherHero` `WeatherDetails` `DailyForecast` `LifeIndices` `WeatherSkeleton` `DebugPanel` + **`HourlyForecast` `AirQuality` `WeatherAlert` `MinutelyRain` `AstroCard` `SourceBadge` `WeatherProviderSettings` `ProviderForm`** + **`HourlyForecastChart` `DailyForecastChart`（ECharts 图表形态）**
 - 主进程：`electron/main/module/weather/`（见上）、`weatherProviders.ts`（registry barrel）、`weather.ts`（转发层）、`crawler.ts`（通用爬虫工具）、`location.ts`、`dialog.ts`（`save-debug-data`）
 - 无独立 store；城市历史走 localStorage，天气缓存走主进程内存 `WEATHER_CACHE` / `CITY_LAST`
+
+## ✅ 预报区块「列表 / 图表」双形态（2026-09-30 实施）
+
+**需求**：逐小时预报、未来预报两个区块，右侧加【列表 / 图表】切换按钮；列表 = 原实现，图表 = ECharts。
+
+**形态记忆**：`composables/useForecastView.ts`（模块级单例 `ref`），存 `localStorage['weather-forecast-view']` = `{hourly:'list'|'chart', daily:'list'|'chart'}`。
+- **两个区块各自独立记忆**（`useForecastView('hourly')` / `useForecastView('daily')`）
+- 读取时**逐字段校验**（非 `'chart'` 一律回落 `'list'`），脏数据不会导致渲染异常
+- 写入包 try/catch（隐私模式 / 配额超限静默失败）
+- **默认 `list`** ⇒ 与改造前行为一致，零迁移
+
+**⚠️⚠️ 关键陷阱：`useForecastView(key)` 必须返回「可写 computed」，绝不能返回 `ref(state.value[key])`**（2026-09-30 修）
+初版写成 `return ref(state.value[key]) as Ref<ForecastViewMode>`，症状是**切换后重进页面又变回列表**（localStorage 从未被写入）。根因两层：
+1. **游离 ref**：`ref(x)` 只是「取值拷贝」，新建的 ref 与模块级 `state` **毫无关联**。组件里 `view = 'chart'` 改的是这个临时 ref，`state` 纹丝不动 ⇒ 持久化 `watch(state)` **永不触发**，localStorage 零写入。
+2. **值拷贝语义**：即使不落盘，组件重挂载（路由切走再回来）后 `ref` 重新初始化，也立即丢回默认值。
+
+正确写法（返回**绑定单例的可写 computed**，组件侧 `view === 'chart'` / `view = opt.value` 用法零改动）：
+```ts
+export function useForecastView(key: keyof ForecastViewState): ComputedRef<ForecastViewMode> {
+  return computed<ForecastViewMode>({
+    get: () => state.value[key],
+    set: (v) => {
+      if (state.value[key] === v) return          // 同值短路
+      const next = { ...state.value, [key]: v }   // 整体替换，确保 watch 命中
+      state.value = next
+      persist(next)                                // ⚠️ 同步落盘，不等 watch 异步 flush
+    },
+  })
+}
+```
+**⚠️ 落盘必须同步**：模块级 `watch` 默认 `flush: 'pre'`（异步）。若只依赖 watch，用户「切到图表后立刻刷新/关页」时可能来不及执行 ⇒ 状态丢失。因此在 `set` 里**显式同步调 `persist()`**，`watch` 仅作兜底（覆盖 `useForecastViewState().value = ...` 这类直接改动）。
+
+**⚠️ 通用教训**：凡是「模块级单例状态 + 按 key 取子字段」的 composable，**返回值必须绑定到单例**（可写 `computed` / `toRef`），写成 `ref(单例.value[key])` 会静默失效——不报错、类型也过，只是持久化和跨组件共享全部失灵。
+
+
+**图表设计**：
+
+| 区块 | series | 说明 |
+|---|---|---|
+| `HourlyForecastChart.vue` | 温度折线（平滑 + 面积渐变，`yAxisIndex:0`）+ 降水概率柱（`yAxisIndex:1`，0–100%） | 双 Y 轴；首点 x 轴标签为「现在」；温度轴 `min/max` 取 `[min-pad, max+pad]`（`pad = max(跨度×0.25, 2)`）防止折线贴顶贴底 |
+| `DailyForecastChart.vue` | 高/低温双折线 + **温差区间带**（`custom` series 画圆角矩形） | 区间带等价于列表态的「温度范围条」，区间带宽度 `min(网格宽/天数/2.6, 22)` 并设下限 4px 高度保证可见 |
+
+- **图例**：两图都有（`legend`，右上角 `top:0, right:0`），降水概率缺失时 hourly 图例只显示「温度」
+- **x 轴标签抽稀**：`labelInterval(count) = count<=8 ? 0 : ceil(count/8)-1`（只对 `xAxis.axisLabel.interval` 有效）
+- **series 数值标签抽稀**：⚠️ **`series.label` 没有 `interval` 选项**（只有 `xAxis.axisLabel` 有），抽稀必须走 `formatter` 回调返回空串：`formatter: (p) => p.dataIndex % step === 0 ? \`${p.value}°\` : ''`
+- **tooltip**：`trigger:'axis'` + `confine:true`，深色半透明底（`rgba(20,26,40,0.88)`）配白字，避免在渐变背景上不可读；hourly 显示「温度 + 降水概率」，daily 显示「描述 + 最高/最低 + 风」
+
+**⚠️ 主题适配的关键取舍：图表不读 CSS 变量**
+天气页是**动态渐变背景 + 毛玻璃卡片**（`.glass-card`），页面上根本没有明暗主题变量体系。若照搬 `HabitHeatmap.vue` 那套 `readVar('--text-muted')` 取色，在渐变底上会**发灰发糊**。因此两个图表组件**直接硬编码白色系色值**，与既有 `.hour-col` / `.section-title` / `.range-bar` 保持一致：
+```
+文字 rgba(255,255,255,.92) / 次要 .65 / 极淡 .45   网格 rgba(255,255,255,.12)
+温度 #ffd57c（暖黄）  降水 #9fd6ff（浅蓝）  低温 #7cc4f5（与列表范围条渐变同源）
+```
+
+**切换按钮**：`.view-switch` 分段控件（两个 24×22 图标按钮，`List` / `ChartLine`），`active` 态 `rgba(255,255,255,.28)` 高亮。
+- ⚠️ **hourly 区块的 `.source-tag` 原占 `margin-left:auto`**，加按钮后靠「source-tag 保持 auto + 按钮 `margin-left:8px`」；daily 区块无 source-tag，按钮用 `margin-left:auto` 推到右端。
+
+**新增 Lucide 图标**：`ChartLine`（`List` 原本已注册）⇒ **必须在 `LucideIcon.vue` 的 `import` 与 `nameMap` 两处同时加**（本次已加在文件末尾的「天气列表/图表切换用图标」分组）。
+
+**⚠️ ECharts 类型坑（本次踩到，`vue-tsc` 才报，纯 `tsc` 查不出 `.vue` 内部）**：
+1. **`series.label` 无 `interval`** ⇒ 报 `Object literal may only specify known properties`，改用 `formatter` 返回空串抽稀。
+2. **`series.label.position` 会被推断成 `string`**（bar 的 `position` 是联合字面量类型）⇒ 加 `as const`。
+3. **`CustomSeriesRenderItemParams.coordSys` 只声明了 `{type:string}`** ⇒ 取 **`api.getWidth()`** 而非 `params.coordSys.width`。
+4. **`label.formatter` 参数必须用 `echarts.DefaultLabelFormatterCallbackParams`**，自定义 `{dataIndex:number; value:number}` 会因 `value` 联合类型不兼容而报 TS2322。
+
+**实测验证**（Node + 真 echarts SSR，`echarts.init(null,null,{renderer:'svg',ssr:true})`）：5 个场景全部渲染成功——hourly 24 条（有/无降水）、daily 7 条 / 1 条（无区间带）/ 15 条（标签抽稀），SVG 体积与元素数合理；tooltip 与 label formatter 实调输出正确；区间带坐标换算逐日验证（宽度 22、高度=温差）。校验 `vue-tsc --noEmit -p tsconfig.json` → **exit 0**。
+> **方法论**：`.vue` 内的 TS 错误 `tsc -p tsconfig.json` **查不出来**（它不解析 SFC），必须用 **`vue-tsc`**；ECharts option 的运行时正确性可用 **SSR 渲染器在 Node 里真跑一遍**（不需要 jsdom / canvas），比只看类型可靠。
+
+
+## ✅ 首选数据源 preferredProvider（2026-09-30 实施）
+
+**需求**：数据源配置原本只有「优先级」，再加一个「首选数据源」字段——有值时优先用该源，该源无值/请求失败则按优先级降级。
+
+**配置字段**：`WeatherModuleConfig.preferredProvider?: ProviderId | null`（`null` / `undefined` 均表示「自动，纯按 providerOrder」）。
+- `WeatherConfigForUi.preferredProvider: ProviderId | null` 回传渲染端
+- `weather:save-config` payload 加 `preferredProvider?: ProviderId | null`，语义 **`undefined` = 保持原值**、**`null` = 显式「自动」**、字符串 = 指定源
+
+**⚠️ 落库归一化 `normalizePreferred(raw)`（`config.ts`）**：`mergeSecrets` 读库时必须校验，**非字符串 / 空串 / 不在已注册 Provider 列表里的值一律回 `null`**（否则脏值会让 UI 下拉显示空白且语义不明）。`splitSecrets` 落库时 `cfg.preferredProvider ?? null` 抹平 `undefined`。
+
+**降级链重排 `resolveChain`（`registry.ts`）—— 只对「可用节点」重排，不可用节点原地不动**：
+```ts
+const preferred = cfg.preferredProvider;
+if (preferred) {
+  const order = chain.filter((e) => e.usable);
+  const idx = order.findIndex((e) => e.id === preferred);
+  if (idx > 0) {                      // idx === 0 ⇒ 本就是首个可用源，跳过
+    const [hit] = order.splice(idx, 1);
+    order.unshift(hit);
+    let cursor = 0;
+    chain = chain.map((e) => (e.usable ? order[cursor++] : e));  // 可用位回填，不可用位不动
+  }
+}
+```
+**为什么只在可用节点间重排**：`fetchWithFallback` 是「先一次性记录**全部**不可用节点（按链序）→ 再循环可用节点」。若连不可用节点一起 `splice/unshift`，`_trace` 里 skipped 节点的展示顺序就会偏离用户列表所见（实际请求顺序其实不变，但轨迹看起来「跳序」）。分开处理可让 **trace 顺序 ≡ 用户配置的可见顺序**。
+
+**语义边界（三条，UI 提示文案即据此）**：
+1. 首选源**可用**（启用 + 凭据齐全）⇒ 提到可用段最前，优先请求
+2. 首选源**不可用**（未启用 / 未配置凭据 / 未注册）⇒ **忽略首选**，完全按 providerOrder（它在原位被标 `未启用` / `未配置凭据`）
+3. 首选源**请求失败**（报错 / 超时 / 数据不完整）⇒ 记 trace 后继续按 providerOrder 降级其余源（`fetchWithFallback` 循环天然支持，**零改动**）
+
+**UI（`WeatherProviderSettings.vue`）**：`el-select` 放在「数据源优先级」列表**上方**（`.preferred-block` + `.list-divider-block` 分割线），选项 = `自动（按优先级降级）`（`:value="null"`）+ 8 个源。`preferredHint` computed 会在「所选源已停用 / 凭据未填齐」时给出预警文案（提示首选会被忽略）。
+
+**实测验证**：从真实源文件截取 `resolveChain` / `normalizePreferred` 源码，`ts.transpileModule` 编译后沙箱执行 ⇒ **25 项断言全通过**。覆盖：A 未指定 / B 首选可用源 / C 首选被停用 / D 首选缺凭据 / D2 首选补齐凭据 / **E 首选已是首个可用源 ⇒ 整链幂等不变**（含不可用节点位置）/ **E2 首选前方有不可用节点 ⇒ 只提可用节点、不可用节点原地不动** / F 首选原本在末尾 / G 其余源相对序不变 / H `normalizePreferred` 10 种脏值 / I 幂等性 / J 全不可用不抛错。双端类型校验 `tsc -p tsconfig.node.json` + `vue-tsc -p tsconfig.json` → **均 exit 0**。
+> **方法论**：主进程模块依赖链深（`electron-store` 需 Electron app 上下文，硬引会报 `Please specify the projectName option`），"把整个模块图跑起来"代价高。**从真实源文件截取待测函数源码 + `ts.transpileModule` + `new Function` 沙箱**是轻量替代——测的仍是真实代码，不是复刻版。
+
 
 ## 路由
 - `RouteNames.WEATHER` → path `/weather`
@@ -195,7 +375,7 @@ hint adcode=410402 新华区 → 113.299,33.738  (平顶山) ← 无 hint 时恒
 
 ## 数据源配置界面（抽屉）
 - 入口：天气页搜索栏右侧「数据源」按钮（`WeatherSearch.vue` emit `openSettings`）→ `index.vue` 挂 `WeatherProviderSettings`（`el-drawer`，620px，rtl）
-- `WeatherProviderSettings.vue`：左侧源列表（**可上移/下移调整优先级** + 启停开关 + 免配置/已配置/待配置 tag）+ 全局缓存时长与超时；右侧选中源的动态表单 + 「测试连接」按钮（调 `weather:probe-provider`，**用草稿值**）
+- `WeatherProviderSettings.vue`：**顶部「首选数据源」下拉**（`.preferred-block`，选项 `自动（按优先级降级）` + 8 源，`preferredHint` 对「已停用 / 凭据未填齐」的首选源给预警）→ 下方源列表（**可上移/下移调整优先级** + 启停开关 + 免配置/已配置/待配置 tag）+ 全局缓存时长与超时；右侧选中源的动态表单 + 「测试连接」按钮（调 `weather:probe-provider`，**用草稿值**）
 - `ProviderForm.vue`：按 `configSchema` 动态渲染（text/password/textarea/select/number），支持 `when` 条件显示（如和风 `authMode === 'jwt'` 才显 kid/projectId/developerId/privateKey）；敏感字段**留空 = 保持原值**，占位提示显示「已保存：`abc****xyz`」；底部按 `CAPABILITY_GROUP` 罗列该源支持的能力 tags
 - 保存成功后 `index.vue` 的 `handleSettingsSaved` 会**强制刷新当前城市**，让新链路立即生效
 
@@ -205,8 +385,14 @@ hint adcode=410402 新华区 → 113.299,33.738  (平顶山) ← 无 hint 时恒
 - **`../types` vs `./types`**：`src/views/weather/` 目录内的**文件**（`capability.ts`/`api.ts`）必须用 `./types`，写成 `../types` 会解析到不存在的 `src/views/types`（TS2307）；而**子目录**里的组件才用 `../types`
 - **⚠️ 传 IPC 的 payload 必须先剥 Proxy**（2026-09-29 修）：Electron IPC 用结构化克隆算法，**Proxy 不可克隆**。Vue `reactive()` / `ref()` 包装的值都是 Proxy，直接 `invoke` 会抛 **`An object could not be cloned.`**（表象是「保存失败」）。已修位置：① `WeatherProviderSettings.vue` 的 `handleSave` 传 `providerOrder: [...draft.order]`（原先直接传 `draft.order`，是 reactive Proxy 数组 —— 本次报错的根因）；② `api.ts` 新增 `toPlain()` **统一在 invoke 前剥离**：`toRaw()` 递归下钻（`toRaw` 只剥最外层，深层仍是 Proxy）+ 丢弃函数/Symbol。**凡是把 reactive 数据发给主进程，一律经 `toPlain()` 或先展开成普通数组/对象。**
 - **`Partial<Record<ProviderId, X>>` 直索引会报 TS7053**（隐式 any）⇒ 加一层类型安全读写函数，别用 `as any`
-- **新增 Lucide 图标必须同时改 `LucideIcon.vue` 的 import 与 nameMap 两处**（漏一处静默 fallback 成 CloudAlert）。天气模块**已注册**的扩展图标：`Leaf` `Activity` `CloudSunRain` `Tornado` `Waves` `UmbrellaIcon`。⚠️ **`Cyclone` 在 `@lucide/vue` 中不存在**（会报 TS2305），阵风用 `Wind`、气旋类语义用 `Tornado`
+- **新增 Lucide 图标必须同时改 `LucideIcon.vue` 的 import 与 nameMap 两处**（漏一处静默 fallback 成 CloudAlert）。天气模块**已注册**的扩展图标：`Leaf` `Activity` `CloudSunRain` `Tornado` `Waves` `UmbrellaIcon` `ChartLine`（`List` 早已注册）。⚠️ **`Cyclone` 在 `@lucide/vue` 中不存在**（会报 TS2305），阵风用 `Wind`、气旋类语义用 `Tornado`
+- **⚠️ 校验 `.vue` 必须用 `vue-tsc`，`tsc` 会假绿**：`tsc -p tsconfig.json` **不解析 SFC**，`.vue` 内 `<script setup>` 的类型错误它**完全不报**（本次 4 个 ECharts 类型错误全是 `vue-tsc` 抓到的）。命令：`node ./node_modules/vue-tsc/bin/vue-tsc.js --noEmit -p tsconfig.json`
+- **⚠️ ECharts option 的运行时正确性可用 SSR 渲染器在 Node 里实跑**：`echarts.init(null, null, { renderer: 'svg', ssr: true, width: 800, height: 200 })` **不需要 jsdom / canvas**，`setOption` + `renderToSVGString()` 即可验证 option 合法性与元素数量，比只看类型可靠得多
+- **⚠️ ECharts 图表不要读 CSS 变量**（本页特有）：天气页是动态渐变背景 + 毛玻璃卡片，**没有明暗主题变量体系**，`readVar('--text-muted')` 一类取色在渐变底上会发灰发糊。图表一律用白色系硬编码色值（见「预报区块 列表/图表 双形态」小节）
 - **降级链不降级「配置错误」**：和风 host 非法 / 私钥格式错等会在 `probe` 阶段就拦下并给出中文提示；运行时失败会写入 `_trace` 的 `error`
+- **⚠️ 首选数据源只重排「可用节点」，不可用节点必须原地不动**（2026-09-30）：`fetchWithFallback` 先一次性记录**全部**不可用节点再循环可用节点，若重排时把不可用节点也 `splice/unshift`，`_trace` 的 skipped 顺序就会与用户列表所见不一致。详见上方「首选数据源 preferredProvider」小节。
+- **⚠️ `preferredProvider` 读库必须过 `normalizePreferred`**：非字符串 / 空串 / 不在已注册列表的值一律回 `null`；`save-config` 的 payload 语义是 **`undefined` = 保持原值**、**`null` = 显式「自动」**，两者不可混用（`undefined` 会被当成「不改」而不落库）。
+- **⚠️ 单例 composable 按 key 取值必须用可写 `computed`，禁用 `ref(单例.value[key])`**（2026-09-30）：后者是游离值拷贝，静默断掉持久化与跨组件共享（类型检查也查不出）。且持久化要**同步落盘**，不能只靠 `watch` 的异步 flush。详见「预报区块 列表/图表 双形态」小节。
 - **Open-Meteo 坐标系已全国覆盖**：`cnCities.ts` 收录全国 34 省 + 363 地级市 + 2840 区县（共 3237 条），查不到的只剩极冷门乡镇/村级名称 ⇒ 未命中时降级（这是刻意的诚实行为，不做坐标造假）。**更新数据见上方「坐标表」小节，不要手改数据行**。
 - **⚠️ 重名城市必须带 `CityRef`**：`朝阳区`/`新华区`/`城区` 等 30 组重名，**不带 adcode 时结果由排序决定且用户无法察觉**（返回的是真实天气，只是几百公里外）。改动查询链路时**务必把 `cityRef` 一路透传**（`index.vue` → `useWeather.loadByCity` → `api.fetchWeather` → 主进程 `registry.fetchWithFallback` → `openMeteo`），断一环就退回「永远查到知名城市那个」的老行为。
 - **⚠️ 主进程缓存 key 必须含 adcode**：`index.ts` 的 `refKey = cityRef?.adcode ? \`${city}#${cityRef.adcode}\` : city`，否则北京朝阳与长春朝阳**共用一条缓存**（先查哪个就一直返回哪个）。

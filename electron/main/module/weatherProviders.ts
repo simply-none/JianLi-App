@@ -13,11 +13,24 @@ import type { WeatherProvider } from './weather/types.ts';
 import { openMeteoProvider } from './weather/providers/openMeteo.ts';
 import { qweatherProvider } from './weather/providers/qweather.ts';
 import { crawlerProvider } from './weather/providers/crawler.ts';
+import { seniverseProvider } from './weather/providers/seniverse.ts';
+import { amapProvider } from './weather/providers/amap.ts';
+import { caiyunProvider } from './weather/providers/caiyun.ts';
+import { openWeatherProvider } from './weather/providers/openWeather.ts';
+import { wttrProvider } from './weather/providers/wttr.ts';
 
-/** 全部已注册的 Provider */
+/**
+ * 全部已注册的 Provider
+ * 顺序即配置页默认展示顺序；实际调度顺序由用户的 providerOrder 决定。
+ */
 export const PROVIDERS: WeatherProvider[] = [
   qweatherProvider,
   openMeteoProvider,
+  seniverseProvider,
+  amapProvider,
+  caiyunProvider,
+  openWeatherProvider,
+  wttrProvider,
   crawlerProvider,
 ];
 
