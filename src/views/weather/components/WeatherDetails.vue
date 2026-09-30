@@ -130,8 +130,8 @@ const detailItems = computed(() =>
     width: 44px;
     height: 44px;
     border-radius: 12px;
-    background: rgba(255, 255, 255, 0.14);
-    color: #fff;
+    background: var(--glass-bg);
+    color: var(--glass-text-primary);
     flex-shrink: 0;
   }
 
@@ -140,14 +140,14 @@ const detailItems = computed(() =>
 
     .detail-label {
       font-size: 0.75rem;
-      color: rgba(255, 255, 255, 0.65);
+      color: var(--glass-text-secondary);
       margin-bottom: 2px;
     }
 
     .detail-value {
       font-size: 1.05rem;
       font-weight: 600;
-      color: #fff;
+      color: var(--glass-text-primary);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;

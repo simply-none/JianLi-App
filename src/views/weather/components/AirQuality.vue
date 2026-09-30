@@ -92,12 +92,12 @@ const pointerLeft = computed(() => Math.min(Math.max((props.air.aqi / 500) * 100
   align-items: center;
   gap: 6px;
   font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--glass-text-primary);
 
   .source-tag {
     margin-left: auto;
     font-size: 0.72rem;
-    color: rgba(255, 255, 255, 0.55);
+    color: var(--glass-text-muted);
   }
 }
 
@@ -124,7 +124,7 @@ const pointerLeft = computed(() => Math.min(Math.max((props.air.aqi / 500) * 100
       padding: 2px 12px;
       border-radius: 999px;
       font-size: 0.72rem;
-      color: #fff;
+      color: var(--glass-text-primary);
     }
   }
 
@@ -145,7 +145,7 @@ const pointerLeft = computed(() => Math.min(Math.max((props.air.aqi / 500) * 100
 
       span {
         font-size: 0.62rem;
-        color: #fff;
+        color: var(--glass-text-primary);
         opacity: 0.9;
       }
     }
@@ -157,7 +157,7 @@ const pointerLeft = computed(() => Math.min(Math.max((props.air.aqi / 500) * 100
       height: 0;
       border-left: 5px solid transparent;
       border-right: 5px solid transparent;
-      border-bottom: 7px solid #fff;
+      border-bottom: 7px solid var(--glass-mark);
       transform: translateX(-50%);
       transition: left 0.3s;
     }
@@ -172,13 +172,13 @@ const pointerLeft = computed(() => Math.min(Math.max((props.air.aqi / 500) * 100
 
     .pm-label {
       font-size: 0.7rem;
-      color: rgba(255, 255, 255, 0.6);
+      color: var(--glass-text-secondary);
     }
 
     .pm-value {
       font-size: 0.9rem;
       font-weight: 600;
-      color: #fff;
+      color: var(--glass-text-primary);
     }
   }
 }

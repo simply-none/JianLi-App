@@ -134,7 +134,7 @@ function getIcon(conditionText: string): string {
     gap: 6px;
     font-size: 0.85rem;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.85);
+    color: var(--glass-text-primary);
     margin-bottom: 10px;
   }
 
@@ -146,8 +146,8 @@ function getIcon(conditionText: string): string {
     margin-left: auto;
     padding: 2px;
     border-radius: 8px;
-    background: rgba(255, 255, 255, 0.12);
-    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
 
     .switch-btn {
       display: flex;
@@ -159,18 +159,18 @@ function getIcon(conditionText: string): string {
       border: none;
       border-radius: 6px;
       background: transparent;
-      color: rgba(255, 255, 255, 0.65);
+      color: var(--glass-text-secondary);
       cursor: pointer;
       transition: background 0.2s, color 0.2s;
 
       &:hover {
-        color: #fff;
-        background: rgba(255, 255, 255, 0.14);
+        color: var(--glass-text-primary);
+        background: var(--glass-bg);
       }
 
       &.active {
-        color: #fff;
-        background: rgba(255, 255, 255, 0.28);
+        color: var(--glass-text-primary);
+        background: var(--glass-hover);
       }
     }
   }
@@ -192,14 +192,14 @@ function getIcon(conditionText: string): string {
     padding: 12px 0;
 
     & + .forecast-row {
-      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      border-top: 1px solid var(--glass-divider);
     }
 
     .row-date {
       width: 72px;
       flex-shrink: 0;
       font-size: 0.85rem;
-      color: rgba(255, 255, 255, 0.9);
+      color: var(--glass-text-primary);
     }
 
     .row-weather {
@@ -208,11 +208,11 @@ function getIcon(conditionText: string): string {
       gap: 8px;
       width: 130px;
       flex-shrink: 0;
-      color: #fff;
+      color: var(--glass-text-primary);
 
       .row-desc {
         font-size: 0.8rem;
-        color: rgba(255, 255, 255, 0.8);
+        color: var(--glass-text-secondary);
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -226,7 +226,7 @@ function getIcon(conditionText: string): string {
       width: 150px;
       flex-shrink: 0;
       font-size: 0.75rem;
-      color: rgba(255, 255, 255, 0.7);
+      color: var(--glass-text-secondary);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -242,14 +242,14 @@ function getIcon(conditionText: string): string {
         width: 32px;
         text-align: right;
         font-size: 0.85rem;
-        color: rgba(255, 255, 255, 0.65);
+        color: var(--glass-text-secondary);
       }
       .range-track {
         position: relative;
         flex: 1;
         height: 6px;
         border-radius: 3px;
-        background: rgba(255, 255, 255, 0.15);
+        background: var(--glass-bg);
         overflow: hidden;
 
         .range-bar {
@@ -266,7 +266,7 @@ function getIcon(conditionText: string): string {
         width: 32px;
         font-size: 0.85rem;
         font-weight: 600;
-        color: #fff;
+        color: var(--glass-text-primary);
       }
     }
   }

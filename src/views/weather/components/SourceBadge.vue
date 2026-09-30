@@ -79,9 +79,9 @@ const tooltip = computed(() => {
     align-self: flex-start;
     padding: 3px 10px;
     border-radius: 999px;
-    color: rgba(255, 255, 255, 0.8);
-    background: rgba(255, 255, 255, 0.12);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: var(--glass-text-secondary);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
     cursor: default;
 
     .badge-label {
@@ -94,7 +94,7 @@ const tooltip = computed(() => {
       gap: 3px;
       margin-left: 4px;
       padding-left: 7px;
-      border-left: 1px solid rgba(255, 255, 255, 0.2);
+      border-left: 1px solid var(--glass-border);
       color: #ffd57c;
     }
   }
@@ -116,7 +116,7 @@ const tooltip = computed(() => {
         color: #9fe6b0;
       }
       &.fail {
-        color: rgba(255, 255, 255, 0.5);
+        color: var(--glass-text-muted);
       }
 
       .trace-label {
@@ -124,7 +124,7 @@ const tooltip = computed(() => {
       }
 
       .trace-meta {
-        color: rgba(255, 255, 255, 0.45);
+        color: var(--glass-text-muted);
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;

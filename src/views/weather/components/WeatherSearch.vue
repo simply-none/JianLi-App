@@ -339,14 +339,14 @@ function handleTtlChange(ttl: number) {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    background: rgba(255, 255, 255, 0.12);
-    border: 1px solid rgba(255, 255, 255, 0.22);
-    color: rgba(255, 255, 255, 0.85);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    color: var(--glass-text-primary);
 
     &:hover {
-      background: rgba(255, 255, 255, 0.2);
-      border-color: rgba(255, 255, 255, 0.4);
-      color: #fff;
+      background: var(--glass-bg-strong);
+      border-color: var(--glass-border-strong);
+      color: var(--glass-text-primary);
     }
 
     .btn-cache-text {
@@ -359,14 +359,14 @@ function handleTtlChange(ttl: number) {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    background: rgba(255, 255, 255, 0.12);
-    border: 1px solid rgba(255, 255, 255, 0.22);
-    color: rgba(255, 255, 255, 0.85);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    color: var(--glass-text-primary);
 
     &:hover {
-      background: rgba(255, 255, 255, 0.2);
-      border-color: rgba(255, 255, 255, 0.4);
-      color: #fff;
+      background: var(--glass-bg-strong);
+      border-color: var(--glass-border-strong);
+      color: var(--glass-text-primary);
     }
 
     .btn-source-text {
@@ -384,9 +384,9 @@ function handleTtlChange(ttl: number) {
   padding: 4px 10px;
   border-radius: 999px;
   font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.88);
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: var(--glass-text-primary);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
 
   .active-loc-tip {
     padding: 1px 6px;
@@ -512,7 +512,7 @@ function handleTtlChange(ttl: number) {
     align-items: center;
     gap: 6px;
     font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.75);
+    color: var(--glass-text-secondary);
     margin-bottom: 8px;
 
     .clear-btn {
@@ -521,14 +521,14 @@ function handleTtlChange(ttl: number) {
       border: none;
       cursor: pointer;
       font-size: 0.75rem;
-      color: rgba(255, 255, 255, 0.6);
+      color: var(--glass-text-secondary);
       padding: 2px 6px;
       border-radius: 6px;
       transition: all 0.2s;
 
       &:hover {
-        color: #fff;
-        background: rgba(255, 255, 255, 0.12);
+        color: var(--glass-text-primary);
+        background: var(--glass-bg);
       }
     }
   }
@@ -544,16 +544,16 @@ function handleTtlChange(ttl: number) {
       gap: 6px;
       padding: 5px 12px;
       border-radius: 999px;
-      border: 1px solid rgba(255, 255, 255, 0.22);
-      background: rgba(255, 255, 255, 0.1);
-      color: #fff;
+      border: 1px solid var(--glass-border);
+      background: var(--glass-bg);
+      color: var(--glass-text-primary);
       font-size: 0.8rem;
       cursor: pointer;
       transition: background 0.2s, border-color 0.2s;
 
       &:hover {
-        background: rgba(255, 255, 255, 0.2);
-        border-color: rgba(255, 255, 255, 0.4);
+        background: var(--glass-bg-strong);
+        border-color: var(--glass-border-strong);
       }
 
       .tag-close {

@@ -106,7 +106,7 @@ const daylightHint = computed(() => {
   align-items: center;
   gap: 6px;
   font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--glass-text-primary);
 }
 
 .astro-card {
@@ -128,19 +128,19 @@ const daylightHint = computed(() => {
       width: 36px;
       height: 36px;
       border-radius: 10px;
-      background: rgba(255, 255, 255, 0.14);
-      color: #fff;
+      background: var(--glass-bg);
+      color: var(--glass-text-primary);
     }
 
     .astro-info {
       .astro-label {
         font-size: 0.7rem;
-        color: rgba(255, 255, 255, 0.6);
+        color: var(--glass-text-secondary);
       }
       .astro-value {
         font-size: 0.95rem;
         font-weight: 600;
-        color: #fff;
+        color: var(--glass-text-primary);
       }
     }
   }
@@ -152,7 +152,7 @@ const daylightHint = computed(() => {
     .daylight-track {
       height: 5px;
       border-radius: 3px;
-      background: rgba(255, 255, 255, 0.15);
+      background: var(--glass-bg);
       overflow: hidden;
 
       .daylight-fill {
@@ -166,7 +166,7 @@ const daylightHint = computed(() => {
     .daylight-hint {
       margin-top: 5px;
       font-size: 0.68rem;
-      color: rgba(255, 255, 255, 0.55);
+      color: var(--glass-text-muted);
       text-align: center;
     }
   }

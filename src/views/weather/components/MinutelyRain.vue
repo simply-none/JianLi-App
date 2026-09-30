@@ -83,12 +83,12 @@ const areaPath = computed(() => {
   align-items: center;
   gap: 6px;
   font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--glass-text-primary);
 
   .source-tag {
     margin-left: auto;
     font-size: 0.72rem;
-    color: rgba(255, 255, 255, 0.55);
+    color: var(--glass-text-muted);
   }
 }
 
@@ -106,7 +106,7 @@ const areaPath = computed(() => {
     justify-content: space-between;
     margin-top: 6px;
     font-size: 0.68rem;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--glass-text-muted);
   }
 }
 </style>

@@ -91,12 +91,12 @@ function getIcon(condition: WeatherCondition): string {
   align-items: center;
   gap: 6px;
   font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--glass-text-primary);
 
   .source-tag {
     margin-left: auto;
     font-size: 0.72rem;
-    color: rgba(255, 255, 255, 0.55);
+    color: var(--glass-text-muted);
   }
 }
 
@@ -108,8 +108,8 @@ function getIcon(condition: WeatherCondition): string {
   margin-left: 8px;
   padding: 2px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
 
   .switch-btn {
     display: flex;
@@ -121,18 +121,18 @@ function getIcon(condition: WeatherCondition): string {
     border: none;
     border-radius: 6px;
     background: transparent;
-    color: rgba(255, 255, 255, 0.65);
+    color: var(--glass-text-secondary);
     cursor: pointer;
     transition: background 0.2s, color 0.2s;
 
     &:hover {
-      color: #fff;
-      background: rgba(255, 255, 255, 0.14);
+      color: var(--glass-text-primary);
+      background: var(--glass-bg);
     }
 
     &.active {
-      color: #fff;
-      background: rgba(255, 255, 255, 0.28);
+      color: var(--glass-text-primary);
+      background: var(--glass-hover);
     }
   }
 }
@@ -148,7 +148,7 @@ function getIcon(condition: WeatherCondition): string {
     height: 4px;
   }
   &::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
+    background: var(--glass-bg-strong);
     border-radius: 2px;
   }
 }
@@ -170,12 +170,12 @@ function getIcon(condition: WeatherCondition): string {
 
   .col-time {
     font-size: 0.7rem;
-    color: rgba(255, 255, 255, 0.65);
+    color: var(--glass-text-secondary);
     white-space: nowrap;
   }
 
   .col-icon {
-    color: #fff;
+    color: var(--glass-text-primary);
     display: flex;
     align-items: center;
     height: 22px;
@@ -184,7 +184,7 @@ function getIcon(condition: WeatherCondition): string {
   .col-temp {
     font-size: 0.85rem;
     font-weight: 600;
-    color: #fff;
+    color: var(--glass-text-primary);
   }
 
   .col-precip {

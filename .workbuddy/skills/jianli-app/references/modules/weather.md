@@ -229,7 +229,9 @@ hint adcode=410402 新华区 → 113.299,33.738  (平顶山) ← 无 hint 时恒
 - `src/views/weather/types.ts`：与主进程 `weather/types.ts` **一一对应**（改一侧必须同步另一侧）
 - `src/views/weather/capability.ts`：`useWeatherCapability()` / `CAPABILITY_LABEL` / `CAPABILITY_GROUP` / `capabilityLabel` / `aqiColor` / `WARNING_SEVERITY_COLOR`
 - `src/views/weather/api.ts`：6 个 IPC 封装（`fetchWeather` / `resolveCityCandidates` / `fetchWeatherConfig` / `saveWeatherConfig` / `probeWeatherProvider` / `fetchAvailableProviders`）
-- `src/views/weather/constants.ts`：图标映射、背景渐变主题映射、热门城市、缓存配置（含 `getCacheTTL/setCacheTTL`）
+- `src/views/weather/constants.ts`：图标映射、背景渐变主题映射（**`CONDITION_THEME_MAP` 已四档化：`day`/`night`/`dayDark`/`nightDark`**）、热门城市、缓存配置（含 `getCacheTTL/setCacheTTL`）
+- `src/views/weather/index.vue`：页面容器；**同时是 `--glass-*` 玻璃层语义变量的唯一定义处**（亮档默认值 + `:global([data-mode='dark'])` 覆盖）
+- `src/utils/themeMode.ts`（**2026-09-30 新建**）：明暗档判定（`ThemeMode` / `luminance` / `themeMode` / `useThemeMode`），按 `THEME_COLORS[theme].cardBg` 亮度自动分档，**不手工维护主题名单**
 - `src/views/weather/cityData.ts`：**搜索建议（委托主进程全量快照，异步）**；`CityEntry` 含 `ref: CityRef`；`CITY_LEVEL_LABEL`
 - `src/views/weather/cityResolver.ts`：**城市消歧**（候选查询缓存 / 记住选择 / CityRef 构造）
 - `src/views/weather/db.ts`：天气表 `weather_data`（city 主键 / data JSON / updated_at / is_starred）读写；**data 存 `WeatherData` 全量 JSON ⇒ 新增的 `capabilities`/`_trace` 自动持久化，无需迁移**；`CityRef` 以 `_cityRef` 键内嵌在 data JSON 里（`saveWeatherToDb(city, data, cityRef?)`，`WeatherRow.cityRef` 读出时**自动摘除**）
@@ -285,11 +287,9 @@ export function useForecastView(key: keyof ForecastViewState): ComputedRef<Forec
 - **tooltip**：`trigger:'axis'` + `confine:true`，深色半透明底（`rgba(20,26,40,0.88)`）配白字，避免在渐变背景上不可读；hourly 显示「温度 + 降水概率」，daily 显示「描述 + 最高/最低 + 风」
 
 **⚠️ 主题适配的关键取舍：图表不读 CSS 变量**
-天气页是**动态渐变背景 + 毛玻璃卡片**（`.glass-card`），页面上根本没有明暗主题变量体系。若照搬 `HabitHeatmap.vue` 那套 `readVar('--text-muted')` 取色，在渐变底上会**发灰发糊**。因此两个图表组件**直接硬编码白色系色值**，与既有 `.hour-col` / `.section-title` / `.range-bar` 保持一致：
-```
-文字 rgba(255,255,255,.92) / 次要 .65 / 极淡 .45   网格 rgba(255,255,255,.12)
-温度 #ffd57c（暖黄）  降水 #9fd6ff（浅蓝）  低温 #7cc4f5（与列表范围条渐变同源）
-```
+天气页是**动态渐变背景 + 毛玻璃卡片**（`.glass-card`），页面上根本没有明暗主题变量体系。若照搬 `HabitHeatmap.vue` 那套 `readVar('--text-muted')` 取色，在渐变底上会**发灰发糊**。因此两个图表组件的配色走**另一条路**（2026-09-30 主题适配改造后的最终方案，见下方「主题适配」小节）：复用 `utils/chartTheme.ts` 的 `THEME_COLORS`（主题色）+ 按明暗档压亮度的语义色。
+
+> **历史变更**：改造前这里是**硬编码白色系色值**（`文字 rgba(255,255,255,.92)/.65/.45`、`网格 rgba(255,255,255,.12)`、`温度 #ffd57c`、`降水 #9fd6ff`、`低温 #7cc4f5`）——那套只在「页面恒为深色渐变」时才成立；用户反馈「主题变化时色彩不跟随」，故改为跟随主题。**别再退回硬编码白色系。**
 
 **切换按钮**：`.view-switch` 分段控件（两个 24×22 图标按钮，`List` / `ChartLine`），`active` 态 `rgba(255,255,255,.28)` 高亮。
 - ⚠️ **hourly 区块的 `.source-tag` 原占 `margin-left:auto`**，加按钮后靠「source-tag 保持 auto + 按钮 `margin-left:8px`」；daily 区块无 source-tag，按钮用 `margin-left:auto` 推到右端。
@@ -301,9 +301,128 @@ export function useForecastView(key: keyof ForecastViewState): ComputedRef<Forec
 2. **`series.label.position` 会被推断成 `string`**（bar 的 `position` 是联合字面量类型）⇒ 加 `as const`。
 3. **`CustomSeriesRenderItemParams.coordSys` 只声明了 `{type:string}`** ⇒ 取 **`api.getWidth()`** 而非 `params.coordSys.width`。
 4. **`label.formatter` 参数必须用 `echarts.DefaultLabelFormatterCallbackParams`**，自定义 `{dataIndex:number; value:number}` 会因 `value` 联合类型不兼容而报 TS2322。
+5. **⚠️ `lineStyle` 没有 `shadowOpacity`**（2026-09-30 踩到）：想给折线加柔光只能把透明度**烘进 `shadowColor`**，写 `shadowColor: hexAlpha(color, 0.35)`。误写 `shadowOpacity` 会报 `Object literal may only specify known properties, and 'shadowOpacity' does not exist in type 'LineStyleOption<ZRColor>'`。
 
 **实测验证**（Node + 真 echarts SSR，`echarts.init(null,null,{renderer:'svg',ssr:true})`）：5 个场景全部渲染成功——hourly 24 条（有/无降水）、daily 7 条 / 1 条（无区间带）/ 15 条（标签抽稀），SVG 体积与元素数合理；tooltip 与 label formatter 实调输出正确；区间带坐标换算逐日验证（宽度 22、高度=温差）。校验 `vue-tsc --noEmit -p tsconfig.json` → **exit 0**。
 > **方法论**：`.vue` 内的 TS 错误 `tsc -p tsconfig.json` **查不出来**（它不解析 SFC），必须用 **`vue-tsc`**；ECharts option 的运行时正确性可用 **SSR 渲染器在 Node 里真跑一遍**（不需要 jsdom / canvas），比只看类型可靠。
+> **⚠️ 在 Node 里加载项目 TS 模块的坑（2026-09-30 实测）**：
+> - `ts.transpileModule` 单文件编译**不做类型擦除判断**，`import type` 可能留下空 `require`；但 **`chartTheme.ts` 实测产出 0 条 require**（别照抄「必须 stub」的结论，先打印编译产物里的 require 行确认）。
+> - **真正会有 require 的是 `themeMode.ts`**：`require("vue")` / `require("pinia")` / `require("@/store/useTheme")` / `require("./chartTheme")`。`@/` 别名 Node 不认，必须在自定义 `require` 里映射到 `src/`，且**按 `.ts` 递归走同一个 loader**（Node 原生不认识 `.ts`）。`.vue` 文件不能这样加载。
+> - **不要 stub 掉 `@/store/useTheme`**：`useThemeMode()` 内部真的会调它，stub 成 `{}` 会在调用时才炸。
+> - **`const module = {...}` / `const require = ...` 在 CJS 文件里会与 Node 包装器注入的 `module` / `require` 冲突**（`SyntaxError: Identifier 'module' has already been declared`）。虽然严格说这是语法错误、不该退化成模块解析错误，但**本机实测就是报成了 `Cannot find module '@/store/useTheme'`**，白排查半天 ⇒ 变量名一律改 `fakeModule` / `localRequire`。
+> - 排查这类「报错指向 A、真因在 B」的问题：**先打印编译产物的 require 行 + 包一层 `process.on('uncaughtException')` 打完整 stack**，比读代码快得多。
+
+
+## ✅ 主题适配：背景 + 文字 + 图表三件套（2026-09-30 实施）
+
+**需求**：天气页此前色彩是固定的（写死的白色系 + 固定渐变），不随 26 个主题变化。要求改造后跟随主题。用户明确三条决策：
+1. **范围**：背景 + 文字 + 图表三件套一次做完
+2. **色彩策略**：**保留天气条件色相、只按明暗压亮度**（不是把背景换成主题色）
+3. **明暗判定**：**按 `cardBg` 亮度自动判定**（不手工维护主题名单）
+
+### 1. 明暗档判定：`src/utils/themeMode.ts`（新建）
+
+项目原本**没有**「当前主题是否暗色」的统一标记（`data-theme` 只存主题 ID 如 `dark`/`nord`/`glass`）。该模块**不手工维护主题名单**（易与 `themeOptions` 脱节），而是读 `THEME_COLORS[theme].cardBg` 按 **ITU-R BT.601** 相对亮度（`(0.299r + 0.587g + 0.114b) / 255`）自动分档，阈值 `0.5`。
+
+```ts
+export type ThemeMode = 'light' | 'dark'
+export function luminance(color: string): number   // 解析失败返回 1（保守按亮色）
+export function themeMode(theme: string): ThemeMode  // 未登记主题回落 light
+export function useThemeMode(): { mode: ComputedRef<ThemeMode>; isDark: ComputedRef<boolean> }
+```
+- `cardBg` 正是「卡片底色」的权威声明，**新增主题只要在 `THEME_COLORS` 登记即自动生效**（也因此：加主题必须补 `THEME_COLORS`，否则回落 light 档）
+- `glass` 之类的半透明色（`rgba(30,30,50,.6)`）解析出的是**固有色**，深紫底仍正确判为暗色
+- **实测**：25 个主题判定全对，仅 **`light` / `catppuccin` / `atom-one-light`** 为亮档（其余 22 个暗档）
+
+### 2. 全局属性 `data-mode`（`src/App.vue`）
+
+`watch(currentTheme)` 里除 `data-theme` 外**新增**写入 `data-mode`（`'light' | 'dark'`）：
+```ts
+document.documentElement.setAttribute('data-theme', theme)
+document.documentElement.setAttribute('data-mode', themeMode(theme))   // 新增
+```
+> 这是**本次新建的全局约定**（项目原无统一明暗标记）。其他模块要做明暗适配可直接复用 `[data-mode='dark']`。
+
+### 3. 背景：`CONDITION_THEME_MAP` 四档化（`src/views/weather/constants.ts`）
+
+由 `{ day, night }` 改为 **`{ day, night, dayDark, nightDark }`**（10 个 condition 全部补齐）。
+- `day` / `night` = **亮档**（保留原值）
+- `dayDark` / `nightDark` = **暗档**：**保留天气色相、整体压暗**（如 `sunny.day` 的 `#1d6fc4→#8fc9ef` 压成 `#0d2a45→#1a4a70`）
+- `useWeatherTheme.ts` 按 `isDark.value` 选档：暗档取 `nightDark`/`dayDark`，亮档取 `night`/`day`
+
+### 4. 玻璃层语义变量 `--glass-*`（`src/views/weather/index.vue` 内定义，是全页唯一定义处）
+
+**⚠️ 核心架构洞察**：天气页是「动态渐变背景 + 毛玻璃卡片」，**不能直接套 `--bg-card` / `--text-primary` 那套不透明实色 token**——会盖掉渐变、失去毛玻璃质感、并让页面发灰发糊。正确做法是走**玻璃层语义变量**：亮档用**白色叠加提亮**，暗档**翻转成黑色叠加压暗**。
+
+```scss
+.weather-page {
+  --glass-bg: rgba(255,255,255,.12);          --glass-bg-strong: rgba(255,255,255,.2);
+  --glass-bg-weak: rgba(255,255,255,.08);     --glass-hover: rgba(255,255,255,.25);
+  --glass-border: rgba(255,255,255,.18);      --glass-border-strong: rgba(255,255,255,.28);
+  --glass-divider: rgba(255,255,255,.16);
+  --glass-text-primary: rgba(255,255,255,.92);
+  --glass-text-secondary: rgba(255,255,255,.65);
+  --glass-text-muted: rgba(255,255,255,.45);
+  --glass-mark: rgba(255,255,255,.85);        // 图形标记（刻度指针等非文字元素）
+  --glass-shadow: 0 8px 32px rgba(0,0,0,.12);
+}
+:global([data-mode='dark']) .weather-page {
+  --glass-bg: rgba(0,0,0,.22);                // ← 翻转成黑叠加
+  --glass-bg-strong: rgba(0,0,0,.34);         --glass-bg-weak: rgba(0,0,0,.14);
+  --glass-hover: rgba(0,0,0,.42);
+  --glass-border: rgba(255,255,255,.1);       --glass-border-strong: rgba(255,255,255,.18);
+  --glass-divider: rgba(255,255,255,.12);
+  --glass-text-primary: rgba(255,255,255,.96);
+  --glass-text-secondary: rgba(255,255,255,.74);
+  --glass-text-muted: rgba(255,255,255,.52);
+  --glass-mark: rgba(255,255,255,.8);
+  --glass-shadow: 0 8px 32px rgba(0,0,0,.4);
+}
+```
+配合 `:deep(.glass-card)` 统一消费这组变量（`background: var(--glass-bg)` + `backdrop-filter: blur(20px)` + `border: 1px solid var(--glass-border)`）。
+
+**13 个组件共 125 处**按属性语义批量替换（**非机械替换**，看的是「这个值是文字还是底色还是描边」）：
+| 原语义 | 替换为 |
+|---|---|
+| `color` alpha ≥.85 / ≥.6 / 其余 | `--glass-text-primary` / `--glass-text-secondary` / `--glass-text-muted` |
+| `background` ≥.24 / ≥.16 / ≥.1 / 其余 | `--glass-hover` / `--glass-bg-strong` / `--glass-bg` / `--glass-bg-weak` |
+| `border` ≥.24 / ≥.14 / 其余 | `--glass-border-strong` / `--glass-border` / `--glass-divider` |
+| `#fff`（仅 color/border 属性） | `--glass-text-primary` |
+
+涉及文件：`WeatherSearch`(24) `DailyForecast`(16) `index.vue`(16) `HourlyForecast`(13) `WeatherHero`(11) `AirQuality`(7) `AstroCard`(7) `LifeIndices`(7) `DebugPanel`(6) `SourceBadge`(6) `WeatherDetails`(4) `MinutelyRain`(3) `WeatherAlert`(3) `WeatherSkeleton`(2)。
+
+**⚠️ 批处理替换的三个坑（本次都踩到，教训见「特有坑」）**：
+1. **变量定义区与使用区同处一个文件时，绝不能对该文件无脑跑替换脚本** —— `index.vue` 的 `--glass-bg` 等定义被自己的替换规则改成了 `var(--glass-divider)` / `var(--glass-border)` 造成**自引用循环**，功能完全错乱，只能手工还原两处定义块（亮档 11 行 + 暗档 11 行）。
+2. **图形标记色不能用文字色** —— `AirQuality.vue` 的 AQI 刻度指针三角 `border-bottom` 被脚本按「border 属性」误改为 `--glass-text-primary`；为此**新增 `--glass-mark`** 语义（图形标记 ≠ 文字）。
+3. **本身已跟主题的面板不要动** —— `DebugPanel.vue` 本就用全局主题变量（`var(--bg-hover, rgba(255,255,255,.05))` 这种带 fallback 的写法已跟随主题），脚本把它的 **fallback 值**也改了，需手工还原 3 处硬编码 fallback。
+
+### 5. 图表：接入 `chartTheme` + 明暗语义色
+
+两个图表组件（`HourlyForecastChart.vue` / `DailyForecastChart.vue`）把原来的**大写硬编码常量**全部改为 **`computed`**：
+
+```ts
+const { currentTheme } = storeToRefs(useThemeStore())
+const { isDark } = useThemeMode()
+const themeColors = computed(() => THEME_COLORS[currentTheme.value] || THEME_COLORS.light)
+// 主题色（随 26 主题切换）
+const colorText = computed(() => themeColors.value.labelColor)
+const colorTextSoft = computed(() => themeColors.value.axisLabel)
+const colorGrid = computed(() => themeColors.value.gridLine)
+const colorTooltipBg / Border / Text = computed(() => themeColors.value.tooltipBg / tooltipBorder / tooltipText)
+// 语义色：保留天气色相，只按明暗调明度
+const colorTemp   = computed(() => isDark.value ? '#ffd57c' : '#c9971f')   // 亮档压深以在浅底可读
+const colorPrecip = computed(() => isDark.value ? '#9fd6ff' : '#3d8fc4')
+const colorHigh / colorLow（daily，同色相规则）
+const colorInk     = computed(() => isDark.value ? 'rgba(255,255,255,.9)' : 'rgba(0,0,0,.45)')  // 折线点描边
+const colorInkSoft = computed(() => isDark.value ? 'rgba(255,255,255,.35)' : 'rgba(0,0,0,.3)')
+```
+- **`hexAlpha(color, alpha)`** helper：`#rgb`/`#rrggbb` → `rgba()`，用于把语义色按透明度派生（渐变 / 区间带 / 阴影）。**已是 `rgba()` 的输入原样返回**（不叠加透明度）。
+- **主题切换必须主动重绘**：`watch([currentTheme, isDark], () => nextTick(render))`（配色在 `buildOption()` 里一次性取值，不重绘不会更新）
+- 图表容器背景保持 `transparent`，仍由底层渐变透出
+
+**实测验证**（Node + 真 echarts SSR）：**34 项断言全通过** —— 25 主题明暗判定、`hexAlpha` 4 项单元、light/nord/catppuccin/dracula 四主题 × 两种图的 SSR 渲染 + 语义色出现校验（亮档断言 `#c9971f`/`#2f7fb8`、暗档断言 `#ffd57c`/`#7cc4f5`）、亮暗 SVG 必须不同、单点/单日边界。`vue-tsc --noEmit -p tsconfig.json` → **exit 0**。
+
+> **改完无需重启 Electron**：本次改动**全在渲染端 `src/**`**，热重载即可生效。但 `App.vue` 的 `data-mode` 是首次写入，**建议刷新一次页面**确保属性已设置。
 
 
 ## ✅ 首选数据源 preferredProvider（2026-09-30 实施）
@@ -370,7 +489,7 @@ if (preferred) {
 - 搜索建议来自 `cityData.ts` → 主进程**全量快照**（省/地级市/区县 3237 条），建议项展示「城市名 + 层级标签 + 省 · 市 · 区县 路径」；**选中即带 `CityRef` 查询并记住选择**（不再走「城市名+天气」的字符串拼接老路，`searchName` 字段保留但只作展示兜底）
 - **重名消歧**：候选 ≥2 时弹 `el-dialog` 候选列表（用户按路径选）；搜索栏下方回显当前定位路径 + 「已记住」角标
 - **数据库为唯一本地存储**：表 `weather_data`（id 主键 + city 唯一索引 / data JSON / updated_at / is_starred），走 `new-sql:execute` 通道；查询成功「先查后插/更」（保留星标）；缓存有效性 = `updated_at` 未过时效；历史 = 按 updated_at 倒序取最近 10 条；星标 = `is_starred=1`（未查询过的城市无法星标）；删除单条历史连数据一起删，「清空历史」保留星标城市；仅缓存时效配置（`weather_cache_ttl`）与**城市消歧记忆（`weather-city-remember`）**仍存 localStorage
-- 页面背景按 `condition` + 昼夜（18:00-6:00 为夜间）切换渐变（`useWeatherTheme.backgroundStyle`）
+- 页面背景按 `condition` + 昼夜（18:00-6:00 为夜间）切换渐变（`useWeatherTheme.backgroundStyle`），并**按主题明暗档取对应档位**（`day`/`night` = 亮档，`dayDark`/`nightDark` = 暗档）
 - 调试面板 `DebugPanel.vue`（右下角扳手悬浮展开）**3 个 tab**：请求日志 / 天气原始数据 / **数据源轨迹**（轨迹 + 本次能力清单 tags）
 
 ## 数据源配置界面（抽屉）
@@ -388,10 +507,13 @@ if (preferred) {
 - **新增 Lucide 图标必须同时改 `LucideIcon.vue` 的 import 与 nameMap 两处**（漏一处静默 fallback 成 CloudAlert）。天气模块**已注册**的扩展图标：`Leaf` `Activity` `CloudSunRain` `Tornado` `Waves` `UmbrellaIcon` `ChartLine`（`List` 早已注册）。⚠️ **`Cyclone` 在 `@lucide/vue` 中不存在**（会报 TS2305），阵风用 `Wind`、气旋类语义用 `Tornado`
 - **⚠️ 校验 `.vue` 必须用 `vue-tsc`，`tsc` 会假绿**：`tsc -p tsconfig.json` **不解析 SFC**，`.vue` 内 `<script setup>` 的类型错误它**完全不报**（本次 4 个 ECharts 类型错误全是 `vue-tsc` 抓到的）。命令：`node ./node_modules/vue-tsc/bin/vue-tsc.js --noEmit -p tsconfig.json`
 - **⚠️ ECharts option 的运行时正确性可用 SSR 渲染器在 Node 里实跑**：`echarts.init(null, null, { renderer: 'svg', ssr: true, width: 800, height: 200 })` **不需要 jsdom / canvas**，`setOption` + `renderToSVGString()` 即可验证 option 合法性与元素数量，比只看类型可靠得多
-- **⚠️ ECharts 图表不要读 CSS 变量**（本页特有）：天气页是动态渐变背景 + 毛玻璃卡片，**没有明暗主题变量体系**，`readVar('--text-muted')` 一类取色在渐变底上会发灰发糊。图表一律用白色系硬编码色值（见「预报区块 列表/图表 双形态」小节）
+- **⚠️ ECharts 图表不要读 `--text-*` 那套不透明实色 CSS 变量**（本页特有）：天气页是动态渐变背景 + 毛玻璃卡片，**没有明暗主题变量体系**，`readVar('--text-muted')` 一类取色在渐变底上会发灰发糊。图表的正确做法是**复用 `utils/chartTheme.ts` 的主题色 + 按明暗档压亮度的语义色**（见「预报区块 列表/图表 双形态」与「主题适配」小节）；DOM 部分则走页面内定义的 **`--glass-*` 玻璃层语义变量**。
+- **⚠️ 天气页配色不能套不透明实色 token**（2026-09-30）：`--bg-card` / `--text-primary` 会盖掉动态渐变、失去毛玻璃质感。必须用 `--glass-*` 一组变量，**亮档白叠加提亮、暗档翻转成黑叠加压暗**（在 `index.vue` 用 `[data-mode='dark']` 覆盖）。详见「主题适配」小节第 4 点。
+- **⚠️ 批处理替换脚本在「定义区与使用区同文件」时极度危险**（2026-09-30 实惨）：`index.vue` 的 `--glass-*` 定义被自己的替换规则改成 `var(--glass-divider)` 造成自引用循环；`AirQuality` 的图形标记被误改成文字色；`DebugPanel` 本已跟主题的 fallback 被改花。**跑批量替换前先排除变量定义块，跑完必须逐文件 review，别只看 diff 行数。**
 - **降级链不降级「配置错误」**：和风 host 非法 / 私钥格式错等会在 `probe` 阶段就拦下并给出中文提示；运行时失败会写入 `_trace` 的 `error`
 - **⚠️ 首选数据源只重排「可用节点」，不可用节点必须原地不动**（2026-09-30）：`fetchWithFallback` 先一次性记录**全部**不可用节点再循环可用节点，若重排时把不可用节点也 `splice/unshift`，`_trace` 的 skipped 顺序就会与用户列表所见不一致。详见上方「首选数据源 preferredProvider」小节。
 - **⚠️ `preferredProvider` 读库必须过 `normalizePreferred`**：非字符串 / 空串 / 不在已注册列表的值一律回 `null`；`save-config` 的 payload 语义是 **`undefined` = 保持原值**、**`null` = 显式「自动」**，两者不可混用（`undefined` 会被当成「不改」而不落库）。
+- **⚠️ 新增主题必须同步 `THEME_COLORS`**（2026-09-30）：`themeMode()` 按 `THEME_COLORS[theme].cardBg` 亮度判明暗，未登记的主题会**静默回落 light 档**（暗色主题被当亮色 ⇒ 文字在深底上看不见）。加主题时 `useTheme.ts` 的 `themeOptions` 与 `chartTheme.ts` 的 `THEME_COLORS` **两处都要加**。
 - **⚠️ 单例 composable 按 key 取值必须用可写 `computed`，禁用 `ref(单例.value[key])`**（2026-09-30）：后者是游离值拷贝，静默断掉持久化与跨组件共享（类型检查也查不出）。且持久化要**同步落盘**，不能只靠 `watch` 的异步 flush。详见「预报区块 列表/图表 双形态」小节。
 - **Open-Meteo 坐标系已全国覆盖**：`cnCities.ts` 收录全国 34 省 + 363 地级市 + 2840 区县（共 3237 条），查不到的只剩极冷门乡镇/村级名称 ⇒ 未命中时降级（这是刻意的诚实行为，不做坐标造假）。**更新数据见上方「坐标表」小节，不要手改数据行**。
 - **⚠️ 重名城市必须带 `CityRef`**：`朝阳区`/`新华区`/`城区` 等 30 组重名，**不带 adcode 时结果由排序决定且用户无法察觉**（返回的是真实天气，只是几百公里外）。改动查询链路时**务必把 `cityRef` 一路透传**（`index.vue` → `useWeather.loadByCity` → `api.fetchWeather` → 主进程 `registry.fetchWithFallback` → `openMeteo`），断一环就退回「永远查到知名城市那个」的老行为。

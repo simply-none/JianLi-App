@@ -74,7 +74,7 @@ function severityText(severity: string): string {
     .alert-title {
       font-size: 0.88rem;
       font-weight: 600;
-      color: #fff;
+      color: var(--glass-text-primary);
     }
 
     .alert-severity {
@@ -82,7 +82,7 @@ function severityText(severity: string): string {
       padding: 2px 10px;
       border-radius: 999px;
       font-size: 0.7rem;
-      color: #fff;
+      color: var(--glass-text-primary);
       flex-shrink: 0;
     }
   }
@@ -91,7 +91,7 @@ function severityText(severity: string): string {
     margin: 8px 0 0;
     font-size: 0.78rem;
     line-height: 1.6;
-    color: rgba(255, 255, 255, 0.78);
+    color: var(--glass-text-secondary);
   }
 }
 </style>

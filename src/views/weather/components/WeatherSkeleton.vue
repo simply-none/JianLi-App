@@ -49,7 +49,7 @@
 .sk-square {
   position: relative;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--glass-bg);
   border-radius: 8px;
 
   &::after {
@@ -60,7 +60,7 @@
     background: linear-gradient(
       90deg,
       transparent,
-      rgba(255, 255, 255, 0.18),
+      var(--glass-border),
       transparent
     );
     animation: shimmer 1.4s infinite;

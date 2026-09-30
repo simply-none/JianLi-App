@@ -317,7 +317,7 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
-// 页面背景由内联样式动态注入（随天气现象与昼夜切换渐变）
+// 页面背景由内联样式动态注入（随天气现象 × 昼夜 × 主题明暗档切换渐变）
 .weather-page {
   position: relative;
   height: 100%;
@@ -326,17 +326,56 @@ onMounted(async () => {
   overflow-y: auto;
   // 渐变切换时的过渡效果
   transition: background 0.8s ease;
+
+  // ── 天气页玻璃层语义变量 ──────────────────────────────────────────
+  // 天气页是「动态渐变背景 + 毛玻璃卡片」，不走 --bg-card / --text-primary 那套
+  // 不透明实色 token（否则会盖掉渐变、失去毛玻璃质感）。改为在此定义一层
+  // 「玻璃语义变量」，按主题明暗档取不同透明度方向：
+  //   亮档：以白色叠加「提亮」（原有表现）
+  //   暗档：以黑色叠加「压暗」，避免白字白玻璃在暗色主题下过曝
+  // 各子组件一律引用这些变量，不再各自硬编码 rgba(255,255,255,.x)。
+  --glass-bg: rgba(255, 255, 255, 0.12);
+  --glass-bg-strong: rgba(255, 255, 255, 0.2);
+  --glass-bg-weak: rgba(255, 255, 255, 0.08);
+  --glass-hover: rgba(255, 255, 255, 0.25);
+  --glass-border: rgba(255, 255, 255, 0.18);
+  --glass-border-strong: rgba(255, 255, 255, 0.28);
+  --glass-divider: rgba(255, 255, 255, 0.16);
+  --glass-text-primary: rgba(255, 255, 255, 0.92);
+  --glass-text-secondary: rgba(255, 255, 255, 0.65);
+  --glass-text-muted: rgba(255, 255, 255, 0.45);
+  // 图形标记色（刻度指针、装饰性色块等「非文字」元素）
+  --glass-mark: rgba(255, 255, 255, 0.85);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+}
+
+// 暗档主题：整体翻转为「深色玻璃」——背景压暗、文字提亮保证对比度。
+// `data-mode` 由 App.vue 依据当前主题的 cardBg 亮度统一写入（见 utils/themeMode.ts），
+// 故这里无需枚举主题名单。
+:global([data-mode='dark']) .weather-page {
+  --glass-bg: rgba(0, 0, 0, 0.22);
+  --glass-bg-strong: rgba(0, 0, 0, 0.34);
+  --glass-bg-weak: rgba(0, 0, 0, 0.14);
+  --glass-hover: rgba(0, 0, 0, 0.42);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-border-strong: rgba(255, 255, 255, 0.18);
+  --glass-divider: rgba(255, 255, 255, 0.12);
+  --glass-text-primary: rgba(255, 255, 255, 0.96);
+  --glass-text-secondary: rgba(255, 255, 255, 0.74);
+  --glass-text-muted: rgba(255, 255, 255, 0.52);
+  --glass-mark: rgba(255, 255, 255, 0.8);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
 // 毛玻璃卡片通用样式（:deep 穿透，作用于子组件内部的卡片元素）
 .weather-page {
   :deep(.glass-card) {
-    background: rgba(255, 255, 255, 0.12);
+    background: var(--glass-bg);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.18);
+    border: 1px solid var(--glass-border);
     border-radius: 16px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+    box-shadow: var(--glass-shadow);
   }
 }
 
@@ -353,7 +392,7 @@ onMounted(async () => {
   justify-content: center;
   gap: 8px;
   height: 400px;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--glass-text-primary);
   text-align: center;
 
   p {
@@ -363,7 +402,7 @@ onMounted(async () => {
 
   .empty-sub {
     font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--glass-text-secondary);
   }
 }
 
@@ -379,14 +418,14 @@ onMounted(async () => {
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  background: rgba(0, 0, 0, 0.25);
-  color: rgba(255, 255, 255, 0.85);
+  border: 1px solid var(--glass-border-strong);
+  background: var(--glass-bg-strong);
+  color: var(--glass-text-primary);
   cursor: pointer;
   transition: background 0.2s;
 
   &:hover {
-    background: rgba(0, 0, 0, 0.45);
+    background: var(--glass-hover);
   }
 }
 </style>

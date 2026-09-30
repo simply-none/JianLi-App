@@ -279,7 +279,7 @@ function formatJson(data: unknown): string {
         font-size: 0.7rem;
         color: #a8b2d1;
         background: #1c2233;
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        border: 1px solid var(--glass-divider);
       }
     }
   }

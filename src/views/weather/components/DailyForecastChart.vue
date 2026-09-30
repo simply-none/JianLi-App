@@ -3,9 +3,13 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, nextTick, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, nextTick, ref, watch, computed } from 'vue'
 import * as echarts from 'echarts'
 import { installPassiveScrollListeners } from '@/utils/passiveEvents'
+import { storeToRefs } from 'pinia'
+import useThemeStore from '@/store/useTheme'
+import { THEME_COLORS } from '@/utils/chartTheme'
+import { useThemeMode } from '@/utils/themeMode'
 import type { ForecastDay } from '../types'
 
 // 与 habit / accounting 模块一致：兜底 ECharts 的非 passive wheel 监听器（Chrome 警告）
@@ -21,18 +25,65 @@ const chartRef = ref<HTMLElement | null>(null)
 let chart: echarts.ECharts | null = null
 let ro: ResizeObserver | null = null
 
+/** 当前主题（用于图表配色随主题切换） */
+const { currentTheme } = storeToRefs(useThemeStore())
+/** 当前主题明暗档 */
+const { isDark } = useThemeMode()
+
+/** 当前主题配色（与记账 / 番茄钟图表同源，见 utils/chartTheme.ts） */
+const themeColors = computed(() => THEME_COLORS[currentTheme.value] || THEME_COLORS.light)
+
 /* ---------------- 视觉常量 ----------------
- * 天气页为动态渐变背景 + 毛玻璃卡片，不走明暗主题 CSS 变量；
- * 此处白色系色值与 .forecast-row / .range-bar 保持一致。
- * 温度色与列表态范围条同款渐变：低温 #7cc4f5（蓝）→ 高温 #ffd57c（暖黄）。
+ * 天气页是「动态渐变背景 + 毛玻璃卡片」，不读 --text-primary 那套不透明实色
+ * token（会盖掉渐变、发灰发糊），而是复用 chartTheme 的主题配色：
+ * 网格线 / 轴标签 / 标签文字走主题色（随 26 个主题切换）；
+ * 温度色保留列表态范围条的语义（低温蓝 #7cc4f5 → 高温暖黄 #ffd57c），
+ * 仅按明暗档调明度：暗档用亮色保证在深底上可读，亮档压深保证在浅底上可读。
+ * 全部色值都是 computed，主题或明暗变化后由 watch 触发重绘。
  * ------------------------------------------ */
-const COLOR_TEXT = 'rgba(255, 255, 255, 0.92)'
-const COLOR_TEXT_SOFT = 'rgba(255, 255, 255, 0.65)'
-const COLOR_GRID = 'rgba(255, 255, 255, 0.12)'
-const COLOR_LOW = '#7cc4f5'
-const COLOR_HIGH = '#ffd57c'
-/** 温差区间带（低↔高）填充色 */
-const COLOR_BAND = 'rgba(124, 196, 245, 0.22)'
+/** 主文字：折线数值标签 */
+const colorText = computed(() => themeColors.value.labelColor)
+/** 次文字：图例、x 轴标签、最低温标签 */
+const colorTextSoft = computed(() => themeColors.value.axisLabel)
+/** 网格 / 分割线 */
+const colorGrid = computed(() => themeColors.value.gridLine)
+/** tooltip 底色 / 边框 / 文字 */
+const colorTooltipBg = computed(() => themeColors.value.tooltipBg)
+const colorTooltipBorder = computed(() => themeColors.value.tooltipBorder)
+const colorTooltipText = computed(() => themeColors.value.tooltipText)
+/** 折线点描边：暗档白色、亮档深色半透明 */
+const colorInk = computed(() => (isDark.value ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.45)'))
+/** 次透明中性色：tooltip 指示器 / 区间带未着色部分 */
+const colorInkSoft = computed(() => (isDark.value ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.3)'))
+/** tooltip 轴指示器阴影 */
+const colorAxisShadow = computed(() =>
+  isDark.value ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'
+)
+/** 高温暖黄：暗档用原亮度，亮档压深 */
+const colorHigh = computed(() => (isDark.value ? '#ffd57c' : '#c9971f'))
+/** 低温冷蓝：暗档用原亮度，亮档压深 */
+const colorLow = computed(() => (isDark.value ? '#7cc4f5' : '#2f7fb8'))
+
+/**
+ * 把 #rgb / #rrggbb 转成带透明度的 rgba 字符串
+ *
+ * 区间带 / 渐变需要由语义色按透明度派生（ECharts 不支持对色值整体设 alpha），
+ * 而主题色值形态不固定，可能已是 rgba()，此时原样返回不叠加透明度。
+ * @param color 颜色值
+ * @param alpha 目标透明度（0~1）
+ * @returns rgba() 或原值
+ */
+function hexAlpha(color: string, alpha: number): string {
+  const hex = color.trim()
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex)
+  if (!m) return hex
+  let body = m[1]
+  if (body.length === 3) body = body.replace(/./g, (c) => c + c)
+  const r = parseInt(body.slice(0, 2), 16)
+  const g = parseInt(body.slice(2, 4), 16)
+  const b = parseInt(body.slice(4, 6), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
 
 /**
  * 构造「温差区间带」custom series
@@ -69,7 +120,7 @@ function buildRangeBand(list: ForecastDay[]): echarts.CustomSeriesOption {
           height: h,
           r: bandWidth / 2,
         },
-        style: { fill: COLOR_BAND },
+        style: { fill: hexAlpha(colorLow.value, 0.28) },
       }
     },
   }
@@ -138,16 +189,16 @@ function buildOption(): echarts.EChartsOption {
       itemHeight: 10,
       itemGap: 12,
       icon: 'roundRect',
-      textStyle: { color: COLOR_TEXT_SOFT, fontSize: 11 },
+      textStyle: { color: colorTextSoft.value, fontSize: 11 },
       data: ['最高温', '最低温'],
     },
     xAxis: {
       type: 'category',
       data: dates,
       boundaryGap: true,
-      axisLine: { lineStyle: { color: COLOR_GRID } },
+      axisLine: { lineStyle: { color: colorGrid.value } },
       axisTick: { show: false },
-      axisLabel: { color: COLOR_TEXT_SOFT, fontSize: 11, margin: 8 },
+      axisLabel: { color: colorTextSoft.value, fontSize: 11, margin: 8 },
     },
     yAxis: {
       type: 'value',
@@ -157,7 +208,7 @@ function buildOption(): echarts.EChartsOption {
       axisLabel: { show: false },
       axisLine: { show: false },
       axisTick: { show: false },
-      splitLine: { show: true, lineStyle: { color: COLOR_GRID, type: 'dashed' } },
+      splitLine: { show: true, lineStyle: { color: colorGrid.value, type: 'dashed' } },
     },
     series: [
       // 温差区间带：在 low / high 之间画圆角竖条（等价于列表态的范围条）
@@ -169,12 +220,18 @@ function buildOption(): echarts.EChartsOption {
         smooth: true,
         symbol: 'circle',
         symbolSize: 6,
-        itemStyle: { color: COLOR_HIGH, borderColor: 'rgba(255,255,255,0.9)', borderWidth: 1 },
-        lineStyle: { width: 2.4, color: COLOR_HIGH, shadowBlur: 8, shadowColor: 'rgba(255,213,124,0.35)' },
+        itemStyle: { color: colorHigh.value, borderColor: colorInk.value, borderWidth: 1 },
+        lineStyle: {
+          width: 2.4,
+          color: colorHigh.value,
+          shadowBlur: 8,
+          // ECharts 的 lineStyle 没有 shadowOpacity，透明度得从颜色本身派生
+          shadowColor: hexAlpha(colorHigh.value, 0.35),
+        },
         label: {
           show: true,
           position: 'top',
-          color: COLOR_TEXT,
+          color: colorText.value,
           fontSize: 11,
           fontWeight: 600,
           // 天数多时按步长抽稀，避免标签互相压叠
@@ -190,12 +247,17 @@ function buildOption(): echarts.EChartsOption {
         smooth: true,
         symbol: 'circle',
         symbolSize: 6,
-        itemStyle: { color: COLOR_LOW, borderColor: 'rgba(255,255,255,0.9)', borderWidth: 1 },
-        lineStyle: { width: 2.4, color: COLOR_LOW, shadowBlur: 8, shadowColor: 'rgba(124,196,245,0.35)' },
+        itemStyle: { color: colorLow.value, borderColor: colorInk.value, borderWidth: 1 },
+        lineStyle: {
+          width: 2.4,
+          color: colorLow.value,
+          shadowBlur: 8,
+          shadowColor: hexAlpha(colorLow.value, 0.35),
+        },
         label: {
           show: true,
           position: 'bottom',
-          color: COLOR_TEXT_SOFT,
+          color: colorTextSoft.value,
           fontSize: 11,
           formatter: (p: echarts.DefaultLabelFormatterCallbackParams) =>
             p.dataIndex % labelStep === 0 ? `${p.value}°` : '',
@@ -247,6 +309,9 @@ watch(
   () => nextTick(render),
   { deep: true }
 )
+
+// 主题切换（含明暗档翻转）时重绘：配色全部来自 computed，需主动 setOption
+watch([currentTheme, isDark], () => nextTick(render))
 </script>
 
 <style scoped lang="scss">

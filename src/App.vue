@@ -6,6 +6,7 @@ import { watch, ref } from 'vue';
 import useOpenWindow from '@/hooks/useOpenWindow';
 import useRuntimeVariables from '@/store/useRuntimeVariables';
 import useTheme from '@/store/useTheme';
+import { themeMode } from '@/utils/themeMode';
 import { layoutRouters, RouteNames } from '@/router';
 import { ElMessageBox } from 'element-plus';
 import { sysNotify, appNotify } from '@/utils/notify';
@@ -24,9 +25,12 @@ const { activeRouteName } = storeToRefs(useRuntimeVariables())
 const { updateActiveRouteName } = useRuntimeVariables()
 
 // 主题切换 — 将 data-theme 设置到 html 根元素
+// 同时写入 data-mode（light/dark 明暗档），供需要按明暗取色的模块用一条 CSS
+// 选择器覆盖（如天气页的玻璃层变量），无需各自维护主题名单。
 const { currentTheme } = storeToRefs(useTheme())
 watch(currentTheme, (theme) => {
   document.documentElement.setAttribute('data-theme', theme)
+  document.documentElement.setAttribute('data-mode', themeMode(theme))
 }, { immediate: true })
 
 // 路由过渡动画控制

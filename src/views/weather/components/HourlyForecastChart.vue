@@ -3,9 +3,13 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, nextTick, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, nextTick, ref, watch, computed } from 'vue'
 import * as echarts from 'echarts'
 import { installPassiveScrollListeners } from '@/utils/passiveEvents'
+import { storeToRefs } from 'pinia'
+import useThemeStore from '@/store/useTheme'
+import { THEME_COLORS } from '@/utils/chartTheme'
+import { useThemeMode } from '@/utils/themeMode'
 import type { HourlyForecast } from '../types'
 
 // ECharts 在 init 时会给容器注册非 passive 的 wheel 监听器（Chrome 警告），
@@ -22,17 +26,63 @@ const chartRef = ref<HTMLElement | null>(null)
 let chart: echarts.ECharts | null = null
 let ro: ResizeObserver | null = null
 
+/** 当前主题（用于图表配色随主题切换） */
+const { currentTheme } = storeToRefs(useThemeStore())
+/** 当前主题明暗档 */
+const { isDark } = useThemeMode()
+
+/** 当前主题配色（与记账 / 番茄钟图表同源，见 utils/chartTheme.ts） */
+const themeColors = computed(() => THEME_COLORS[currentTheme.value] || THEME_COLORS.light)
+
 /* ---------------- 视觉常量 ----------------
- * 天气页是「动态渐变背景 + 毛玻璃卡片」，不走明暗主题 CSS 变量
- * （那套变量是为常规主题页设计的，放在渐变底上会发灰发糊），
- * 因此此处直接采用与 .hour-col / .section-title 一致的白色系色值。
+ * 天气页是「动态渐变背景 + 毛玻璃卡片」，不读 --text-primary 那套不透明实色
+ * token（会盖掉渐变、发灰发糊），而是复用 chartTheme 的主题配色：
+ * 网格线 / 轴标签 / 标签文字走主题色（随 26 个主题切换）；
+ * 温度暖黄与降水浅蓝保留天气语义色相，仅按明暗档调明度
+ * （暗档用亮色保证在深底上可读，亮档压深保证在浅底上可读）。
+ * 图表容器背景透明，仍由底层渐变透出。
+ * 全部色值都是 computed，主题或明暗变化后由 watch 触发重绘。
  * ------------------------------------------ */
-const COLOR_TEXT = 'rgba(255, 255, 255, 0.92)'
-const COLOR_TEXT_SOFT = 'rgba(255, 255, 255, 0.65)'
-const COLOR_TEXT_FAINT = 'rgba(255, 255, 255, 0.45)'
-const COLOR_GRID = 'rgba(255, 255, 255, 0.12)'
-const COLOR_TEMP = '#ffd57c'
-const COLOR_PRECIP = '#9fd6ff'
+/** 主文字：折线数值标签 */
+const colorText = computed(() => themeColors.value.labelColor)
+/** 次文字：图例、x 轴标签 */
+const colorTextSoft = computed(() => themeColors.value.axisLabel)
+/** 弱文字：次坐标轴标签 */
+const colorTextFaint = computed(() => themeColors.value.axisLabel)
+/** 网格 / 分割线 */
+const colorGrid = computed(() => themeColors.value.gridLine)
+/** tooltip 底色与文字 */
+const colorTooltipBg = computed(() => themeColors.value.tooltipBg)
+const colorTooltipBorder = computed(() => themeColors.value.tooltipBorder)
+const colorTooltipText = computed(() => themeColors.value.tooltipText)
+/** 温度暖黄：暗档用亮暖黄，亮档压深以在浅底上可读 */
+const colorTemp = computed(() => (isDark.value ? '#ffd57c' : '#c9971f'))
+/** 降水冷蓝：同上 */
+const colorPrecip = computed(() => (isDark.value ? '#9fd6ff' : '#3d8fc4'))
+/** 折线点描边 / tooltip 竖线：暗档白色、亮档深色半透明 */
+const colorInk = computed(() => (isDark.value ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.45)'))
+const colorInkSoft = computed(() => (isDark.value ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.3)'))
+
+/**
+ * 把 #rgb / #rrggbb 转成带透明度的 rgba 字符串
+ *
+ * 渐变色需要由语义色按透明度派生（ECharts 不支持对 colors 数组整体设 alpha），
+ * 而主题色值形态不固定，可能已是 rgba()，此时原样返回不叠加透明度。
+ * @param color 颜色值
+ * @param alpha 目标透明度（0~1）
+ * @returns rgba() 或原值
+ */
+function hexAlpha(color: string, alpha: number): string {
+  const hex = color.trim()
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex)
+  if (!m) return hex
+  let body = m[1]
+  if (body.length === 3) body = body.replace(/./g, (c) => c + c)
+  const r = parseInt(body.slice(0, 2), 16)
+  const g = parseInt(body.slice(2, 4), 16)
+  const b = parseInt(body.slice(4, 6), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
 
 /**
  * x 轴标签抽稀：24 个点全画会挤成一团
@@ -75,14 +125,14 @@ function buildOption(): echarts.EChartsOption {
     tooltip: {
       trigger: 'axis',
       confine: true,
-      backgroundColor: 'rgba(20, 26, 40, 0.88)',
-      borderColor: 'rgba(255, 255, 255, 0.18)',
+      backgroundColor: colorTooltipBg.value,
+      borderColor: colorTooltipBorder.value,
       borderWidth: 1,
       padding: [8, 12],
-      textStyle: { color: '#fff', fontSize: 12 },
+      textStyle: { color: colorTooltipText.value, fontSize: 12 },
       axisPointer: {
         type: 'line',
-        lineStyle: { color: 'rgba(255, 255, 255, 0.35)', type: 'dashed' },
+        lineStyle: { color: colorInkSoft.value, type: 'dashed' },
       },
       formatter: (params: unknown) => {
         const arr = params as { dataIndex: number }[]
@@ -105,17 +155,17 @@ function buildOption(): echarts.EChartsOption {
       itemHeight: 10,
       itemGap: 12,
       icon: 'roundRect',
-      textStyle: { color: COLOR_TEXT_SOFT, fontSize: 11 },
+      textStyle: { color: colorTextSoft.value, fontSize: 11 },
       data: hasPrecip ? ['温度', '降水概率'] : ['温度'],
     },
     xAxis: {
       type: 'category',
       data: times,
       boundaryGap: true,
-      axisLine: { lineStyle: { color: COLOR_GRID } },
+      axisLine: { lineStyle: { color: colorGrid.value } },
       axisTick: { show: false },
       axisLabel: {
-        color: COLOR_TEXT_SOFT,
+        color: colorTextSoft.value,
         fontSize: 11,
         interval: labelInterval(list.length),
         margin: 8,
@@ -139,7 +189,7 @@ function buildOption(): echarts.EChartsOption {
         show: hasPrecip,
         axisLabel: {
           show: hasPrecip,
-          color: COLOR_TEXT_FAINT,
+          color: colorTextFaint.value,
           fontSize: 10,
           formatter: '{value}%',
         },
@@ -147,7 +197,7 @@ function buildOption(): echarts.EChartsOption {
         axisTick: { show: false },
         splitLine: {
           show: hasPrecip,
-          lineStyle: { color: COLOR_GRID, type: 'dashed' },
+          lineStyle: { color: colorGrid.value, type: 'dashed' },
         },
       },
     ],
@@ -161,12 +211,18 @@ function buildOption(): echarts.EChartsOption {
         symbol: 'circle',
         symbolSize: 5,
         showSymbol: true,
-        itemStyle: { color: COLOR_TEMP, borderColor: 'rgba(255,255,255,0.9)', borderWidth: 1 },
-        lineStyle: { width: 2.4, color: COLOR_TEMP, shadowBlur: 8, shadowColor: 'rgba(255,213,124,0.35)' },
+        itemStyle: { color: colorTemp.value, borderColor: colorInk.value, borderWidth: 1 },
+        lineStyle: {
+          width: 2.4,
+          color: colorTemp.value,
+          shadowBlur: 8,
+          // ECharts 的 lineStyle 没有 shadowOpacity，透明度得从颜色本身派生
+          shadowColor: hexAlpha(colorTemp.value, 0.35),
+        },
         label: {
           show: true,
           position: 'top',
-          color: COLOR_TEXT,
+          color: colorText.value,
           fontSize: 11,
           fontWeight: 600,
           // 点太密时按步长抽稀，避免标签互相压叠
@@ -175,8 +231,8 @@ function buildOption(): echarts.EChartsOption {
         },
         areaStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(255, 213, 124, 0.30)' },
-            { offset: 1, color: 'rgba(255, 213, 124, 0.02)' },
+            { offset: 0, color: hexAlpha(colorTemp.value, 0.3) },
+            { offset: 1, color: hexAlpha(colorTemp.value, 0.02) },
           ]),
         },
         z: 3,
@@ -192,14 +248,14 @@ function buildOption(): echarts.EChartsOption {
               itemStyle: {
                 borderRadius: [3, 3, 0, 0],
                 color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                  { offset: 0, color: 'rgba(159, 214, 255, 0.75)' },
-                  { offset: 1, color: 'rgba(159, 214, 255, 0.10)' },
+                  { offset: 0, color: hexAlpha(colorPrecip.value, 0.75) },
+                  { offset: 1, color: hexAlpha(colorPrecip.value, 0.1) },
                 ]),
               },
               label: {
                 show: showPrecipLabel,
                 position: 'top' as const,
-                color: COLOR_PRECIP,
+                color: colorPrecip.value,
                 fontSize: 10,
                 formatter: '{c}%',
               },
@@ -253,6 +309,9 @@ watch(
   () => nextTick(render),
   { deep: true }
 )
+
+// 主题切换（含明暗档翻转）时重绘：配色全部来自 computed，需主动 setOption
+watch([currentTheme, isDark], () => nextTick(render))
 </script>
 
 <style scoped lang="scss">

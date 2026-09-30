@@ -54,12 +54,12 @@ function getIcon(name: string): string {
   align-items: center;
   gap: 6px;
   font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--glass-text-primary);
 
   .source-tag {
     margin-left: auto;
     font-size: 0.72rem;
-    color: rgba(255, 255, 255, 0.55);
+    color: var(--glass-text-muted);
   }
 }
 
@@ -80,7 +80,7 @@ function getIcon(name: string): string {
 
     .index-name {
       font-size: 0.85rem;
-      color: #fff;
+      color: var(--glass-text-primary);
     }
 
     .index-level {
@@ -88,9 +88,9 @@ function getIcon(name: string): string {
       padding: 2px 10px;
       border-radius: 999px;
       font-size: 0.72rem;
-      color: #fff;
-      background: rgba(255, 255, 255, 0.18);
-      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: var(--glass-text-primary);
+      background: var(--glass-bg-strong);
+      border: 1px solid var(--glass-border);
     }
   }
 
@@ -98,7 +98,7 @@ function getIcon(name: string): string {
     margin: 0;
     font-size: 0.75rem;
     line-height: 1.5;
-    color: rgba(255, 255, 255, 0.72);
+    color: var(--glass-text-secondary);
   }
 }
 </style>

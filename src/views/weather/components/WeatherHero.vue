@@ -117,13 +117,13 @@ function formatTime(timestamp: number): string {
   height: 32px;
   border-radius: 50%;
   border: none;
-  background: rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.85);
+  background: var(--glass-bg);
+  color: var(--glass-text-primary);
   cursor: pointer;
   transition: background 0.2s;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.25);
+    background: var(--glass-hover);
   }
 
   .spinning {
@@ -144,7 +144,7 @@ function formatTime(timestamp: number): string {
 
 .hero-icon {
   flex-shrink: 0;
-  color: #fff;
+  color: var(--glass-text-primary);
 
   :deep(svg) {
     animation: icon-float 4s ease-in-out infinite;
@@ -165,27 +165,27 @@ function formatTime(timestamp: number): string {
     align-items: center;
     gap: 6px;
     font-size: 1rem;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--glass-text-primary);
   }
 
   .temperature {
     font-size: 4.5rem;
     font-weight: 700;
     line-height: 1.15;
-    color: #fff;
+    color: var(--glass-text-primary);
     letter-spacing: -2px;
 
     .degree {
       font-size: 2rem;
       font-weight: 500;
       vertical-align: super;
-      color: rgba(255, 255, 255, 0.85);
+      color: var(--glass-text-primary);
     }
   }
 
   .description {
     font-size: 1.15rem;
-    color: rgba(255, 255, 255, 0.92);
+    color: var(--glass-text-primary);
   }
 
   .sub-info {
@@ -194,19 +194,19 @@ function formatTime(timestamp: number): string {
     gap: 10px;
     margin-top: 6px;
     font-size: 0.85rem;
-    color: rgba(255, 255, 255, 0.75);
+    color: var(--glass-text-secondary);
 
     .divider {
       width: 1px;
       height: 12px;
-      background: rgba(255, 255, 255, 0.35);
+      background: var(--glass-hover);
     }
   }
 
   .update-time {
     margin-top: 8px;
     font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.55);
+    color: var(--glass-text-muted);
   }
 }
 

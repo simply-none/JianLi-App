@@ -23,48 +23,78 @@ export const CONDITION_ICON_MAP: Record<WeatherCondition, { day: string; night?:
 
 /**
  * 天气现象 → 页面背景渐变映射表
- * 每个 condition 提供 day / night 两套渐变，配合毛玻璃卡片使用
+ *
+ * 每个 condition 提供 **4 套**渐变 = 「昼夜 × 明暗档」：
+ * - `day` / `night`：亮档主题（浅色系皮肤）使用，即改造前既有的配色
+ * - `dayDark` / `nightDark`：暗档主题使用，**沿用同一天气现象的色相**，
+ *   整体压低亮度与饱和度，避免大面积高亮背景在暗色主题下刺眼
+ *
+ * 由 `useWeatherTheme` 结合「当前主题明暗档（`useThemeMode`）」+「天气现象」+「昼夜」选取。
+ * ⚠️ 新增 condition 必须四套齐全，否则运行时回退 `unknown`。
  */
-export const CONDITION_THEME_MAP: Record<WeatherCondition, { day: string; night: string }> = {
+export const CONDITION_THEME_MAP: Record<
+  WeatherCondition,
+  { day: string; night: string; dayDark: string; nightDark: string }
+> = {
   sunny: {
     day: 'linear-gradient(160deg, #1d6fc4 0%, #4a9fe0 45%, #8fc9ef 100%)',
     night: 'linear-gradient(160deg, #0b1e3a 0%, #17355c 55%, #2c517d 100%)',
+    dayDark: 'linear-gradient(160deg, #0d2a45 0%, #123a5c 45%, #1a4a70 100%)',
+    nightDark: 'linear-gradient(160deg, #071426 0%, #0c2138 55%, #132f4c 100%)',
   },
   cloudy: {
     day: 'linear-gradient(160deg, #4a7296 0%, #7ba3c2 55%, #a9c4d8 100%)',
     night: 'linear-gradient(160deg, #1a2733 0%, #2c4157 55%, #46617a 100%)',
+    dayDark: 'linear-gradient(160deg, #24384a 0%, #2e4659 55%, #3a5468 100%)',
+    nightDark: 'linear-gradient(160deg, #131c24 0%, #1c2833 55%, #26323f 100%)',
   },
   overcast: {
     day: 'linear-gradient(160deg, #4b5563 0%, #6b7280 55%, #9ca3af 100%)',
     night: 'linear-gradient(160deg, #1c2128 0%, #2d333d 55%, #424a57 100%)',
+    dayDark: 'linear-gradient(160deg, #2a2f36 0%, #343a42 55%, #414852 100%)',
+    nightDark: 'linear-gradient(160deg, #14171b 0%, #1d2126 55%, #272c33 100%)',
   },
   rain: {
     day: 'linear-gradient(160deg, #2f5d7c 0%, #4d7f9d 55%, #77a3ba 100%)',
     night: 'linear-gradient(160deg, #0e1c26 0%, #1e3444 55%, #345062 100%)',
+    dayDark: 'linear-gradient(160deg, #1d3949 0%, #254757 55%, #2f5768 100%)',
+    nightDark: 'linear-gradient(160deg, #0a151c 0%, #122430 55%, #1b3542 100%)',
   },
   snow: {
     day: 'linear-gradient(160deg, #5b7fa6 0%, #8aa9c6 55%, #c0d4e5 100%)',
     night: 'linear-gradient(160deg, #232f42 0%, #3a4a63 55%, #5a6e8a 100%)',
+    dayDark: 'linear-gradient(160deg, #2b3d50 0%, #354a5f 55%, #42586f 100%)',
+    nightDark: 'linear-gradient(160deg, #191f2b 0%, #232b3b 55%, #2f3a4d 100%)',
   },
   thunder: {
     day: 'linear-gradient(160deg, #3a3a55 0%, #55557a 55%, #7a7a9e 100%)',
     night: 'linear-gradient(160deg, #17141f 0%, #2a2438 55%, #423a55 100%)',
+    dayDark: 'linear-gradient(160deg, #232334 0%, #2d2d44 55%, #3a3a55 100%)',
+    nightDark: 'linear-gradient(160deg, #100e16 0%, #191524 55%, #241f30 100%)',
   },
   fog: {
     day: 'linear-gradient(160deg, #5d6b74 0%, #8794a0 55%, #b4bfca 100%)',
     night: 'linear-gradient(160deg, #20262b 0%, #333c44 55%, #4d5860 100%)',
+    dayDark: 'linear-gradient(160deg, #333c42 0%, #414c54 55%, #525f68 100%)',
+    nightDark: 'linear-gradient(160deg, #171c1f 0%, #222930 55%, #2e373d 100%)',
   },
   haze: {
     day: 'linear-gradient(160deg, #8a744f 0%, #b09668 55%, #d4bd8f 100%)',
     night: 'linear-gradient(160deg, #2e2718 0%, #473d26 55%, #635538 100%)',
+    dayDark: 'linear-gradient(160deg, #4a3e2a 0%, #5c4d34 55%, #6d5c40 100%)',
+    nightDark: 'linear-gradient(160deg, #1c1710 0%, #292217 55%, #382e20 100%)',
   },
   wind: {
     day: 'linear-gradient(160deg, #3c7a72 0%, #5fa39a 55%, #8ec5bd 100%)',
     night: 'linear-gradient(160deg, #12262a 0%, #1e3d42 55%, #2f5a60 100%)',
+    dayDark: 'linear-gradient(160deg, #21443f 0%, #295450 55%, #336660 100%)',
+    nightDark: 'linear-gradient(160deg, #0d1a1c 0%, #152a2d 55%, #1d3c40 100%)',
   },
   unknown: {
     day: 'linear-gradient(160deg, #3d6a94 0%, #628fb5 55%, #8fb4d2 100%)',
     night: 'linear-gradient(160deg, #14202e 0%, #24384c 55%, #3a5470 100%)',
+    dayDark: 'linear-gradient(160deg, #233d55 0%, #2b4a65 55%, #345876 100%)',
+    nightDark: 'linear-gradient(160deg, #0e1720 0%, #16242f 55%, #1f303d 100%)',
   },
 }
 
