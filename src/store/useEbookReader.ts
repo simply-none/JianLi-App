@@ -3,8 +3,8 @@ import { defineStore } from 'pinia';
 import { getStore, setStoreAsync } from '@/utils/common';
 import type { HighlightTypeName } from '@/views/ebookReader/highlightConfig';
 
-/** 电子书文件格式类型：txt 文本、epub 电子书、pdf 文档，空字符串表示未打开任何文件 */
-export type EbookFormat = 'txt' | 'epub' | 'pdf' | '';
+/** 电子书文件格式类型：txt 文本、epub 电子书、pdf 文档、cbz 漫画包，空字符串表示未打开任何文件 */
+export type EbookFormat = 'txt' | 'epub' | 'pdf' | 'cbz' | '';
 
 /** 电子书阅读主题类型：day 白天、night 夜间、eye 护眼（控制外层工具栏/抽屉主题） */
 export type EbookTheme = 'day' | 'night' | 'eye';
@@ -67,8 +67,11 @@ export interface EbookSettings {
   bgType: EbookBgType;
   /** 阅读区背景色（bgType 为 'color' 时生效，空字符串表示使用主题预设背景） */
   bgColor: string;
-  /** 阅读区背景图 data URL（bgType 为 'image' 时生效，空字符串表示使用主题预设背景） */
+  /** 阅读区背景图 data URL（bgType 为 'image' 时生效，空字符串表示使用主题预设背景）。
+   *  ⚠️ 运行时值；持久化时被剥离（见 persistSettings），只落 bgImageId，启动时从图库回填 */
   bgImage: string;
+  /** 阅读区背景图在图库（ebook_bg_image 表）中的记录 id；0 表示未关联库图（旧数据/自定义未入库） */
+  bgImageId: number;
   /** 阅读区文字颜色（空字符串表示使用主题预设文字色） */
   textColor: string;
   /** 行距倍率（作用于正文 line-height），如 1.8 表示 1.8 倍行距 */
@@ -105,6 +108,10 @@ export interface EbookSettings {
   firstLineIndent: number;
   /** PDF 适应方式：'width' 适应宽度（缩放使页宽撑满阅读区）/ 'height' 适应高度（缩放使单页高度≈视口高，一屏一页），pdf 阅读器生效 */
   pdfFitMode: 'width' | 'height';
+  /** PDF 夜间反色：夜间主题下对页面内容做 invert+色相旋转（白底黑字 → 暗底亮字），仅 preset 背景生效，pdf 阅读器生效 */
+  pdfNightInvert: boolean;
+  /** EPUB 屏蔽原书样式：true=强制注入排版覆盖（默认，保持现状）；false=保留 EPUB 自带排版/颜色 */
+  enforceBookStyle: boolean;
 }
 
 /**
@@ -123,6 +130,9 @@ function buildSettingsMap(stored: any): Record<'txt' | 'epub' | 'pdf', EbookSett
   for (const f of formats) {
     const base = isMap && stored[f] ? stored[f] : isFlat ? stored : undefined;
     const merged: EbookSettings = { ...DEFAULT_SETTINGS, ...(base || {}) };
+    // 旧数据无 bgImageId：若有 bgImage dataURL，保持原样可用（legacy），bgImageId 置 0；
+    // 新数据只存 id，bgImage 为空串，由 restoreBgImage 从图库回填。
+    if (typeof merged.bgImageId !== 'number') merged.bgImageId = 0;
     // 旧数据（无按类型样式预设）迁移：把原全局划线颜色/间隙/线宽/行距回填到「对应类型」预设，其余用默认，
     // 保证老用户既有外观不丢；已有 annotationStyles 则确保是独立副本（不与默认值/其它格式共享引用）。
     if (base && !base.annotationStyles) {
@@ -203,6 +213,7 @@ const DEFAULT_SETTINGS: EbookSettings = {
   bgType: 'preset',
   bgColor: '',
   bgImage: '',
+  bgImageId: 0,
   textColor: '',
   lineHeight: 1.8,
   columnCount: 1,
@@ -221,6 +232,8 @@ const DEFAULT_SETTINGS: EbookSettings = {
   paragraphSpacing: 0,
   firstLineIndent: 0,
   pdfFitMode: 'width',
+  pdfNightInvert: true,
+  enforceBookStyle: true,
 };
 
 export default defineStore('ebook-reader', () => {
@@ -260,9 +273,35 @@ export default defineStore('ebook-reader', () => {
   /**
    * 将完整的「按格式设置映射」持久化到本地存储。
    * 各 setXxx 设置项改完 settings.value 后调用，保证三种格式各自独立落库。
+   * ⚠️ 背景图 dataURL 不落 localStorage（体积大易触 5-10MB 配额且静默失败）：
+   * 持久化时剥离为空串、只保留 bgImageId，运行时经 restoreBgImage 从图库（SQLite）回填。
    */
   function persistSettings() {
-    setStoreAsync(SETTINGS_KEY, settingsMap.value);
+    const snapshot: Record<string, EbookSettings> = {};
+    for (const f of Object.keys(settingsMap.value) as ('txt' | 'epub' | 'pdf')[]) {
+      const { bgImage, ...rest } = settingsMap.value[f];
+      snapshot[f] = { ...rest, bgImage: '' } as EbookSettings;
+    }
+    setStoreAsync(SETTINGS_KEY, snapshot);
+  }
+
+  /**
+   * 从图库（SQLite ebook_bg_image 表）回填当前格式的背景图 dataURL。
+   * 适用于：启动恢复 / 切换格式后，settings.bgImage 为空但 bgImageId 有值的情况。
+   * 图库记录已被删除时清掉失效 id（回退主题预设背景）。
+   */
+  async function restoreBgImage(): Promise<void> {
+    const s = settings.value;
+    // 无待回填项：包括 legacy 的 dataURL 直存值（bgImage 非空），保持原样
+    if (s.bgImage || !s.bgImageId) return;
+    if (bgImages.value.length === 0) await loadBgImages();
+    const found = bgImages.value.find((b) => b.id === s.bgImageId);
+    if (found) {
+      s.bgImage = found.dataUrl;
+    } else {
+      s.bgImageId = 0;
+      persistSettings();
+    }
   }
 
   // settings 始终指向当前格式的设置对象（与 settingsMap[activeFormat] 同一引用）
@@ -281,6 +320,8 @@ export default defineStore('ebook-reader', () => {
         settings.value = settingsMap.value[f];
       }
       persistSettings();
+      // 切格式后若该格式的背景图只存了 id（dataURL 不落 localStorage），从图库回填
+      void restoreBgImage();
     }
   );
 
@@ -384,12 +425,14 @@ export default defineStore('ebook-reader', () => {
   }
 
   /**
-   * 设置阅读区背景图（bgType 为 'image' 时生效，存储为 data URL）并持久化
+   * 设置阅读区背景图（bgType 为 'image' 时生效）并持久化
    * @param value 背景图 data URL（空字符串表示使用主题预设背景）
+   * @param id 可选，图库记录 id；传入后持久化只落 id、不落 dataURL（见 persistSettings）
    * @returns 无返回值
    */
-  function setBgImage(value: string) {
+  function setBgImage(value: string, id?: number) {
     settings.value.bgImage = value;
+    settings.value.bgImageId = typeof id === 'number' ? id : 0;
     persistSettings();
   }
 
@@ -527,6 +570,24 @@ export default defineStore('ebook-reader', () => {
    */
   function setPdfFitMode(value: 'width' | 'height') {
     settings.value.pdfFitMode = value;
+    persistSettings();
+  }
+
+  /**
+   * 设置 PDF 夜间反色开关并持久化到本地存储，pdf 阅读器生效
+   * @param value true=夜间主题下反色（默认），false=关闭反色保持白纸
+   */
+  function setPdfNightInvert(value: boolean) {
+    settings.value.pdfNightInvert = value;
+    persistSettings();
+  }
+
+  /**
+   * 设置「EPUB 屏蔽原书样式」开关并持久化。仅影响 CSS 注入，不触碰 CFI/划线链路。
+   * @param value true=强制覆盖原书排版（默认）；false=保留原书排版
+   */
+  function setEnforceBookStyle(value: boolean) {
+    settings.value.enforceBookStyle = value;
     persistSettings();
   }
 
@@ -878,6 +939,8 @@ export default defineStore('ebook-reader', () => {
     setBgColor,
     setBgImage,
     setTextColor,
+    // 从图库回填背景图 dataURL（启动/切格式后调用）
+    restoreBgImage,
     // 设置中文正文字体
     setFontFamily,
     // 设置英文正文字体
@@ -916,6 +979,10 @@ export default defineStore('ebook-reader', () => {
     setFirstLineIndent,
     // 设置 PDF 适应方式（pdf 阅读器生效）
     setPdfFitMode,
+    // 设置 PDF 夜间反色开关（pdf 阅读器生效）
+    setPdfNightInvert,
+    // 设置 EPUB 屏蔽原书样式开关
+    setEnforceBookStyle,
     // 加载书架列表
     loadBookshelf,
     // 加载全部分类

@@ -8,10 +8,16 @@
  *   - 加载并恢复已保存标注
  * 渲染/分页/翻页/进度逻辑见 useTxtRender。
  */
+import { watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { TxtCtx, TxtAnnotation } from './txtContext';
+import { snapshotTypeColors, migratePresetColors } from '../highlightConfig';
 
 export function useTxtHighlight(ctx: TxtCtx) {
+  /** 各类型预设色的上一份快照：预设变更时判定哪些标注「仍跟随预设」需要迁移到新色 */
+  let prevTypeColors: Record<string, string> = snapshotTypeColors(
+    (ctx.settings.value as any).annotationStyles || {}
+  );
   /**
    * 加载指定文件的划线列表（解析 "start-end" 锚点为全文字符偏移）。
    */
@@ -223,7 +229,13 @@ export function useTxtHighlight(ctx: TxtCtx) {
 
     const note = ctx.noteInput.value.trim();
     try {
-      const res = await window.ipcRenderer.ebook.updateAnnotation({ id: ann.id, note });
+      // 回写 color/type，避免 updateAnnotation 默认覆盖为 yellow/highlight（对齐 PDF 端）
+      const res = await window.ipcRenderer.ebook.updateAnnotation({
+        id: ann.id,
+        note,
+        color: ann.color,
+        type: ann.type,
+      });
       if (res?.success) {
         ann.note = note;
         ann.updatedAt = new Date().toISOString();
@@ -321,6 +333,35 @@ export function useTxtHighlight(ctx: TxtCtx) {
     void deleteAnnotationById(id);
   }
 
+  /**
+   * 操作菜单「改色」：仅修改该条标注颜色（不影响类型预设、不影响同类其它标注）。
+   * 落库后更新本地列表；pageSegments 依赖 annotations 自动重算，高亮立即更新。
+   */
+  async function onMenuRecolor(color: string): Promise<void> {
+    const id = ctx.menuAnnotationId.value;
+    if (id === null || !color) return;
+    ctx.menuVisible.value = false;
+    const ann = ctx.annotations.value.find((a) => a.id === id);
+    if (!ann) return;
+    try {
+      const res = await window.ipcRenderer.ebook.updateAnnotation({
+        id,
+        color,
+        type: ann.type,
+        note: ann.note,
+      });
+      if (!res?.success) {
+        ElMessage.error(`修改颜色失败：${res?.error || '未知错误'}`);
+        return;
+      }
+      ann.color = color;
+      ctx.emit('annotations-updated', ctx.annotations.value);
+    } catch (err) {
+      console.error('修改标注颜色异常', err);
+      ElMessage.error('修改颜色失败');
+    }
+  }
+
   /** 按 id 移除本地划线（不调 IPC，持久化由父组件负责） */
   function removeAnnotationById(id: number): void {
     ctx.annotations.value = ctx.annotations.value.filter((a) => a.id !== id);
@@ -329,6 +370,21 @@ export function useTxtHighlight(ctx: TxtCtx) {
 
   // 暴露给 render composable / 模板的回调与公开方法
   ctx.loadAnnotations = loadAnnotations;
+
+  // 类型预设色变更：把「仍跟随预设」的标注迁移到新色（单条改过色的保持自定义）。
+  // pageSegments 依赖 annotations 响应式重算，颜色迁移后高亮自动更新。
+  watch(
+    () => (ctx.settings.value as any).annotationStyles,
+    () => {
+      migratePresetColors(
+        ctx.annotations.value,
+        (ctx.settings.value as any).annotationStyles || {},
+        prevTypeColors
+      );
+      prevTypeColors = snapshotTypeColors((ctx.settings.value as any).annotationStyles || {});
+    },
+    { deep: true }
+  );
 
   return {
     toolbarVisible: ctx.toolbarVisible,
@@ -351,5 +407,6 @@ export function useTxtHighlight(ctx: TxtCtx) {
     menuHasNote: ctx.menuHasNote,
     onMenuConvert,
     onMenuDelete,
+    onMenuRecolor,
   };
 }

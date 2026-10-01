@@ -1,7 +1,21 @@
 <template>
   <layout-vue>
     <template #main>
-      <div class="ebook-reader-page" :class="{ 'is-fullscreen': isFullscreen }" ref="readerPageRef">
+      <div
+        class="ebook-reader-page"
+        :class="{ 'is-fullscreen': isFullscreen }"
+        ref="readerPageRef"
+        @dragover="onPageDragOver"
+        @dragleave="onPageDragLeave"
+        @drop="onPageDrop"
+      >
+        <!-- 拖拽文件导入提示层 -->
+        <transition name="fade">
+          <div v-if="dragActive" class="drag-overlay">
+            <LucideIcon name="FilePlus2" :size="40" />
+            <span>松手导入电子书（txt / epub / pdf），第一本将直接打开</span>
+          </div>
+        </transition>
         <!-- 顶部工具栏 -->
         <header class="reader-toolbar" v-show="settings.readerTopbarVisible">
           <div class="toolbar-left">
@@ -28,7 +42,7 @@
             <div class="file-info" v-if="view === 'reader' && currentFile.format">
               <el-tag
                 size="small"
-                :type="currentFile.format === 'epub' ? 'warning' : currentFile.format === 'pdf' ? 'danger' : 'success'"
+                :type="currentFile.format === 'epub' ? 'warning' : currentFile.format === 'pdf' ? 'danger' : currentFile.format === 'cbz' ? 'info' : 'success'"
               >
                 {{ currentFile.format.toUpperCase() }}
               </el-tag>
@@ -52,9 +66,9 @@
             ref="toolbarRightRef"
             @wheel="onToolbarRightWheel"
           >
-            <!-- 目录按钮（epub / pdf 均可用） -->
+            <!-- 目录按钮（epub / pdf / txt 均可用；txt 为识别出的章节目录） -->
             <el-button
-              v-if="currentFile.format === 'epub' || currentFile.format === 'pdf'"
+              v-if="currentFile.format === 'epub' || currentFile.format === 'pdf' || currentFile.format === 'txt'"
               size="small"
               @click="tocVisible = true"
             >
@@ -73,9 +87,9 @@
                 笔记
               </el-button>
             </el-badge>
-            <!-- 书签按钮（epub / pdf 均可用）：打开书签抽屉，附带数量徽标 -->
+            <!-- 书签按钮（epub / pdf / txt 均可用）：打开书签抽屉，附带数量徽标 -->
             <el-badge
-              v-if="currentFile.format === 'epub' || currentFile.format === 'pdf'"
+              v-if="currentFile.format === 'epub' || currentFile.format === 'pdf' || currentFile.format === 'txt'"
               :value="bookmarks.length"
               :hidden="bookmarks.length === 0"
               :max="99"
@@ -86,9 +100,9 @@
                 书签
               </el-button>
             </el-badge>
-            <!-- 全文搜索按钮（epub / pdf 均可用）：打开搜索面板 -->
+            <!-- 全文搜索按钮（epub / pdf / txt 均可用）：打开搜索面板 -->
             <el-button
-              v-if="currentFile.format === 'epub' || currentFile.format === 'pdf'"
+              v-if="currentFile.format === 'epub' || currentFile.format === 'pdf' || currentFile.format === 'txt'"
               size="small"
               @click="searchPanelVisible = true"
             >
@@ -122,9 +136,9 @@
               <LucideIcon :name="isFullscreen ? 'Minimize2' : 'Maximize2'" :size="16" />
               {{ isFullscreen ? '退出全屏' : '全屏' }}
             </el-button>
-            <!-- 朗读按钮（仅 EPUB / TXT）：点击开始/暂停朗读，详细控制见底部播放条 -->
+            <!-- 朗读按钮（EPUB / TXT / PDF 均可用）：点击开始/暂停朗读，详细控制见底部播放条 -->
             <el-button
-              v-if="currentFile.format === 'epub' || currentFile.format === 'txt'"
+              v-if="currentFile.format === 'epub' || currentFile.format === 'txt' || currentFile.format === 'pdf'"
               size="small"
               @click="toggleTts()"
               :type="isPlaying ? 'primary' : ''"
@@ -197,9 +211,9 @@
                 <LucideIcon name="NotebookPen" :size="16" />
               </el-button>
             </el-badge>
-            <!-- 书签：打开书签抽屉，附带数量徽标（仅 epub / pdf 生效，与顶部工具栏一致） -->
+            <!-- 书签：打开书签抽屉，附带数量徽标（epub / pdf / txt 均生效，与顶部工具栏一致） -->
             <el-badge
-              v-if="currentFile.format === 'epub' || currentFile.format === 'pdf'"
+              v-if="currentFile.format === 'epub' || currentFile.format === 'pdf' || currentFile.format === 'txt'"
               :value="bookmarks.length"
               :hidden="bookmarks.length === 0"
               :max="99"
@@ -214,9 +228,9 @@
                 <LucideIcon name="Bookmark" :size="16" />
               </el-button>
             </el-badge>
-            <!-- 朗读（仅 EPUB / TXT，全屏时显示）：开始/暂停朗读 -->
+            <!-- 朗读（EPUB / TXT / PDF，全屏时显示）：开始/暂停朗读 -->
             <el-button
-              v-if="currentFile.format === 'epub' || currentFile.format === 'txt'"
+              v-if="currentFile.format === 'epub' || currentFile.format === 'txt' || currentFile.format === 'pdf'"
               size="small"
               circle
               @click="toggleTts()"
@@ -246,6 +260,34 @@
 
         <!-- 内容区：根据 view 状态切换「书架视图」与「阅读视图」 -->
         <div class="reader-content">
+          <!-- 继续阅读 + 阅读统计横幅（仅书架视图） -->
+          <div v-if="view === 'bookshelf' && (resumeBook || readingTotals.total > 0)" class="resume-banner">
+            <div v-if="resumeBook" class="resume-info" @click="resumeReading">
+              <LucideIcon name="BookOpen" :size="16" class="resume-icon" />
+              <span class="resume-label">继续阅读</span>
+              <span class="resume-title" :title="resumeBook.title || resumeBook.name">
+                《{{ resumeBook.title || resumeBook.name }}》
+              </span>
+              <span class="resume-percent">{{ Math.round(resumeBook.percent) }}%</span>
+            </div>
+            <el-button v-if="resumeBook" size="small" type="primary" @click="resumeReading">
+              打开
+            </el-button>
+            <div class="reading-stats" v-if="readingTotals.total > 0">
+              <span class="stat-chip" title="今日阅读时长">
+                <LucideIcon name="Timer" :size="12" />
+                今日 {{ formatReadingDuration(readingTotals.today) }}
+              </span>
+              <span class="stat-chip" title="最近 7 天阅读时长">
+                <LucideIcon name="Timer" :size="12" />
+                7 天 {{ formatReadingDuration(readingTotals.week) }}
+              </span>
+              <span class="stat-chip" title="累计阅读时长">
+                <LucideIcon name="Timer" :size="12" />
+                累计 {{ formatReadingDuration(readingTotals.total) }}
+              </span>
+            </div>
+          </div>
           <!-- 书架视图（已抽为独立组件 Bookshelf）：卡片网格 + 徽标 + 笔记/导出，打开/删除/加入/导出由父组件处理 -->
           <Bookshelf
             v-if="view === 'bookshelf'"
@@ -268,6 +310,7 @@
             @delete-category="onDelCat"
             @update-category="onUpdateCat"
             @set-book-categories="onSetBookCats"
+            @edit-meta="onEditBookMeta"
             @clear-all="clearAll"
           />
 
@@ -345,16 +388,18 @@
           @delete-all="onDeleteAll"
           @export="exportCurrentAnnotations"
           @export-to-conversation="exportAnnotationsToConversation"
+          @export-more="onExportAnnotationsMore"
           @save-note="saveShelfNote"
         />
 
-        <!-- 书签抽屉（已抽为独立组件 BookmarksDrawer）：跳转/删除由父组件处理 -->
+        <!-- 书签抽屉（已抽为独立组件 BookmarksDrawer）：跳转/删除/重命名由父组件处理 -->
         <BookmarksDrawer
           v-model="bookmarkDrawerVisible"
           :items="bookmarks"
           :current-cfi="currentFileCfi"
           @jump="onBookmarkClick"
           @delete="onBookmarkDelete"
+          @rename="onBookmarkRename"
         />
 
         <!-- 全文搜索面板（已抽为独立组件 SearchPanel）：检索/跳转由父组件处理 -->
@@ -399,10 +444,11 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import LayoutVue from '@/components/layout.vue';
 import LucideIcon from '@/components/LucideIcon.vue';
 import useEbookReader from '@/store/useEbookReader';
-import type { EbookTheme, EbookBgType, BookshelfItem } from '@/store/useEbookReader';
+import type { EbookTheme, EbookBgType, EbookFormat, BookshelfItem } from '@/store/useEbookReader';
 import TxtReader from './components/TxtReader.vue';
 import EpubReader from './components/EpubReader.vue';
 import PdfReader from './components/PdfReader.vue';
+import CbzReader from './components/CbzReader.vue';
 import SettingsDrawer from './components/SettingsDrawer.vue';
 import TocDrawer from './components/TocDrawer.vue';
 import AnnotationDrawer from './components/AnnotationDrawer.vue';
@@ -419,7 +465,13 @@ import { useBookTts } from './composables/useBookTts';
 import { pdfApi } from '@/views/pdfTools/api/pdfApi';
 import type { PdfAttachmentItem } from '@/views/pdfTools/types';
 import { useThemeConversation } from '@/views/themeConversation/composables/useThemeConversation';
-import { getFileName, getFormat } from './utils/fileUtils';
+import { getFileName, getFormat, formatReadingDuration } from './utils/fileUtils';
+// 更多导出格式（HTML / CSV / 书摘长图）：走统一导出规范（exportToFile + fileNotify）
+import {
+  exportAnnotationsHtml,
+  exportAnnotationsCsv,
+  exportAnnotationsImage,
+} from './utils/annotationExport';
 import type { TocItem, FlatTocItem, ReaderComponentInstance, AnnotationDisplayItem, EpubSearchResult } from './types';
 
 // 电子书阅读器 store
@@ -459,6 +511,9 @@ const {
   addFolder,
   exportBook,
   exportAll,
+  // 批量导入（拖拽进窗口导入复用）
+  importFilesToShelf,
+  reportImportResult,
   // 分类相关状态与操作
   categories,
   selectedCategory,
@@ -470,7 +525,15 @@ const {
   setBookCategories,
 } = useBookshelf({
   // 打开书时写入 store 并切换到阅读视图（复用统一的 loadFile 加载器）
-  openBook: (item) => loadFile(item.path, item.name, item.format as 'txt' | 'epub'),
+  // format 按数据库存储值透传（txt/epub/pdf/cbz），loadFile 内部对未知格式兜底
+  openBook: (item) =>
+    loadFile(
+      item.path,
+      item.name,
+      (item.format === 'epub' || item.format === 'pdf' || item.format === 'cbz'
+        ? item.format
+        : 'txt') as 'txt' | 'epub' | 'pdf' | 'cbz'
+    ),
 });
 
 // 主题对话单例（与主题对话页面共享）：用于把笔记/划线导出为「主题=书名」下的对话
@@ -507,6 +570,94 @@ function onUpdateCat(p: { id: number; name?: string; color?: string | null }): v
 /** 设置某本书的分类 */
 function onSetBookCats(p: { bookPath: string; categoryIds: number[] }): void {
   setBookCategories(p.bookPath, p.categoryIds);
+}
+
+/**
+ * 编辑书籍元数据（书架「信息」按钮 / 列表右键菜单）：save-book-meta 落库并刷新书架。
+ * 若编辑的是当前打开的书，同步更新 currentFile 的展示信息。
+ */
+async function onEditBookMeta(p: {
+  item: BookshelfItem;
+  title: string;
+  author: string;
+  cover: string;
+}): Promise<void> {
+  try {
+    const res = await window.ipcRenderer.ebook.saveBookMeta({
+      filePath: p.item.path,
+      name: p.item.name,
+      format: p.item.format,
+      title: p.title,
+      author: p.author,
+      cover: p.cover,
+      contentHash: p.item.contentHash || '',
+    });
+    if (!res?.success) {
+      ElMessage.error(`保存书籍信息失败：${res?.error || '未知错误'}`);
+      return;
+    }
+    await loadBookshelf();
+    ElMessage.success('书籍信息已保存');
+    // 当前打开的书同步展示信息
+    if (currentFile.value.path === p.item.path) {
+      setCurrentFile({
+        ...currentFile.value,
+        title: p.title || currentFile.value.title,
+        author: p.author || currentFile.value.author,
+        cover: p.cover || currentFile.value.cover,
+      });
+    }
+  } catch (err) {
+    console.error('保存书籍信息异常', err);
+    ElMessage.error('保存书籍信息失败');
+  }
+}
+
+// ===== 拖文件进窗口导入（E2a）=====
+/** 拖拽悬停提示层显隐 */
+const dragActive = ref(false);
+
+/** 拖拽悬停：阻止默认（否则浏览器会直接打开文件）并显示提示层 */
+function onPageDragOver(e: DragEvent): void {
+  if (!e.dataTransfer?.types?.includes('Files')) return;
+  e.preventDefault();
+  dragActive.value = true;
+}
+
+function onPageDragLeave(e: DragEvent): void {
+  // 子元素间移动会触发 leave，仅当真正离开页面容器时收起提示层
+  if (e.relatedTarget && readerPageRef.value?.contains(e.relatedTarget as Node)) return;
+  dragActive.value = false;
+}
+
+/** 松手：收集拖入的电子书文件 → 第一本直接打开，其余批量入库 */
+async function onPageDrop(e: DragEvent): Promise<void> {
+  e.preventDefault();
+  dragActive.value = false;
+  const files = Array.from(e.dataTransfer?.files || []);
+  if (files.length === 0) return;
+  const valid: string[] = [];
+  let skipped = 0;
+  for (const f of files) {
+    // Electron 扩展 File：path 为磁盘绝对路径
+    const p = (f as unknown as { path?: string }).path || '';
+    if (p && getFormat(getFileName(p))) valid.push(p);
+    else skipped++;
+  }
+  if (valid.length === 0) {
+    ElMessage.warning('暂不支持拖入的文件格式（当前支持 txt、epub、pdf）');
+    return;
+  }
+  // 第一本直接进入阅读，其余入库不打开
+  const [first, ...rest] = valid;
+  const firstName = getFileName(first);
+  loadFile(first, firstName, getFormat(firstName) as 'txt' | 'epub' | 'pdf');
+  if (rest.length > 0) {
+    const r = await importFilesToShelf(rest);
+    reportImportResult({ ...r, skippedUnsupported: skipped });
+  } else if (skipped > 0) {
+    ElMessage.warning(`已忽略 ${skipped} 个不支持的文件`);
+  }
 }
 
 /**
@@ -603,6 +754,7 @@ const readerComponent = computed(() => {
   if (currentFile.value.format === 'txt') return TxtReader;
   if (currentFile.value.format === 'epub') return EpubReader;
   if (currentFile.value.format === 'pdf') return PdfReader;
+  if (currentFile.value.format === 'cbz') return CbzReader;
   return null;
 });
 
@@ -617,11 +769,13 @@ const extraReaderProps = computed(() => {
       letterSpacing: settings.value.letterSpacing,
       paragraphSpacing: settings.value.paragraphSpacing,
       firstLineIndent: settings.value.firstLineIndent,
+      enforceBookStyle: settings.value.enforceBookStyle,
     };
   }
   if (currentFile.value.format === 'pdf') {
     return {
       pdfFitMode: settings.value.pdfFitMode,
+      pdfNightInvert: settings.value.pdfNightInvert,
     };
   }
   return {};
@@ -636,7 +790,7 @@ const extraReaderProps = computed(() => {
  * @param format - 文件格式：'txt'、'epub' 或 'pdf'
  * @returns 无返回值
  */
-async function loadFile(filePath: string, name: string, format: 'txt' | 'epub' | 'pdf') {
+async function loadFile(filePath: string, name: string, format: 'txt' | 'epub' | 'pdf' | 'cbz') {
   // 清空不支持格式提示，避免上一次的提示残留
   unsupportedTip.value = '';
   // 计算文件内容哈希（内容身份）：用于换路径重新导入时复用标注/进度
@@ -739,11 +893,20 @@ function onFsChange() {
   isFullscreen.value = !!el && document.fullscreenElement === el;
 }
 
-function openFile() {
+/** 阅读视图全局键盘：F11 切换全屏（防止默认浏览器全屏行为与沉浸状态不同步） */
+function onReaderKeydown(e: KeyboardEvent) {
+  if (e.key === 'F11' && view.value === 'reader') {
+    e.preventDefault();
+    toggleFullscreen();
+  }
+}
+
+async function openFile() {
   // 每次点击「打开文件」时重置不支持格式提示，避免上一次的提示残留
   unsupportedTip.value = '';
-  // 调用主进程文件选择对话框：openFile 表示选择文件，type: ['file'] 表示所有文件
-  const result = window.ipcRenderer.sendSync('get-file-list', {
+  // 调用主进程文件选择对话框（异步 invoke，避免 sendSync 模态期间冻结渲染进程）：
+  // openFile 表示选择文件，type: ['file'] 表示所有文件
+  const result = await window.ipcRenderer.handlePromise('get-file-list-async', {
     openFile: true,
     type: ['file'],
   });
@@ -756,10 +919,8 @@ function openFile() {
 
   // 不支持的格式（含 .mobi 等）提示用户
   if (!format) {
-    // 保留 ElMessage 作为即时反馈
-    ElMessage.warning('暂不支持该格式（当前支持 txt、epub、pdf）');
-    // 在阅读内容区以 el-empty 形式展示提示文本
-    unsupportedTip.value = '暂不支持该格式（当前支持 txt、epub、pdf）';
+    // 在阅读内容区以 el-empty 形式展示提示文本（不再重复弹 ElMessage，避免同一文案出现两份）
+    unsupportedTip.value = '暂不支持该格式（当前支持 txt、epub、pdf、cbz）';
     // 清空 currentFile，避免显示阅读器组件
     setCurrentFile({ path: '', name: '', format: '' });
     // 同步清除目录状态
@@ -863,6 +1024,10 @@ function onTocItemClick(item: FlatTocItem) {
     // PDF 目录项 href 形如 "page:N"，解析页码后跳转
     const m = /^page:(\d+)$/.exec(item.href || '');
     if (m) readerRef.value.goToTocPage(Number(m[1]));
+  } else if (currentFile.value.format === 'txt' && readerRef.value?.jumpToChapter) {
+    // TXT 目录项 href 形如 "ch:章节下标"（章节切分在 TxtReader 内完成）
+    const m = /^ch:(\d+)$/.exec(item.href || '');
+    if (m) readerRef.value.jumpToChapter(Number(m[1]));
   }
   tocVisible.value = false;
 }
@@ -888,6 +1053,9 @@ function onAnnotationsUpdated(items: any[]) {
     note: item.note ?? '',
     createdAt: item.createdAt ?? '',
     updatedAt: item.updatedAt ?? '',
+    // 颜色/类型透传：编辑笔记回写时需带上，否则主进程默认覆盖为 yellow/highlight
+    color: item.color,
+    type: item.type,
   }));
 }
 
@@ -934,6 +1102,16 @@ async function onBookmarkDelete(item: BookmarkRecord) {
   readerRef.value?.removeBookmark?.(item.id);
   bookmarks.value = bookmarks.value.filter((b) => b.id !== item.id);
   ElMessage.success('已删除书签');
+}
+
+/**
+ * 书签抽屉重命名事件处理
+ * 调用子组件暴露的 renameBookmark 完成 IPC 落库与本地列表同步
+ *
+ * @param payload - { id: 书签 id, label: 新名称 }
+ */
+async function onBookmarkRename(payload: { id: number; label: string }): Promise<void> {
+  await readerRef.value?.renameBookmark?.(payload.id, payload.label);
 }
 
 /**
@@ -1050,32 +1228,44 @@ function onFontSizeChange(size: number) {
  * 更新当前文件（标题/作者/封面，持久化到 localStorage，下次启动直接恢复），
  * 并异步落库（供书架列表秒出），同时同步本地书架卡片，避免下次重进才刷新。
  *
- * @param payload - { title, author, cover }，空串表示无对应信息（UI 回退文件名）
+ * @param payload - { filePath?, title, author, cover }，空串表示无对应信息（UI 回退文件名）；
+ *                  filePath 为子组件解析完成时自身所属的文件路径（可选）。异步解析（book.ready 等）
+ *                  完成时用户可能已切换到另一本书，此时必须把元数据写回「解析时那本书」的行，
+ *                  且不得反向覆盖 currentFile——否则旧书元数据会污染新书。
  * @returns 无返回值
  */
-function onBookMeta(payload: { title: string; author: string; cover: string }) {
-  const path = currentFile.value.path;
+function onBookMeta(payload: { filePath?: string; title: string; author: string; cover: string }) {
+  // 事件归属书：优先子组件带回的 filePath，退回当前书路径
+  const path = payload.filePath || currentFile.value.path;
   if (!path) return;
-  // 更新当前文件并持久化（title/author/cover 带则覆盖，空串保留原值）
-  setCurrentFile({
-    path,
-    name: currentFile.value.name,
-    format: currentFile.value.format,
-    contentHash: currentFile.value.contentHash,
-    title: payload.title || currentFile.value.title,
-    author: payload.author || currentFile.value.author,
-    cover: payload.cover || currentFile.value.cover,
-  });
-  // 落库（供书架秒出），失败不影响阅读
+  const sameBook = path === currentFile.value.path;
+  const shelfItem = ebookStore.bookshelf.find((b) => b.path === path);
+  // 归属书的名称/格式/内容哈希：同书取 currentFile，跨书从书架行取（落库 INSERT 兜底需要）
+  const name = (sameBook ? currentFile.value.name : shelfItem?.name) || path.replace(/^.*[\\/]/, '');
+  const format = sameBook ? currentFile.value.format : (shelfItem?.format as EbookFormat) || '';
+  const contentHash = (sameBook ? currentFile.value.contentHash : shelfItem?.contentHash) || '';
+  if (sameBook) {
+    // 仅当事件仍属于当前书时才更新 currentFile（防止迟到事件把旧书信息写回新书）
+    setCurrentFile({
+      path,
+      name: currentFile.value.name,
+      format: currentFile.value.format,
+      contentHash: currentFile.value.contentHash,
+      title: payload.title || currentFile.value.title,
+      author: payload.author || currentFile.value.author,
+      cover: payload.cover || currentFile.value.cover,
+    });
+  }
+  // 落库（供书架秒出），失败不影响阅读；已切书时也写回原书自己的行
   window.ipcRenderer.ebook
     .saveBookMeta({
       filePath: path,
-      name: currentFile.value.name,
-      format: currentFile.value.format,
+      name,
+      format,
       title: payload.title,
       author: payload.author,
       cover: payload.cover,
-      contentHash: currentFile.value.contentHash || '',
+      contentHash,
     })
     .catch((err: any) => console.error('保存书籍基本信息失败', err));
   // 同步本地书架卡片（无需重新 loadBookshelf）
@@ -1228,6 +1418,9 @@ async function openShelfAnnotations(item: BookshelfItem): Promise<void> {
       note: r.note || '',
       createdAt: r.created_at || '',
       updatedAt: r.updated_at || '',
+      // 颜色/类型透传：书架来源编辑笔记回写时需带上，避免主进程默认覆盖
+      color: r.color,
+      type: r.type,
     }));
   } else {
     annotations.value = [];
@@ -1259,6 +1452,38 @@ async function exportCurrentAnnotations(): Promise<void> {
       contentHash: currentFile.value.contentHash || '',
     });
     handleExportResult(res);
+  }
+}
+
+/**
+ * 「更多格式」导出当前抽屉里的笔记与划线（HTML / CSV / 书摘长图）
+ * 走统一导出规范：exportToFile 直写缓存目录，成功反馈由 fileNotify 完成
+ *
+ * @param format - 目标格式
+ */
+function onExportAnnotationsMore(format: 'html' | 'csv' | 'image'): void {
+  if (annotations.value.length === 0) {
+    ElMessage.warning('当前没有可导出的笔记或划线');
+    return;
+  }
+  // 书名：书架来源用书架书名，否则用当前文件标题/名称（去扩展名）
+  let bookTitle = '电子书';
+  if (annotationSourceFile.value) {
+    const book = bookshelf.value.find((b) => b.path === annotationSourceFile.value);
+    bookTitle = book?.name?.replace(/\.[^.]+$/, '') || '电子书';
+  } else if (currentFile.value.title || currentFile.value.name) {
+    bookTitle = (currentFile.value.title || currentFile.value.name).replace(/\.[^.]+$/, '');
+  }
+  const items = annotations.value;
+  const res =
+    format === 'html'
+      ? exportAnnotationsHtml(items, bookTitle)
+      : format === 'csv'
+        ? exportAnnotationsCsv(items, bookTitle)
+        : exportAnnotationsImage(items, bookTitle);
+  // 成功已由 fileNotify 提示，仅处理失败
+  if (!res.success) {
+    ElMessage.error(res.message || '导出失败，请重试');
   }
 }
 
@@ -1329,9 +1554,13 @@ async function exportAnnotationsToConversation(): Promise<void> {
 async function saveShelfNote(payload: { id: number; text: string }): Promise<void> {
   const { id, text } = payload;
   try {
+    // 回写 color/type（若本地列表有）：避免 updateAnnotation 把颜色/类型重置为默认值
+    const local = annotations.value.find((a) => a.id === id);
     const res = await window.ipcRenderer.ebook.updateAnnotation({
       id,
       note: text,
+      ...(local?.color ? { color: local.color } : {}),
+      ...(local?.type ? { type: local.type } : {}),
     });
     if (!res?.success) {
       ElMessage.error(`保存失败：${res?.error || '未知错误'}`);
@@ -1351,14 +1580,113 @@ async function saveShelfNote(payload: { id: number; text: string }): Promise<voi
   }
 }
 
+// ===== 阅读时长统计（ebook_reading_stats，D5）=====
+// 阅读视图中每秒累计（页面隐藏/切走时暂停），每 60s 批量落库一次；多副本按内容身份共用统计。
+const READING_FLUSH_SEC = 60;
+/** 尚未落库的累计秒数 */
+let readingAccumSec = 0;
+/** 每秒心跳定时器 */
+let readingTimerId: ReturnType<typeof setInterval> | null = null;
+/** 今日 / 最近 7 天 / 累计阅读时长（秒），书架横幅展示 */
+const readingTotals = ref({ today: 0, week: 0, total: 0 });
+
+/** 本地日期键（与主进程 day_key 同口径） */
+function localDayKey(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/** 当前书的统计键：有内容哈希用 `H:`（多副本共用），否则 `P:` */
+function readingStatKey(): string {
+  return currentFile.value.contentHash
+    ? `H:${currentFile.value.contentHash}`
+    : `P:${currentFile.value.path}`;
+}
+
+/** 把未落库的累计秒数上报到主进程（失败回滚累计，下轮重试） */
+async function flushReadingStats(): Promise<void> {
+  const sec = readingAccumSec;
+  readingAccumSec = 0;
+  if (sec <= 0 || !currentFile.value.path) return;
+  try {
+    const res = await window.ipcRenderer.ebook.saveReadingStats({
+      dayKey: localDayKey(),
+      statKey: readingStatKey(),
+      durationSec: sec,
+    });
+    if (res?.success) {
+      // 本地同步增量展示，避免频繁拉取
+      readingTotals.value = {
+        today: readingTotals.value.today + sec,
+        week: readingTotals.value.week + sec,
+        total: readingTotals.value.total + sec,
+      };
+      refreshCounts();
+    } else {
+      readingAccumSec += sec;
+    }
+  } catch (err) {
+    readingAccumSec += sec;
+    console.error('上报阅读时长失败', err);
+  }
+}
+
+/** 每秒心跳：仅在「阅读视图 + 页面可见」时累计，达到批量阈值即落库 */
+function onReadingTick(): void {
+  if (view.value !== 'reader' || document.hidden || !currentFile.value.path) return;
+  readingAccumSec += 1;
+  if (readingAccumSec >= READING_FLUSH_SEC) {
+    void flushReadingStats();
+  }
+}
+
+/** 从主进程拉取今日/7天/累计时长（挂载时一次；此后由上报增量维护） */
+async function loadReadingTotals(): Promise<void> {
+  try {
+    const res = await window.ipcRenderer.ebook.getReadingStats();
+    if (res?.success && res.data) {
+      readingTotals.value = {
+        today: res.data.today || 0,
+        week: res.data.week || 0,
+        total: res.data.total || 0,
+      };
+    }
+  } catch (err) {
+    console.error('读取阅读时长失败', err);
+  }
+}
+
+// ===== 继续阅读（书架横幅，D5）=====
+/** 上次阅读的书（currentFile 持久化恢复，且仍在书架中时才有值） */
+const resumeBook = computed(() => {
+  const cur = currentFile.value;
+  if (!cur.path) return null;
+  return bookshelf.value.find((b) => b.path === cur.path) || null;
+});
+/** 点击「继续阅读」：重新加载上次阅读的书（进度由阅读器自动恢复） */
+function resumeReading(): void {
+  const cur = currentFile.value;
+  if (!cur.path) return;
+  const format =
+    cur.format === 'epub' || cur.format === 'pdf' ? cur.format : 'txt';
+  void loadFile(cur.path, cur.name, format as 'txt' | 'epub' | 'pdf');
+}
+
 // 组件挂载时加载书架列表（从数据库读取）
-onMounted(() => {
-  // 加载分类列表（书架分类筛选/管理依赖）
+onMounted(() => {  // 加载分类列表（书架分类筛选/管理依赖）
   loadCategories();
   // 加载书架后刷新每本书的笔记/驾线数量徽标
   loadBookshelf().then(() => refreshCounts());
+  // 背景图持久化只落图库 id（不落 dataURL）：启动时从图库回填当前格式的背景图
+  void ebookStore.restoreBgImage();
+  // 阅读时长统计：启动心跳 + 拉取汇总（今日/7天/累计）
+  readingTimerId = setInterval(onReadingTick, 1000);
+  void loadReadingTotals();
   // 监听全屏变化（ESC 退出等），同步沉浸状态
   document.addEventListener('fullscreenchange', onFsChange);
+  // F11：阅读视图下切换沉浸全屏
+  window.addEventListener('keydown', onReaderKeydown);
   // 右键「用渐离阅读」外部打开：挂载时若有待打开文件则入库并打开（App.vue 已写入 store）
   const ext = ebookStore.pendingOpenFiles.slice();
   if (ext.length) {
@@ -1369,6 +1697,13 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('fullscreenchange', onFsChange);
+  window.removeEventListener('keydown', onReaderKeydown);
+  // 停止阅读时长心跳并把未落库秒数冲一次（尽力而为）
+  if (readingTimerId) {
+    clearInterval(readingTimerId);
+    readingTimerId = null;
+  }
+  void flushReadingStats();
   // 卸载时若处于真实全屏，安全退出
   if (document.fullscreenElement) {
     document.exitFullscreen().catch(() => {});
@@ -1408,6 +1743,16 @@ watch(
   }
 );
 
+// 关闭搜索面板时取消进行中的全文搜索（EPUB 逐章检索支持中断，避免关了面板仍在后台跑）
+watch(
+  () => searchPanelVisible.value,
+  (visible) => {
+    if (!visible) {
+      readerRef.value?.cancelSearch?.();
+    }
+  }
+);
+
 // 切换回书架视图时重新拉取每本书的笔记/划线数量徽标：
 // 阅读过程中新增/删除的标注已写入数据库，回到书架需刷新计数（原返回书架逻辑在此处补回刷新）
 watch(
@@ -1415,6 +1760,8 @@ watch(
   (val) => {
     if (val === 'bookshelf') {
       refreshCounts();
+      // 离开阅读视图：把未落库的阅读时长冲一次
+      void flushReadingStats();
       // 离开阅读视图时退出沉浸全屏，避免书架停留在隐藏工具栏的全屏态
       if (isFullscreen.value) {
         isFullscreen.value = false;
@@ -1428,11 +1775,13 @@ watch(
 function openExternalFiles(files: string[]): void {
   for (const p of files) {
     const lower = p.toLowerCase();
-    const format: 'txt' | 'epub' | 'pdf' = lower.endsWith('.pdf')
+    const format: 'txt' | 'epub' | 'pdf' | 'cbz' = lower.endsWith('.pdf')
       ? 'pdf'
       : lower.endsWith('.txt')
         ? 'txt'
-        : 'epub';
+        : lower.endsWith('.cbz')
+          ? 'cbz'
+          : 'epub';
     loadFile(p, p.replace(/^.*[\\/]/, ''), format);
   }
 }
@@ -1558,6 +1907,72 @@ watch(
       height: 100%;
     }
 
+    /* 继续阅读 + 阅读统计横幅：书架视图顶部一条 */
+    .resume-banner {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin: 0 0 10px;
+      padding: 10px 16px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+
+      .resume-info {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        cursor: pointer;
+
+        .resume-icon {
+          color: var(--color-primary);
+          flex-shrink: 0;
+        }
+        .resume-label {
+          font-size: 13px;
+          font-weight: 600;
+          color: var(--color-primary);
+          flex-shrink: 0;
+        }
+        .resume-title {
+          font-size: 13px;
+          color: var(--text-primary);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          max-width: 320px;
+        }
+        .resume-percent {
+          font-size: 12px;
+          color: var(--text-secondary);
+          flex-shrink: 0;
+          font-variant-numeric: tabular-nums;
+        }
+      }
+
+      .reading-stats {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-left: auto;
+        flex-wrap: wrap;
+
+        .stat-chip {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          font-size: 12px;
+          color: var(--text-secondary);
+          padding: 3px 10px;
+          border: 1px solid var(--border-subtle);
+          border-radius: 999px;
+          font-variant-numeric: tabular-nums;
+        }
+      }
+    }
+
   }
 
   /* 顶部栏隐藏时右下角浮动设置按钮（淡入动画） */
@@ -1632,6 +2047,28 @@ watch(
       align-self: stretch;
       margin: 2px 2px;
       background: var(--border-subtle, #e5e5e5);
+    }
+  }
+
+  /* 拖拽导入提示层：覆盖整页，虚线框提示可松手导入（不拦截 drop 事件） */
+  .drag-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 900;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    border: 2px dashed var(--color-primary, #409eff);
+    background: color-mix(in srgb, var(--bg-base, #fff) 85%, transparent);
+    color: var(--text-primary);
+    font-size: 15px;
+    pointer-events: none;
+
+    svg {
+      color: var(--color-primary);
+      opacity: 0.95;
     }
   }
 

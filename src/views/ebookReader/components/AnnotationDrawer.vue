@@ -23,6 +23,20 @@
           <LucideIcon name="Download" :size="13" />
           导出笔记
         </el-button>
+        <!-- 更多导出格式：Markdown 之外补充 HTML / CSV / 分享长图（走统一导出规范：直写缓存 + fileNotify） -->
+        <el-dropdown trigger="click" @command="onExportMore">
+          <el-button size="small">
+            <LucideIcon name="MoreHorizontal" :size="13" />
+            更多格式
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="html">导出 HTML（带样式）</el-dropdown-item>
+              <el-dropdown-item command="csv">导出 CSV（表格）</el-dropdown-item>
+              <el-dropdown-item command="image">导出书摘长图（PNG）</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
       <!-- 抽屉内搜索：按划线原文 / 笔记内容关键词过滤当前标签页 -->
       <div class="annotation-search">
@@ -171,6 +185,7 @@ const emit = defineEmits<{
   (e: 'delete-all', scope: 'note' | 'highlight'): void;
   (e: 'export'): void;
   (e: 'export-to-conversation'): void;
+  (e: 'export-more', format: 'html' | 'csv' | 'image'): void;
   (e: 'save-note', payload: { id: number; text: string }): void;
 }>();
 
@@ -274,6 +289,11 @@ function onDeleteAll(scope: 'note' | 'highlight') {
 /** 点击导出：通知父组件导出当前笔记与划线 */
 function onExport() {
   emit('export');
+}
+
+/** 点击「更多格式」导出：HTML / CSV / 书摘长图（实际导出由父组件完成） */
+function onExportMore(format: 'html' | 'csv' | 'image') {
+  emit('export-more', format);
 }
 
 /** 点击导出到主题对话：通知父组件将全部笔记/划线写入「主题对话」 */

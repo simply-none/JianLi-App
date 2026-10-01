@@ -350,6 +350,35 @@ export function usePdfHighlight(ctx: PdfCtx) {
     void deleteAnnotationById(id);
   }
 
+  /**
+   * 操作菜单「改色」：仅修改该条标注颜色（不影响类型预设、不影响同类其它标注）。
+   * 落库后更新本地列表；usePdfRender 对 annotations 的 deep watch 会自动重绘划线层。
+   */
+  async function onMenuRecolor(color: string): Promise<void> {
+    const id = ctx.menuAnnotationId.value;
+    if (id === null || !color) return;
+    ctx.menuVisible.value = false;
+    const ann = ctx.annotations.value.find((a) => a.id === id);
+    if (!ann) return;
+    try {
+      const res = await window.ipcRenderer.ebook.updateAnnotation({
+        id,
+        color,
+        type: ann.type,
+        note: ann.note,
+      });
+      if (!res?.success) {
+        ElMessage.error(`修改颜色失败：${res?.error || '未知错误'}`);
+        return;
+      }
+      ann.color = color;
+      ctx.emit('annotations-updated', ctx.annotations.value);
+    } catch (err) {
+      console.error('修改标注颜色异常', err);
+      ElMessage.error('修改颜色失败');
+    }
+  }
+
   /** 按 id 移除本地划线（不调 IPC，持久化由父组件负责） */
   function removeAnnotationById(id: number): void {
     const ann = ctx.annotations.value.find((a) => a.id === id);
@@ -384,5 +413,6 @@ export function usePdfHighlight(ctx: PdfCtx) {
     menuHasNote: ctx.menuHasNote,
     onMenuConvert,
     onMenuDelete,
+    onMenuRecolor,
   };
 }

@@ -67,7 +67,7 @@ const SUB_COMMANDS: SubCommand[] = [
   { id: 'JianliApp.Encrypt', name: '加密到保险箱', action: 'encrypt', flag: '--vault-encrypt', exts: ['*'] },
   { id: 'JianliApp.Decrypt', name: '解密(.jlv)', action: 'decrypt', flag: '--vault-decrypt', exts: ['.jlv'] },
   { id: 'JianliApp.SecureDelete', name: '安全删除', action: 'secure-delete', flag: '--vault-secure-delete', exts: ['*'] },
-  { id: 'JianliApp.OpenReader', name: '用渐离阅读', action: 'open-reader', flag: '--open-reader', exts: ['.epub', '.pdf', '.txt'] },
+  { id: 'JianliApp.OpenReader', name: '用渐离阅读', action: 'open-reader', flag: '--open-reader', exts: ['.epub', '.pdf', '.txt', '.cbz'] },
   // PDF 工具箱（2026-09-11 重新启用）：注册表写入已改由 Worker 线程异步执行、不阻塞主线程，
   // 原先因拖慢启动而临时注释的 5 条 .pdf 命令现与其他右键命令一起正常注册（菜单显示「通过渐离App打开：PDF xxx」）。
   { id: 'JianliApp.PdfCompress', name: 'PDF 压缩', action: 'pdf-compress', flag: '--pdf-compress', exts: ['.pdf'] },

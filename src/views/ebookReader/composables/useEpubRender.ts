@@ -18,6 +18,8 @@ import { resolveReadingBg, resolveReadingText } from '../themePresets';
 import useGlobalSetting from '@/store/useGlobalSetting';
 import useEbookReader from '@/store/useEbookReader';
 import type { EpubCtx } from './epubContext';
+import { compressDataUrlImage } from '../utils/imageUtils';
+import { useReaderShortcuts } from './useReaderShortcuts';
 
 /** 阅读主题类型：day 白天、night 夜间、eye 护眼 */
 type EbookTheme = 'day' | 'night' | 'eye';
@@ -43,14 +45,18 @@ export function useEpubRender(ctx: EpubCtx) {
           // getBase64 内部会 url.substr(1) 去掉首斜杠查 zip 条目，故入参必须带前导 '/'
           const coverHref = book.cover.charAt(0) === '/' ? book.cover : '/' + book.cover;
           const dataUrl = await book.archive.getBase64(coverHref);
-          if (dataUrl) cover = dataUrl;
+          // 封面压缩入库：原始封面可能数 MB，直存 dataURL 会膨胀 SQLite 行与每次书架查询的传输
+          // （对齐 PDF 封面的 240px/JPEG 0.7 缩略图方案）
+          if (dataUrl) cover = await compressDataUrlImage(dataUrl, 240, 0.7);
         }
       } catch (err) {
         console.error('提取 EPUB 封面失败', err);
       }
       const title = (meta && (meta.title || meta.bookTitle)) || '';
       const author = (meta && (meta.creator || meta.author)) || '';
-      ctx.emit('book-meta', { title, author, cover });
+      // 带上「解析时所属文件路径」：元数据解析是异步的，完成时用户可能已切换到另一本书，
+      // 父组件据此把元数据写回正确的书、且不会反向覆盖 currentFile
+      ctx.emit('book-meta', { filePath: ctx.props.filePath, title, author, cover });
     } catch (err) {
       console.error('提取 EPUB 基本信息失败', err);
     }
@@ -166,9 +172,20 @@ export function useEpubRender(ctx: EpubCtx) {
           console.error('加载目录失败', err);
         });
 
+      // locations 生成策略（只影响进度百分比粒度，绝不触碰 CFI/划线定位链路）：
+      // - 按文件体积分档步长（>2MB 用 2048，其余 1024），超大书（>8MB）延后 2s 再生成，
+      //   先让首屏与交互就绪（期间进度用 spine 索引兜底）；
+      // - 完成后校验 ctx.book 仍是当前这本：切书/重载后旧结果作废，防止过期进度写进新书。
+      const bookBytes = arrayBuffer.byteLength || 0;
       book.ready
-        .then(() => book.locations.generate(1024))
+        .then(async () => {
+          if (bookBytes > 8 * 1024 * 1024) {
+            await new Promise<void>((resolve) => setTimeout(resolve, 2000));
+          }
+          return book.locations.generate(bookBytes > 2 * 1024 * 1024 ? 2048 : 1024);
+        })
         .then(() => {
+          if (ctx.book !== book) return;
           ctx.locationsReady = true;
           refreshProgressAfterLocations();
         })
@@ -191,6 +208,10 @@ export function useEpubRender(ctx: EpubCtx) {
           // 点击 iframe 内非划线区域时关闭「标注操作菜单」：iframe 内 click 不会冒泡到父文档，
           // 父文档的 document click 监听收不到，故需在此补一条（点中划线本身不关，由 cb 重新定位）
           doc.addEventListener('click', onContentClick);
+          // 图片点击（捕获阶段）：打开父层大图查看器（E5b）
+          doc.addEventListener('click', onContentImageClick, true);
+          // 脚注/同文档锚点点击（捕获阶段）：弹层显示目标内容，跨章节链接不拦截（E5a）
+          doc.addEventListener('click', onContentFootnoteClick, true);
         }
           // 内容挂载后注入「字间距 / 段间距 / 首行缩进」扩展样式
           applyTypographyExtrasToContent(contents);
@@ -307,6 +328,8 @@ export function useEpubRender(ctx: EpubCtx) {
     }
     percent = Math.max(0, Math.min(100, percent));
     ctx.progressText.value = `${percent}%`;
+    // 同步进度滑块位置（滑块拖动中由组件侧本地值接管显示，不受此影响）
+    ctx.sliderPercent.value = percent;
 
     if (ctx.saveTimer) clearTimeout(ctx.saveTimer);
     ctx.saveTimer = setTimeout(() => {
@@ -324,6 +347,7 @@ export function useEpubRender(ctx: EpubCtx) {
     if (typeof p === 'number') {
       const percent = Math.max(0, Math.min(100, Math.round(p * 100)));
       ctx.progressText.value = `${percent}%`;
+      ctx.sliderPercent.value = percent;
       ctx.emit('progress-update', { cfi, percent, filePath: ctx.props.filePath });
     }
     updatePageInfo();
@@ -560,10 +584,16 @@ export function useEpubRender(ctx: EpubCtx) {
     return parts.join('\n');
   }
 
-  /** 向单个 iframe 内容注入（或刷新）强制样式表 */
+  /** 向单个 iframe 内容注入（或刷新）强制样式表；
+   *  「屏蔽原书样式」关闭时移除已注入的样式，保留 EPUB 自带排版（不影响 CFI/划线） */
   function injectForcedStyle(contents: any) {
     const doc = contents?.document as Document | undefined;
     if (!doc || !doc.head) return;
+    // 关闭开关：移除既有强制样式后返回
+    if (ctx.props.enforceBookStyle === false) {
+      doc.getElementById(EPUB_FORCED_STYLE_ID)?.remove();
+      return;
+    }
     const ratios = measureRatios(doc);
     const css = buildForcedCss(ratios);
     const old = doc.getElementById(EPUB_FORCED_STYLE_ID);
@@ -670,6 +700,57 @@ export function useEpubRender(ctx: EpubCtx) {
   }
 
   /**
+   * iframe 内图片点击（捕获阶段，E5b）：打开父层大图查看器。
+   * 相对 src 以 iframe 文档 baseURI 解析为绝对地址（jlocal://）供父层直接加载。
+   */
+  function onContentImageClick(e: MouseEvent) {
+    const target = e.target as HTMLElement | null;
+    const img = target?.closest?.('img') as HTMLImageElement | null;
+    if (!img) return;
+    // 划线色块内的图片（理论上不存在）不拦截，避免干扰标注交互
+    e.preventDefault();
+    e.stopPropagation();
+    let src = img.getAttribute('src') || '';
+    try {
+      src = new URL(src, (e.currentTarget as Document).baseURI || location.href).href;
+    } catch {
+      /* 保持原 src */
+    }
+    ctx.onImageClick?.(src);
+  }
+
+  /**
+   * iframe 内脚注/同文档锚点点击（捕获阶段，E5a）：弹层显示目标内容。
+   * 仅拦截 `#anchor` 同文档链接（常见脚注形态）；跨章节链接放行给 epub.js 默认跳转。
+   */
+  function onContentFootnoteClick(e: MouseEvent) {
+    const target = e.target as HTMLElement | null;
+    const anchor = target?.closest?.('a') as HTMLAnchorElement | null;
+    if (!anchor) return;
+    const href = anchor.getAttribute('href') || '';
+    if (!href.startsWith('#')) return;
+    const doc = e.currentTarget as Document;
+    let text = '';
+    try {
+      const id = decodeURIComponent(href.slice(1));
+      const node = doc.getElementById(id);
+      if (!node) return;
+      text = ((node as HTMLElement).innerText || node.textContent || '').trim().slice(0, 2000);
+    } catch {
+      return;
+    }
+    if (!text) return;
+    e.preventDefault();
+    e.stopPropagation();
+    // iframe 内坐标换算为父视口坐标（与 handleRenditionMouseup 同法）
+    const iframe = ctx.readerRef.value?.querySelector('iframe');
+    const rect = iframe?.getBoundingClientRect();
+    const x = (rect?.left || 0) + e.clientX;
+    const y = (rect?.top || 0) + e.clientY;
+    ctx.onFootnoteClick?.(text, { x, y });
+  }
+
+  /**
    * iframe 内容区 mousemove 兜底：滚动模式（scrolled）下，选区拖拽到 iframe 上下边缘时
    * 自动滚动其内容文档，使原生选区能继续延伸到可视区之外。
    * epub.js 在 scrolled 模式下浏览器通常会原生处理选区自动滚动，此处仅做兜底增强：
@@ -692,15 +773,6 @@ export function useEpubRender(ctx: EpubCtx) {
     }
   }
 
-  /** 键盘事件处理：左右键翻页 */
-  function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'ArrowLeft') {
-      prevPage();
-    } else if (e.key === 'ArrowRight') {
-      nextPage();
-    }
-  }
-
   /** 跳转到指定 cfi 或 href（供父组件通过 ref 调用，实现目录跳转） */
   function displayTarget(target: string) {
     if (!ctx.rendition || !target) return;
@@ -709,6 +781,61 @@ export function useEpubRender(ctx: EpubCtx) {
     ctx.turnDirection.value = null;
     ctx.rendition.display(target);
   }
+
+  /**
+   * 跳转到全书百分比位置（底部进度滑块拖动调用）。
+   * locations 就绪时用 cfiFromPercentage 精确跳转；未就绪（大书延后生成）时
+   * 按 spine 索引粗定位，保证任何时刻拖动都有响应。
+   */
+  async function jumpToPercent(percent: number): Promise<void> {
+    if (!ctx.rendition || !ctx.book) return;
+    const pct = Math.max(0, Math.min(100, percent));
+    // 非顺序跳转：清除翻页方向，避免误触发翻页动画
+    if (turnDirectionTimer) clearTimeout(turnDirectionTimer);
+    ctx.turnDirection.value = null;
+    try {
+      if (ctx.locationsReady) {
+        const cfi = (ctx.book.locations as any).cfiFromPercentage?.(pct / 100);
+        if (cfi) {
+          await ctx.rendition.display(cfi);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('按百分比跳转失败，回退 spine 索引', err);
+    }
+    const items: any[] = (ctx.book as any).spine?.spineItems || [];
+    if (items.length > 0) {
+      const idx = Math.max(0, Math.min(items.length - 1, Math.round((pct / 100) * (items.length - 1))));
+      const section = items[idx];
+      if (section?.href) {
+        await ctx.rendition.display(section.href);
+      }
+    }
+  }
+
+  /** 跳转到书首/书尾（Home/End 快捷键）：复用百分比跳转的降级链路 */
+  function jumpToStart(): void {
+    void jumpToPercent(0);
+  }
+  function jumpToEnd(): void {
+    void jumpToPercent(100);
+  }
+
+  // 键盘快捷键（三格式共用 composable）：←/→/PgUp/PgDn/Space 翻页、Home/End 跳书首尾、Ctrl±字号。
+  // 输入框守卫与 IME 安全由 composable 内置（修复输入框里打字连带翻页的缺陷）；
+  // Space 在滚动模式下让位给原生滚动。
+  useReaderShortcuts(
+    {
+      prev: prevPage,
+      next: nextPage,
+      jumpStart: jumpToStart,
+      jumpEnd: jumpToEnd,
+      zoomIn: () => ctx.emit('font-size-change', Math.min(128, (ctx.props.fontSize || 16) + 1)),
+      zoomOut: () => ctx.emit('font-size-change', Math.max(12, (ctx.props.fontSize || 16) - 1)),
+    },
+    { spaceAsNext: () => ctx.props.scrollMode !== true }
+  );
 
   /**
    * 立即把当前阅读进度落库（取消防抖定时器并同步 emit）。
@@ -828,7 +955,6 @@ export function useEpubRender(ctx: EpubCtx) {
       });
     }
     window.addEventListener('beforeunload', handleBeforeUnload);
-    window.addEventListener('keydown', handleKeydown);
     ctx.resizeObserver = new ResizeObserver(() => {
       if (!ctx.initialRenderDone) return;
       scheduleReload();
@@ -910,6 +1036,14 @@ export function useEpubRender(ctx: EpubCtx) {
     }
   );
 
+  // 「屏蔽原书样式」开关：开启=重新注入强制样式；关闭=从全部已渲染 iframe 移除
+  watch(
+    () => ctx.props.enforceBookStyle,
+    () => {
+      applyForcedStyle();
+    }
+  );
+
   // 页边距变化：容器 padding 改变 → 渲染区尺寸变化 → 需按新宽高重新分页。
   // 与 ResizeObserver 共用 scheduleReload 的 300ms 防抖，二者叠加只会触发一次重载；
   // 重载过程中会重新 display(cfi) 并重新加载标注，故无需额外 refreshAnnotations/updatePageInfo。
@@ -944,7 +1078,6 @@ export function useEpubRender(ctx: EpubCtx) {
       clearTimeout(ctx.reloadTimer);
       ctx.reloadTimer = null;
     }
-    window.removeEventListener('keydown', handleKeydown);
     window.removeEventListener('beforeunload', handleBeforeUnload);
     cleanup();
   });
@@ -954,6 +1087,9 @@ export function useEpubRender(ctx: EpubCtx) {
     pageText,
     loading: ctx.loading,
     progressText: ctx.progressText,
+    // 底部进度滑块绑定值与跳转方法（拖动提交后调用 jumpToPercent）
+    sliderPercent: ctx.sliderPercent,
+    jumpToPercent,
     onWheelPageTurn,
     onReaderMouseup,
     onEdgePrev,

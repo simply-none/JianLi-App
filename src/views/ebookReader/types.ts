@@ -44,6 +44,16 @@ export interface ReaderComponentInstance {
   jumpToSearchResult?: (cfi: string) => void;
   /** 执行全文搜索（term 关键词），仅 EpubReader 实现 */
   runSearch?: (term: string) => void;
+  /** 取消进行中的全文搜索（关闭搜索面板时调用），仅 EpubReader 实现 */
+  cancelSearch?: () => void;
+  /** 按全书百分比跳转（进度滑块/程序化跳转），仅 EpubReader 实现 */
+  jumpToPercent?: (percent: number) => void;
+  /** 跳转到指定章节（目录项 href `ch:${i}`），仅 TxtReader 实现 */
+  jumpToChapter?: (index: number) => void;
+  /** 按全文字符偏移跳转，仅 TxtReader 实现 */
+  jumpToOffset?: (offset: number) => void;
+  /** 重命名书签（IPC 落库 + 本地列表同步），三种阅读器均实现 */
+  renameBookmark?: (id: number, label: string) => Promise<void>;
 }
 
 /** 笔记抽屉展示用的统一标注项（兼容 epub 与 txt 两种子组件 payload） */
@@ -60,6 +70,10 @@ export interface AnnotationDisplayItem {
   createdAt: string;
   /** 更新时间（ISO 字符串）；与创建时间相同表示从未修改过 */
   updatedAt: string;
+  /** 高亮颜色标识（可选）。编辑笔记回写时必须带上，否则主进程会把 color 重置为 yellow */
+  color?: string;
+  /** 划线类型（可选）。编辑笔记回写时必须带上，否则主进程会把 type 重置为 highlight */
+  type?: string;
 }
 
 /** EPUB 标注数据结构（本地维护的划线/笔记项） */

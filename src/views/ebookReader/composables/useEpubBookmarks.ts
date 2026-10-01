@@ -18,10 +18,30 @@ export function useEpubBookmarks(ctx: EpubCtx) {
   /** 当前文件的书签列表（按阅读顺序升序） */
   const bookmarks = ref<BookmarkRecord[]>([]);
 
-  /** 当前阅读位置是否已存在书签 */
-  const currentBookmarked = computed(() =>
-    bookmarks.value.some((b) => b.cfi === ctx.currentCfi.value)
-  );
+  /**
+   * 提取 CFI 的「段落级」指纹：spine 段 + `!` 后到首个字符偏移前的 DOM 路径。
+   * 同一 spine 项内同一段落的两个位置视为同一处书签——阅读位置（页面顶部/底部）
+   * 轻微偏移导致 CFI 不再逐字相等，也能判重，避免同一处反复加书签。
+   * 解析失败（无 `!` 等）时退回原串，即旧的精确相等行为。
+   */
+  function cfiParagraphKey(cfi: string): string {
+    if (!cfi) return '';
+    const bang = cfi.indexOf('!');
+    if (bang < 0) return cfi;
+    const spine = cfi.slice(0, bang);
+    let local = cfi.slice(bang + 1);
+    if (local.endsWith(')')) local = local.slice(0, -1);
+    // range CFI：`/4/2,/1:0,/1:250` → 取逗号前段落路径；point CFI：`/4/2/1:0` → 去掉行末终端偏移
+    local = (local.split(',')[0] || '').replace(/\/\d+:\d+$/, '');
+    return spine + '!' + local;
+  }
+
+  /** 当前阅读位置是否已存在书签（按段落级指纹判重，容忍页内微小偏移） */
+  const currentBookmarked = computed(() => {
+    const key = cfiParagraphKey(ctx.currentCfi.value);
+    if (!key) return false;
+    return bookmarks.value.some((b) => cfiParagraphKey(b.cfi || '') === key);
+  });
 
   /**
    * 根据当前 href 反查目录项标题，作为书签默认标签。
@@ -65,6 +85,13 @@ export function useEpubBookmarks(ctx: EpubCtx) {
   async function addBookmark(): Promise<void> {
     const cfi = ctx.currentCfi.value;
     if (!cfi || !ctx.rendition) return;
+    // 同段落已有书签时不再重复添加（阅读位置轻微偏移不再产生重复书签）
+    const key = cfiParagraphKey(cfi);
+    const dup = key ? bookmarks.value.find((b) => cfiParagraphKey(b.cfi || '') === key) : undefined;
+    if (dup) {
+      ElMessage.info('当前位置已有书签');
+      return;
+    }
     const label = currentChapterLabel();
     const percent = Number(ctx.progressText.value.replace('%', '')) || 0;
     try {
@@ -125,10 +152,34 @@ export function useEpubBookmarks(ctx: EpubCtx) {
   }
 
   /**
+   * 重命名书签（标签）：IPC 落库后同步本地列表。
+   */
+  async function renameBookmark(id: number, label: string): Promise<void> {
+    const trimmed = (label || '').trim();
+    try {
+      const res = await window.ipcRenderer.ebook.updateBookmark({ id, label: trimmed });
+      if (!res?.success) {
+        ElMessage.error(`重命名书签失败：${res?.error || '未知错误'}`);
+        return;
+      }
+      const target = bookmarks.value.find((b) => b.id === id);
+      if (target) target.label = trimmed || null;
+      ctx.emit('bookmarks-updated', bookmarks.value);
+    } catch (err) {
+      console.error('重命名书签异常', err);
+      ElMessage.error('重命名书签失败');
+    }
+  }
+
+  /**
    * 切换当前页书签：已书签则删除，未书签则新增。
    */
   async function toggleBookmark(): Promise<void> {
-    const existing = bookmarks.value.find((b) => b.cfi === ctx.currentCfi.value);
+    // 与 currentBookmarked 同一判重口径（段落级指纹），避免「显示已书签但 toggle 又加一条」
+    const key = cfiParagraphKey(ctx.currentCfi.value);
+    const existing = key
+      ? bookmarks.value.find((b) => cfiParagraphKey(b.cfi || '') === key)
+      : undefined;
     if (existing) {
       await removeBookmark(existing.id);
     } else {
@@ -153,6 +204,7 @@ export function useEpubBookmarks(ctx: EpubCtx) {
     loadBookmarks,
     addBookmark,
     removeBookmark,
+    renameBookmark,
     toggleBookmark,
     jumpToBookmark,
   };

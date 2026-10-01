@@ -45,6 +45,9 @@ const EBOOK_BOOK_CATEGORY_TABLE = 'ebook_book_category';
 /** 电子书阅读背景图库表名（保存用户选择过的背景图，按来源文件路径去重，跨格式共享） */
 const EBOOK_BG_IMAGE_TABLE = 'ebook_bg_image';
 
+/** 电子书阅读时长统计表名（day_key + stat_key 聚合；stat_key = `H:${hash}` 或 `P:${path}`，与导出分组口径一致） */
+const EBOOK_READING_STATS_TABLE = 'ebook_reading_stats';
+
 /**
  * 电子书阅读进度数据结构
  */
@@ -305,6 +308,8 @@ interface AnnotationCountItem {
   highlightCount: number;
   /** 书签数量（按内容身份共用，与笔记/划线同源聚合） */
   bookmarkCount: number;
+  /** 累计阅读时长（秒，按内容身份聚合自 ebook_reading_stats 表） */
+  readingSeconds: number;
 }
 
 /**
@@ -352,8 +357,14 @@ function stripBom(text: string): string {
   return text;
 }
 
-/** 受支持的电子书文件后缀（文件夹导入与批量导入共用） */
-const SUPPORTED_EBOOK_EXT = ['txt', 'epub', 'pdf'];
+/** 受支持的电子书文件后缀（文件夹导入与批量导入共用；cbz 为漫画 zip 包） */
+const SUPPORTED_EBOOK_EXT = ['txt', 'epub', 'pdf', 'cbz'];
+
+/** 本地日期键（'YYYY-MM-DD'，阅读时长统计的 day_key） */
+function localDayKey(d: Date = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
 
 /**
  * 递归收集文件夹内所有受支持的电子书文件（txt / epub / pdf）绝对路径。
@@ -721,6 +732,25 @@ export async function initEbook(): Promise<void> {
     log.error('Failed to create ebook_bg_image table:', err);
   }
 
+  // 3.4 创建阅读时长统计表（day_key + stat_key 聚合，独立 try/catch）
+  try {
+    const db = myDb.db;
+    if (db) {
+      await dbRunAsync(
+        db,
+        `CREATE TABLE IF NOT EXISTS ${EBOOK_READING_STATS_TABLE} (
+          day_key TEXT NOT NULL,
+          stat_key TEXT NOT NULL,
+          duration_sec REAL NOT NULL DEFAULT 0,
+          updated_at TEXT,
+          PRIMARY KEY (day_key, stat_key)
+        )`
+      );
+    }
+  } catch (err) {
+    log.error('Failed to create ebook_reading_stats table:', err);
+  }
+
   // 4. 与 newSql.ts 保持一致：确保各表列完整，自动补齐旧库中缺失的列
   //    （例如老版本建表时还没有 type 列，这里会 ALTER TABLE ADD COLUMN 补齐，
   //      否则后续 INSERT/UPDATE 引用 type 会报 SQLITE_ERROR: no column named type）
@@ -931,6 +961,143 @@ export async function initEbook(): Promise<void> {
           success: false,
           error: `计算文件哈希失败：${err?.message || String(err)}`
         };
+      }
+    }
+  );
+
+  // ============ ebook:compute-file-hashes 批量计算文件内容哈希 ============
+  /**
+   * 批量对文件原始字节计算 sha256。文件夹导入时一次性把整批文件哈希算好，
+   * 替代渲染端逐本 invoke compute-file-hash（N 次重量级 IPC → 1 次）。
+   * 串行逐本读取，避免并发读盘+哈希把主进程 IO 打满；单本失败该位置返回空串、不中断整批。
+   *
+   * @param _event - IPC 事件对象（未使用）
+   * @param filePaths - 文件绝对路径数组
+   * @returns 成功返回 { success: true, hashes: string[] }（与入参等长、按序对应）；
+   *          失败返回 { success: false, error: string }
+   */
+  ipcMain.handle(
+    'ebook:compute-file-hashes',
+    async (
+      _event,
+      filePaths: string[]
+    ): Promise<{ success: boolean; hashes?: string[]; error?: string }> => {
+      try {
+        if (!Array.isArray(filePaths)) {
+          return { success: false, error: '参数必须为路径数组' };
+        }
+        const hashes: string[] = [];
+        for (const p of filePaths) {
+          try {
+            const buf = fs.readFileSync(p);
+            hashes.push(crypto.createHash('sha256').update(buf).digest('hex'));
+          } catch {
+            hashes.push('');
+          }
+        }
+        return { success: true, hashes };
+      } catch (err: any) {
+        log.error('Failed to batch compute ebook file hashes:', err);
+        return {
+          success: false,
+          error: `批量计算文件哈希失败：${err?.message || String(err)}`
+        };
+      }
+    }
+  );
+
+  // ============ ebook:add-books-batch 批量写入书架（upsert，保留首次添加时间） ============
+  /**
+   * 批量添加书架记录。文件夹导入一次 IPC 完成整批入库，替代逐本 add-to-bookshelf
+   * （N 次 IPC + 每本触发渲染端书架全量刷新 → 1 次 IPC + 渲染端一次刷新）。
+   * 单本失败不中断整批，返回成功条数与失败明细；语义与 add-to-bookshelf 一致：
+   * 保留原 added_at、last_read_at 更新为当前时间、补全 content_hash 身份。
+   */
+  ipcMain.handle(
+    'ebook:add-books-batch',
+    async (
+      _event,
+      books: AddBookshelfData[]
+    ): Promise<{
+      success: boolean;
+      count?: number;
+      failures?: { filePath: string; error: string }[];
+      error?: string;
+    }> => {
+      try {
+        const db = myDb.db;
+        if (!db) {
+          return { success: false, error: '数据库未初始化' };
+        }
+        if (!Array.isArray(books)) {
+          return { success: false, error: '参数必须为书架记录数组' };
+        }
+        const now = new Date().toISOString();
+        let count = 0;
+        const failures: { filePath: string; error: string }[] = [];
+        for (const data of books) {
+          try {
+            if (!data || !data.filePath) {
+              failures.push({ filePath: data?.filePath || '', error: '文件路径不能为空' });
+              continue;
+            }
+            await ensureBookIdentity(db, data.filePath, data.contentHash);
+            const existing = await query({
+              tableName: EBOOK_BOOKSHELF_TABLE,
+              columns: ['added_at'],
+              conditions: { file_path: data.filePath }
+            });
+            const addedAt = (existing[0] as { added_at: string } | undefined)?.added_at ?? now;
+            await upsert({
+              tableName: EBOOK_BOOKSHELF_TABLE,
+              data: {
+                file_path: data.filePath,
+                name: data.name ?? '',
+                format: data.format ?? '',
+                percent: Number(data.percent) || 0,
+                last_read_at: now,
+                added_at: addedAt,
+                content_hash: data.contentHash ?? ''
+              },
+              config: { primaryKey: 'file_path' }
+            });
+            count++;
+          } catch (e: any) {
+            failures.push({ filePath: data?.filePath || '', error: e?.message || String(e) });
+          }
+        }
+        return { success: true, count, failures };
+      } catch (err: any) {
+        log.error('Failed to batch add ebook bookshelf:', err);
+        return { success: false, error: `批量添加书架失败：${err?.message || String(err)}` };
+      }
+    }
+  );
+
+  // ============ ebook:check-file-exists 检查文件是否存在 ============
+  /**
+   * 主进程 fs.stat 检查文件存在性。替代旧的 `fetch HEAD jlocal://` 协议往返：
+   * 少一次协议层请求（且不受 jlocal CORS 配置问题影响），语义完全一致。
+   *
+   * @param _event - IPC 事件对象（未使用）
+   * @param filePath - 必填参数，文件绝对路径
+   * @returns 成功返回 { success: true, exists: boolean }（stat 抛错按不存在处理，仍为 success）
+   */
+  ipcMain.handle(
+    'ebook:check-file-exists',
+    async (
+      _event,
+      filePath: string
+    ): Promise<{ success: boolean; exists?: boolean; error?: string }> => {
+      try {
+        if (!filePath || typeof filePath !== 'string') {
+          return { success: false, error: '文件路径不能为空' };
+        }
+        const st = fs.statSync(filePath);
+        return { success: true, exists: st.isFile() };
+      } catch {
+        // ENOENT 等一律按不存在处理
+        return { success: true, exists: false };
       }
     }
   );
@@ -1258,10 +1425,11 @@ export async function initEbook(): Promise<void> {
     }
   );
 
-  // ============ ebook:clear-bookshelf 清空书架（仅删书架记录） ============
+  // ============ ebook:clear-bookshelf 清空书架（删书架记录 + 书-分类映射） ============
   /**
-   * 一键清空书架：仅删除 ebook_bookshelf 表中的全部书架记录。
-   * 注意：不删除分类、标注、阅读进度、书签等其它内容，仅把书从书架移除。
+   * 一键清空书架：删除 ebook_bookshelf 表中的全部书架记录，并一并清空「书-分类」映射
+   * （与单本移除的行为保持一致——旧版清空时不删映射，重新导入同路径旧书会“复活”旧分类）。
+   * 注意：不删除分类本身、标注、阅读进度、书签等其它内容，仅把书从书架移除。
    *
    * @returns 成功返回 { success: true }；失败返回 { success: false, error: string }
    */
@@ -1273,8 +1441,9 @@ export async function initEbook(): Promise<void> {
         if (!db) {
           return { success: false, error: '数据库未初始化' };
         }
-        // 仅清空书架表：保留分类映射 / 标注 / 进度 / 书签等其它数据
+        // 清空书架表；书-分类映射一并清理（分类本体/标注/进度/书签保留）
         await dbRunAsync(db, `DELETE FROM ${EBOOK_BOOKSHELF_TABLE}`);
+        await dbRunAsync(db, `DELETE FROM ${EBOOK_BOOK_CATEGORY_TABLE}`);
         return { success: true };
       } catch (err: any) {
         log.error('Failed to clear ebook bookshelf:', err);
@@ -2097,12 +2266,38 @@ export async function initEbook(): Promise<void> {
             paths: r.paths ? String(r.paths).split(',') : []
           };
         });
+        // 累计阅读时长：按分组键同时尝试 `H:hash` 与 `P:path` 两种 stat_key（与写入侧口径一致）
+        const statKeys: string[] = [];
+        rows.forEach((r) => {
+          statKeys.push(`H:${r.grp_key}`, `P:${r.grp_key}`);
+        });
+        bmRows.forEach((r) => {
+          statKeys.push(`H:${r.grp_key}`, `P:${r.grp_key}`);
+        });
+        const readingSecMap: Record<string, number> = {};
+        if (statKeys.length > 0) {
+          const rsSql = `SELECT stat_key, SUM(duration_sec) AS sec FROM ${EBOOK_READING_STATS_TABLE} WHERE stat_key IN (${statKeys
+            .map(() => '?')
+            .join(', ')}) GROUP BY stat_key`;
+          const rsRows = await new Promise<any[]>((resolve, reject) => {
+            db.all(rsSql, statKeys, (err, rws) => {
+              if (err) reject(err);
+              else resolve(rws);
+            });
+          });
+          rsRows.forEach((r) => {
+            // stat_key = `H:xxx` / `P:xxx`，回填到去掉前缀的分组键
+            const key = String(r.stat_key || '').replace(/^[HP]:/, '');
+            readingSecMap[key] = (readingSecMap[key] || 0) + (r.sec || 0);
+          });
+        }
         const data: AnnotationCountItem[] = rows.map((row) => ({
           key: row.grp_key,
           paths: row.paths ? String(row.paths).split(',') : [],
           noteCount: row.note_count || 0,
           highlightCount: row.highlight_count || 0,
-          bookmarkCount: bmMap[row.grp_key]?.count || 0
+          bookmarkCount: bmMap[row.grp_key]?.count || 0,
+          readingSeconds: readingSecMap[row.grp_key] || 0
         }));
         // 仅有书签但没有标注的书也需要出现在结果中，否则书签徽标不会显示
         bmRows.forEach((r) => {
@@ -2112,7 +2307,8 @@ export async function initEbook(): Promise<void> {
               paths: r.paths ? String(r.paths).split(',') : [],
               noteCount: 0,
               highlightCount: 0,
-              bookmarkCount: r.bm_count || 0
+              bookmarkCount: r.bm_count || 0,
+              readingSeconds: readingSecMap[r.grp_key] || 0
             });
           }
         });
@@ -2123,6 +2319,99 @@ export async function initEbook(): Promise<void> {
           success: false,
           error: `统计笔记数量失败：${err?.message || String(err)}`
         };
+      }
+    }
+  );
+
+  // ============ ebook:save-reading-stats 累计阅读时长（upsert 增量） ============
+  /**
+   * 累计某本书在某天的阅读时长。渲染端阅读视图中每分钟批量上报一次（visibility 隐藏时暂停累计）。
+   * stat_key 口径：有内容哈希用 `H:${hash}`（多副本共用统计），否则 `P:${path}`。
+   * 用参数化 SQL 的 ON CONFLICT 做增量累加（newSql 的 upsert 是整体替换，不适用累加语义）。
+   */
+  ipcMain.handle(
+    'ebook:save-reading-stats',
+    async (
+      _event,
+      data: { dayKey: string; statKey: string; durationSec: number }
+    ): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const db = myDb.db;
+        if (!db) {
+          return { success: false, error: '数据库未初始化' };
+        }
+        if (!data || !data.dayKey || !data.statKey) {
+          return { success: false, error: '参数不完整' };
+        }
+        const sec = Math.max(0, Math.min(24 * 3600, Number(data.durationSec) || 0));
+        if (sec <= 0) {
+          return { success: true };
+        }
+        await dbRunAsync(
+          db,
+          `INSERT INTO ${EBOOK_READING_STATS_TABLE} (day_key, stat_key, duration_sec, updated_at)
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT(day_key, stat_key)
+           DO UPDATE SET duration_sec = duration_sec + excluded.duration_sec, updated_at = excluded.updated_at`,
+          [String(data.dayKey), String(data.statKey), sec, new Date().toISOString()]
+        );
+        return { success: true };
+      } catch (err: any) {
+        log.error('Failed to save ebook reading stats:', err);
+        return { success: false, error: `保存阅读时长失败：${err?.message || String(err)}` };
+      }
+    }
+  );
+
+  // ============ ebook:get-reading-stats 汇总阅读时长（今日 / 最近 7 天 / 累计） ============
+  /**
+   * 汇总阅读时长（秒）。day_key 为本地日期字符串 'YYYY-MM-DD'（字典序即时间序）。
+   */
+  ipcMain.handle(
+    'ebook:get-reading-stats',
+    async (): Promise<{
+      success: boolean;
+      data?: { today: number; week: number; total: number };
+      error?: string;
+    }> => {
+      try {
+        const db = myDb.db;
+        if (!db) {
+          return { success: false, error: '数据库未初始化' };
+        }
+        const todayKey = localDayKey();
+        const weekStart = new Date();
+        weekStart.setDate(weekStart.getDate() - 6);
+        const weekStartKey = localDayKey(weekStart);
+        const q = (sql: string, params: any[] = []) =>
+          new Promise<any[]>((resolve, reject) => {
+            db.all(sql, params, (err, rows) => {
+              if (err) reject(err);
+              else resolve(rows);
+            });
+          });
+        const sumAll = await q(
+          `SELECT COALESCE(SUM(duration_sec), 0) AS sec FROM ${EBOOK_READING_STATS_TABLE}`
+        );
+        const sumToday = await q(
+          `SELECT COALESCE(SUM(duration_sec), 0) AS sec FROM ${EBOOK_READING_STATS_TABLE} WHERE day_key = ?`,
+          [todayKey]
+        );
+        const sumWeek = await q(
+          `SELECT COALESCE(SUM(duration_sec), 0) AS sec FROM ${EBOOK_READING_STATS_TABLE} WHERE day_key >= ?`,
+          [weekStartKey]
+        );
+        return {
+          success: true,
+          data: {
+            today: sumToday[0]?.sec || 0,
+            week: sumWeek[0]?.sec || 0,
+            total: sumAll[0]?.sec || 0,
+          },
+        };
+      } catch (err: any) {
+        log.error('Failed to get ebook reading stats:', err);
+        return { success: false, error: `读取阅读时长失败：${err?.message || String(err)}` };
       }
     }
   );
@@ -2325,6 +2614,44 @@ export async function initEbook(): Promise<void> {
     }
   );
 
+  // ============ ebook:update-bookmark 更新书签（重命名标签） ============
+  /**
+   * 按 id 更新书签标签（label）。仅更新标签字段，不动定位与排序；参数化更新防注入。
+   *
+   * @param _event - IPC 事件对象（未使用）
+   * @param data - 必填参数，{ id: number, label: string | null }
+   * @returns 成功返回 { success: true }；失败返回 { success: false, error: string }
+   */
+  ipcMain.handle(
+    'ebook:update-bookmark',
+    async (
+      _event,
+      data: { id: number; label?: string | null }
+    ): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const db = myDb.db;
+        if (!db) {
+          return { success: false, error: '数据库未初始化' };
+        }
+        if (!data || typeof data.id !== 'number') {
+          return { success: false, error: '书签 id 不能为空' };
+        }
+        await update({
+          tableName: EBOOK_BOOKMARK_TABLE,
+          data: { label: data.label ?? '' },
+          condition: { id: data.id }
+        });
+        return { success: true };
+      } catch (err: any) {
+        log.error('Failed to update ebook bookmark:', err);
+        return {
+          success: false,
+          error: `更新书签失败：${err?.message || String(err)}`
+        };
+      }
+    }
+  );
+
   // ============ ebook:remove-bookmark 删除书签 ============
   /**
    * 按 id 删除书签记录
@@ -2470,6 +2797,45 @@ function appendBookSection(
  * @param headingLevel - 笔记/划线分区的 Markdown 标题前缀（如 '###' 或 '####'）
  * @param records - 该组（单本或某一本书）的记录
  * @returns 无返回值
+/** 标注类型中文标签（md 导出元信息行用，与渲染端 highlightConfig 保持一致） */
+const ANNOTATION_TYPE_LABELS: Record<string, string> = {
+  highlight: '高亮',
+  underline: '下划线',
+  mark: '删除线',
+  markStrong: '双下划线',
+};
+
+/** 标注颜色中文标签（md 导出元信息行用） */
+const ANNOTATION_COLOR_LABELS: Record<string, string> = {
+  yellow: '黄色',
+  green: '绿色',
+  blue: '蓝色',
+  pink: '粉色',
+  orange: '橙色',
+  purple: '紫色',
+};
+
+/**
+ * 单条标注的元信息标签：类型 · 颜色 · 创建时间（md 导出补齐字段，2026-10-01）
+ */
+function annotationMetaLabel(r: AnnotationRecord): string {
+  const parts: string[] = [];
+  if (r.type) parts.push(ANNOTATION_TYPE_LABELS[r.type] || r.type);
+  if (r.color) parts.push(ANNOTATION_COLOR_LABELS[r.color] || r.color);
+  if (r.created_at) {
+    const d = new Date(r.created_at);
+    if (!isNaN(d.getTime())) parts.push(d.toLocaleString('zh-CN'));
+  }
+  return parts.join(' · ');
+}
+
+/**
+ * 输出一组记录的「笔记」与「划线」两个分区（标题层级由 headingLevel 决定）
+ *
+ * @param lines - 累积输出的行数组
+ * @param headingLevel - 笔记/划线分区的 Markdown 标题前缀（如 '###' 或 '####'）
+ * @param records - 该组（单本或某一本书）的记录
+ * @returns 无返回值
  */
 function appendAnnotationSection(lines: string[], headingLevel: string, records: AnnotationRecord[]): void {
   const notes = records.filter((r) => (r.note || '').trim().length > 0);
@@ -2484,6 +2850,8 @@ function appendAnnotationSection(lines: string[], headingLevel: string, records:
       lines.push(`${i + 1}. ${r.text.replace(/\s+/g, ' ')}`);
       const noteLines = (r.note || '').split('\n');
       noteLines.forEach((nl) => lines.push(`   > ${nl}`));
+      const meta = annotationMetaLabel(r);
+      if (meta) lines.push(`   _${meta}_`);
       lines.push('');
     });
   }
@@ -2493,7 +2861,10 @@ function appendAnnotationSection(lines: string[], headingLevel: string, records:
   if (highlights.length === 0) {
     lines.push('（无）');
   } else {
-    highlights.forEach((r) => lines.push(`- ${r.text.replace(/\s+/g, ' ')}`));
+    highlights.forEach((r) => {
+      const meta = annotationMetaLabel(r);
+      lines.push(`- ${r.text.replace(/\s+/g, ' ')}${meta ? ` _(${meta})_` : ''}`);
+    });
   }
   lines.push('');
 }

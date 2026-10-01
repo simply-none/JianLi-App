@@ -168,7 +168,8 @@ const rows = computed<Row[]>(() => {
     }));
   }
   return props.books
-    .filter((b) => b.format === 'epub' || b.format === 'txt')
+    // 放开 pdf：PC↔PC 可传 PDF；对端为手机时其列表自行过滤 epub/txt，不会收到 PDF
+    .filter((b) => b.format === 'epub' || b.format === 'txt' || b.format === 'pdf')
     .map((b) => ({
       key: b.path,
       title: b.title || b.name || '未命名',

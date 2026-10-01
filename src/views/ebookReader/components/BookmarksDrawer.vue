@@ -23,6 +23,9 @@
             <div class="bookmark-meta">进度 {{ Math.round(item.percent) }}%</div>
           </div>
           <div class="bookmark-actions">
+            <el-button size="small" text title="重命名" @click.stop="onRename(item)">
+              <LucideIcon name="Pencil" :size="13" />
+            </el-button>
             <el-button size="small" text @click.stop="onDelete(item)">
               <LucideIcon name="Trash2" :size="13" />
             </el-button>
@@ -38,6 +41,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { ElMessageBox } from 'element-plus';
 import LucideIcon from '@/components/LucideIcon.vue';
 
 const props = defineProps<{
@@ -53,6 +57,7 @@ const emit = defineEmits<{
   (e: 'update:modelValue', val: boolean): void;
   (e: 'jump', item: BookmarkRecord): void;
   (e: 'delete', item: BookmarkRecord): void;
+  (e: 'rename', payload: { id: number; label: string }): void;
 }>();
 
 const visible = computed({
@@ -68,6 +73,22 @@ function onJump(item: BookmarkRecord) {
 /** 点击删除：通知父组件执行删除 */
 function onDelete(item: BookmarkRecord) {
   emit('delete', item);
+}
+
+/** 点击重命名：弹窗输入新名称后上抛（IPC 落库与本地列表同步由父组件/阅读器完成） */
+async function onRename(item: BookmarkRecord) {
+  try {
+    const { value } = await ElMessageBox.prompt('请输入新的书签名称', '重命名书签', {
+      confirmButtonText: '保存',
+      cancelButtonText: '取消',
+      inputValue: item.label || '',
+      inputPattern: /\S/,
+      inputErrorMessage: '名称不能为空',
+    });
+    emit('rename', { id: item.id, label: (value || '').trim() });
+  } catch {
+    /* 用户取消 */
+  }
 }
 </script>
 

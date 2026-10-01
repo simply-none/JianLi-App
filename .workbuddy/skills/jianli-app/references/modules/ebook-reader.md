@@ -1,14 +1,42 @@
 # 电子书阅读器 (ebookReader)
 
 ## 职责
-EPUB / TXT / PDF 三格式阅读：进度保存、书架、分类、笔记与划线、书签、背景图，支持按内容哈希（sha256）跨路径复用标注/书签/进度。预览见 `components/` 与 `composables/` 按格式拆分（epub / txt / pdf）。
+EPUB / TXT / PDF / CBZ 四格式阅读：进度保存、书架、分类、笔记与划线、书签、背景图，支持按内容哈希（sha256）跨路径复用标注/书签/进度。预览见 `components/` 与 `composables/` 按格式拆分（epub / txt / pdf / cbz）。
 
 ## 关键文件
-- 主页面：`src/views/ebookReader/index.vue` + `components/EpubReader.vue` 等 + `composables/`（`useEpubRender`/`useTxtRender`/`usePdfRender`/`useEpubHighlight`/`useTxtHighlight`/`usePdfHighlight`/`useEpubBookmarks`/`usePdfBookmarks`/`useBookshelf`/`useEpubSearch`）+ `workers/pdfWorker.ts` + `types.ts`
-- **TTS 朗读（EPUB / TXT）**：调度层 `composables/useBookTts.ts`（模块级单例，状态机 idle/playing/paused）+ 句子切分 `composables/ttsSentences.ts` + 格式适配器 `composables/useEpubTts.ts` / `composables/useTxtTts.ts` + 浮动播放条 `components/TtsPlayBar.vue`；朗读引擎复用 `src/utils/tts` 的 `TTSManager`（5 provider 自动回退，仅 `WebTTSProvider` 接 `onboundary` 逐字回调）。
-- 关联主进程：`electron/main/module/ebook.ts`（`initEbook` 建 7 张表），preload 暴露 `ipcRenderer.ebook.*` 全量
+- 主页面：`src/views/ebookReader/index.vue` + `components/EpubReader.vue` 等 + `composables/`（`useEpubRender`/`useTxtRender`/`usePdfRender`/`useEpubHighlight`/`useTxtHighlight`/`usePdfHighlight`/`useEpubBookmarks`/`usePdfBookmarks`/`useTxtBookmarks`/`useBookshelf`/`useEpubSearch`/`useTxtSearch`/`usePdfSearch`/`usePdfTts`/`useReaderShortcuts`）+ `workers/pdfWorker.ts` + `types.ts`
+- **TTS 朗读（EPUB / TXT / PDF）**：调度层 `composables/useBookTts.ts`（模块级单例，状态机 idle/playing/paused）+ 句子切分 `composables/ttsSentences.ts` + 格式适配器 `composables/useEpubTts.ts` / `composables/useTxtTts.ts` / `usePdfTts.ts` + 浮动播放条 `components/TtsPlayBar.vue`（含睡眠定时 Timer 下拉）；朗读引擎复用 `src/utils/tts` 的 `TTSManager`（5 provider 自动回退，仅 `WebTTSProvider` 接 `onboundary` 逐字回调）；选区工具条「朗读」走 `useBookTts.speakOnce`（一次性朗读，不进循环）。
+- 关联主进程：`electron/main/module/ebook.ts`（`initEbook` 建 8 张表），preload 暴露 `ipcRenderer.ebook.*` 全量
 - store：`src/store/useEbookReader.ts`
-- 数据库：复用主库 `db.sqlite`，表 `ebook_progress`/`ebook_bookshelf`/`ebook_annotation`/`ebook_bookmark`/`ebook_category`/`ebook_book_category`/`ebook_bg_image`
+- 数据库：复用主库 `db.sqlite`，表 `ebook_progress`/`ebook_bookshelf`/`ebook_annotation`/`ebook_bookmark`/`ebook_category`/`ebook_book_category`/`ebook_bg_image`/`ebook_reading_stats`
+
+## 2026-10-01 优化增强批次（新增能力速览）
+> 完整清单与进度见 `C:\cod\jianli\电子书阅读器优化增强_执行清单_2026-10-01.md`。
+
+- **TXT 补齐四缺**：章节识别（`utils/txtChapters.ts` 正则切分+二分定位，标记<2 视为无章节）、目录（TocDrawer，href=`ch:${下标}`）、书签（`useTxtBookmarks`，锚点=字符偏移存 bookmark 表 cfi 字段）、全文搜索（`useTxtSearch`，命中用原生选区 `selectRange` 可见化）。
+- **EPUB 进度滑块**：`ctx.sliderPercent` + `jumpToPercent`（locations 未就绪回退 spine 索引）；大书 locations 分档/延后（>8MB 延后 2s、>2MB 步长 2048），**只影响进度百分比，不影响 CFI/划线**。
+- **PDF**：翻页模式（跟随 settings.scrollMode，单页布局±1 页窗口；`turnToPage`/边缘点击/滚轮/键盘全通）、夜间反色（`pdfNightInvert` 设置，仅 night+preset 生效，只 invert canvas、不动标注层）、缩放步进归一化、区间请求顺手预取下一段。
+- **快捷键体系**：`useReaderShortcuts.ts` 三格式共用（←→/PgUp/PgDn/Space/Home/End/Ctrl±缩放或字号），内置输入框守卫与 IME 安全；F11 在 index.vue；⚠️ EPUB 旧 window keydown 已迁入 composable，勿再另挂。
+- **书架**：文件夹导入批量化（`ebook:compute-file-hashes` + `ebook:add-books-batch` 一次入库+一次刷新，弃 sendSync 改 `get-file-list-async`）；EPUB 封面压缩 240px（`utils/imageUtils.ts`）；背景图持久化只落 `bgImageId`（dataURL 不进 localStorage，`restoreBgImage` 从图库回填）；搜索含作者+300ms 防抖；格式/状态筛选与卡片排序（Bookshelf 本地状态，localStorage 持久化）；删除分类二次确认；分类 chips 键盘可达。
+- **元数据/拖拽**：书架「信息」按钮与列表右键「编辑信息」→ `save-book-meta` 手动改 书名/作者/封面；拖文件进窗口导入（首本直接打开）+ 拖卡片到分类 chip 加入分类。
+- **标注/书签增强**：单条标注改色（AnnotationActionMenu 色板 → `onMenuRecolor`，渲染优先「标注自身色」；预设色变更用 `snapshotTypeColors`/`migratePresetColors` 只迁移「仍跟随预设」的条目）；书签重命名（新 IPC `ebook:update-bookmark`）；EPUB 书签按「段落级指纹」（spine+`!`后 DOM 路径）判重防重复。
+- **搜索命中可见化**：EPUB=批量注册 `annotations.highlight`（class `epub-search-hit`，琥珀橙 hex+opacity+normal）；PDF=命中区间经 `utils/pdfTextRects.ts` 换算 viewport 矩形画 `.pdf-search-hit`（cfi=`页:起点`）。
+- **导出**：HTML/CSV/书摘长图（`utils/annotationExport.ts`，canvas 绘制）全部走 exportToFile+fileNotify 直写缓存目录；md 导出补「类型·颜色·创建时间」元信息行。
+- **阅读统计**：表 `ebook_reading_stats`（day_key+stat_key 主键，stat_key=`H:${hash}`/`P:${path}`）；IPC `ebook:save-reading-stats`（ON CONFLICT 增量）/`ebook:get-reading-stats`；index.vue 每秒心跳+60s 批量上报（document.hidden 暂停）；书架「继续阅读」横幅 + 卡片/列表「累计时长」（get-annotation-counts 附 readingSeconds）。
+- **CBZ 漫画**（F1）：`components/CbzReader.vue`（jszip 解包、Intl.Collator 自然排序、Blob URL 懒取+预取、页码进度、首图生成封面）；格式注册点：`fileUtils.getFormat`、store `EbookFormat`、主进程 `SUPPORTED_EBOOK_EXT`、`shellMenu.ts` exts、书架 tag/筛选 chips。传书（epub/txt/pdf）与 TTS/目录/书签/搜索**不含 cbz**。
+- **传书支持 PDF**（E4）：`ebookTransfer.ts` format 三值化（`TRANSFER_FORMATS`），PC↔PC 可传 PDF；手机端列表自行过滤 epub/txt，不受影响（移动端无 PDF 阅读器，未改其代码）。
+- **EPUB 细节**：脚注/同文档锚点点击弹层（捕获阶段拦截 `#anchor`，跨章节链接放行）、图片大图查看器（滚轮缩放+拖移+ESC）、「屏蔽原书样式」开关（`enforceBookStyle`，关闭=移除 `ebook-forced-style` 注入，仅影响 CSS）。
+
+### 本批次新增 IPC（🔴 改主进程，需重启 Electron）
+`ebook:compute-file-hashes`、`ebook:add-books-batch`、`ebook:check-file-exists`（fileUtils 弃 jlocal HEAD）、`get-file-list-async`（dialog.ts，弃 sendSync）、`ebook:update-bookmark`、`ebook:save-reading-stats`、`ebook:get-reading-stats`；类型见 `src/vite-env.d.ts`。
+
+### 本批次踩坑与约定
+- **EPUB「设置变更→整本重建」是为划线定位准确特意设计的（用户拍板保留）**，禁止再提「轻量设置变更」类改动。
+- epub.js 批量注册搜索命中：`annotations.remove(cfi,'highlight')` 与手动划线同 hash 空间，清除时按登记的 cfi 列表逐一移除；样式必须 hex fill + fill-opacity + `mix-blend-mode:'normal'`（红线见下文）。
+- PDF `PDFDataRangeTransport.onDataRange` 对未请求区间数据会自行忽略——预取下一段直接回调 onDataRange 是安全的。
+- 拖拽导入依赖 Electron 扩展的 `File.path`（渲染端 `f.path` 取绝对路径），CBZ/传书/导入格式注册要同步改 `SUPPORTED_EBOOK_EXT`（主进程）与 `getFormat`（渲染端）两处。
+- `window.ipcRenderer.ebook` 的 TS 类型在 `src/vite-env.d.ts`，新增 preload 方法必须同步补声明，否则全项目类型报错。
+- `get-file-list`（sendSync）通道仍在服务其它模块，勿删；电子书入口已全部切到 `get-file-list-async`。
 
 ## 路由
 - `RouteNames.EBOOK_READER` → `/ebookReader`

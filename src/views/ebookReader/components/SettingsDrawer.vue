@@ -145,7 +145,7 @@
             @change="onPickBgImage"
           />
           <el-button size="small" @click="bgImageInput?.click()">选择图片</el-button>
-          <el-button size="small" type="danger" text v-if="bgImageModel" @click="bgImageModel = ''">
+          <el-button size="small" type="danger" text v-if="bgImageModel" @click="clearBgImage">
             清除
           </el-button>
           <div
@@ -165,7 +165,7 @@
               :class="{ active: bgImageModel === img.dataUrl }"
               :style="{ backgroundImage: `url(${img.dataUrl})` }"
               :title="img.imagePath"
-              @click="bgImageModel = img.dataUrl"
+              @click="selectGalleryBg(img)"
             >
               <button
                 class="bg-gallery-del"
@@ -206,8 +206,8 @@
       </div>
 
       <div class="setting-group-title">排版布局</div>
-      <!-- 翻页模式：epub / txt 均支持（txt 翻页模式用 CSS 多列分页，滚动模式为原生纵向滚动） -->
-      <div class="setting-row" v-if="currentFile.format === 'txt' || currentFile.format === 'epub'">
+      <!-- 翻页模式：txt / epub / pdf 均支持（pdf 翻页模式为单页布局，滚动模式为整本连续滚动） -->
+      <div class="setting-row" v-if="currentFile.format !== ''">
         <div class="setting-head">
           <span class="setting-label">翻页模式</span>
         </div>
@@ -215,7 +215,7 @@
           <el-radio-button :value="false">翻页</el-radio-button>
           <el-radio-button :value="true">滚动</el-radio-button>
         </el-radio-group>
-        <div class="setting-tip">滚动模式下「分栏」不生效，TXT 用原生纵向滚动</div>
+        <div class="setting-tip">滚动模式下「分栏」不生效；TXT 用原生纵向滚动；PDF 为整本连续滚动（翻页=单页布局）</div>
       </div>
 
       <!-- 分栏：单栏 / 双栏 -->
@@ -239,6 +239,15 @@
           <el-radio-button value="height">适应高度</el-radio-button>
         </el-radio-group>
         <div class="setting-tip">适应宽度：单页宽度撑满阅读区；适应高度：单页高度≈一屏</div>
+      </div>
+
+      <!-- PDF 夜间反色：夜间主题下把白底黑字页面反转为暗底亮字（仅 PDF 生效，跟随主题背景时生效） -->
+      <div class="setting-row" v-if="currentFile.format === 'pdf'">
+        <div class="setting-head">
+          <span class="setting-label">夜间反色</span>
+        </div>
+        <el-switch v-model="pdfNightInvertModel" />
+        <div class="setting-tip">夜间主题下把白底黑字页面反转为暗底亮字（仅「跟随主题」背景时生效）</div>
       </div>
 
       <!-- 行距：紧凑 ~ 宽松 -->
@@ -313,6 +322,15 @@
             :step="0.5"
             :show-tooltip="false"
           />
+        </div>
+
+        <!-- 屏蔽原书样式：关闭后保留 EPUB 自带排版/颜色（仅影响 CSS，不影响划线定位） -->
+        <div class="setting-row">
+          <div class="setting-head">
+            <span class="setting-label">屏蔽原书样式</span>
+          </div>
+          <el-switch v-model="enforceBookStyleModel" />
+          <div class="setting-tip">开启=按阅读设置强制覆盖原书排版（默认）；关闭=保留原书自带排版与颜色</div>
         </div>
       </template>
 
@@ -538,6 +556,8 @@ const {
   setParagraphSpacing,
   setFirstLineIndent,
   setPdfFitMode,
+  setPdfNightInvert,
+  setEnforceBookStyle,
   setAnnotationStyle,
   setHighlightType,
   setPageEffect,
@@ -644,6 +664,18 @@ const pdfFitModeModel = computed({
   set: (val: 'width' | 'height' | undefined) => {
     if (val === 'width' || val === 'height') setPdfFitMode(val);
   },
+});
+
+/** PDF 夜间反色开关双向绑定 */
+const pdfNightInvertModel = computed({
+  get: () => settings.value.pdfNightInvert,
+  set: (val: boolean) => setPdfNightInvert(val),
+});
+
+/** EPUB 屏蔽原书样式开关双向绑定 */
+const enforceBookStyleModel = computed({
+  get: () => settings.value.enforceBookStyle,
+  set: (val: boolean) => setEnforceBookStyle(val),
 });
 
 /** 页边距双向绑定 */
@@ -855,13 +887,24 @@ async function onPickBgImage(e: Event) {
   const reader = new FileReader();
   reader.onload = async () => {
     const dataUrl = reader.result as string;
-    bgImageModel.value = dataUrl;
     // 来源文件路径用于去重（Electron 的 <input type=file> 提供 file.path）
     const imagePath = (file as unknown as { path?: string }).path || file.name;
-    await addBgImage(imagePath, dataUrl);
+    // 先入库拿 id：持久化只落 id（dataURL 不进 localStorage，防配额溢出），运行时直接应用
+    const id = await addBgImage(imagePath, dataUrl);
+    setBgImage(dataUrl, id);
   };
   reader.readAsDataURL(file);
   input.value = '';
+}
+
+/** 点击图库缩略图切换背景图：应用 dataURL 并落图库 id */
+function selectGalleryBg(img: { id: number; dataUrl: string }): void {
+  setBgImage(img.dataUrl, img.id);
+}
+
+/** 清除自定义背景图：回退主题预设 */
+function clearBgImage(): void {
+  setBgImage('', 0);
 }
 
 /**

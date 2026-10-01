@@ -46,6 +46,20 @@
       <LucideIcon name="NotebookPen" :size="14" />
       <span class="toolbar-label">笔记</span>
     </button>
+
+    <!-- 分隔线 -->
+    <span class="toolbar-divider"></span>
+
+    <!-- 朗读按钮：一次性朗读选中文本（不进入循环朗读，读完即止） -->
+    <button
+      class="toolbar-btn"
+      type="button"
+      title="朗读选中内容"
+      @click="handleSpeak"
+    >
+      <LucideIcon name="Volume2" :size="14" />
+      <span class="toolbar-label">朗读</span>
+    </button>
   </div>
 </template>
 
@@ -111,6 +125,8 @@ const emit = defineEmits<{
   (e: 'highlight'): void;
   /** 点击「笔记」按钮：按预设颜色与样式高亮选中文本并添加笔记 */
   (e: 'note'): void;
+  /** 点击「朗读」按钮：一次性朗读选中文本 */
+  (e: 'speak'): void;
   /** 关闭工具条（点击外部或按钮后） */
   (e: 'close'): void;
 }>();
@@ -134,6 +150,16 @@ function handleHighlight(): void {
  */
 function handleNote(): void {
   emit('note');
+  emit('close');
+}
+
+/**
+ * 点击「朗读」按钮处理：触发 speak 事件（一次性朗读选中文本），然后关闭工具条
+ *
+ * @returns 无返回值
+ */
+function handleSpeak(): void {
+  emit('speak');
   emit('close');
 }
 

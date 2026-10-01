@@ -103,3 +103,36 @@ export function getHighlightColorValue(colorName: string): string {
 export function isPresetColorName(color: string): boolean {
   return !!color && HIGHLIGHT_COLORS.some((c) => c.name === color);
 }
+
+/**
+ * 快照「各标注类型当前预设色」（供预设变更时的逐条迁移判定）。
+ */
+export function snapshotTypeColors(styles: Record<string, { color: string }>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const t of Object.keys(styles || {})) out[t] = styles[t]?.color || '';
+  return out;
+}
+
+/**
+ * 类型预设色变更后，把「仍跟随预设」的标注迁移到新色，单条改过色的标注保持自定义色。
+ * 判定口径：该标注 color 等于该类型「上一次的预设色」→ 视为跟随预设 → 更新为新预设色。
+ * 就地修改传入的标注数组元素（响应式对象），调用方随后自行触发重绘。
+ *
+ * @param annotations - 本地标注列表（含 color/type 字段）
+ * @param styles - 最新的类型样式预设映射
+ * @param prevColors - 变更前的类型预设色快照（snapshotTypeColors 的产物）
+ */
+export function migratePresetColors(
+  annotations: { color: string; type: string }[],
+  styles: Record<string, { color: string }>,
+  prevColors: Record<string, string>
+): void {
+  for (const type of Object.keys(styles || {})) {
+    const now = styles[type]?.color || '';
+    const old = prevColors[type];
+    if (!now || !old || old === now) continue;
+    for (const a of annotations) {
+      if (a.type === type && a.color === old) a.color = now;
+    }
+  }
+}

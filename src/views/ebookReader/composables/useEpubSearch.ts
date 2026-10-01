@@ -33,6 +33,46 @@ export function useEpubSearch(ctx: EpubCtx) {
   const results = ref<EpubSearchResult[]>([]);
   /** 是否正在搜索 */
   const searching = ref(false);
+  /** 取消令牌：每次 runSearch 自增并持有快照，循环中不一致即已被取消/取代，立即退出 */
+  let searchToken = 0;
+  /** 当前命中高亮的 CFI 列表（epub.js 标注通道，className 区分于手动划线） */
+  let hitCfis: string[] = [];
+
+  /** 命中高亮样式：琥珀橙半透明。⚠️ 必须是 hex fill + fill-opacity + 显式关闭 multiply（见模块红线） */
+  const SEARCH_HIT_STYLES = { fill: '#FF9800', 'fill-opacity': '0.28', 'mix-blend-mode': 'normal' };
+
+  /** 清除全部搜索命中高亮 */
+  function clearSearchHighlights(): void {
+    if (ctx.rendition) {
+      for (const cfi of hitCfis) {
+        try {
+          ctx.rendition.annotations.remove(cfi, 'highlight');
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+    hitCfis = [];
+  }
+
+  /** 把当前全部命中注册为正文高亮（epub.js 按需渲染：仅当前显示的章节会真正绘制） */
+  function paintSearchHighlights(): void {
+    clearSearchHighlights();
+    if (!ctx.rendition) return;
+    for (const r of results.value) {
+      try {
+        ctx.rendition.annotations.highlight(r.cfi, {}, () => {}, 'epub-search-hit', SEARCH_HIT_STYLES);
+        hitCfis.push(r.cfi);
+      } catch {
+        /* 单条注册失败不中断 */
+      }
+    }
+  }
+
+  /** 取消进行中的搜索（关闭搜索面板 / 开始新一轮搜索时调用） */
+  function cancelSearch(): void {
+    searchToken++;
+  }
 
   /**
    * 执行全文搜索。
@@ -40,6 +80,9 @@ export function useEpubSearch(ctx: EpubCtx) {
    */
   async function runSearch(term?: string): Promise<void> {
     const q = (term ?? query.value).trim();
+    const myToken = ++searchToken; // 新搜索使进行中的旧搜索立即失效
+    // 新一轮搜索：先清掉上一轮的命中高亮
+    clearSearchHighlights();
     if (!q) {
       results.value = [];
       ctx.emit('search-results', results.value);
@@ -54,6 +97,8 @@ export function useEpubSearch(ctx: EpubCtx) {
     try {
       const items: any[] = (book.spine as any)?.spineItems || [];
       for (const section of items) {
+        // 已被取消或被新一轮搜索取代：直接退出，不产出结果
+        if (myToken !== searchToken) return;
         if (out.length >= MAX_RESULTS) break;
         try {
           // 加载章节文档（epubjs Section.find 依赖 section.document）
@@ -79,10 +124,15 @@ export function useEpubSearch(ctx: EpubCtx) {
     } catch (err) {
       console.error('全文搜索异常', err);
     } finally {
-      results.value = out;
-      searching.value = false;
-      ctx.emit('search-results', results.value);
-      ctx.emit('searching', false);
+      // 被取消的搜索不回写结果/状态（避免覆盖新一轮搜索或留下“幽灵 searching”）
+      if (myToken === searchToken) {
+        results.value = out;
+        searching.value = false;
+        ctx.emit('search-results', results.value);
+        ctx.emit('searching', false);
+        // 注册命中高亮（epub.js 仅在对应章节显示时绘制，跨章节自动跟随）
+        paintSearchHighlights();
+      }
     }
   }
 
@@ -94,8 +144,9 @@ export function useEpubSearch(ctx: EpubCtx) {
     ctx.rendition.display(cfi);
   }
 
-  /** 清空搜索结果 */
+  /** 清空搜索结果与命中高亮 */
   function clearSearch(): void {
+    clearSearchHighlights();
     results.value = [];
     query.value = '';
     ctx.emit('search-results', results.value);
@@ -106,6 +157,7 @@ export function useEpubSearch(ctx: EpubCtx) {
     results,
     searching,
     runSearch,
+    cancelSearch,
     jumpToSearchResult,
     clearSearch,
   };

@@ -11,7 +11,11 @@
 import { watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { Contents } from 'epubjs';
-import { getHighlightColorValue } from '../highlightConfig';
+import {
+  getHighlightColorValue,
+  snapshotTypeColors,
+  migratePresetColors,
+} from '../highlightConfig';
 import type { EpubCtx } from './epubContext';
 
 export function useEpubHighlight(ctx: EpubCtx) {
@@ -19,6 +23,11 @@ export function useEpubHighlight(ctx: EpubCtx) {
   function getColorValue(colorName: string): string {
     return getHighlightColorValue(colorName);
   }
+
+  /** 各类型预设色的上一份快照：预设变更时判定哪些标注「仍跟随预设」需要迁移到新色 */
+  let prevTypeColors: Record<string, string> = snapshotTypeColors(
+    (ctx.settings.value as any).annotationStyles || {}
+  );
 
   /** 读取某标注类型的预设颜色（跟随类型；取不到则回退黄） */
   function styleColorOf(type: string): string {
@@ -314,7 +323,9 @@ export function useEpubHighlight(ctx: EpubCtx) {
         ctx.rendition.annotations.highlight(cfiRange, data, cb, className, styles);
       }
       const now = new Date().toISOString();
-      ctx.annotations.value.push({ id, anchor: cfiRange, text, note, color, type, createdAt: now, updatedAt: now });
+      // 入库色是「类型预设色 typeColor」，本地列表必须与 DB 一致（旧代码 push 的是入参默认色，
+      // 导致本地列表显示/回写颜色与数据库不一致）
+      ctx.annotations.value.push({ id, anchor: cfiRange, text, note, color: typeColor, type, createdAt: now, updatedAt: now });
       ctx.emit('annotations-updated', ctx.annotations.value);
     } catch (err) {
       console.error('添加划线异常', err);
@@ -404,6 +415,36 @@ export function useEpubHighlight(ctx: EpubCtx) {
     const annotation = ctx.annotations.value.find((a) => a.id === id);
     ctx.menuVisible.value = false;
     if (annotation) void removeHighlight(id, annotation.anchor);
+  }
+
+  /**
+   * 操作菜单「改色」：仅修改该条标注颜色（不影响类型预设、不影响同类其它标注）。
+   * 落库后更新本地列表并整体重绘（refreshAnnotations 按每条自身颜色渲染）。
+   */
+  async function onMenuRecolor(color: string): Promise<void> {
+    const id = ctx.menuAnnotationId.value;
+    if (id === null || !color) return;
+    ctx.menuVisible.value = false;
+    const annotation = ctx.annotations.value.find((a) => a.id === id);
+    if (!annotation) return;
+    try {
+      const res = await window.ipcRenderer.ebook.updateAnnotation({
+        id,
+        color,
+        type: annotation.type,
+        note: annotation.note,
+      });
+      if (!res?.success) {
+        ElMessage.error(`修改颜色失败：${res?.error || '未知错误'}`);
+        return;
+      }
+      annotation.color = color;
+      ctx.emit('annotations-updated', ctx.annotations.value);
+      void refreshAnnotations();
+    } catch (err) {
+      console.error('修改标注颜色异常', err);
+      ElMessage.error('修改颜色失败');
+    }
   }
 
   /** 删除划线：确认 → IPC 删除 → 移除 rendition 高亮 → 更新本地列表 → 通知父组件 */
@@ -526,7 +567,8 @@ export function useEpubHighlight(ctx: EpubCtx) {
             anchor: cfiRange,
             text: record.text,
             note,
-            color,
+            // 优先取数据库存储色（round-trip 一致），无记录时回退当前类型预设色
+            color: record.color || color,
             type,
             createdAt: record.created_at || '',
             updatedAt: record.updated_at || '',
@@ -579,10 +621,11 @@ export function useEpubHighlight(ctx: EpubCtx) {
       for (const ann of list) {
         if (!ctx.annotations.value.some((a) => a.id === ann.id)) continue;
         try {
-          const styles = getTypeStyles(ann.type, styleColorOf(ann.type));
+          // 渲染用「标注自身颜色」：新建时=类型预设色，单条改色后=自定义色
+          const styles = getTypeStyles(ann.type, ann.color || styleColorOf(ann.type));
           const epubType = uiTypeToEpub(ann.type);
           const className = getAnnotationClassName(ann.type);
-          const data = { id: ann.id, note: ann.note, cfiRange: ann.anchor, color: styleColorOf(ann.type), type: ann.type };
+          const data = { id: ann.id, note: ann.note, cfiRange: ann.anchor, color: ann.color || styleColorOf(ann.type), type: ann.type };
           const cb = () => onHighlightClick(ann.id, ann.anchor, ann.note);
           if (epubType === 'underline') {
             const created = ctx.rendition.annotations.underline(ann.anchor, data, cb, className, styles);
@@ -626,12 +669,20 @@ export function useEpubHighlight(ctx: EpubCtx) {
   ctx.refreshAnnotations = refreshAnnotations;
   ctx.decorateAnnotationMarks = decorateAllMarks;
 
-  // 标注类型样式预设（颜色 / 间隙 / 线宽 / 行距）变化时，按当前预设重新添加所有标注，
-  // 使同一类型的标注整体跟随类型预设更新（改预设即改该类所有标注），无需重新打开文档。
+  // 标注类型样式预设（颜色 / 间隙 / 线宽 / 行距）变化时：先把「仍跟随预设」的标注
+  // 迁移到新色（单条改过色的保持自定义），再按当前预设重新添加所有标注。
   watch(
     () => (ctx.settings.value as any).annotationStyles,
     () => {
-      if (ctx.rendition) void refreshAnnotations();
+      if (ctx.rendition) {
+        migratePresetColors(
+          ctx.annotations.value,
+          (ctx.settings.value as any).annotationStyles || {},
+          prevTypeColors
+        );
+        prevTypeColors = snapshotTypeColors((ctx.settings.value as any).annotationStyles || {});
+        void refreshAnnotations();
+      }
     },
     { deep: true }
   );
@@ -656,5 +707,6 @@ export function useEpubHighlight(ctx: EpubCtx) {
     menuHasNote: ctx.menuHasNote,
     onMenuConvert,
     onMenuDelete,
+    onMenuRecolor,
   };
 }

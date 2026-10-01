@@ -54,6 +54,16 @@
           <LucideIcon name="ArrowLeft" :size="14" />
           上一页
         </el-button>
+        <el-button
+          size="small"
+          :disabled="loading"
+          :type="currentBookmarked ? 'warning' : ''"
+          @click="toggleBookmark"
+          :title="currentBookmarked ? '取消书签' : '添加书签'"
+        >
+          <LucideIcon :name="currentBookmarked ? 'BookmarkXIcon' : 'BookmarkPlus'" :size="14" />
+          书签
+        </el-button>
         <span class="page-info">
           {{ totalPages > 0 ? currentPage + 1 : 0 }} / {{ totalPages }}
         </span>
@@ -75,13 +85,14 @@
       </div>
     </div>
 
-    <!-- 选中文本后的浮动工具条：划线/笔记 -->
+    <!-- 选中文本后的浮动工具条：划线/笔记/朗读 -->
     <AnnotationToolbar
       :visible="toolbarVisible"
       :x="toolbarX"
       :y="toolbarY"
       @highlight="onToolbarHighlight"
       @note="onToolbarNote"
+      @speak="onSpeakSelection"
       @close="toolbarVisible = false"
     />
 
@@ -114,13 +125,14 @@
       </template>
     </app-dialog>
 
-    <!-- 已有划线操作菜单：点击划线后弹出，提供「转为笔记」「删除」两个操作 -->
+    <!-- 已有划线操作菜单：点击划线后弹出，提供「转为笔记」「改色」「删除」操作 -->
     <AnnotationActionMenu
       :visible="menuVisible"
       :x="menuX"
       :y="menuY"
       :has-note="menuHasNote"
       @convert="onMenuConvert"
+      @recolor="onMenuRecolor"
       @delete="onMenuDelete"
       @close="menuVisible = false"
     />
@@ -145,8 +157,13 @@ import type { TxtAnnotation } from '../composables/txtContext';
 import { createTxtCtx } from '../composables/txtContext';
 import { useTxtRender } from '../composables/useTxtRender';
 import { useTxtHighlight } from '../composables/useTxtHighlight';
+// TXT 书签 / 全文搜索（2026-10-01 补齐：锚点 = 全文字符偏移，复用外壳 BookmarksDrawer / SearchPanel）
+import { useTxtBookmarks } from '../composables/useTxtBookmarks';
+import { useTxtSearch } from '../composables/useTxtSearch';
 // TTS 朗读适配器（TXT）：注册到 useBookTts 单例，复用全局字符偏移做高亮 / 翻页跟随 / 断点
 import { useTxtTts } from '../composables/useTxtTts';
+// TTS 调度单例：选区「朗读」一次性朗读选中文本
+import { useBookTts } from '../composables/useBookTts';
 
 /** 阅读主题类型：day 白天、night 夜间、eye 护眼 */
 type EbookTheme = 'day' | 'night' | 'eye';
@@ -205,7 +222,17 @@ const emit = defineEmits<{
   /** 划线/笔记变化事件（新增、删除、编辑后均会触发） */
   (e: 'annotations-updated', payload: TxtAnnotation[]): void;
   /** 书籍基本信息事件（TXT 无元数据，此处仅声明以配合父组件统一绑定，不发射） */
-  (e: 'book-meta', payload: { title: string; author: string; cover: string }): void;
+  (e: 'book-meta', payload: { filePath?: string; title: string; author: string; cover: string }): void;
+  /** 章节目录加载完成事件（href 形如 `ch:${下标}`；无章节结构时为空数组） */
+  (e: 'toc-loaded', payload: any[]): void;
+  /** 当前所在章节变更事件（payload 为 `ch:${下标}`，供目录高亮） */
+  (e: 'current-href', payload: string): void;
+  /** 书签列表变更事件（新增/删除后触发） */
+  (e: 'bookmarks-updated', payload: BookmarkRecord[]): void;
+  /** 全文搜索结果变更事件 */
+  (e: 'search-results', payload: any[]): void;
+  /** 搜索进行中状态变更事件 */
+  (e: 'searching', payload: boolean): void;
 }>();
 
 /** TXT 阅读器根容器 */
@@ -218,13 +245,23 @@ const flowRef = ref<HTMLElement | null>(null);
 const ebookStore = useEbookReader();
 const { settings } = storeToRefs(ebookStore);
 
-// 构建共享 ctx，并由两个 composable 分别接管渲染与标注逻辑
+// 构建共享 ctx，并由各 composable 分别接管渲染 / 标注 / 书签 / 搜索逻辑
 const ctx = createTxtCtx(props, emit, settings, txtContainer, viewportRef, flowRef);
 // 先初始化 highlight（注册 loadAnnotations 回调），再初始化 render（mounted 时调用 loadContent 触发该回调）
 const highlight = useTxtHighlight(ctx);
 const render = useTxtRender(ctx);
+// 书签 / 全文搜索：依赖 render 的偏移定位 API
+const bookmarks = useTxtBookmarks(ctx, render);
+const search = useTxtSearch(ctx, render);
 // TTS 朗读适配器（TXT）：注册到 useBookTts 单例，复用 render 的翻页/滚动 API
 useTxtTts(ctx, render);
+// 选区「朗读」用调度单例（一次性朗读，不进入循环队列）
+const bookTts = useBookTts();
+/** 选区工具条「朗读」：一次性朗读当前选中文本 */
+function onSpeakSelection(): void {
+  const sel = ctx.currentSelection.value;
+  if (sel?.text) void bookTts.speakOnce(sel.text);
+}
 
 // 模板所需绑定（reactive ref 解构后仍保持响应性）
 const {
@@ -271,13 +308,26 @@ const {
   menuHasNote,
   onMenuConvert,
   onMenuDelete,
+  onMenuRecolor,
 } = highlight;
+const { currentBookmarked, toggleBookmark, renameBookmark } = bookmarks;
 
-// 暴露跳转到划线、移除本地划线、编辑笔记方法供父组件通过 ref 调用
+// 暴露跳转/标注/书签/搜索方法供父组件通过 ref 调用
 defineExpose({
   jumpToAnnotation: render.jumpToAnnotation,
   removeAnnotationById: highlight.removeAnnotationById,
   editAnnotationNote: highlight.editAnnotationNote,
+  // 章节目录跳转（目录项 href `ch:${i}`）
+  jumpToChapter: render.jumpToChapter,
+  // 按全局字符偏移跳转（程序化定位）
+  jumpToOffset: render.jumpToOffset,
+  // 书签
+  jumpToBookmark: bookmarks.jumpToBookmark,
+  removeBookmark: bookmarks.removeBookmark,
+  renameBookmark: bookmarks.renameBookmark,
+  // 全文搜索
+  runSearch: search.runSearch,
+  jumpToSearchResult: search.jumpToSearchResult,
 });
 </script>
 

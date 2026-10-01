@@ -26,13 +26,14 @@
       ></div>
     </div>
 
-    <!-- 选中文本后弹出的浮动工具条：提供「划线」「笔记」两个操作 -->
+    <!-- 选中文本后弹出的浮动工具条：提供「划线」「笔记」「朗读」操作 -->
     <AnnotationToolbar
       :visible="toolbarVisible"
       :x="toolbarX"
       :y="toolbarY"
       @highlight="onToolbarHighlight"
       @note="onToolbarNote"
+      @speak="onSpeakSelection"
       @close="toolbarVisible = false"
     />
 
@@ -65,13 +66,14 @@
       </template>
     </app-dialog>
 
-    <!-- 已有划线操作菜单：点击划线后弹出，提供「转为笔记」「删除」两个操作 -->
+    <!-- 已有划线操作菜单：点击划线后弹出，提供「转为笔记」「改色」「删除」操作 -->
     <AnnotationActionMenu
       :visible="menuVisible"
       :x="menuX"
       :y="menuY"
       :has-note="menuHasNote"
       @convert="onMenuConvert"
+      @recolor="onMenuRecolor"
       @delete="onMenuDelete"
       @close="menuVisible = false"
     />
@@ -92,6 +94,16 @@
         <LucideIcon :name="currentBookmarked ? 'BookmarkXIcon' : 'BookmarkPlus'" :size="14" />
         书签
       </el-button>
+      <!-- 全书进度滑块：locations 就绪时精确跳转，未就绪按章节粗定位（大书延后生成期间也可用） -->
+      <el-slider
+        class="progress-slider"
+        :model-value="sliderDragging ? sliderDragValue : sliderPercent"
+        :disabled="loading"
+        :format-tooltip="formatSliderTooltip"
+        @input="onSliderInput"
+        @change="onSliderChange"
+        aria-label="阅读进度"
+      />
       <span class="progress-text">{{ progressText }}</span>
       <span v-if="hasPageList" class="print-page-text">{{ printPage }}</span>
       <span v-else class="page-text">{{ pageText }}</span>
@@ -108,11 +120,41 @@
         <LucideIcon name="ArrowRight" :size="14" />
       </el-button>
     </div>
+
+    <!-- 图片大图查看器（E5b）：滚轮缩放 + 拖移平移，点击空白/ESC 关闭 -->
+    <div
+      v-if="viewer.visible"
+      class="img-viewer"
+      @click.self="closeViewer"
+      @wheel.prevent="onViewerWheel"
+    >
+      <img
+        :src="viewer.src"
+        :style="viewerStyle"
+        draggable="false"
+        @mousedown.prevent="onViewerDragStart"
+        alt=""
+      />
+      <div class="viewer-hint">滚轮缩放 · 拖动平移 · 点击空白或按 ESC 关闭</div>
+    </div>
+
+    <!-- 脚注/引用弹层（E5a）：点击同文档锚点时显示目标内容 -->
+    <div
+      v-if="footnote.visible"
+      class="footnote-pop"
+      :style="{ left: footnote.x + 'px', top: footnote.y + 'px' }"
+      @click.stop
+    >
+      <div class="footnote-body">{{ footnote.text }}</div>
+      <div class="footnote-footer">
+        <el-button size="small" text @click="footnote.visible = false">关闭</el-button>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import LucideIcon from '@/components/LucideIcon.vue';
 // 浮动工具条组件：选中文本后弹出，提供「划线」「笔记」两个操作
@@ -132,6 +174,8 @@ import { useEpubSearch } from '../composables/useEpubSearch';
 import { useEpubPageNumbers } from '../composables/useEpubPageNumbers';
 // TTS 朗读适配器（EPUB）：注册到 useBookTts 单例，提供取文本 / 高亮 / 翻页跟随 / 断点
 import { useEpubTts } from '../composables/useEpubTts';
+// TTS 调度单例：选区「朗读」一次性朗读选中文本
+import { useBookTts } from '../composables/useBookTts';
 
 /** 阅读主题类型：day 白天、night 夜间、eye 护眼 */
 type EbookTheme = 'day' | 'night' | 'eye';
@@ -186,6 +230,8 @@ const props = defineProps<{
   firstLineIndent?: number;
   /** 下划线 / 双下划线 与文字之间的间隙，单位 px（0 表示贴着基线），仅 epub 生效 */
   underlineGap?: number;
+  /** 屏蔽原书样式：false=保留 EPUB 自带排版/颜色（默认 true=强制覆盖） */
+  enforceBookStyle?: boolean;
 }>();
 
 /** 组件 Emits 定义 */
@@ -213,8 +259,9 @@ const emit = defineEmits<{
   (e: 'current-href', payload: string): void;
   /** 字号快捷调整事件（A-/A+ 按钮触发），payload 为目标字号 px */
   (e: 'font-size-change', payload: number): void;
-  /** 书籍基本信息（标题/作者/封面）解析完成事件，payload 为 { title, author, cover } */
-  (e: 'book-meta', payload: { title: string; author: string; cover: string }): void;
+  /** 书籍基本信息（标题/作者/封面）解析完成事件，payload 为 { filePath?, title, author, cover }；
+   *  filePath 为解析时所属文件路径：异步解析完成时用户可能已切书，父组件据此写回正确的书 */
+  (e: 'book-meta', payload: { filePath?: string; title: string; author: string; cover: string }): void;
 }>();
 
 /** epub 渲染容器引用 */
@@ -234,9 +281,84 @@ const pageNumbers = useEpubPageNumbers(ctx);
 const render = useEpubRender(ctx);
 // TTS 朗读适配器（EPUB）：注册到 useBookTts 单例，提供取文本 / 高亮 / 翻页跟随 / 断点
 useEpubTts(ctx);
+// 选区「朗读」用调度单例（一次性朗读，不进入循环队列）
+const bookTts = useBookTts();
+/** 选区工具条「朗读」：一次性朗读当前选中文本 */
+function onSpeakSelection(): void {
+  const sel = ctx.currentSelection.value;
+  if (sel?.text) void bookTts.speakOnce(sel.text);
+}
+
+// ===== 图片大图查看器（E5b）=====
+const viewer = ref({ visible: false, src: '', scale: 1, tx: 0, ty: 0 });
+const viewerStyle = computed(
+  () => ({
+    transform: `translate(${viewer.value.tx}px, ${viewer.value.ty}px) scale(${viewer.value.scale})`,
+  })
+);
+function onImageClick(src: string): void {
+  viewer.value = { visible: true, src, scale: 1, tx: 0, ty: 0 };
+}
+function closeViewer(): void {
+  viewer.value.visible = false;
+}
+/** 滚轮缩放（0.2x ~ 8x） */
+function onViewerWheel(e: WheelEvent): void {
+  const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+  viewer.value.scale = Math.min(8, Math.max(0.2, viewer.value.scale * factor));
+}
+/** 拖移平移 */
+function onViewerDragStart(e: MouseEvent): void {
+  const sx = e.clientX - viewer.value.tx;
+  const sy = e.clientY - viewer.value.ty;
+  const move = (ev: MouseEvent) => {
+    viewer.value.tx = ev.clientX - sx;
+    viewer.value.ty = ev.clientY - sy;
+  };
+  const up = () => {
+    window.removeEventListener('mousemove', move);
+    window.removeEventListener('mouseup', up);
+  };
+  window.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', up);
+}
+
+// ===== 脚注弹层（E5a）=====
+const footnote = ref({ visible: false, text: '', x: 0, y: 0 });
+function onFootnoteClick(text: string, pos: { x: number; y: number }): void {
+  // 夹紧到视口内（弹层宽约 420px、高随内容，最多 320px）
+  const x = Math.min(Math.max(12, pos.x - 210), window.innerWidth - 432);
+  const y = Math.min(Math.max(12, pos.y + 12), window.innerHeight - 332);
+  footnote.value = { visible: true, text, x, y };
+}
+
+// ESC 关闭查看器/脚注弹层；点击页面其它位置关闭脚注弹层
+function onLocalKeydown(e: KeyboardEvent): void {
+  if (e.key === 'Escape') {
+    if (viewer.value.visible) closeViewer();
+    if (footnote.value.visible) footnote.value.visible = false;
+  }
+}
+function onDocClickCloseFootnote(e: MouseEvent): void {
+  if (!footnote.value.visible) return;
+  if ((e.target as HTMLElement)?.closest?.('.footnote-pop')) return;
+  footnote.value.visible = false;
+}
+onMounted(() => {
+  window.addEventListener('keydown', onLocalKeydown);
+  document.addEventListener('click', onDocClickCloseFootnote, true);
+});
+onUnmounted(() => {
+  window.removeEventListener('keydown', onLocalKeydown);
+  document.removeEventListener('click', onDocClickCloseFootnote, true);
+});
+
+// 图片/脚注回调由 useEpubRender 的 iframe 捕获监听转发到这里
+ctx.onImageClick = onImageClick;
+ctx.onFootnoteClick = onFootnoteClick;
 
 // 模板所需绑定（reactive ref 解构后仍保持响应性）
-const { themeClass, pageText, loading, progressText, onWheelPageTurn, onReaderMouseup, onEdgePrev, onEdgeNext, prevPage, nextPage } =
+const { themeClass, pageText, loading, progressText, sliderPercent, jumpToPercent, onWheelPageTurn, onReaderMouseup, onEdgePrev, onEdgeNext, prevPage, nextPage } =
   render;
 const {
   toolbarVisible,
@@ -255,8 +377,9 @@ const {
   menuHasNote,
   onMenuConvert,
   onMenuDelete,
+  onMenuRecolor,
 } = highlight;
-const { currentBookmarked, toggleBookmark } = bookmarks;
+const { currentBookmarked, toggleBookmark, renameBookmark } = bookmarks;
 const { printPage, hasPageList } = pageNumbers;
 
 /** 字号快捷调整（A-/A+）：计算新的受限字号并通知父组件持久化 */
@@ -268,19 +391,42 @@ function onAdjustFont(delta: number): void {
   }
 }
 
+/** 进度滑块拖动中标志与临时值：拖动期间显示本地值，避免与进度回写互相顶牛 */
+const sliderDragging = ref(false);
+const sliderDragValue = ref(0);
+/** 滑块 tooltip 文案 */
+function formatSliderTooltip(v: number): string {
+  return `${v}%`;
+}
+/** 滑块拖动中：记录临时值（不触发跳转） */
+function onSliderInput(v: number): void {
+  sliderDragging.value = true;
+  sliderDragValue.value = v;
+}
+/** 松手提交：按目标百分比跳转（locations 未就绪时内部按章节粗定位） */
+function onSliderChange(v: number): void {
+  sliderDragging.value = false;
+  void jumpToPercent(v);
+}
+
 // 暴露方法供父组件调用：
 // - displayTarget：跳转到指定 cfi 或 href（目录跳转）
+// - jumpToPercent：按全书百分比跳转（父级如需程序化跳转）
 // - jumpToAnnotation：跳转到指定划线位置（笔记抽屉点击调用）
 // - removeAnnotationById：按 id 移除本地划线（笔记抽屉删除后同步高亮）
 // - editAnnotationNote：按 id 弹出输入框编辑笔记（笔记抽屉「编辑」调用）
+// - cancelSearch：取消进行中的全文搜索（关闭搜索面板时调用）
 defineExpose({
   displayTarget: render.displayTarget,
+  jumpToPercent,
   jumpToAnnotation: highlight.jumpToAnnotation,
   removeAnnotationById: highlight.removeAnnotationById,
   editAnnotationNote: highlight.editAnnotationNote,
   jumpToBookmark: bookmarks.jumpToBookmark,
   removeBookmark: bookmarks.removeBookmark,
+  renameBookmark: bookmarks.renameBookmark,
   runSearch: search.runSearch,
+  cancelSearch: search.cancelSearch,
   jumpToSearchResult: search.jumpToSearchResult,
 });
 </script>
@@ -445,6 +591,16 @@ defineExpose({
     border-top: 1px solid var(--border-subtle);
     background: var(--bg-card);
 
+    /* 全书进度滑块：固定宽度，与两侧按钮/文本等高排布 */
+    .progress-slider {
+      width: 200px;
+      margin: 0 4px;
+
+      /* 压缩滑块纵向占位，避免撑高底部栏 */
+      --el-slider-height: 4px;
+      --el-slider-button-size: 14px;
+    }
+
     .progress-text {
       font-size: 13px;
       color: var(--text-secondary);
@@ -470,6 +626,70 @@ defineExpose({
     .font-quick {
       display: inline-flex;
       gap: 4px;
+    }
+  }
+
+  /* ===== 图片大图查看器（E5b）===== */
+  .img-viewer {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.86);
+    overflow: hidden;
+
+    img {
+      max-width: 90vw;
+      max-height: 90vh;
+      user-select: none;
+      transition: transform 0.08s ease-out;
+      cursor: grab;
+    }
+
+    .viewer-hint {
+      position: absolute;
+      bottom: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.75);
+      user-select: none;
+      pointer-events: none;
+    }
+  }
+
+  /* ===== 脚注/引用弹层（E5a）===== */
+  .footnote-pop {
+    position: fixed;
+    z-index: 1500;
+    width: 420px;
+    max-height: 320px;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    box-shadow: var(--shadow-card);
+    overflow: hidden;
+
+    .footnote-body {
+      flex: 1;
+      overflow: auto;
+      padding: 12px 14px;
+      font-size: 13px;
+      line-height: 1.8;
+      color: var(--text-primary);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .footnote-footer {
+      display: flex;
+      justify-content: flex-end;
+      padding: 4px 8px;
+      border-top: 1px solid var(--border-subtle);
     }
   }
 

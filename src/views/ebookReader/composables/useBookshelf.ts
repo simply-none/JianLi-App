@@ -43,7 +43,7 @@ export function useBookshelf(opts: UseBookshelfOptions) {
   const store = useEbookReader();
   // 书架列表（响应式，与原 index.vue 中 storeToRefs 解构结果一致）
   const { bookshelf } = storeToRefs(store);
-  const { addToBookshelf, removeFromBookshelf, clearBookshelf } = store;
+  const { removeFromBookshelf, clearBookshelf, loadBookshelf } = store;
   // 分类相关：全部分类列表 + 增删/设置书籍分类的操作（来自 store）
   const { categories } = storeToRefs(store);
   const { addCategory, deleteCategory, updateCategory, setBookCategories } = store;
@@ -54,7 +54,7 @@ export function useBookshelf(opts: UseBookshelfOptions) {
   const searchKeyword = ref('');
 
   /**
-   * 过滤后的书架列表：先按分类筛选，再按名称关键词筛选。
+   * 过滤后的书架列表：先按分类筛选，再按名称关键词（书名/文件名/作者）筛选。
    * 分类筛选优先（选中分类后只显示该分类下的书），名称关键词在其结果上进一步过滤。
    */
   const filteredItems = computed(() => {
@@ -66,14 +66,17 @@ export function useBookshelf(opts: UseBookshelfOptions) {
     if (kw) {
       list = list.filter((b) => {
         const name = (b.title || b.name || '').toLowerCase();
-        return name.includes(kw);
+        const file = (b.name || '').toLowerCase();
+        const author = (b.author || '').toLowerCase();
+        // 匹配 书名/文件名/作者（2026-10-01 增强：加入作者与文件名匹配）
+        return name.includes(kw) || file.includes(kw) || author.includes(kw);
       });
     }
     return list;
   });
 
-  /** 每本书的笔记/划线/书签数量映射（key 为 content_hash 或 file_path），用于书架卡片徽标 */
-  const annotationCountMap = ref<Record<string, { noteCount: number; highlightCount: number; bookmarkCount: number }>>({});
+  /** 每本书的笔记/划线/书签数量 + 累计阅读秒数映射（key 为 content_hash 或 file_path），用于书架卡片徽标 */
+  const annotationCountMap = ref<Record<string, { noteCount: number; highlightCount: number; bookmarkCount: number; readingSeconds?: number }>>({});
 
   /**
    * 刷新每本书的笔记/划线/书签数量（供书架卡片徽标显示）
@@ -91,12 +94,13 @@ export function useBookshelf(opts: UseBookshelfOptions) {
     try {
       const res = await window.ipcRenderer.ebook.getAnnotationCounts(paths, hashes);
       if (res?.success) {
-        const map: Record<string, { noteCount: number; highlightCount: number; bookmarkCount: number }> = {};
+        const map: Record<string, { noteCount: number; highlightCount: number; bookmarkCount: number; readingSeconds?: number }> = {};
         (res.data || []).forEach((d) => {
           const entry = {
             noteCount: d.noteCount,
             highlightCount: d.highlightCount,
-            bookmarkCount: d.bookmarkCount || 0
+            bookmarkCount: d.bookmarkCount || 0,
+            readingSeconds: d.readingSeconds || 0
           };
           // key 为 content_hash（多副本共用）或 file_path（遗留数据）
           map[d.key] = entry;
@@ -217,18 +221,21 @@ export function useBookshelf(opts: UseBookshelfOptions) {
    * - 与书架已有 path 相同的文件忽略导入（不更新原记录）并计数（skippedDuplicate）
    * - 计算内容哈希，使副本可与同内容原书共用标注/进度
    *
+   * 性能要点（2026-10-01 批量化改造）：过滤/去重零 IPC；随后「一次 IPC 批量算哈希 +
+   * 一次 IPC 批量入库 + 一次书架刷新」，替代旧的逐本 hash → 逐本入库 → 每本全量刷新
+   * （约 2N 次重量级 IPC + N 次重渲染，且滚动位置反复回顶）。
+   *
    * @param filePaths - 待导入文件绝对路径数组
-   * @returns 导入统计 { added, skippedUnsupported, skippedDuplicate }
+   * @returns 导入统计 { added, skippedUnsupported, skippedDuplicate, failed }
    */
   async function importFilesToShelf(
     filePaths: string[]
-  ): Promise<{ added: number; skippedUnsupported: number; skippedDuplicate: number }> {
-    let added = 0;
+  ): Promise<{ added: number; skippedUnsupported: number; skippedDuplicate: number; failed: number }> {
     let skippedUnsupported = 0;
     let skippedDuplicate = 0;
-    // 本次导入内去重，避免同一文件被重复计数
+    // 第一步：渲染端本地过滤/去重（同步、零 IPC）
     const seenInThisImport = new Set<string>();
-
+    const pending: { filePath: string; name: string; format: string; percent: number }[] = [];
     for (const filePath of filePaths) {
       const fileName = getFileName(filePath);
       const format = getFormat(fileName);
@@ -244,31 +251,57 @@ export function useBookshelf(opts: UseBookshelfOptions) {
       }
       // 已存在的书沿用其原有进度（percent），避免被 0 覆盖
       const existingItem = bookshelf.value.find((b) => b.path === filePath);
-      // 计算内容哈希，使加入书架即带 content_hash，副本可与同内容原书共用笔记/书签/进度
-      let contentHash = '';
-      try {
-        const hashRes = await window.ipcRenderer.ebook.computeFileHash(filePath);
-        if (hashRes && hashRes.success && hashRes.hash) contentHash = hashRes.hash;
-      } catch {
-        // 计算失败则回退为空，由后续打开时补全
-      }
-      await addToBookshelf({
-        path: filePath,
+      pending.push({
+        filePath,
         name: fileName,
         format,
         percent: existingItem ? existingItem.percent : 0,
-        lastReadAt: new Date().toISOString(),
-        addedAt: new Date().toISOString(),
-        contentHash,
       });
       seenInThisImport.add(filePath);
-      added++;
     }
 
-    // 刷新每本书的笔记/划线数量徽标（addToBookshelf 内部已重新 loadBookshelf）
-    refreshCounts();
+    let added = 0;
+    let failed = 0;
+    if (pending.length > 0) {
+      // 第二步：一次 IPC 批量算内容哈希（失败回退为空串，打开书时补全）
+      const hashes: string[] = new Array(pending.length).fill('');
+      try {
+        const hashRes = await window.ipcRenderer.ebook.computeFileHashes(pending.map((p) => p.filePath));
+        if (hashRes && hashRes.success && Array.isArray(hashRes.hashes)) {
+          for (let i = 0; i < pending.length; i++) hashes[i] = hashRes.hashes[i] || '';
+        }
+      } catch (err) {
+        console.error('批量计算文件哈希失败', err);
+      }
+      // 第三步：一次 IPC 批量入库（保留 added_at 语义与单本入库一致）
+      try {
+        const res = await window.ipcRenderer.ebook.addBooksBatch(
+          pending.map((p, i) => ({
+            filePath: p.filePath,
+            name: p.name,
+            format: p.format,
+            percent: p.percent,
+            contentHash: hashes[i],
+          }))
+        );
+        if (res && res.success) {
+          added = res.count ?? 0;
+          failed = (res.failures || []).length;
+        } else {
+          failed = pending.length;
+        }
+      } catch (err) {
+        console.error('批量导入书架失败', err);
+        failed = pending.length;
+      }
+      // 第四步：全部完成后只刷新一次书架与徽标
+      if (added > 0) {
+        await loadBookshelf();
+        refreshCounts();
+      }
+    }
 
-    return { added, skippedUnsupported, skippedDuplicate };
+    return { added, skippedUnsupported, skippedDuplicate, failed };
   }
 
   /**
@@ -280,6 +313,7 @@ export function useBookshelf(opts: UseBookshelfOptions) {
     added: number;
     skippedUnsupported: number;
     skippedDuplicate: number;
+    failed?: number;
   }): void {
     if (r.added > 0) {
       ElMessage.success(`已添加 ${r.added} 本书到书架`);
@@ -293,6 +327,9 @@ export function useBookshelf(opts: UseBookshelfOptions) {
     if (r.skippedDuplicate > 0) {
       ElMessage.warning(`已忽略 ${r.skippedDuplicate} 本已在书架中的书（相同路径不再导入）`);
     }
+    if ((r.failed || 0) > 0) {
+      ElMessage.error(`${r.failed} 本书导入失败，请重试`);
+    }
   }
 
   /**
@@ -300,8 +337,8 @@ export function useBookshelf(opts: UseBookshelfOptions) {
    * 停留在书架视图（不切换到阅读视图），同一路径的书忽略导入，不支持格式跳过并提示
    */
   async function addExternal(): Promise<void> {
-    // 多选打开文件对话框（multiSelections 由主进程 get-file-list 转发给 getFilePath）
-    const result = window.ipcRenderer.sendSync('get-file-list', {
+    // 多选打开文件对话框（异步 invoke，避免 sendSync 模态期间冻结整个渲染进程）
+    const result = await window.ipcRenderer.handlePromise('get-file-list-async', {
       openFile: true,
       type: ['file'],
       multiSelections: true,
@@ -318,8 +355,8 @@ export function useBookshelf(opts: UseBookshelfOptions) {
    * 停留在书架视图（不切换到阅读视图），同一路径的书忽略导入，不支持格式跳过
    */
   async function addFolder(): Promise<void> {
-    // 仅选文件夹（openDirectory 由主进程 get-file-list 转发给 getFilePath）
-    const result = window.ipcRenderer.sendSync('get-file-list', {
+    // 仅选文件夹（openDirectory 由主进程 get-file-list-async 转发给 getFilePath）
+    const result = await window.ipcRenderer.handlePromise('get-file-list-async', {
       openDirectory: true,
     });
     // 用户取消或返回非数组
@@ -388,6 +425,9 @@ export function useBookshelf(opts: UseBookshelfOptions) {
     addFolder,
     exportBook,
     exportAll,
+    // 批量导入（拖拽进窗口导入复用）
+    importFilesToShelf,
+    reportImportResult,
     // 分类相关状态与操作
     categories,
     selectedCategory,

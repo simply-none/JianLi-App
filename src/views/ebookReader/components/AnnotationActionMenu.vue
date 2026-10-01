@@ -16,6 +16,21 @@
 
     <div class="menu-divider"></div>
 
+    <!-- 单条标注改色：6 预设色，仅改该条颜色（不影响类型预设与同类其它标注） -->
+    <div class="menu-colors">
+      <button
+        v-for="c in HIGHLIGHT_COLORS"
+        :key="c.name"
+        class="menu-color-dot"
+        :style="{ background: c.value }"
+        :title="c.label"
+        type="button"
+        @click="onRecolor(c.name)"
+      ></button>
+    </div>
+
+    <div class="menu-divider"></div>
+
     <!-- 删除：复用既有删除确认流程 -->
     <button class="menu-item menu-item--danger" type="button" title="删除" @click="onDelete">
       <LucideIcon name="Trash2" :size="14" />
@@ -27,6 +42,7 @@
 <script setup lang="ts">
 import { nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import LucideIcon from '@/components/LucideIcon.vue';
+import { HIGHLIGHT_COLORS } from '../highlightConfig';
 
 /** 组件 Props 定义 */
 const props = defineProps<{
@@ -46,6 +62,8 @@ const emit = defineEmits<{
   (e: 'convert'): void;
   /** 点击「删除」：走删除确认流程 */
   (e: 'delete'): void;
+  /** 点击色块：仅修改该条标注颜色 */
+  (e: 'recolor', color: string): void;
   /** 关闭菜单（点击外部或按钮后） */
   (e: 'close'): void;
 }>();
@@ -102,6 +120,12 @@ function onConvert(): void {
 /** 点击「删除」：触发 delete 事件并关闭菜单 */
 function onDelete(): void {
   emit('delete');
+  emit('close');
+}
+
+/** 点击色块：触发 recolor 事件并关闭菜单 */
+function onRecolor(color: string): void {
+  emit('recolor', color);
   emit('close');
 }
 
@@ -243,6 +267,28 @@ watch(
   margin: 0 2px;
   background: var(--border-subtle);
   flex-shrink: 0;
+}
+
+/* 单条标注改色：6 预设色圆点，横向排布 */
+.menu-colors {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 2px;
+}
+
+.menu-color-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.12s ease;
+
+  &:hover {
+    transform: scale(1.25);
+  }
 }
 
 /* 出现动画关键帧 */

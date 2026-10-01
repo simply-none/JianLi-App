@@ -75,14 +75,32 @@ function json(res: http.ServerResponse, data: unknown, status = 200): void {
   res.end(JSON.stringify(data));
 }
 
+/** 受支持的传书格式（2026-10-01 放开 pdf：PC↔PC 可传 PDF；手机端自行过滤，不受影响） */
+const TRANSFER_FORMATS = ["epub", "txt", "pdf"] as const;
+type TransferFormat = (typeof TRANSFER_FORMATS)[number];
+
+/** format → 文件扩展名 */
+function extForFormat(format: string): string {
+  if (format === "epub") return ".epub";
+  if (format === "pdf") return ".pdf";
+  return ".txt";
+}
+
+/** 规范化 format：非白名单值回退 txt（与旧版二值协议兼容） */
+function normalizeFormat(format: string | undefined | null): TransferFormat {
+  return (TRANSFER_FORMATS as readonly string[]).includes(String(format))
+    ? (String(format) as TransferFormat)
+    : "txt";
+}
+
 /** 落盘 + 入库的统一入口：按内容 sha256 去重（与移动端 importBookBytes 同身份键） */
 async function saveBookBytes(
   rawName: string,
-  format: "epub" | "txt",
+  format: TransferFormat,
   buf: Buffer,
 ): Promise<{ title: string; contentHash: string; deduped: boolean }> {
   const hash = crypto.createHash("sha256").update(buf).digest("hex");
-  const ext = format === "epub" ? ".epub" : ".txt";
+  const ext = extForFormat(format);
 
   // 同内容已存在（跨端去重，content_hash 为稳定身份键）
   const exist = await querySql(
@@ -140,14 +158,16 @@ export interface LocalEbookPick {
   format?: string;
 }
 
-/** 拉取对端书目（只保留 epub/txt） */
+/** 拉取对端书目（保留 epub/txt/pdf：对端为 PC 时可含 PDF；对端为手机时本就只有 epub/txt） */
 async function listRemoteBooks(peerIp: string): Promise<RemoteEbook[]> {
   const res = await fetch(peerUrl(peerIp, "/ebook/list"), {
     signal: AbortSignal.timeout(8000),
   });
   const body = (await res.json()) as { ok?: boolean; books?: RemoteEbook[] };
   if (!body.ok) return [];
-  return (body.books ?? []).filter((b) => b.format === "epub" || b.format === "txt");
+  return (body.books ?? []).filter((b) =>
+    (TRANSFER_FORMATS as readonly string[]).includes(b.format),
+  );
 }
 
 /** 从对端下载一本并落库 */
@@ -161,7 +181,7 @@ async function downloadOne(peerIp: string, book: RemoteEbook): Promise<TransferO
     if (!res.ok) return { ok: false, title: display, error: `HTTP ${res.status}` };
     const buf = Buffer.from(await res.arrayBuffer());
     if (buf.length === 0) return { ok: false, title: display, error: "空文件" };
-    const saved = await saveBookBytes(display, book.format === "txt" ? "txt" : "epub", buf);
+    const saved = await saveBookBytes(display, normalizeFormat(book.format), buf);
     return { ok: true, title: saved.title, deduped: saved.deduped };
   } catch (e) {
     return { ok: false, title: display, error: String(e) };
@@ -175,8 +195,8 @@ async function uploadOne(peerIp: string, item: LocalEbookPick): Promise<Transfer
     if (!fs.existsSync(item.filePath)) {
       return { ok: false, title: display, error: "本机文件不存在" };
     }
-    const format = item.format === "txt" ? "txt" : "epub";
-    const ext = format === "epub" ? ".epub" : ".txt";
+    const format = normalizeFormat(item.format);
+    const ext = extForFormat(format);
     const name = `${display}${display.toLowerCase().endsWith(ext) ? "" : ext}`;
     const buf = fs.readFileSync(item.filePath);
     const res = await fetch(
@@ -258,7 +278,12 @@ export function initEbookTransfer(): void {
             contentHash: String(r.content_hash ?? ""),
           };
         })
-        .filter((b) => b.filePath && b.size > 0 && (b.format === "epub" || b.format === "txt"));
+        .filter(
+          (b) =>
+            b.filePath &&
+            b.size > 0 &&
+            (TRANSFER_FORMATS as readonly string[]).includes(b.format),
+        );
       json(res, { ok: true, books });
     } catch (e) {
       json(res, { ok: false, error: String(e) }, 500);
@@ -283,12 +308,12 @@ export function initEbookTransfer(): void {
     }
   });
 
-  // POST /ebook/upload?name=&format= —— 接收手机传来的书
+  // POST /ebook/upload?name=&format= —— 接收对端传来的书（手机固定 epub/txt；PC↔PC 可为 pdf）
   registerDataRoute("POST", "/ebook/upload", async (req, res) => {
     try {
       const url = new URL(req.url ?? "", "http://localhost");
       const rawName = url.searchParams.get("name") ?? "";
-      const format = url.searchParams.get("format") === "txt" ? "txt" : "epub";
+      const format = normalizeFormat(url.searchParams.get("format"));
       const chunks: Buffer[] = [];
       for await (const chunk of req) chunks.push(Buffer.from(chunk as Buffer));
       const buf = Buffer.concat(chunks);

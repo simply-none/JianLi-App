@@ -58,6 +58,8 @@ export interface EpubReaderProps {
   firstLineIndent?: number;
   /** 下划线 / 双下划线 与文字之间的间隙，单位 px（0 表示贴着基线），仅 epub 生效 */
   underlineGap?: number;
+  /** 屏蔽原书样式：false=保留 EPUB 自带排版/颜色（默认 true=强制覆盖，保持划线定位现状） */
+  enforceBookStyle?: boolean;
 }
 
 /** 渲染/标注逻辑共享的上下文对象 */
@@ -72,6 +74,8 @@ export interface EpubCtx {
   loading: Ref<boolean>;
   /** 当前阅读百分比文本 */
   progressText: Ref<string>;
+  /** 底部进度滑块绑定值（0-100，随进度事件更新；拖动中由组件本地值接管显示） */
+  sliderPercent: Ref<number>;
   /** 当前页码信息：当前章节内页码 / 本章总页数 */
   pageInfo: Ref<{ current: number; total: number }>;
   /** 最后一次 relocated 得到的 CFI */
@@ -146,6 +150,10 @@ export interface EpubCtx {
   updatePageInfo?: () => void;
   /** 重新定位标注回调（render 的字体/字号/行距/页边距监听变化后转发给 highlight 的 refreshAnnotations） */
   refreshAnnotations?: () => Promise<void>;
+  /** 图片点击回调（render 在 iframe 内捕获图片点击后转发给组件的大图查看器） */
+  onImageClick?: (src: string) => void;
+  /** 脚注/同文档锚点点击回调（render 拦截后转发给组件的脚注弹层；pos 为视口坐标） */
+  onFootnoteClick?: (text: string, pos: { x: number; y: number }) => void;
   /** 组件 emit 函数 */
   emit: (event: any, ...args: any[]) => void;
   /** 组件 props */
@@ -177,6 +185,7 @@ export function createEpubCtx(
     readerRef,
     loading: ref(false),
     progressText: ref('0%'),
+    sliderPercent: ref(0),
     pageInfo: ref({ current: 1, total: 1 }),
     currentCfi: ref(''),
     currentHref: ref(''),

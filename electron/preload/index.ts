@@ -185,6 +185,35 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
       return ipcRenderer.invoke('ebook:compute-file-hash', filePath)
     },
     /**
+     * 批量计算文件内容哈希（文件夹导入一次性整批计算，减少 IPC 往返）
+     *
+     * @param filePaths - 文件绝对路径数组
+     * @returns 成功返回 Promise<{ success: true; hashes: string[] }>（与入参等长、按序对应；
+     *          单本读取/计算失败该位为空串）；失败返回 Promise<{ success: false; error: string }>
+     */
+    computeFileHashes(filePaths: string[]) {
+      return ipcRenderer.invoke('ebook:compute-file-hashes', filePaths)
+    },
+    /**
+     * 批量添加书架记录（文件夹导入一次入库整批，渲染端随后只刷新一次书架）
+     *
+     * @param books - 书架记录数组，字段同 addToBookshelf
+     * @returns 成功返回 Promise<{ success: true; count: number; failures?: { filePath, error }[] }>；
+     *          失败返回 Promise<{ success: false; error: string }>
+     */
+    addBooksBatch(books: { filePath: string; name: string; format: string; percent: number; contentHash?: string }[]) {
+      return ipcRenderer.invoke('ebook:add-books-batch', books)
+    },
+    /**
+     * 检查文件是否存在（主进程 fs.stat，替代 jlocal:// HEAD 协议往返）
+     *
+     * @param filePath - 必填参数，文件绝对路径
+     * @returns 成功返回 Promise<{ success: true; exists: boolean }>（stat 异常按不存在处理）
+     */
+    checkFileExists(filePath: string) {
+      return ipcRenderer.invoke('ebook:check-file-exists', filePath)
+    },
+    /**
      * 获取指定电子书文件的阅读进度
      *
      * @param filePath - 必填参数，电子书文件的绝对路径
@@ -388,6 +417,21 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
       return ipcRenderer.invoke('ebook:get-annotation-counts', filePaths, contentHashes)
     },
     /**
+     * 累计某本书在某天的阅读时长（渲染端阅读视图中每分钟批量上报）
+     *
+     * @param data - 必填参数，{ dayKey: 'YYYY-MM-DD', statKey: `H:${hash}` 或 `P:${path}`, durationSec: 秒 }
+     * @returns 成功返回 Promise<{ success: boolean; error?: string }>
+     */
+    saveReadingStats(data: { dayKey: string; statKey: string; durationSec: number }) {
+      return ipcRenderer.invoke('ebook:save-reading-stats', data)
+    },
+    /**
+     * 汇总阅读时长（秒）：今日 / 最近 7 天 / 累计
+     */
+    getReadingStats() {
+      return ipcRenderer.invoke('ebook:get-reading-stats')
+    },
+    /**
      * 导出笔记与划线为 Markdown 文件（弹出系统保存对话框）
      *
      * @param data - 必填参数，{ filePath?, title? }；filePath 为空表示导出全部书
@@ -431,6 +475,15 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
      */
     removeBookmark(id: number) {
       return ipcRenderer.invoke('ebook:remove-bookmark', id)
+    },
+    /**
+     * 更新书签标签（重命名）
+     *
+     * @param data - 必填参数，{ id: number, label: string | null }
+     * @returns 成功返回 Promise<{ success: boolean; error?: string }>
+     */
+    updateBookmark(data: { id: number; label?: string | null }) {
+      return ipcRenderer.invoke('ebook:update-bookmark', data)
     },
     /**
      * 保存书籍基本信息（标题/作者/封面），由渲染进程解析后回传，供书架列表秒出、无需每次重新解析

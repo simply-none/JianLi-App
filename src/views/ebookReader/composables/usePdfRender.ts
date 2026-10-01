@@ -20,9 +20,10 @@ import * as pdfjsLib from 'pdfjs-dist';
 // 同一文件也由 worker 入口引入，保证 worker realm 同样具备补丁。
 import '../workers/pdfPolyfill';
 import { resolveReadingBg, resolveReadingText } from '../themePresets';
-import { getHighlightColorValue } from '../highlightConfig';
+import { getHighlightColorValue, snapshotTypeColors, migratePresetColors } from '../highlightConfig';
 import useEbookReader from '@/store/useEbookReader';
 import type { PdfCtx, PdfPageSize } from './pdfContext';
+import { useReaderShortcuts } from './useReaderShortcuts';
 
 // pdf.js Worker 通过 workerPort 注入（见 ensurePdfWorker）：
 // 复用官方 pdf.worker，但前置一个 polyfill，兼容 Electron 36(Chromium 134)
@@ -40,6 +41,8 @@ function ensurePdfWorker(): Worker {
 
 export function usePdfRender(ctx: PdfCtx) {
   const ebookStore = useEbookReader();
+  /** 各类型预设色的上一份快照：预设变更时判定哪些标注「仍跟随预设」需要迁移到新色 */
+  let prevTypeColors: Record<string, string> = snapshotTypeColors(ebookStore.settings.annotationStyles);
 
   /** 第 1 页在 scale=1 下的原始宽高（px），供 fit-width / fit-height 计算 baseScale 复用 */
   let basePageW = 0;
@@ -81,12 +84,12 @@ export function usePdfRender(ctx: PdfCtx) {
 
 
   /**
-   * PDF 采用「整本连续纵向排列」的渲染布局（所有页堆叠在单个滚动容器内），
-   * 因此阅读器固定运行在连续滚动模式：滚轮交给浏览器原生纵向滚动，
-   * 可逐页完整浏览（含每页下半部分），不再走「整页翻页」逻辑。
-   * 全局 settings.scrollMode 对 PDF 不生效（翻页模式需要单页布局，当前 PDF 未实现）。
+   * 阅读模式：跟随全局「翻页/滚动」设置（按格式独立存储）。
+   * - scroll：整本连续纵向排列，滚轮交给浏览器原生滚动（旧行为）；
+   * - paginated：单页布局，仅显示并渲染当前页 ±1，边缘点击/滚轮/键盘翻页。
+   * 旧版恒为 scroll（翻页未实现），现已补齐：settings.scrollMode 对 PDF 生效。
    */
-  const mode = computed<'scroll' | 'paginated'>(() => 'scroll');
+  const mode = computed<'scroll' | 'paginated'>(() => (ctx.props.scrollMode === true ? 'scroll' : 'paginated'));
 
   /** 页数枚举（供 v-for） */
   const pageList = computed(() => Array.from({ length: ctx.numPages.value }, (_, i) => i + 1));
@@ -301,9 +304,21 @@ export function usePdfRender(ctx: PdfCtx) {
     return [first, last];
   }
 
-  /** 渲染可视区附近（±1 页）的页，未渲染的补渲染 */
+  /** 渲染可视区附近的页，未渲染的补渲染。
+   * - 滚动模式：可视区 ±1 页（二分定位）；
+   * - 翻页模式：仅当前页 ±1，并释放远离当前页的已渲染页控制内存。 */
   function ensureRenderedRange(): void {
     if (ctx.disposed || !ctx.pdfDoc) return;
+    if (mode.value === 'paginated') {
+      const cur = ctx.currentPage.value;
+      const lo = Math.max(1, cur - 1);
+      const hi = Math.min(ctx.numPages.value, cur + 1);
+      for (let n = lo; n <= hi; n++) renderPage(n);
+      for (const n of [...ctx.renderedPages]) {
+        if (Math.abs(n - cur) > 1) clearPage(n);
+      }
+      return;
+    }
     const [first, last] = getVisibleRange();
     const lo = Math.max(1, first - 1);
     const hi = Math.min(ctx.numPages.value, last + 1);
@@ -351,8 +366,12 @@ export function usePdfRender(ctx: PdfCtx) {
 
   // ===== 导航 =====
 
-  /** 跳转到指定页（滚动使该页顶部对齐视口顶部） */
+  /** 跳转到指定页（滚动模式滚动到页顶；翻页模式直接切换当前页） */
   function goToPage(num: number, smooth = false): void {
+    if (mode.value === 'paginated') {
+      turnToPage(num);
+      return;
+    }
     const sc = ctx.scrollRef.value;
     const el = ctx.pageRefs.get(num);
     if (!sc || !el) return;
@@ -361,13 +380,33 @@ export function usePdfRender(ctx: PdfCtx) {
     sc.scrollTo({ top: el.offsetTop, behavior: allowSmooth ? 'smooth' : 'auto' });
   }
 
+  /** 翻页模式专用：直接切换当前页（渲染窗口、进度、目录高亮随之更新），不做滚动 */
+  function turnToPage(num: number): void {
+    const n = Math.max(1, Math.min(ctx.numPages.value, num));
+    if (n === ctx.currentPage.value) {
+      ensureRenderedRange();
+      return;
+    }
+    ctx.currentPage.value = n;
+    ensureRenderedRange();
+    emitProgress();
+  }
+
   /** 翻到上一页 */
   function prevPage(): void {
+    if (mode.value === 'paginated') {
+      turnToPage(ctx.currentPage.value - 1);
+      return;
+    }
     if (ctx.currentPage.value <= 1) return;
     goToPage(ctx.currentPage.value - 1, true);
   }
   /** 翻到下一页 */
   function nextPage(): void {
+    if (mode.value === 'paginated') {
+      turnToPage(ctx.currentPage.value + 1);
+      return;
+    }
     if (ctx.currentPage.value >= ctx.numPages.value) return;
     goToPage(ctx.currentPage.value + 1, true);
   }
@@ -402,6 +441,12 @@ export function usePdfRender(ctx: PdfCtx) {
       rects = [];
     }
     if (page < 1 || page > ctx.numPages.value) return;
+    // 翻页模式：单页布局无滚动，跳页 + 闪烁定位即可
+    if (mode.value === 'paginated') {
+      turnToPage(page);
+      if (typeof id === 'number') flashAnnotation(page, id);
+      return;
+    }
     const sc = ctx.scrollRef.value;
     const pageEl = ctx.pageRefs.get(page);
     if (!sc || !pageEl) return;
@@ -495,13 +540,13 @@ export function usePdfRender(ctx: PdfCtx) {
     await nextTick();
     ensureRenderedRange();
   }
-  /** 放大 */
+  /** 放大（步进归一化：避免 1.2 连乘的浮点误差累积） */
   function zoomIn(): void {
-    applyScale(ctx.scale.value * 1.2);
+    applyScale(Math.round(ctx.scale.value * 1.2 * 10000) / 10000);
   }
-  /** 缩小 */
+  /** 缩小（步进归一化） */
   function zoomOut(): void {
-    applyScale(ctx.scale.value / 1.2);
+    applyScale(Math.round((ctx.scale.value / 1.2) * 10000) / 10000);
   }
 
   // ===== 事件 =====
@@ -601,7 +646,7 @@ export function usePdfRender(ctx: PdfCtx) {
       } catch (err) {
         console.error('提取 PDF 封面失败', err);
       }
-      ctx.emit('book-meta', { title, author, cover });
+      ctx.emit('book-meta', { filePath: ctx.props.filePath, title, author, cover });
     } catch (err) {
       console.error('提取 PDF 基本信息失败', err);
     }
@@ -648,6 +693,19 @@ export function usePdfRender(ctx: PdfCtx) {
         try {
           const r = await window.ipcRenderer.ebook.readFileRange(filePath, begin, end);
           if (r?.buffer) transport.onDataRange(begin, new Uint8Array(r.buffer));
+          // 顺手预取下一段（≤1MB）：快进/拖滑块时提前备好后续字节，减少逐段往返等待。
+          // pdf.js 对未在等待的区间数据会自行忽略，不会造成状态错乱。
+          const chunk = Math.max(0, end - begin);
+          const nextBegin = end;
+          const nextEnd = Math.min(fileLength, end + Math.min(chunk, 1024 * 1024));
+          if (chunk > 0 && nextEnd > nextBegin) {
+            window.ipcRenderer.ebook
+              .readFileRange(filePath, nextBegin, nextEnd)
+              .then((r2) => {
+                if (r2?.buffer) transport.onDataRange(nextBegin, new Uint8Array(r2.buffer));
+              })
+              .catch(() => {});
+          }
         } catch (e) {
           console.error('PDF 区间读取失败', begin, end, e);
         }
@@ -741,6 +799,30 @@ export function usePdfRender(ctx: PdfCtx) {
       ctx.baseScale.value = computeBaseScale(ctx.props.pdfFitMode || 'width');
       void applyScale(ctx.baseScale.value);
     }
+  );
+
+  // 翻页/滚动模式切换（设置抽屉）：按新模式收敛渲染窗口
+  watch(
+    () => ctx.props.scrollMode,
+    () => {
+      if (!ctx.pdfDoc) return;
+      ensureRenderedRange();
+    }
+  );
+
+  // 键盘快捷键（三格式共用 composable）：←/→/PgUp/PgDn/Space 翻页、Home/End 跳首末页、
+  // Ctrl+= / Ctrl+- 缩放、Ctrl+0 复位适应缩放；输入框守卫与 IME 安全由 composable 内置。
+  useReaderShortcuts(
+    {
+      prev: prevPage,
+      next: nextPage,
+      jumpStart: () => goToPage(1),
+      jumpEnd: () => goToPage(ctx.numPages.value),
+      zoomIn,
+      zoomOut,
+      zoomReset,
+    },
+    { spaceAsNext: () => mode.value !== 'scroll' }
   );
 
   onUnmounted(() => {
@@ -891,7 +973,8 @@ export function usePdfRender(ctx: PdfCtx) {
       const map: any = ebookStore.settings.annotationStyles;
       const typeStyle = map[ann.type] ||
         { color: ann.color, underlineGap: 2, lineThickness: 2, rowPaddingY: 2 };
-      const baseColor = getHighlightColorValue(typeStyle.color || ann.color);
+      // 颜色优先取「该条标注自身颜色」（新建时=类型预设色，单条改色后=自定义色）
+      const baseColor = getHighlightColorValue(ann.color || typeStyle.color || 'yellow');
       for (const m of merged) {
         const div = document.createElement('div');
         // 始终带类型 class（pdf-hl--highlight/underline/mark/markStrong），由 CSS 决定具体表现，
@@ -954,10 +1037,13 @@ export function usePdfRender(ctx: PdfCtx) {
   /**
    * 划线样式参数（线宽 / 线间隙 / 高亮行上下间距）变化（阅读设置抽屉中调整）时，
    * 重绘所有已渲染页，使调整即时生效，无需重新打开文档。
+   * 颜色预设变更时：先把「仍跟随预设」的标注迁移到新色（单条改过色的保持自定义），再重绘。
    */
   watch(
     () => ebookStore.settings.annotationStyles,
     () => {
+      migratePresetColors(ctx.annotations.value, ebookStore.settings.annotationStyles, prevTypeColors);
+      prevTypeColors = snapshotTypeColors(ebookStore.settings.annotationStyles);
       for (const n of [...ctx.renderedPages]) ctx.renderHighlights?.(n);
     },
     { deep: true }

@@ -35,8 +35,8 @@ export interface TtsSentence {
 export interface TtsAdapter {
   /** 稳定书籍标识（contentHash 优先，回退 filePath），用于断点续读 key */
   readonly bookKey: string;
-  /** 格式标识，仅 'epub' | 'txt'（用于判断断点是否同源） */
-  readonly format: 'epub' | 'txt';
+  /** 格式标识（用于判断断点是否同源） */
+  readonly format: 'epub' | 'txt' | 'pdf';
   /** 构建从「当前阅读位置」开始的朗读队列；epub 为当前章节，txt 为整本 */
   buildQueue(): Promise<TtsSentence[]> | TtsSentence[];
   /** 某句开始朗读：句子级高亮（所有引擎均生效） */
@@ -60,8 +60,8 @@ export interface TtsAdapter {
 /** localStorage 断点结构 */
 interface TtsBreakpoint {
   bookKey: string;
-  format: 'epub' | 'txt';
-  /** 定位串：epub=起始 CFI，txt=起始全局字符偏移 */
+  format: 'epub' | 'txt' | 'pdf';
+  /** 定位串：epub=起始 CFI，txt=起始全局字符偏移，pdf=`页:页内偏移` */
   bp: string;
   /** 句子在当章队列中的下标（用于续读定位） */
   index: number;
@@ -140,6 +140,10 @@ function createBookTts() {
   const providerType: Ref<TTSProviderType | ''> = ref('');
   /** 是否正在准备（加载章节文本 / 翻页中） */
   const isLoading: Ref<boolean> = ref(false);
+  /** 睡眠定时到期时间戳（ms）；0 表示未启用。到点后在句间平滑暂停（可恢复） */
+  const sleepEndsAt: Ref<number> = ref(0);
+  /** 一次性朗读（朗读选中文本）进行中标志：不进入循环队列，不影响主状态机 */
+  const speakingOnce: Ref<boolean> = ref(false);
 
   // ===== 内部可变量 =====
   let manager: TTSManager | null = null;
@@ -261,6 +265,13 @@ function createBookTts() {
       }
       if (myToken !== runToken) return;
 
+      // 睡眠定时：到点后在句间平滑暂停（保留断点与高亮，可手动恢复）
+      if (sleepEndsAt.value > 0 && Date.now() >= sleepEndsAt.value) {
+        sleepEndsAt.value = 0;
+        pause();
+        break;
+      }
+
       // 落库断点（句级），便于跨会话续读
       try {
         saveBreakpoint({
@@ -315,6 +326,11 @@ function createBookTts() {
 
   async function play(): Promise<void> {
     if (!adapter) return;
+    // 一次性朗读进行中：先掐掉，避免两个声音叠加
+    if (speakingOnce.value) {
+      ensureManager().stop();
+      speakingOnce.value = false;
+    }
     if (status.value === 'paused') {
       resume();
       return;
@@ -437,6 +453,54 @@ function createBookTts() {
     void setStoreAsync('tts_rate', String(clamped));
   }
 
+  /**
+   * 设置睡眠定时（分钟数）：到点后在句间平滑暂停（非硬停止，可恢复续读）。
+   * @param minutes 定时时长（分钟），> 0 生效
+   */
+  function setSleepTimer(minutes: number): void {
+    if (minutes > 0) {
+      sleepEndsAt.value = Date.now() + minutes * 60_000;
+    }
+  }
+
+  /** 取消睡眠定时 */
+  function cancelSleepTimer(): void {
+    sleepEndsAt.value = 0;
+  }
+
+  /**
+   * 一次性朗读选中文本（不进入循环队列）：先停掉进行中的循环朗读，读完即止。
+   * 用于选区工具条「朗读」按钮。
+   */
+  async function speakOnce(text: string): Promise<void> {
+    const t = (text || '').trim();
+    if (!t) return;
+    await ensureConfig();
+    const m = ensureManager();
+    providerType.value = m.getProviderType();
+    // 打断进行中的循环朗读（stop 清状态机与高亮），避免两个声音叠加
+    stop();
+    speakingOnce.value = true;
+    try {
+      await m.speak(t, buildOptions(), {
+        onStart: () => {
+          currentSentenceText.value = t;
+        },
+        onBoundary: () => {
+          /* 一次性朗读不做逐字高亮 */
+        },
+        onEnd: () => {
+          /* speak 的 Promise 结束即完成 */
+        },
+      });
+    } catch {
+      /* 用户中途停止或引擎失败：静默结束 */
+    } finally {
+      speakingOnce.value = false;
+      if (currentSentenceText.value === t) currentSentenceText.value = '';
+    }
+  }
+
   function registerAdapter(a: TtsAdapter): void {
     if (adapter && adapter !== a) {
       // 切书：停止旧朗读并清高亮
@@ -463,6 +527,8 @@ function createBookTts() {
     supportsBoundary,
     providerType,
     isLoading,
+    sleepEndsAt,
+    speakingOnce,
     // 计算
     isPlaying,
     isPaused,
@@ -477,6 +543,9 @@ function createBookTts() {
     next,
     prev,
     setRate,
+    setSleepTimer,
+    cancelSleepTimer,
+    speakOnce,
     registerAdapter,
     unregisterAdapter,
   };

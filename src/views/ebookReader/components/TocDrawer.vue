@@ -28,7 +28,11 @@
           class="toc-item"
           :class="{ active: isCurrent(item) }"
           :style="{ paddingLeft: 12 + item.depth * 16 + 'px' }"
+          role="button"
+          tabindex="0"
           @click="onSelect(item)"
+          @keydown.enter.prevent="onSelect(item)"
+          @keydown.space.prevent="onSelect(item)"
         >
           {{ item.label }}
         </div>
@@ -90,7 +94,7 @@ const flattenedToc = computed<FlatTocItem[]>(() => {
   return flatten(props.items || []);
 });
 
-/** 判断目录项是否为当前所在章节（href 前缀匹配，忽略 #fragment） */
+/** 判断目录项是否为当前所在章节（同文件 + 锚点匹配） */
 function isCurrent(item: FlatTocItem): boolean {
   const cur = props.currentHref;
   const href = item.href;
@@ -98,7 +102,9 @@ function isCurrent(item: FlatTocItem): boolean {
   if (cur === href) return true;
   const base = href.split('#')[0];
   if (!base) return false;
-  return cur === base || cur.startsWith(base);
+  // 仅当 cur 是「同一文件 + 锚点」时才算当前章节：必须全等或以 base+'#' 开头。
+  // 不能用 startsWith(base)：ch1 会误命中 ch10/ch1x 这类前缀包含的其它文件名。
+  return cur === base || cur.startsWith(base + '#');
 }
 
 /** 点击目录项或地标：统一 emit select（父组件负责跳转并关闭抽屉） */

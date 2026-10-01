@@ -74,23 +74,61 @@
         <span
           class="cat-chip"
           :class="{ active: selectedCategory === null }"
+          role="button"
+          tabindex="0"
           @click="emit('update:selected-category', null)"
+          @keydown.enter.prevent="emit('update:selected-category', null)"
+          @keydown.space.prevent="emit('update:selected-category', null)"
         >全部</span>
         <span
           v-for="cat in categories"
           :key="cat.id"
           class="cat-chip"
           :class="{ active: selectedCategory === cat.id }"
+          role="button"
+          tabindex="0"
           @click="emit('update:selected-category', cat.id)"
+          @keydown.enter.prevent="emit('update:selected-category', cat.id)"
+          @keydown.space.prevent="emit('update:selected-category', cat.id)"
+          @dragover.prevent
+          @drop="onDropToCategory(cat.id, $event)"
+          :title="`点击筛选；拖动书籍到此可加入该分类`"
         ><span class="cat-dot" :style="{ background: cat.color || 'var(--color-primary)' }"></span>{{ cat.name }}</span>
+      </div>
+      <div class="quick-filters">
+        <!-- 格式筛选（多选切换，持久化） -->
+        <button
+          v-for="f in FORMAT_OPTIONS"
+          :key="f.value"
+          class="fmt-chip"
+          :class="{ active: formatFilter.includes(f.value) }"
+          type="button"
+          :title="formatFilter.includes(f.value) ? '取消该格式筛选' : '只看该格式'"
+          @click="toggleFormat(f.value)"
+        >{{ f.label }}</button>
+        <!-- 阅读状态筛选 -->
+        <el-select v-model="readStatusFilter" size="small" class="status-select">
+          <el-option label="全部状态" value="all" />
+          <el-option label="未读" value="unread" />
+          <el-option label="在读" value="reading" />
+          <el-option label="已读完" value="finished" />
+        </el-select>
+        <!-- 卡片模式排序（列表模式用列头排序） -->
+        <el-select v-if="viewMode === 'card'" v-model="cardSortKey" size="small" class="sort-select">
+          <el-option label="默认排序" value="" />
+          <el-option label="最近阅读" value="lastReadAt" />
+          <el-option label="添加时间" value="addedAt" />
+          <el-option label="书名" value="title" />
+          <el-option label="进度" value="percent" />
+        </el-select>
       </div>
       <div class="filter-right">
         <el-input
           :model-value="searchKeyword"
           size="small"
-          placeholder="搜索书名 / 文件名"
+          placeholder="搜索书名 / 文件名 / 作者"
           clearable
-          @update:model-value="emit('update:search-keyword', $event)"
+          @update:model-value="onKeywordInput"
         >
           <template #prefix>
             <LucideIcon name="Search" :size="13" />
@@ -183,6 +221,45 @@
       </template>
     </app-dialog>
 
+    <!-- 书籍元数据编辑弹窗：手动改 书名 / 作者 / 封面（TXT 书尤其有用） -->
+    <app-dialog
+      v-model="metaDialog.visible"
+      title="编辑书籍信息"
+      width="420px"
+      append-to-body
+    >
+      <div class="meta-dialog">
+        <div class="meta-row">
+          <span class="meta-label">书名</span>
+          <el-input v-model="metaDialog.title" size="small" placeholder="书籍标题（空则回退文件名）" />
+        </div>
+        <div class="meta-row">
+          <span class="meta-label">作者</span>
+          <el-input v-model="metaDialog.author" size="small" placeholder="作者（可空）" />
+        </div>
+        <div class="meta-row">
+          <span class="meta-label">封面</span>
+          <div class="meta-cover">
+            <input
+              ref="coverInputRef"
+              type="file"
+              accept="image/*"
+              style="display: none"
+              @change="onPickCover"
+            />
+            <div v-if="metaDialog.cover" class="meta-cover-preview" :style="{ backgroundImage: `url(${metaDialog.cover})` }"></div>
+            <div v-else class="meta-cover-preview empty">无封面</div>
+            <el-button size="small" @click="coverInputRef?.click()">选择图片</el-button>
+            <el-button size="small" text type="danger" v-if="metaDialog.cover" @click="metaDialog.cover = ''">清除</el-button>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <el-button size="small" @click="metaDialog.visible = false">取消</el-button>
+        <el-button size="small" type="primary" @click="saveMetaDialog">保存</el-button>
+      </template>
+    </app-dialog>
+
     <!-- 空书架提示 -->
     <div v-if="items.length === 0" class="bookshelf-empty">
       <el-empty description="书架空空如也，打开一本电子书吧">
@@ -200,12 +277,16 @@
         </el-button>
       </el-empty>
     </div>
+    <!-- 筛选无结果（书架非空但被筛选清空） -->
+    <div v-else-if="localFiltered.length === 0" class="bookshelf-empty">
+      <el-empty description="没有符合条件的书籍（试试放宽筛选条件）" />
+    </div>
 
-    <!-- 列表模式：虚拟表格（字段与卡片一致；左键打开、右键菜单做笔记/导出/分类/移除） -->
+    <!-- 列表模式：虚拟表格（字段与卡片一致；左键打开、右键菜单做笔记/导出/分类/移除/编辑信息） -->
     <BookshelfTable
       v-else-if="viewMode === 'list'"
       class="bookshelf-table-fill"
-      :items="items"
+      :items="localFiltered"
       :annotation-count-map="annotationCountMap"
       :categories="categories"
       @open="emit('open', $event)"
@@ -213,15 +294,18 @@
       @open-annotations="emit('open-annotations', $event)"
       @export="emit('export', $event)"
       @request-set-categories="openCatDialog"
+      @request-edit-meta="openMetaDialog"
     />
 
-    <!-- 卡片网格：flex wrap 响应式布局，每行 3-4 张卡片 -->
+    <!-- 卡片网格：flex wrap 响应式布局，每行 3-4 张卡片（可拖拽到分类 chip 加入分类） -->
     <div v-else class="bookshelf-grid">
       <div
         v-for="item in visibleItems"
         :key="item.path"
         class="book-card"
         :title="`打开《${item.title || item.name}》`"
+        draggable="true"
+        @dragstart="onCardDragStart(item, $event)"
         @click="emit('open', item)"
       >
         <!-- 封面：有封面图则显示，否则占位（格式首字母） -->
@@ -236,7 +320,7 @@
         <div class="book-card-header">
           <el-tag
             size="small"
-            :type="item.format === 'epub' ? 'warning' : item.format === 'pdf' ? 'danger' : 'success'"
+            :type="item.format === 'epub' ? 'warning' : item.format === 'pdf' ? 'danger' : item.format === 'cbz' ? 'info' : 'success'"
           >
             {{ item.format.toUpperCase() }}
           </el-tag>
@@ -246,6 +330,7 @@
             size="small"
             circle
             title="从书架移除"
+            aria-label="从书架移除该书"
             @click.stop="emit('remove', item)"
           >
             <LucideIcon name="Trash2" :size="14" />
@@ -291,6 +376,12 @@
           <span>{{ formatTime(item.lastReadAt) }}</span>
         </div>
 
+        <!-- 累计阅读时长（有统计才显示） -->
+        <div v-if="(annotationCountMap[item.contentHash || item.path]?.readingSeconds || 0) > 0" class="book-meta">
+          <LucideIcon name="Timer" :size="12" />
+          <span>累计阅读 {{ formatReadingDuration(annotationCountMap[item.contentHash || item.path]?.readingSeconds || 0) }}</span>
+        </div>
+
         <!-- 笔记/划线/书签数量徽标（按内容身份共用，副本与原书同步） -->
         <div class="book-stats">
           <span class="stat-badge note">
@@ -321,7 +412,7 @@
           >{{ categoryName(cid) }}</span>
         </div>
 
-        <!-- 卡片操作按钮：笔记（查看/管理）、导出，阻止冒泡避免触发打开 -->
+        <!-- 卡片操作按钮：笔记（查看/管理）、导出、编辑信息，阻止冒泡避免触发打开 -->
         <div class="book-actions">
           <el-button
             size="small"
@@ -337,14 +428,22 @@
             <LucideIcon name="Download" :size="13" />
             导出
           </el-button>
+          <el-button
+            size="small"
+            @click.stop="openMetaDialog(item)"
+            title="编辑书名 / 作者 / 封面"
+          >
+            <LucideIcon name="SquarePen" :size="13" />
+            信息
+          </el-button>
         </div>
       </div>
     </div>
     <!-- 底部统计：卡片模式展示分批加载进度；列表模式由虚拟表格全量承载，仅展示总数 -->
     <div v-if="items.length > 0" class="bookshelf-footer">
-      <span v-if="viewMode === 'list'">共 {{ items.length }} 本书（虚拟滚动，仅渲染可视行）</span>
-      <span v-else-if="visibleCount < items.length">已加载 {{ visibleCount }} / {{ items.length }} 本，上滑加载更多</span>
-      <span v-else>已展示全部 {{ items.length }} 本书</span>
+      <span v-if="viewMode === 'list'">共 {{ localFiltered.length }} 本书（虚拟滚动，仅渲染可视行）</span>
+      <span v-else-if="visibleCount < localFiltered.length">已加载 {{ visibleCount }} / {{ localFiltered.length }} 本，上滑加载更多</span>
+      <span v-else>已展示全部 {{ localFiltered.length }} 本书</span>
     </div>
   </div>
 </template>
@@ -352,15 +451,17 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import moment from 'moment';
+import { ElMessageBox } from 'element-plus';
 import LucideIcon from '@/components/LucideIcon.vue';
 import BookshelfTable from './BookshelfTable.vue';
+import { formatReadingDuration } from '../utils/fileUtils';
 import type { BookshelfItem } from '@/store/useEbookReader';
 
 const props = defineProps<{
   /** 书架列表 */
   items: BookshelfItem[];
-  /** 每本书的笔记/划线/书签数量映射（key 为 content_hash 或 file_path） */
-  annotationCountMap: Record<string, { noteCount: number; highlightCount: number; bookmarkCount: number }>;
+  /** 每本书的笔记/划线/书签数量 + 累计阅读秒数映射（key 为 content_hash 或 file_path） */
+  annotationCountMap: Record<string, { noteCount: number; highlightCount: number; bookmarkCount: number; readingSeconds?: number }>;
   /** 全部分类列表 */
   categories: { id: number; name: string; color?: string }[];
   /** 当前选中的分类筛选（null 表示不过滤，展示全部） */
@@ -392,6 +493,8 @@ const emit = defineEmits<{
   (e: 'update-category', payload: { id: number; name?: string; color?: string | null }): void;
   /** 设置某本书关联的分类集合 */
   (e: 'set-book-categories', payload: { bookPath: string; categoryIds: number[] }): void;
+  /** 编辑书籍元数据（书名/作者/封面），由父组件落库并刷新书架 */
+  (e: 'edit-meta', payload: { item: BookshelfItem; title: string; author: string; cover: string }): void;
 }>();
 
 // ============ 展示模式：卡片网格 / 列表（虚拟表格） ============
@@ -464,7 +567,7 @@ watch(manageVisible, (v) => {
 
 /**
  * 滚动触底分批渲染：避免书籍过多时一次性渲染全部卡片导致页面卡顿。
- * visibleItems 始终为 props.items（已按分类 / 关键词筛选）的前 visibleCount 项，
+ * visibleItems 始终为 localFiltered（分类/关键词之外再叠加格式/状态/排序）的前 visibleCount 项，
  * 滚动到底部时 visibleCount 递增一个批次，直至展示全部。
  */
 /** 每批渲染的书籍数量 */
@@ -472,7 +575,61 @@ const PAGE_SIZE = 60;
 /** 当前已渲染的书籍数量（随滚动触底递增） */
 const visibleCount = ref(PAGE_SIZE);
 /** 实际渲染的列表（从完整筛选结果中切片，控制 DOM 数量） */
-const visibleItems = computed(() => props.items.slice(0, visibleCount.value));
+const visibleItems = computed(() => localFiltered.value.slice(0, visibleCount.value));
+
+// ===== 快速筛选 / 排序（2026-10-01 增强，全部本地持久化）=====
+
+/** 格式筛选选项 */
+const FORMAT_OPTIONS = [
+  { label: 'TXT', value: 'txt' },
+  { label: 'EPUB', value: 'epub' },
+  { label: 'PDF', value: 'pdf' },
+] as const;
+
+/** 阅读状态判定阈值（percent 0-100） */
+function matchReadStatus(percent: number, status: string): boolean {
+  if (status === 'unread') return percent <= 0;
+  if (status === 'reading') return percent > 0 && percent < 100;
+  if (status === 'finished') return percent >= 100;
+  return true;
+}
+
+/** localStorage 安全读写 */
+function readLocal(key: string, fallback: string): string {
+  try {
+    return localStorage.getItem(key) ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+function writeLocal(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* ignore */
+  }
+}
+
+const FORMAT_KEY = 'ebook-reader:format-filter';
+const STATUS_KEY = 'ebook-reader:read-status';
+const SORT_KEY = 'ebook-reader:card-sort';
+
+/** 格式筛选（空 = 不过滤） */
+const formatFilter = ref<string[]>(readLocal(FORMAT_KEY, '') ? readLocal(FORMAT_KEY, '').split(',') : []);
+/** 阅读状态筛选 */
+const readStatusFilter = ref<'all' | 'unread' | 'reading' | 'finished'>(
+  (readLocal(STATUS_KEY, 'all') as 'all' | 'unread' | 'reading' | 'finished') || 'all'
+);
+/** 卡片模式排序键（空 = 默认按上次阅读时间） */
+const cardSortKey = ref(readLocal(SORT_KEY, ''));
+
+function toggleFormat(value: string): void {
+  const list = formatFilter.value.includes(value)
+    ? formatFilter.value.filter((v) => v !== value)
+    : [...formatFilter.value, value];
+  formatFilter.value = list;
+  writeLocal(FORMAT_KEY, list.join(','));
+}
 
 /**
  * 书架容器滚动事件：触底时递增可见数量，分批加载后续书籍。
@@ -482,15 +639,52 @@ function onScroll(e: Event): void {
   const el = e.target as HTMLElement;
   const threshold = 120;
   if (el.scrollTop + el.clientHeight >= el.scrollHeight - threshold) {
-    if (visibleCount.value < props.items.length) {
-      visibleCount.value = Math.min(visibleCount.value + PAGE_SIZE, props.items.length);
+    if (visibleCount.value < localFiltered.value.length) {
+      visibleCount.value = Math.min(visibleCount.value + PAGE_SIZE, localFiltered.value.length);
     }
   }
 }
+watch([readStatusFilter, cardSortKey], () => {
+  writeLocal(STATUS_KEY, readStatusFilter.value);
+  writeLocal(SORT_KEY, cardSortKey.value);
+});
 
-// 筛选结果变化（切换分类 / 搜索）时重置为初始批次，避免看到旧批次残留
+/**
+ * 组件内二次过滤：格式 + 阅读状态 + 卡片排序。
+ * 父组件的 filteredItems 已做 分类 + 关键词 过滤，这里在其结果上叠加。
+ */
+const localFiltered = computed(() => {
+  let list = props.items;
+  if (formatFilter.value.length > 0) {
+    list = list.filter((b) => formatFilter.value.includes(b.format));
+  }
+  if (readStatusFilter.value !== 'all') {
+    list = list.filter((b) => matchReadStatus(b.percent || 0, readStatusFilter.value));
+  }
+  if (viewMode.value === 'card' && cardSortKey.value) {
+    const key = cardSortKey.value as 'lastReadAt' | 'addedAt' | 'title' | 'percent';
+    const sorted = [...list];
+    sorted.sort((a, b) => {
+      let cmp = 0;
+      if (key === 'title') {
+        cmp = (a.title || a.name || '').localeCompare(b.title || b.name || '', 'zh-CN');
+      } else if (key === 'percent') {
+        cmp = (a.percent || 0) - (b.percent || 0);
+      } else {
+        cmp = String(a[key] || '').localeCompare(String(b[key] || ''));
+      }
+      return cmp;
+    });
+    // 排序类默认倒序（最近阅读/最新添加/进度在前），书名保持正序
+    if (key !== 'title') sorted.reverse();
+    list = sorted;
+  }
+  return list;
+});
+
+// 筛选结果变化（切换分类 / 搜索 / 格式 / 状态）时重置为初始批次，避免看到旧批次残留
 watch(
-  () => props.items,
+  () => localFiltered.value,
   () => {
     visibleCount.value = PAGE_SIZE;
   }
@@ -505,8 +699,22 @@ function onAddCategory(): void {
   newCatColor.value = '';
 }
 
-/** 删除分类：向上抛出分类 id */
-function onDeleteCategory(id: number): void {
+/** 删除分类：二次确认后向上抛出分类 id（误删会连带清空所有书的该分类归属，必须确认） */
+async function onDeleteCategory(id: number): Promise<void> {
+  const name = props.categories.find((c) => c.id === id)?.name || '该分类';
+  try {
+    await ElMessageBox.confirm(
+      `确认删除分类「${name}」？该书分类下所有书籍的归属将一并移除。`,
+      '删除分类',
+      {
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    );
+  } catch {
+    return;
+  }
   emit('delete-category', id);
 }
 
@@ -551,6 +759,89 @@ function saveBookCats(): void {
   if (!catDialogItem.value) return;
   emit('set-book-categories', { bookPath: catDialogItem.value.path, categoryIds: [...popoverSelected.value] });
   catDialogVisible.value = false;
+}
+
+// ===== 关键词搜索防抖（300ms）=====
+
+/** 输入框本地值（立即回显），防抖后再向上抛 */
+let keywordTimer: ReturnType<typeof setTimeout> | null = null;
+function onKeywordInput(value: string): void {
+  if (keywordTimer) clearTimeout(keywordTimer);
+  keywordTimer = setTimeout(() => {
+    keywordTimer = null;
+    emit('update:search-keyword', value);
+  }, 300);
+}
+
+// ===== 拖拽：卡片拖到分类 chip 加入分类（E2b）=====
+
+/** 卡片开始拖拽：把书路径写入 dataTransfer（分类 chip 的 drop 消费） */
+function onCardDragStart(item: BookshelfItem, e: DragEvent): void {
+  try {
+    e.dataTransfer?.setData('text/ebook-path', item.path);
+    if (e.dataTransfer) e.dataTransfer.effectAllowed = 'copy';
+  } catch {
+    /* ignore */
+  }
+}
+
+/** 卡片拖到分类 chip 松手：把该书追加进该分类（已有则忽略） */
+function onDropToCategory(categoryId: number, e: DragEvent): void {
+  const path = e.dataTransfer?.getData('text/ebook-path') || '';
+  if (!path) return;
+  const item = props.items.find((b) => b.path === path);
+  if (!item) return;
+  const ids = item.categoryIds || [];
+  if (ids.includes(categoryId)) return;
+  emit('set-book-categories', { bookPath: path, categoryIds: [...ids, categoryId] });
+}
+
+// ===== 书籍元数据编辑（E1：手动改 书名/作者/封面）=====
+
+const metaDialog = ref<{ visible: boolean; item: BookshelfItem | null; title: string; author: string; cover: string }>({
+  visible: false,
+  item: null,
+  title: '',
+  author: '',
+  cover: '',
+});
+const coverInputRef = ref<HTMLInputElement | null>(null);
+
+/** 打开编辑弹窗（卡片「信息」按钮 / 列表右键菜单） */
+function openMetaDialog(item: BookshelfItem): void {
+  metaDialog.value = {
+    visible: true,
+    item,
+    title: item.title || '',
+    author: item.author || '',
+    cover: item.cover || '',
+  };
+}
+
+/** 选择本地图片作为封面（转 dataURL 预览，保存时随元数据落库） */
+function onPickCover(e: Event): void {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    metaDialog.value.cover = (reader.result as string) || '';
+  };
+  reader.readAsDataURL(file);
+  input.value = '';
+}
+
+/** 保存元数据：向上抛出（父组件走 save-book-meta IPC 落库并刷新书架） */
+function saveMetaDialog(): void {
+  const item = metaDialog.value.item;
+  if (!item) return;
+  emit('edit-meta', {
+    item,
+    title: metaDialog.value.title.trim(),
+    author: metaDialog.value.author.trim(),
+    cover: metaDialog.value.cover,
+  });
+  metaDialog.value.visible = false;
 }
 
 /**
@@ -867,6 +1158,12 @@ function formatTime(time: string): string {
         color: var(--color-primary);
       }
 
+      /* 键盘可达性：Tab 聚焦时显示焦点环（chips 为可聚焦 span） */
+      &:focus-visible {
+        outline: 2px solid var(--color-primary);
+        outline-offset: 1px;
+      }
+
       &.active {
         background: var(--color-primary);
         border-color: var(--color-primary);
@@ -890,7 +1187,92 @@ function formatTime(time: string): string {
     gap: 8px;
 
     :deep(.el-input) {
-      width: 200px;
+      width: 210px;
+    }
+  }
+
+  /* 快速筛选区：格式 chips + 状态/排序下拉（2026-10-01 增强） */
+  .quick-filters {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+
+    .fmt-chip {
+      padding: 3px 10px;
+      font-size: 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border-subtle);
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.15s;
+
+      &:hover {
+        border-color: var(--color-primary);
+        color: var(--color-primary);
+      }
+
+      &.active {
+        background: var(--color-primary);
+        border-color: var(--color-primary);
+        color: #fff;
+      }
+    }
+
+    .status-select,
+    .sort-select {
+      width: 100px;
+    }
+  }
+}
+
+/* 书籍元数据编辑弹窗 */
+.meta-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+
+  .meta-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    .meta-label {
+      width: 42px;
+      flex-shrink: 0;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    :deep(.el-input) {
+      flex: 1;
+    }
+  }
+
+  .meta-cover {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+
+    .meta-cover-preview {
+      width: 56px;
+      height: 74px;
+      border-radius: 6px;
+      background-size: cover;
+      background-position: center;
+      border: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      color: var(--text-muted);
+
+      &.empty {
+        background: var(--bg-base);
+      }
     }
   }
 }

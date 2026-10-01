@@ -1,31 +1,46 @@
 /**
- * PdfReader 书签 composable
+ * TxtReader 书签 composable
  *
- * 与 usePdfRender / usePdfHighlight 共享同一个 ctx（见 pdfContext.ts）。本 composable 负责：
- *   - 基于当前页码新增 / 删除书签，并持久化到主进程数据库（复用通用 ebook_bookmark 表与 IPC）
- *   - 加载并维护当前文件的书签列表（按阅读百分比升序）
- *   - 判断「当前页是否已书签」（用于底部按钮填充态）
- *   - 跳转到指定书签（复用 ctx.goToPage）
- *
- * 与 epub 的差异：epub 用 CFI 作锚点，PDF 用「页码字符串」作锚点（存入 BookmarkRecord.cfi 字段，
- * 该字段对任意格式都是自由字符串，故复用即可，无需改表结构）。外壳 BookmarksDrawer 通过
- * current-cfi 高亮当前书签，PDF 侧把 currentFileCfi 设为当前页码字符串即可对齐。
+ * 与 usePdfBookmarks 同构：复用通用 ebook_bookmark 表与 IPC，锚点存「全文字符偏移字符串」
+ * （BookmarkRecord.cfi 对任意格式都是自由字符串，无需改表结构）。
+ * 差异点：
+ *   - 锚点 = 当前视口首字符的全局偏移（与进度/划线同一偏移空间）；
+ *   - 书签标签优先取「偏移所属章节标题」（TXT 已做章节识别），无章节时回退「进度 x%」；
+ *   - 判重用精确偏移相等（TXT 同一视口的偏移计算是确定性的，天然稳定，无需 EPUB 的段落指纹）。
  */
 import { ref, computed } from 'vue';
 import { ElMessage } from 'element-plus';
-import type { PdfCtx } from './pdfContext';
+import type { TxtCtx } from './txtContext';
+import { findChapterIndexByOffset } from '../utils/txtChapters';
 
-export function usePdfBookmarks(ctx: PdfCtx) {
+/** 书签 composable 所需的渲染侧最小接口（由 useTxtRender 返回值直接满足） */
+export interface TxtBookmarkRenderApi {
+  /** 当前阅读位置（视口首字符全局偏移） */
+  currentStartOffset: () => number;
+  /** 跳转到指定全局字符偏移 */
+  jumpToOffset: (offset: number) => void;
+}
+
+export function useTxtBookmarks(ctx: TxtCtx, render: TxtBookmarkRenderApi) {
   /** 当前文件的书签列表（按阅读顺序升序） */
   const bookmarks = ref<BookmarkRecord[]>([]);
 
-  /** 当前阅读页码是否已存在书签 */
+  /** 当前阅读位置是否已存在书签（按精确偏移判重） */
   const currentBookmarked = computed(() =>
-    bookmarks.value.some((b) => b.cfi === String(ctx.currentPage.value))
+    bookmarks.value.some((b) => b.cfi === String(render.currentStartOffset()))
   );
 
+  /** 书签默认标签：优先章节标题，无章节结构时回退「进度 x%」 */
+  function bookmarkLabel(offset: number, percent: number): string {
+    const idx = findChapterIndexByOffset(ctx.chapters.value, offset);
+    if (idx >= 0 && ctx.chapters.value[idx]?.title) {
+      return ctx.chapters.value[idx].title;
+    }
+    return percent > 0 ? `进度 ${percent}%` : '开头';
+  }
+
   /**
-   * 加载指定文件的书签列表（loadDocument 完成后调用）。
+   * 加载指定文件的书签列表（loadContent 完成后调用）。
    */
   async function loadBookmarks(filePath: string): Promise<void> {
     if (!filePath) return;
@@ -41,18 +56,19 @@ export function usePdfBookmarks(ctx: PdfCtx) {
   }
 
   /**
-   * 新增当前页码的书签。
+   * 新增当前位置的书签（锚点 = 视口首字符全局偏移）。
    */
   async function addBookmark(): Promise<void> {
-    const page = ctx.currentPage.value;
-    if (!page) return;
-    const percent = Math.min(100, Math.round((page / Math.max(1, ctx.numPages.value)) * 100));
-    const label = `第 ${page} 页`;
+    if (!ctx.fullContent.value) return;
+    const offset = render.currentStartOffset();
+    const total = ctx.fullContent.value.length || 1;
+    const percent = Math.min(100, Math.round((offset / total) * 100));
+    const label = bookmarkLabel(offset, percent);
     try {
       const res = await window.ipcRenderer.ebook.addBookmark({
         filePath: ctx.props.filePath,
-        format: 'pdf',
-        cfi: String(page),
+        format: 'txt',
+        cfi: String(offset),
         label,
         percent,
         contentHash: ctx.contentHash || '',
@@ -64,9 +80,9 @@ export function usePdfBookmarks(ctx: PdfCtx) {
       const record: BookmarkRecord = {
         id: res.id,
         file_path: ctx.props.filePath,
-        format: 'pdf',
-        cfi: String(page),
-        label,
+        format: 'txt',
+        cfi: String(offset),
+        label: label || null,
         percent,
         created_at: new Date().toISOString(),
       };
@@ -122,10 +138,10 @@ export function usePdfBookmarks(ctx: PdfCtx) {
   }
 
   /**
-   * 切换当前页书签：已书签则删除，未书签则新增。
+   * 切换当前位置书签：已书签则删除，未书签则新增。
    */
   async function toggleBookmark(): Promise<void> {
-    const existing = bookmarks.value.find((b) => b.cfi === String(ctx.currentPage.value));
+    const existing = bookmarks.value.find((b) => b.cfi === String(render.currentStartOffset()));
     if (existing) {
       await removeBookmark(existing.id);
     } else {
@@ -134,14 +150,17 @@ export function usePdfBookmarks(ctx: PdfCtx) {
   }
 
   /**
-   * 跳转到指定书签位置（cfi 为页码字符串）。
+   * 跳转到指定书签位置（cfi 为全局字符偏移字符串）。
    */
   function jumpToBookmark(cfi: string): void {
-    const page = Number(cfi);
-    if (!Number.isNaN(page) && page > 0 && page <= ctx.numPages.value) {
-      ctx.goToPage?.(page, true);
+    const offset = parseInt(cfi, 10);
+    if (!Number.isNaN(offset) && offset >= 0) {
+      render.jumpToOffset(offset);
     }
   }
+
+  // 暴露给 render composable（loadContent 完成后加载书签）
+  ctx.loadBookmarks = loadBookmarks;
 
   return {
     bookmarks,

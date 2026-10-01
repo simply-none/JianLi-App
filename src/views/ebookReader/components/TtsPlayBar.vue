@@ -36,6 +36,31 @@
           </button>
           <span class="tts-rate-text">{{ rate.toFixed(2) }}x</span>
         </div>
+
+        <!-- 睡眠定时：到点后在句间平滑暂停（保留断点，可手动恢复） -->
+        <div class="tts-sleep" title="睡眠定时">
+          <el-dropdown trigger="click" @command="onSleepCommand">
+            <button
+              class="tts-btn"
+              :class="{ active: sleepEndsAt > 0 }"
+              :title="sleepEndsAt > 0 ? `定时暂停：剩余 ${sleepRemainText}` : '睡眠定时'"
+              type="button"
+            >
+              <LucideIcon name="Timer" :size="16" />
+            </button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item
+                  v-for="opt in SLEEP_OPTIONS"
+                  :key="opt.value"
+                  :command="opt.value"
+                >{{ opt.label }}后暂停</el-dropdown-item>
+                <el-dropdown-item v-if="sleepEndsAt > 0" divided command="cancel">取消定时</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+          <span v-if="sleepEndsAt > 0" class="tts-rate-text">{{ sleepRemainText }}</span>
+        </div>
       </div>
 
       <!-- 当前朗读片段 / 错误提示 -->
@@ -48,7 +73,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import LucideIcon from '@/components/LucideIcon.vue';
 import { useBookTts } from '../composables/useBookTts';
 
@@ -64,10 +89,53 @@ const {
   isLoading,
   hasAdapter,
   isPlaying,
+  sleepEndsAt,
 } = tts;
 
 /** 语速预设档位（点击循环） */
 const RATES = [0.75, 1, 1.25, 1.5, 1.75, 2];
+
+/** 睡眠定时时长选项（分钟） */
+const SLEEP_OPTIONS = [
+  { value: 10, label: '10 分钟' },
+  { value: 20, label: '20 分钟' },
+  { value: 30, label: '30 分钟' },
+  { value: 60, label: '60 分钟' },
+] as const;
+
+/** 每秒跳动的当前时间戳：驱动剩余时间倒计时刷新 */
+const nowTick = ref(Date.now());
+let tickTimer: ReturnType<typeof setInterval> | null = null;
+onMounted(() => {
+  tickTimer = setInterval(() => {
+    nowTick.value = Date.now();
+  }, 1000);
+});
+onUnmounted(() => {
+  if (tickTimer) {
+    clearInterval(tickTimer);
+    tickTimer = null;
+  }
+});
+
+/** 睡眠定时剩余时间文案（mm:ss）；未启用返回空串 */
+const sleepRemainText = computed(() => {
+  const remain = sleepEndsAt.value - nowTick.value;
+  if (sleepEndsAt.value <= 0 || remain <= 0) return '';
+  const m = Math.floor(remain / 60000);
+  const s = Math.floor((remain % 60000) / 1000);
+  return `${m}:${String(s).padStart(2, '0')}`;
+});
+
+/** 睡眠定时下拉选择 */
+function onSleepCommand(v: number | string): void {
+  if (v === 'cancel') {
+    tts.cancelSleepTimer();
+    return;
+  }
+  const minutes = Number(v);
+  if (minutes > 0) tts.setSleepTimer(minutes);
+}
 
 function labelOf(p: string): string {
   switch (p) {
@@ -223,6 +291,18 @@ function next(): void {
   color: #cfcfda;
   min-width: 34px;
   text-align: center;
+}
+
+/* 睡眠定时组：与语速组同构；启用时按钮高亮 */
+.tts-sleep {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+.tts-btn.active {
+  background: var(--color-primary, #6c5ce7);
+  color: #fff;
 }
 
 .tts-snippet {

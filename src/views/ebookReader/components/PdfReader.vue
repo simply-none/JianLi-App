@@ -2,15 +2,15 @@
   <div
     ref="pdfContainer"
     class="pdf-reader"
-    :class="themeClass"
+    :class="[themeClass, nightInvertActive ? 'night-invert-on' : '']"
     :style="{ background: readerBg, color: readerText }"
     v-loading="loading"
     element-loading-text="正在加载文件..."
   >
-    <!-- 阅读区滚动容器：整本文档连续纵向排列，固定为连续滚动模式；滚轮由浏览器原生纵向滚动，可逐页完整浏览 -->
+    <!-- 阅读区容器：滚动模式整本连续纵向排列（原生滚动）；翻页模式仅显示当前页 -->
     <div
       ref="scrollRef"
-      class="pdf-scroll is-scroll"
+      :class="['pdf-scroll', mode === 'scroll' ? 'is-scroll' : 'is-paginated']"
       @scroll="onScroll"
       @wheel="onWheel"
       @mouseup="onMouseUp"
@@ -20,6 +20,7 @@
         v-for="n in pageList"
         :key="n"
         class="pdf-page"
+        :class="{ 'is-current-page': n === currentPage }"
         :data-page="n"
         :ref="(el: any) => setPageRef(n, el)"
         :style="pageStyle(n)"
@@ -82,13 +83,14 @@
       </div>
     </div>
 
-    <!-- 选中文本后的浮动工具条：划线/笔记 -->
+    <!-- 选中文本后的浮动工具条：划线/笔记/朗读 -->
     <AnnotationToolbar
       :visible="toolbarVisible"
       :x="toolbarX"
       :y="toolbarY"
       @highlight="onToolbarHighlight"
       @note="onToolbarNote"
+      @speak="onSpeakSelection"
       @close="toolbarVisible = false"
     />
 
@@ -121,13 +123,14 @@
       </template>
     </app-dialog>
 
-    <!-- 已有划线操作菜单：点击划线后弹出，提供「转为笔记」「删除」两个操作 -->
+    <!-- 已有划线操作菜单：点击划线后弹出，提供「转为笔记」「改色」「删除」操作 -->
     <AnnotationActionMenu
       :visible="menuVisible"
       :x="menuX"
       :y="menuY"
       :has-note="menuHasNote"
       @convert="onMenuConvert"
+      @recolor="onMenuRecolor"
       @delete="onMenuDelete"
       @close="menuVisible = false"
     />
@@ -152,6 +155,10 @@ import { usePdfHighlight } from '../composables/usePdfHighlight';
 import { usePdfOutline } from '../composables/usePdfOutline';
 import { usePdfBookmarks } from '../composables/usePdfBookmarks';
 import { usePdfSearch } from '../composables/usePdfSearch';
+// TTS 朗读适配器（PDF）：注册到 useBookTts 单例（页级文本 + 句级高亮 + 翻页跟随）
+import { usePdfTts } from '../composables/usePdfTts';
+// TTS 调度单例：选区「朗读」一次性朗读选中文本
+import { useBookTts } from '../composables/useBookTts';
 
 /** PDF 阅读器根容器 */
 const pdfContainer = ref<HTMLElement | null>(null);
@@ -206,6 +213,8 @@ const props = defineProps<{
   hlRowPaddingY?: number;
   /** PDF 适应方式：'width' 适应宽度 / 'height' 适应高度 */
   pdfFitMode?: 'width' | 'height';
+  /** 夜间反色开关：夜间主题下对 canvas 内容做 invert+hue-rotate（默认开启，仅 preset 背景生效） */
+  pdfNightInvert?: boolean;
 }>();
 
 /** 组件 Emits 定义 */
@@ -229,8 +238,9 @@ const emit = defineEmits<{
   (e: 'search-results', payload: EpubSearchResult[]): void;
   /** 搜索进行中状态变更事件 */
   (e: 'searching', payload: boolean): void;
-  /** 书籍基本信息（标题/作者/封面）解析完成事件，payload 为 { title, author, cover } */
-  (e: 'book-meta', payload: { title: string; author: string; cover: string }): void;
+  /** 书籍基本信息（标题/作者/封面）解析完成事件，payload 为 { filePath?, title, author, cover }；
+   *  filePath 为解析时所属文件路径：异步解析完成时用户可能已切书，父组件据此写回正确的书 */
+  (e: 'book-meta', payload: { filePath?: string; title: string; author: string; cover: string }): void;
 }>();
 
 // 构建共享 ctx，并由若干 composable 分别接管渲染 / 标注 / 目录 / 书签 / 搜索逻辑
@@ -242,6 +252,15 @@ const render = usePdfRender(ctx);
 const outline = usePdfOutline(ctx);
 const bookmarks = usePdfBookmarks(ctx);
 const search = usePdfSearch(ctx);
+// TTS 朗读适配器（PDF）：注册到 useBookTts 单例（2026-10-01 补齐 PDF 朗读）
+usePdfTts(ctx);
+// 选区「朗读」用调度单例（一次性朗读，不进入循环队列）
+const bookTts = useBookTts();
+/** 选区工具条「朗读」：一次性朗读当前选中文本 */
+function onSpeakSelection(): void {
+  const sel = ctx.currentSelection.value;
+  if (sel?.text) void bookTts.speakOnce(sel.text);
+}
 // 注册目录/书签加载回调：由 render.loadDocument 在文档就绪后依次调用
 ctx.loadOutline = outline.loadOutline;
 ctx.loadBookmarks = bookmarks.loadBookmarks;
@@ -287,8 +306,9 @@ const {
   menuHasNote,
   onMenuConvert,
   onMenuDelete,
+  onMenuRecolor,
 } = highlight;
-const { currentBookmarked, toggleBookmark } = bookmarks;
+const { currentBookmarked, toggleBookmark, renameBookmark } = bookmarks;
 
 // 当前页变化 → 回传 current-href（"page:N"），供外壳 TocDrawer 高亮当前所在目录项
 watch(currentPage, (p) => {
@@ -297,10 +317,17 @@ watch(currentPage, (p) => {
 
 /**
  * 单页背景：
- * - preset（日间/夜间/护眼）保持不透明白底纸张，避免夜间模式「黑字 + 透明 canvas + 深色底」不可读；
+ * - preset（日间/护眼）保持不透明白底纸张，避免「黑字 + 透明 canvas + 深色底」不可读；
+ * - 夜间反色生效时改用主题深色纸底（canvas 内容已反色为亮字）；
  * - color / image 自定义模式则使用 readerBg（纯色或背景图），使背景透出 canvas（已设为 transparent）。
  */
-const pageBg = computed(() => (props.bgType === 'preset' ? '#ffffff' : readerBg.value));
+const nightInvertActive = computed(
+  () => props.theme === 'night' && props.pdfNightInvert !== false && props.bgType === 'preset'
+);
+const pageBg = computed(() => {
+  if (nightInvertActive.value) return readerBg.value;
+  return props.bgType === 'preset' ? '#ffffff' : readerBg.value;
+});
 
 /** 单页尺寸样式：已测量页用真实尺寸，未测量页用首页尺寸占位（懒渲染，避免 0 高度塌陷） */
 function pageStyle(n: number): Record<string, string> {
@@ -342,8 +369,11 @@ defineExpose({
   scalePercent: render.scalePercent,
   jumpToBookmark: bookmarks.jumpToBookmark,
   removeBookmark: bookmarks.removeBookmark,
+  renameBookmark: bookmarks.renameBookmark,
   runSearch: search.runSearch,
   jumpToSearchResult: search.jumpToSearchResult,
+  // 关闭搜索面板时清除命中高亮与结果（与 EPUB 的取消钩子同构）
+  cancelSearch: search.cancelSearch,
 });
 </script>
 
@@ -376,6 +406,29 @@ defineExpose({
     &.is-scroll {
       overflow: auto;
       scrollbar-width: thin;
+    }
+
+    /* 翻页模式：仅显示当前页（其余隐藏），容器不滚动；
+       翻页由边缘点击 / 滚轮 / 键盘（←/→/PgUp/Space）完成 */
+    &.is-paginated {
+      overflow: hidden;
+
+      .pdf-page {
+        display: none;
+
+        &.is-current-page {
+          display: block;
+        }
+      }
+    }
+
+    /* 夜间反色（仅 preset 背景 + 夜间主题 + 开关开启时，由根容器类 night-invert-on 控制）：
+       canvas 内容 invert + hue-rotate，白底黑字变为暗底亮字；
+       划线层/文本层不参与反色，标注颜色保持真实色值 */
+    .night-invert-on & {
+      .pdf-canvas {
+        filter: invert(0.92) hue-rotate(180deg);
+      }
     }
 
     /* 尊重系统「减少运动」设置：关闭平滑滚动，避免眩晕/晃眼 */
@@ -481,6 +534,22 @@ defineExpose({
         height: 100%;
         z-index: 3;
         pointer-events: none;
+
+        /* TTS 句级朗读高亮（动态创建）：琥珀橙半透明色块，不接收点击、不影响划线 */
+        :deep(.tts-hl) {
+          position: absolute;
+          background: rgba(245, 158, 11, 0.3);
+          border-radius: 2px;
+          pointer-events: none;
+        }
+
+        /* 搜索命中高亮（动态创建）：蓝色半透明色块，跳转后定位当前命中 */
+        :deep(.pdf-search-hit) {
+          position: absolute;
+          background: rgba(100, 181, 246, 0.4);
+          border-radius: 2px;
+          pointer-events: none;
+        }
 
         /* 划线块基础：动态创建，用 :deep 命中 */
         :deep(.pdf-hl) {

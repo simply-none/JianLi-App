@@ -13,6 +13,7 @@
  *   - 划线锚点用全文字符偏移（start-end），与分页方式解耦；渲染时整章拆段渲染高亮 span。
  */
 import { ref, type Ref } from 'vue';
+import type { TxtChapter } from '../utils/txtChapters';
 
 /** 单页分段渲染结构（由 pageSegments 生成，覆盖整章正文） */
 export interface Segment {
@@ -110,6 +111,10 @@ export interface TxtSelection {
 export interface TxtCtx {
   /** 全文内容（已统一换行为 \n） */
   fullContent: Ref<string>;
+  /** 章节列表（loadContent 时按章节标记切分；无有效章节结构时为空数组，目录不展示） */
+  chapters: Ref<TxtChapter[]>;
+  /** 当前所在章节下标（-1 表示未知/无章节结构），用于目录高亮的去重发射 */
+  currentChapterIdx: Ref<number>;
   /** 当前页码（0 起始，paginated 模式有效；scroll 模式恒为 0） */
   currentPage: Ref<number>;
   /** 当前阅读位置的最近一次已知字符偏移（字符串，供退出/切书前 flush 落库） */
@@ -172,6 +177,8 @@ export interface TxtCtx {
   initialRenderDone: boolean;
   /** 加载标注回调（render 在 loadContent 完成后转发给 highlight 的 loadAnnotations） */
   loadAnnotations?: (filePath: string) => Promise<void>;
+  /** 加载书签回调（render 在 loadContent 完成后转发给 bookmarks 的 loadBookmarks） */
+  loadBookmarks?: (filePath: string) => Promise<void>;
   /** 组件 emit 函数 */
   emit: (event: any, ...args: any[]) => void;
   /** 组件 props */
@@ -195,6 +202,8 @@ export function createTxtCtx(
 ): TxtCtx {
   return {
     fullContent: ref(''),
+    chapters: ref<TxtChapter[]>([]),
+    currentChapterIdx: ref(-1),
     currentPage: ref(0),
     currentCfi: ref(''),
     totalPages: ref(1),

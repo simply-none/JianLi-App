@@ -21,6 +21,9 @@ import { resolveReadingBg, resolveReadingText } from '../themePresets';
 import useGlobalSetting from '@/store/useGlobalSetting';
 import useEbookReader from '@/store/useEbookReader';
 import type { TxtCtx, Segment } from './txtContext';
+import { splitTxtChapters, findChapterIndexByOffset } from '../utils/txtChapters';
+import type { TocItem } from '../types';
+import { useReaderShortcuts } from './useReaderShortcuts';
 
 /** 翻页模式下相邻屏幕之间的列间距（px），同时作为每屏内列与列的间距 */
 const PAGE_GAP = 28;
@@ -195,12 +198,14 @@ export function useTxtRender(ctx: TxtCtx) {
     }
   }
 
-  /** 获取高亮段的内联样式对象（样式取自「当前标注类型的预设」，切换类型即整体变化） */
+  /** 获取高亮段的内联样式对象。
+   *  颜色优先取「该条标注自身颜色」（新建时=类型预设色，单条改色后=自定义色），
+   *  线宽/间隙等几何参数仍取自当前类型预设。 */
   function getSegmentStyle(segment: Segment): Record<string, string> {
     if (!segment.isHighlight) return {};
     const map: any = ebookStore.settings.annotationStyles;
     const ts = (map && map[segment.type]) || { color: 'yellow', underlineGap: 2, lineThickness: 2, rowPaddingY: 2 };
-    const colorValue = getColorValue(ts.color);
+    const colorValue = getColorValue(segment.color || ts.color);
     switch (segment.type) {
       case 'underline':
         return {
@@ -386,6 +391,68 @@ export function useTxtRender(ctx: TxtCtx) {
     emitProgress();
   }
 
+  /**
+   * 选中 [start, end) 字符区间（原生选区高亮）。
+   * 用于全文搜索命中可见化：跳转到命中位置后以系统选区标示该段文字。
+   */
+  function selectRange(start: number, end: number): void {
+    const flow = ctx.flowRef.value;
+    if (!flow) return;
+    const total = ctx.fullContent.value.length;
+    if (total <= 0) return;
+    const s = Math.max(0, Math.min(start, total));
+    const e = Math.max(s, Math.min(end, total));
+    try {
+      const range = document.createRange();
+      let acc = 0;
+      let startSet = false;
+      const walker = document.createTreeWalker(flow, NodeFilter.SHOW_TEXT, null);
+      let node = walker.nextNode();
+      while (node) {
+        const len = node.textContent?.length ?? 0;
+        const nodeEnd = acc + len;
+        if (!startSet && s < nodeEnd) {
+          range.setStart(node, s - acc);
+          startSet = true;
+        }
+        if (startSet && e <= nodeEnd) {
+          range.setEnd(node, e - acc);
+          const sel = window.getSelection();
+          sel?.removeAllRanges();
+          sel?.addRange(range);
+          return;
+        }
+        acc = nodeEnd;
+        node = walker.nextNode();
+      }
+      // 兜底：end 超过最后一个文本节点，选到正文末尾
+      if (startSet) {
+        range.setEnd(flow, flow.childNodes.length);
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+      }
+    } catch (err) {
+      console.warn('选中搜索命中区间失败', err);
+    }
+  }
+
+  /** 清除当前选区（关闭搜索面板 / 清空结果时） */
+  function clearSelection(): void {
+    window.getSelection()?.removeAllRanges();
+  }
+
+  /** 把章节列表转换为外壳 TocDrawer 需要的目录项（href = `ch:${章节下标}`） */
+  function buildTocItems(chapters: ReturnType<typeof splitTxtChapters>): TocItem[] {
+    return chapters.map((c, i) => ({ id: `ch-${i}`, href: `ch:${i}`, label: c.title }));
+  }
+
+  /** 跳转到指定章节（目录点击调用；索引来自目录项 href `ch:${i}`） */
+  function jumpToChapter(index: number): void {
+    const ch = ctx.chapters.value[index];
+    if (ch) jumpToOffset(ch.start);
+  }
+
   /** 计算并向上 emit 当前阅读进度（cfi = 当前首字符偏移） */
   function emitProgress() {
     if (!ctx.fullContent.value) return;
@@ -394,6 +461,12 @@ export function useTxtRender(ctx: TxtCtx) {
     const percent = Math.min(100, Math.round((offset / total) * 100));
     const cfi = String(offset);
     ctx.currentCfi.value = cfi;
+    // 章节跟随：当前偏移所属章节变化时回传 current-href（`ch:${下标}`，目录高亮用）
+    const chIdx = findChapterIndexByOffset(ctx.chapters.value, offset);
+    if (chIdx !== ctx.currentChapterIdx.value) {
+      ctx.currentChapterIdx.value = chIdx;
+      ctx.emit('current-href', `ch:${chIdx}`);
+    }
     ctx.emit('progress-update', { cfi, percent, filePath: ctx.props.filePath });
   }
 
@@ -439,6 +512,10 @@ export function useTxtRender(ctx: TxtCtx) {
       }
       // 统一换行为 \n：渲染文本、划线锚点共用同一套字符偏移空间，避免 CRLF 偏移漂移。
       ctx.fullContent.value = (res?.content ?? '').replace(/\r\n?/g, '\n');
+      // 章节识别：按章节标记切分并回传目录（有效标记 < 2 视为无章节结构，回传空数组）
+      ctx.chapters.value = splitTxtChapters(ctx.fullContent.value);
+      ctx.currentChapterIdx.value = -1;
+      ctx.emit('toc-loaded', buildTocItems(ctx.chapters.value));
       // 先关闭加载遮罩：让加载动画尽早消失，避免遮罩淡出动画在阅读区之上停留。
       // 进度计算现已改为确定性的二分定位，不再依赖命中测试，此处仅用于改善体验。
       ctx.loading.value = false;
@@ -451,6 +528,7 @@ export function useTxtRender(ctx: TxtCtx) {
       measureLayout();
       await restoreProgress(filePath);
       await ctx.loadAnnotations?.(filePath);
+      await ctx.loadBookmarks?.(filePath);
       ctx.initialRenderDone = true;
     } catch (err: any) {
       ElMessage.error(`加载文件失败：${err?.message || String(err)}`);
@@ -566,6 +644,18 @@ export function useTxtRender(ctx: TxtCtx) {
     ctx.sliderValue.value = page;
     emitProgress();
   }
+
+  // 键盘快捷键（三格式共用 composable）：←/→/PgUp/PgDn/Space 翻页、Home/End 跳书首尾；
+  // 输入框守卫与 IME 安全由 composable 内置；滚动模式下 Space 让位给原生滚动。
+  useReaderShortcuts(
+    {
+      prev: prevPage,
+      next: nextPage,
+      jumpStart: () => jumpToOffset(0),
+      jumpEnd: () => jumpToOffset(ctx.fullContent.value.length),
+    },
+    { spaceAsNext: () => !ctx.props.scrollMode }
+  );
 
   // ===== 拖拽选区增强：滚动模式贴边自动滚动 / 翻页模式贴边自动翻页 =====
   // TXT 整本是单一 DOM（CSS 多列分页 / 单列滚动），原生选区天然支持跨列（即跨页）。
@@ -742,6 +832,9 @@ export function useTxtRender(ctx: TxtCtx) {
       ctx.currentSelection.value = null;
       ctx.currentPage.value = 0;
       ctx.sliderValue.value = 1;
+      // 切书：清空旧书章节与目录，避免新书加载前残留
+      ctx.chapters.value = [];
+      ctx.currentChapterIdx.value = -1;
       if (newPath) {
         loadContent(newPath);
       } else {
@@ -814,5 +907,10 @@ export function useTxtRender(ctx: TxtCtx) {
     jumpToOffset,
     scrollToOffset,
     currentStartOffset,
+    // 搜索命中可见化：选中/清除字符区间
+    selectRange,
+    clearSelection,
+    // 章节目录：跳转到指定章节（目录点击）
+    jumpToChapter,
   };
 }

@@ -43,6 +43,10 @@
         <LucideIcon name="Tags" :size="14" />
         <span>设置分类</span>
       </div>
+      <div class="ctx-item" @click="menuEditMeta">
+        <LucideIcon name="SquarePen" :size="14" />
+        <span>编辑信息</span>
+      </div>
       <div class="ctx-divider"></div>
       <div class="ctx-item danger" @click="menuRemove">
         <LucideIcon name="Trash2" :size="14" />
@@ -58,13 +62,14 @@ import { ElTableV2, ElTag, ElProgress, ElTooltip, TableV2SortOrder } from 'eleme
 import type { Column, SortState, ColumnSortParams } from 'element-plus';
 import moment from 'moment';
 import LucideIcon from '@/components/LucideIcon.vue';
+import { formatReadingDuration } from '../utils/fileUtils';
 import type { BookshelfItem } from '@/store/useEbookReader';
 
 const props = defineProps<{
   /** 书架列表（已按分类 / 关键词筛选，由父组件传入） */
   items: BookshelfItem[];
-  /** 每本书的笔记/划线/书签数量映射（key 为 content_hash 或 file_path） */
-  annotationCountMap: Record<string, { noteCount: number; highlightCount: number; bookmarkCount: number }>;
+  /** 每本书的笔记/划线/书签数量 + 累计阅读秒数映射（key 为 content_hash 或 file_path） */
+  annotationCountMap: Record<string, { noteCount: number; highlightCount: number; bookmarkCount: number; readingSeconds?: number }>;
   /** 全部分类列表（用于分类列的名称与颜色渲染） */
   categories: { id: number; name: string; color?: string }[];
 }>();
@@ -80,6 +85,8 @@ const emit = defineEmits<{
   (e: 'export', item: BookshelfItem): void;
   /** 请求为该书设置分类（由父组件复用已有的分类弹窗） */
   (e: 'request-set-categories', item: BookshelfItem): void;
+  /** 请求编辑书籍元数据（书名/作者/封面） */
+  (e: 'request-edit-meta', item: BookshelfItem): void;
 }>();
 
 /** 表格行数据：在书架条目上补齐用于排序/展示的派生字段 */
@@ -92,6 +99,8 @@ interface TableRow extends BookshelfItem {
   highlightCount: number;
   /** 书签数 */
   bookmarkCount: number;
+  /** 累计阅读秒数（按内容身份取） */
+  readingSeconds: number;
 }
 
 // ============ 容器尺寸测量（虚拟表格必须显式宽高） ============
@@ -122,6 +131,7 @@ const rows = computed<TableRow[]>(() =>
       noteCount: counts?.noteCount || 0,
       highlightCount: counts?.highlightCount || 0,
       bookmarkCount: counts?.bookmarkCount || 0,
+      readingSeconds: counts?.readingSeconds || 0,
     };
   })
 );
@@ -200,17 +210,18 @@ function formatTime(time: string): string {
   return m.format('YYYY-MM-DD HH:mm');
 }
 
-/** 格式徽标的 el-tag 类型：epub 黄 / pdf 红 / 其它（txt）绿，与卡片模式一致 */
-function formatTagType(format: string): 'warning' | 'danger' | 'success' {
+/** 格式徽标的 el-tag 类型：epub 黄 / pdf 红 / cbz 灰 / 其它（txt）绿，与卡片模式一致 */
+function formatTagType(format: string): 'warning' | 'danger' | 'success' | 'info' {
   if (format === 'epub') return 'warning';
   if (format === 'pdf') return 'danger';
+  if (format === 'cbz') return 'info';
   return 'success';
 }
 
 // ============ 列定义 ============
 
 /** 除「书名」列外的固定列宽之和；书名列动态填充剩余宽度 */
-const FIXED_W = 52 + 76 + 120 + 150 + 150 + 76 + 76 + 76 + 170; // = 946
+const FIXED_W = 52 + 76 + 120 + 150 + 150 + 88 + 76 + 76 + 76 + 170; // = 1034
 
 const columns = computed<Column<TableRow>[]>(() => {
   const titleW = Math.max(180, tableWidth.value - FIXED_W);
@@ -308,6 +319,20 @@ const columns = computed<Column<TableRow>[]>(() => {
       sortable: true,
       cellRenderer: ({ rowData }) => h('span', { class: 'tb-time' }, formatTime(rowData.lastReadAt)),
     },
+    // 累计阅读时长（按内容身份聚合；无统计显示 --）
+    {
+      key: 'readingSeconds',
+      dataKey: 'readingSeconds',
+      title: '时长',
+      width: 88,
+      sortable: true,
+      cellRenderer: ({ rowData }) =>
+        h(
+          'span',
+          { class: 'tb-time', title: '累计阅读时长' },
+          rowData.readingSeconds > 0 ? formatReadingDuration(rowData.readingSeconds) : '--'
+        ),
+    },
     // 笔记 / 划线 / 书签 数量
     {
       key: 'noteCount',
@@ -391,12 +416,13 @@ function closeMenu(): void {
 
 /** 从菜单行数据中还原原始书架条目（剔除派生字段，避免向上抛出多余属性） */
 function pickItem(row: TableRow): BookshelfItem {
-  const { displayTitle, noteCount, highlightCount, bookmarkCount, ...rest } = row;
+  const { displayTitle, noteCount, highlightCount, bookmarkCount, readingSeconds, ...rest } = row;
   // 派生字段仅用于表格排序/展示，向上抛出时剔除
   void displayTitle;
   void noteCount;
   void highlightCount;
   void bookmarkCount;
+  void readingSeconds;
   return rest as BookshelfItem;
 }
 
@@ -414,6 +440,10 @@ function menuExport(): void {
 }
 function menuSetCategories(): void {
   if (menu.value.row) emit('request-set-categories', pickItem(menu.value.row));
+  closeMenu();
+}
+function menuEditMeta(): void {
+  if (menu.value.row) emit('request-edit-meta', pickItem(menu.value.row));
   closeMenu();
 }
 function menuRemove(): void {

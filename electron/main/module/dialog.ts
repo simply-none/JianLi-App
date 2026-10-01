@@ -916,6 +916,21 @@ export function initFile() {
     }
   });
 
+  // 异步版获取文件路径：与 get-file-list 同参同返回，改用 invoke。
+  // sendSync 会阻塞渲染进程直到对话框关闭（模态期间页面完全冻结），电子书打开/导入
+  // 等交互入口已切换到本通道；旧通道保留，避免影响其它仍在使用 sendSync 的调用方。
+  ipcMain.handle("get-file-list-async", async (_e, params: string | ObjectType) => {
+    if (typeof params === 'string') {
+      return getFilePath({ openDirectory: true });
+    }
+    return getFilePath({
+      openDirectory: params.openDirectory,
+      openFile: params.openFile,
+      multiSelections: params.multiSelections,
+      type: params.type,
+    });
+  });
+
   // 监听文件保存（改用 handle + invoke 异步通道，避免大文件分片经同步 IPC 阻塞渲染进程）
   ipcMain.handle("save-file", async (e, fileSaveObj: FileSaveObjType) => {
     const result = await saveFile(fileSaveObj);

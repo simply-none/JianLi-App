@@ -74,6 +74,12 @@ interface Window {
       readFileRange: (filePath: string, start: number, end: number) => Promise<{ buffer?: ArrayBuffer; error?: string }>;
       // 计算文件原始内容 sha256（内容身份）
       computeFileHash: (filePath: string) => Promise<{ success: boolean; hash?: string; error?: string }>;
+      // 批量计算文件内容哈希（文件夹导入整批一次算好；hashes 与入参等长按序对应，单本失败该位为空串）
+      computeFileHashes: (filePaths: string[]) => Promise<{ success: boolean; hashes?: string[]; error?: string }>;
+      // 批量添加书架记录（文件夹导入一次入库整批；failures 为单本失败明细）
+      addBooksBatch: (books: { filePath: string; name: string; format: string; percent: number; contentHash?: string }[]) => Promise<{ success: boolean; count?: number; failures?: { filePath: string; error: string }[]; error?: string }>;
+      // 检查文件是否存在（主进程 fs.stat；stat 异常按不存在处理）
+      checkFileExists: (filePath: string) => Promise<{ success: boolean; exists?: boolean; error?: string }>;
       // 获取电子书阅读进度
       getProgress: (filePath: string, contentHash?: string) => Promise<any>;
       // 保存电子书阅读进度
@@ -110,8 +116,12 @@ interface Window {
       removeAnnotation: (id: number) => Promise<{ success: boolean; error?: string }>;
       // 按 file_path 批量删除笔记与划线记录（scope: 'note' | 'highlight' | 'all'）
       removeAnnotations: (data: { filePath: string; scope: 'note' | 'highlight' | 'all'; contentHash?: string }) => Promise<{ success: boolean; deleted?: number; error?: string }>;
-      // 批量统计每本书的笔记、划线与书签数量（key 为 content_hash 或 file_path）
-      getAnnotationCounts: (filePaths: string[], contentHashes?: string[]) => Promise<{ success: boolean; data?: { key: string; paths: string[]; noteCount: number; highlightCount: number; bookmarkCount: number }[]; error?: string }>;
+      // 批量统计每本书的笔记、划线与书签数量（key 为 content_hash 或 file_path，附累计阅读秒数）
+      getAnnotationCounts: (filePaths: string[], contentHashes?: string[]) => Promise<{ success: boolean; data?: { key: string; paths: string[]; noteCount: number; highlightCount: number; bookmarkCount: number; readingSeconds?: number }[]; error?: string }>;
+      // 累计某本书在某天的阅读时长（statKey = `H:${hash}` 或 `P:${path}`）
+      saveReadingStats: (data: { dayKey: string; statKey: string; durationSec: number }) => Promise<{ success: boolean; error?: string }>;
+      // 汇总阅读时长（秒）：今日 / 最近 7 天 / 累计
+      getReadingStats: () => Promise<{ success: boolean; data?: { today: number; week: number; total: number }; error?: string }>;
       // 导出笔记与划线为 Markdown 文件
       exportAnnotations: (data: { filePath?: string; title?: string; contentHash?: string }) => Promise<{ success: boolean; savedPath?: string; error?: string }>;
       // 获取指定文件的书签列表（按阅读顺序升序）
@@ -120,6 +130,8 @@ interface Window {
       addBookmark: (data: { filePath: string; format: string; cfi: string; label?: string | null; percent?: number; contentHash?: string }) => Promise<{ success: boolean; id?: number; error?: string }>;
       // 按 id 删除书签
       removeBookmark: (id: number) => Promise<{ success: boolean; error?: string }>;
+      // 更新书签标签（重命名）
+      updateBookmark: (data: { id: number; label?: string | null }) => Promise<{ success: boolean; error?: string }>;
       // 保存书籍基本信息（标题/作者/封面），由渲染进程解析后回传，供书架列表秒出
       saveBookMeta: (data: { filePath: string; name?: string; format?: string; title?: string; author?: string; cover?: string; contentHash?: string }) => Promise<{ success: boolean; error?: string }>;
       // 保存一张阅读背景图（跨格式共享，按来源文件路径去重），返回 id 与是否已存在
