@@ -151,6 +151,8 @@ import { AlarmClock, AlarmClockCheck, AlarmClockMinus, AlarmClockPlus, ArrowDown
   Map,
 } from '@lucide/vue';
 import { ArrowLeftRight } from '@lucide/vue';
+// —— 待办依赖图 + 既有待办组件补充图标（与 nameMap 同步登记） ——
+import { Tag, Repeat, ListChecks, ChevronLeft, Maximize } from '@lucide/vue';
 import { ref } from 'vue';
 import { getLightColor } from '@/utils';
 withDefaults(
@@ -493,6 +495,12 @@ let nameMap = ref<Record<any, any>>({
   ClipboardPaste,
   ListTree,
   Map,
+  // —— 待办依赖图 + 既有待办组件补充图标 ——
+  Tag,
+  Repeat,
+  ListChecks,
+  ChevronLeft,
+  Maximize,
 })
 
 function getPadding(padding: string | number): string {

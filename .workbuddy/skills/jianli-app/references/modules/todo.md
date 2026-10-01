@@ -1,16 +1,17 @@
 # 待办事项 (todoList)
 
 ## 职责
-待办事项的增删改查、状态切换、截止提醒、子任务层级、重复任务自动生成，以及卡片 / 列表 / 日历三种视图的展示。主列表 + 小窗（todoMiniWindow）共用 `useTodo` store 的数据层。
+待办事项的增删改查、状态切换、截止提醒、子任务层级、重复任务自动生成，以及卡片 / 列表 / 日历 / 依赖图四种视图的展示。主列表 + 小窗（todoMiniWindow）共用 `useTodo` store 的数据层。
 
 ## 关键文件
-- 页面容器：`src/views/todoList/index.vue`（TopTabs 切换三视图、筛选/分组/统计、对话框编排）
+- 页面容器：`src/views/todoList/index.vue`（TopTabs 切换四视图、筛选/分组/统计、对话框编排）
 - 集中类型：`src/views/todoList/types.ts`（`TodoItem`/`Tag`/`Priority`/`RecurrenceRule`，消除原 4 处重复声明）
 - 数据访问：`src/views/todoList/api/todoApi.ts`（封装 `new-sql:query`/`upsert`/`delete`，**严禁 execute**）
 - 状态仓库：`src/store/useTodo.ts`（收敛查询、客户端过滤、分组、统计、子任务树、视图态）
 - 卡片视图：`TodoList.vue`（网格容器 + 分区分组）+ `components/TodoCard.vue`（单卡：折叠描述/统一密度/层级缩进/重复标记）+ `components/TodoSubtaskProgress.vue`
 - 列表视图：`TodoListView.vue`（接入通用 `VirtualList` 虚拟化）
 - 日历视图：`TodoCalendarView.vue`（自研月历 grid + el-date-picker，按 dueDate 聚合；**点击日期以 el-popover 锚定该日期格弹出当日待办列表**，不再常驻下方面板）
+- 依赖图视图：`src/views/todoList/dependency/TodoDepGraph.vue`（第 4 个 Tab，VueFlow + dagre 两段式布局；`components/TodoDepNode.vue` 自定义节点；`composables/useTodoDepGraph.ts` 的 `buildGraph` 由 `parentIds` 构建 DAG、`computeCriticalPath` 算最长未完成链高亮）+ `useTodo.ts` 的 `TodoView` 增加 `'graph'`。详见下方「依赖关系图」。
 - 详情弹窗：`TodoDetailDialog.vue`（标题/描述/优先级/截止/提醒/重复配置/关联父任务/标签/状态）
 - 标签选择弹窗：`components/TagSelectPopover.vue`（el-popover 多选 + 新增标签；筛选栏与详情弹窗共用）
 - 小窗：`src/views/todoMiniWindow/index.vue`
@@ -59,9 +60,19 @@
 - 配置项：每天(N)/每周(N，可指定星期)/结束日期（留空=永久）。
 
 ## 视图切换
-- `index.vue` 顶部用 `TopTabs`（`src/components/TopTabs.vue`）切换 卡片/列表/日历，状态存于 `useTodo.view`。
+- `index.vue` 顶部用 `TopTabs`（`src/components/TopTabs.vue`）切换 卡片/列表/日历/依赖图，状态存于 `useTodo.view`。
 - 日历视图纯自研（CSS grid 月历 + el-date-picker 选月），零新依赖，全部走主题 token。
 - **日历点击弹窗**：点击某天 → 以 `el-popover`（`virtual-ref` 锚定该日期格）弹出当日待办列表（含勾选/查看/编辑），点击空白或关闭按钮收起；下方面板已移除。
+
+### 依赖关系图（B 任务依赖图）
+- **定位**：把待办按 `parentIds` 关联呈现为有向无环图（DAG），箭头由父任务指向子任务，帮助看清任务依赖与阻塞关系。第 4 个视图 Tab，**复用 `useTodo` store / 详情弹窗 / 筛选态，零主进程改动、零新 IPC、零新图标登记**（`Network` 已存在；本功能新增 `Maximize`/`ZoomIn`/`ZoomOut` 等在 `LucideIcon.vue` 登记）。
+- **文件**：
+  - `dependency/TodoDepGraph.vue`：页面容器。`useVueFlow()`（不传 id，与 flow/visual 同一实例模式）+ 复用 `flow/useLayout` 的 dagre 两段式布局（先 `setNodes` → `nextTick` + `setTimeout(60)` → `layout` 写回坐标 → `fitView`）。悬浮工具栏（一键排整齐 / 放大 / 缩小 / 适配 / 关键路径开关）+ 图例 + 空态。
+  - `dependency/components/TodoDepNode.vue`：自定义节点（`#node-todoDep` 插槽只传 `id`/`data`），展示状态色条、`优先级`、截止/逾期、子任务标记；`data.__critical` 控制关键路径高亮边框。
+  - `dependency/composables/useTodoDepGraph.ts`：纯逻辑（零 Vue/IPC，可 `typescript.transpileModule` 抽测）。`buildGraph(todos, effectiveStatus)` 产出节点/边，含防环（`isAncestor` 检测「父是子的祖先」则跳过该边，避免 dagre 成环崩）、悬空父忽略、边去重、子任务计数；`computeCriticalPath(nodes, edges)` 返回未完成任务（非 completed/非 cancelled）的最长依赖链高亮集合（起点 = 未完成任务且其所有父任务都已结束）。
+- **数据口径**：图数据源 `graphSource` 复用 `store.filteredTodos`（关键词/优先级/状态/到期/标签均生效），并补齐被引用到的父/子任务，保证边不断裂；`groupBy`/`sortMode` 在依赖图视图下隐藏（无分组/排序语义）。
+- **交互**：节点点击 → `emit('view', todo)` 复用 `index.vue` 的 `openView` 打开详情弹窗；`store.view === 'graph'` 时才构建（避免 `v-show` 隐藏时量不到尺寸导致布局塌缩）；`activeTodos`/`filteredTodos` 变化即重建并重排。
+- **关键路径**：默认开启，红色高亮最长未完成依赖链；仅换样式不动坐标（避免重排抖动）。
 
 ## 标签（Tags）
 - 标签定义存 `todo_tags` 表（`key`/`name`/`color`），待办的 `tags` 字段为标签 key 的 JSON 数组（如 `["k1","k2"]`）。
@@ -86,13 +97,15 @@
 - 客户端过滤：一次性拉全表，关键词/优先级/标签/状态/完成态/模板/子任务均在 `useTodo` store 内过滤，无 SQL 注入风险。
 - 改主进程（`recurrence.ts`/`job.ts`）必须重启 Electron 才生效。
 - 子任务作为独立待办展示（`parentIds` 非空），通过卡片/列表/日历的「父任务」标记体现关联；命令面板与迷你窗仍仅显示顶层任务。
+- **⚠️ parentIds「内存数组 / 落库字符串」双形态（致命坑）**：DB 列是 TEXT，详情弹窗 `handleSave` 用 `JSON.stringify(selectedParentIds)` 把 `parentIds` 变成**字符串**再传 IPC，`commitTodo`→`upsertLocal` 若直接写进内存，内存里的 `parentIds` 就成了字符串；而 `childrenOf`/`parentItemsOf`/`parentTitlesOf`/`buildGraph` 都按**数组**消费（`(t.parentIds||[]).filter(...)`、`.map(...)`）→ 字符串下 `.filter`/`.map` 直接抛错，依赖图/父任务芯片会整片失效。`useTodo.upsertLocal` 已内置 `normalizeParentIds()` 兜底（字符串 → `JSON.parse` 回数组），保证内存永远是 `string[]`；`buildGraph` 的 `toParentIdArray()` 也做了容错。改任何写库路径都别再把字符串形态的 `parentIds` 直接塞进 `todos.value`。
 - **编辑变新增（致命坑 #21）**：`TodoDetailDialog.handleSave` 必须以「被加载原始待办的 key」作为 upsert 主键，绝不可在保存时把 `key` 重新生成。实现上用独立 `loadedKey` ref（在 `loadForm` 首行从 `todo.key` 取值），`parentKey = loadedKey.value || uuidv4()`；新建时 `loadedKey=null` 走 uuidv4，编辑时必等于原 key → `ON CONFLICT(key)` 命中更新而非插入。后端 `newSql.ensureTableExists` 已对 `todo_list(key)` 建 `uq_todo_list_key` 唯一索引，索引存在时 upsert 一律更新。
 - **重复关联别在保存时清零（致命坑 #22）**：`handleSave` 的 `parentData` 切勿硬编码 `recurrenceId: null` 覆盖 `...form.value` 携带的重复字段。编辑重复实例/模板时若把 `recurrenceId` 置 null，会导致该待办脱离重复关联、被 `recurrence:sync` 触发 `generateForTemplate` 误判并重新生成实例（表现为「编辑后多出一条」）。正确做法：让 `recurrenceId`/`isRecurrenceInstance` 沿用 `form.value` 加载到的值（新建为 null/0，实例保留原模板 key）。模板判定见 `recurrence.ts getTemplates()`：`recurrenceRule IN ('daily','weekly') AND (recurrenceId IS NULL OR '')`。
 
 ## 2026-10-01 优化增强批次（40+ 项，执行清单见 `C:\cod\jianli\待办事项功能优化与增强_执行清单_2026-10-01.md`）
 
 ### 架构变化（写码前必读）
-- **写库收口（B1/B2）**：单条增/改/状态切换一律走 `useTodo` 的 `commitTodo(todo)`（upsert + store 局部原位更新 + 带 key 增量重排提醒 + 广播小窗）；删除走 `removeTodo`（**软删除进回收站**）/ `purgeTodo`（物理删除，仅回收站用）/ `restoreTodo`（恢复）。不再「写库后 fetchTodos() 全量重拉」（批量导入/同步刷新/对话框保存仍全量兜底）。
+- **写库收口（B1/B2）**：单条增/改/状态切换一律走 `useTodo` 的 `commitTodo(todo)`（upsert + store 局部原位更新 + 带 key 增量重排提醒 + 广播小窗）；删除走 `removeTodo`（**软删除进回收站**）/ `purgeTodo`（物理删除，仅回收站用）/ `restoreTodo`（恢复）。
+- **⚠️ 详情弹窗保存的持久化（易回归）**：`TodoDetailDialog.handleSave` 只 `emit('save', parentData)`（payload = 含 `parentIds` JSON 字符串的整行），**自身不写库**；真正写库在 `index.vue` 的 `@save="handleDialogSave"` 里 **必须 `await store.commitTodo(todo)`**（主写）+ `fetchTags().then(fetchTodos())`（兜底）。若只在 `handleDialogSave` 里 `fetchTodos()` 而漏掉 `commitTodo`，会出现「保存提示成功、刷新/重开后又回退旧值」的假象（2026-10-01 此坑已修）。`commitTodo`→`saveTodo`(new-sql:upsert，`ensureTableColumns` 自动补 `parentIds` 等列)→`upsertLocal`(normalizeParentIds 归一成 string[])。
 - **状态双写收口（C2）**：任何状态切换必须走 `statusConfig.ts` 的 `applyStatus(item, status, now?)`（一次维护 status/completed/completedTime/updateTime；completedTime 语义=首次完成时刻，再次完成保留旧值）。视图层禁止散落手写四字段。
 - **时间统一（C1）**：`src/views/todoList/utils/time.ts` —— `parseTodoDate` / `isOverdueItem(dueDate, isDone)` / `dueSegment`（筛选用，对齐移动端 todo_filter）/ `dueGroupKeyOf`（分组用，多「明天」档）。禁止再造 replace(/-/g,'/')、字符串比较等第三种写法。
 - **提醒增量（B4）**：`update-todo-reminders` IPC 可带单个待办 key（字符串载荷）做增量重排；不带 key 全量兜底（批量场景）。主进程 `syncTodoReminders(key)` 已按 key 过滤清理与查询。
@@ -129,6 +142,8 @@
 
 ### 特有坑（本批次新增）
 - **发 IPC 前必须剥离响应式（已两级根治）**：store 来的 TodoItem 是深层 Proxy（parentIds 数组也是 Proxy），浅展开后发 IPC 会抛「An object could not be cloned」。① **preload 入口全量消毒（2026-10-01）**：原始 ipcRenderer 的 invoke/send/sendSync 实例级包装 + toCloneable，覆盖全项目所有出站 IPC（详见 ipc-channels.md 头注）；② todoApi 的 ipc() 封装保留 toPlain 作二道防线。JSON round-trip 方案已弃（破坏 Date/Map/Set、丢 undefined）。
+- **详情弹窗保存必须走 `commitTodo`（持久化回归坑，2026-10-01 修）**：`handleSave` 仅 `emit('save', parentData)`，`index.vue` 的 `@save="handleDialogSave"` **必须 `await store.commitTodo(todo)` 主写 + `fetchTodos()` 兜底**。曾因 B1/B2 重构后漏接 commitTodo，只剩 `fetchTodos()` 读旧库 ⇒ 「保存成功提示、重开却回退旧值」（关联父任务尤明显）。`todoApi.normalize` 解析 `parentIds`、store `normalizeParentIds` 兜底成数组，链路闭环；漏写库时 `normalizeParentIds` 兜底会让内存不崩，反而**掩盖**根本没写库这一层，排障要先看有没有落库。
+- **四个视图 Tab 共用 `.todo-content`（block 容器）**：卡片/列表/日历/依赖图四视图都以 `v-show` 挂在 `.todo-content` 下，它是 `flex:1; overflow:hidden` 的 **block**（非 flex）——新视图组件根节点**必须写 `height: 100%`**，只写 `flex:1` 不承重，会整块塌缩为 0 高（依赖图首版即踩：横幅可见、画布区全空白）。
 - 主进程 `update-todo-reminders` 监听**只在 recurrence.ts 注册**（initRecurrence 内，提醒重排+on_complete 补生成串联）；newReminder.ts 不再注册，勿重复添加（双监听=双重重排）。
 - 批量删除/批量编辑/标签管理/父任务选择的候选集合一律用 `store.activeTodos`（回收站内条目不可见不可选）。
 - 统计口径：totalCount/四状态计数/完成率/今日完成/逾期 全部基于 activeTodos（不含回收站）。

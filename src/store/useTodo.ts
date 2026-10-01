@@ -14,7 +14,7 @@ import { dueGroupKeyOf, dueSegment, isOverdueItem, type DueSegment } from '@/vie
 /** 分组「无父任务」的占位 key */
 const NONE_PARENT = '__none__';
 
-export type TodoView = 'card' | 'list' | 'calendar';
+export type TodoView = 'card' | 'list' | 'calendar' | 'graph';
 export type GroupBy = 'none' | 'status' | 'due' | 'parent';
 /** 排序模式（D7）：更新时间倒序为默认（与旧 SQL ORDER BY 一致） */
 export type SortMode = 'updated' | 'due' | 'priority' | 'created';
@@ -71,24 +71,41 @@ export const useTodoStore = defineStore('todo', () => {
    * store 内局部更新（B2）：原位替换或头部插入，并保持 updateTime 倒序与 SQL 拉取一致。
    * 替代旧的「写库后 fetchTodos() 全量重拉」。
    */
-  function upsertLocal(todo: TodoItem) {
-    const idx = todos.value.findIndex((t) => t.key === todo.key);
-    if (idx > -1) todos.value.splice(idx, 1, todo);
-    else todos.value.unshift(todo);
-    todos.value.sort((a, b) => (b.updateTime || '').localeCompare(a.updateTime || ''));
-  }
+function upsertLocal(todo: TodoItem) {
+  const idx = todos.value.findIndex((t) => t.key === todo.key);
+  const normalized: TodoItem = { ...todo, parentIds: normalizeParentIds(todo.parentIds) };
+  if (idx > -1) todos.value.splice(idx, 1, normalized);
+  else todos.value.unshift(normalized);
+  todos.value.sort((a, b) => (b.updateTime || '').localeCompare(a.updateTime || ''));
+}
 
-  /**
-   * 单条写库统一入口（B1/B2 收口）：upsert + 局部更新 + 重排截止提醒 + 通知其他窗口。
-   * 单条新增/编辑/状态切换一律走这里；批量导入、同步刷新等场景仍用 fetchTodos() 兜底。
-   */
-  async function commitTodo(todo: TodoItem) {
-    await api.saveTodo(todo);
-    upsertLocal(todo);
-    // 带 key 增量重排（B4）：主进程只重建该待办的提醒行
-    window.ipcRenderer?.send('update-todo-reminders', todo.key);
-    window.ipcRenderer?.send('sync-data-to-other-window', { todoUpdated: true });
+/**
+ * 单条写库统一入口（B1/B2 收口）：upsert + 局部更新 + 重排截止提醒 + 通知其他窗口。
+ * 单条新增/编辑/状态切换一律走这里；批量导入、同步刷新等场景仍用 fetchTodos() 兜底。
+ */
+async function commitTodo(todo: TodoItem) {
+  await api.saveTodo(todo);
+  upsertLocal(todo);
+  // 带 key 增量重排（B4）：主进程只重建该待办的提醒行
+  window.ipcRenderer?.send('update-todo-reminders', todo.key);
+  window.ipcRenderer?.send('sync-data-to-other-window', { todoUpdated: true });
+}
+
+/** 把 parentIds 归一成 string[]：渲染端内存里必须始终是数组（依赖图 / childrenOf / parentItemsOf 都按数组消费）。
+ * 落库时详情弹窗会把它 JSON.stringify 成字符串再传 IPC，若直接写进内存会让后续消费者 .filter/.map 直接抛错。
+ * 这里在局部更新入口统一兜底，保证 store 内 parentIds 永远是数组。 */
+function normalizeParentIds(v: unknown): string[] {
+  if (Array.isArray(v)) return (v as unknown[]).filter((x) => typeof x === 'string') as string[];
+  if (typeof v === 'string' && v.trim()) {
+    try {
+      const arr = JSON.parse(v);
+      if (Array.isArray(arr)) return (arr as unknown[]).filter((x) => typeof x === 'string') as string[];
+    } catch {
+      /* 非 JSON 字符串，忽略 */
+    }
   }
+  return [];
+}
 
   // 其他窗口（如桌面小窗）修改待办后自动刷新本端数据：
   // 主窗口此前不监听该广播，小窗完成/新增后主界面一直不更新（B1 补齐）。
@@ -195,7 +212,7 @@ export const useTodoStore = defineStore('todo', () => {
       const raw = localStorage.getItem(VIEW_STATE_KEY);
       if (!raw) return;
       const s = JSON.parse(raw) || {};
-      if (s.view && ['card', 'list', 'calendar'].includes(s.view)) view.value = s.view;
+      if (s.view && ['card', 'list', 'calendar', 'graph'].includes(s.view)) view.value = s.view;
       if (s.groupBy && ['none', 'status', 'due', 'parent'].includes(s.groupBy)) groupBy.value = s.groupBy;
       if (s.statusFilter === null || typeof s.statusFilter === 'string') statusFilter.value = s.statusFilter;
       if (Array.isArray(s.tagFilters)) tagFilters.value = s.tagFilters;

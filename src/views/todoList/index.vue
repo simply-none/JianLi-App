@@ -92,7 +92,7 @@
           </div>
           <div class="toolbar-right">
             <el-select
-              v-if="store.view !== 'calendar'"
+              v-if="store.view !== 'calendar' && store.view !== 'graph'"
               v-model="store.groupBy"
               placeholder="分组"
               size="default"
@@ -103,8 +103,8 @@
               <el-option label="按截止日期" value="due" />
               <el-option label="按父任务" value="parent" />
             </el-select>
-            <!-- 排序（D7）：客户端排序 -->
-            <el-select v-model="store.sortMode" placeholder="排序" size="default" class="sort-select">
+            <!-- 排序（D7）：客户端排序；依赖图视图下隐藏（无排序语义） -->
+            <el-select v-if="store.view !== 'graph'" v-model="store.sortMode" placeholder="排序" size="default" class="sort-select">
               <el-option label="按更新时间" value="updated" />
               <el-option label="按截止时间" value="due" />
               <el-option label="按优先级" value="priority" />
@@ -140,6 +140,7 @@
         <TodoList v-show="store.view === 'card'" :tags="allTags" :focus-key="store.pomodoroLinkKey" @view="openView" @edit="openEdit" @delete="handleDelete" @status-change="handleStatusChange" @record="openRecord" @view-parent="openReadOnly" @focus="handleFocus" />
         <TodoListView v-show="store.view === 'list'" :tags="allTags" :focus-key="store.pomodoroLinkKey" @view="openView" @edit="openEdit" @delete="handleDelete" @status-change="handleStatusChange" @record="openRecord" @view-parent="openReadOnly" @focus="handleFocus" />
         <TodoCalendarView v-show="store.view === 'calendar'" :tags="allTags" @view="openView" @edit="openEdit" @delete="handleDelete" @status-change="handleStatusChange" @record="openRecord" @view-parent="openReadOnly" />
+        <TodoDepGraph v-show="store.view === 'graph'" @view="openView" />
       </div>
     </div>
 
@@ -200,6 +201,7 @@ import type { TodoView } from '@/store/useTodo';
 import TodoList from './TodoList.vue';
 import TodoListView from './TodoListView.vue';
 import TodoCalendarView from './TodoCalendarView.vue';
+import TodoDepGraph from './dependency/TodoDepGraph.vue';
 import TodoDetailDialog from './TodoDetailDialog.vue';
 import TodoBatchDeleteDialog from './TodoBatchDeleteDialog.vue';
 import TodoBatchEditDialog from './TodoBatchEditDialog.vue';
@@ -220,6 +222,7 @@ const viewTabs = [
   { key: 'card', label: '卡片', icon: 'LayoutGrid' },
   { key: 'list', label: '列表', icon: 'List' },
   { key: 'calendar', label: '日历', icon: 'Calendar' },
+  { key: 'graph', label: '依赖图', icon: 'Network' },
 ];
 
 const dialogVisible = ref(false);
@@ -301,7 +304,19 @@ function handleFocus(todo: TodoItem) {
   }
 }
 
-function handleDialogSave() {
+/**
+ * 详情弹窗保存回调：parentData 由弹窗 emit('save') 传入。
+ * 之前这里只做了「保存成功后全量重拉」，却从未把编辑结果写库 —— 导致标题/父任务等所有改动
+ * 只在内存里闪一下，刷新或重新打开详情时回退到旧值（关联父任务「保存成功但再次打开未关联」即此坑）。
+ * 统一走 store.commitTodo 写库 + 局部更新内存，再全量重拉兜底。
+ */
+async function handleDialogSave(todo: TodoItem) {
+  try {
+    await store.commitTodo(todo);
+  } catch (e) {
+    ElMessage.error('保存失败:' + ((e as Error)?.message || e));
+    return;
+  }
   store.fetchTags().then(() => store.fetchTodos());
 }
 
