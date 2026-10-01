@@ -18,8 +18,8 @@
 - `src/views/highPerfSql/index.vue`：**工作台壳**（顶栏 用法指南/刷新/新建表、上手横幅、左导航挂载、分页切换、高级面板区、状态条 `lastOp`、共用 execute/explain → ResultPanel）
 - `src/views/highPerfSql/components/`：
   - `TableNav.vue`（搜索+数据表列表+行数徽标+高级组：索引/视图/触发器/事务/并发测试/SQL控制台）
-  - `DataBrowser.vue`（**数据分页**：行级 CRUD + LIKE 搜索 + 分页 + CSV 导出 + 列头点击排序（ASC→DESC→取消循环）+ 双击行进编辑；`rowidOk` 守卫——表无 rowid 时自动降级 `SELECT *` 并禁用编辑/删除按钮）
-  - `StructureView.vue`（**表结构分页**：字段清单 + 添加字段（ALTER ADD COLUMN）+ 建表语句 DDL 查看/复制（`sqlite_master` 查询）+ 删除表（checkbox 双重确认 → `DROP TABLE IF EXISTS` → emit `dropped`））
+  - `DataBrowser.vue`（**数据分页**：行级 CRUD + LIKE 搜索 + 分页 + CSV 导出；表格/分页已切 Element Plus `el-table` + `el-pagination`——列头 `sortable="custom"` + `@sort-change` 复用 `sortCol/sortDir` 发服务端 `ORDER BY … LIMIT/OFFSET` 排序（不退化前端排序）；多选走 `@selection-change`（替换原 Set 逻辑）；双击行编辑；`rowidOk` 守卫——表无 rowid 时自动降级 `SELECT *` 并禁用编辑/删除按钮与多选；分页栏常驻表格卡底部）
+  - `StructureView.vue`（**表结构**：字段清单（已切 `el-table`）+ 添加字段（ALTER ADD COLUMN）+ 建表语句 DDL 查看/复制（`sqlite_master` 查询）+ 删除表（checkbox 双重确认 → `DROP TABLE IF EXISTS` → emit `dropped`））
   - `UsageDrawer.vue`（右侧用法指南抽屉）、`CreateTableDialog.vue`（新建表）
   - **高级面板已全部按设计稿帧 3:346~3:457 重写**（Ardot file 729700540498994；Element Plus 旧皮已淘汰）。统一规格：**面板自带头部**（`.pnl-header` 56px：16px Bold 标题 + 12px 状态副标题 + 右侧主按钮，index.vue 不再套 `.adv-panel-title`）、面板体 `.pnl-body`（padding 16 20 / gap 16）、白底卡 `.dcard`（border+radius10，`tinted` 变体 #F9FAFB）、表格卡 `.dtable`（40px 表头 bg-hover + 44px 行）、表单 `.dform/.dlabel/.dinput`（36px 输入）、深色编辑器 `.dcode`（#1E283C 固定两主题）、分段 `.seg`（32px active 蓝底）、按钮 `.pb sm/md/block`（含 `pb-green/pb-red-ghost/pb-blue-ghost/pb-gray`）、开关 `.toggle` 36×20。
   - 各面板：`SqlExecutor`（编辑器+执行行+快捷探查 PRAGMA+历史）、`IndexManager`（索引表：pragma_index_list/index_info 真实清单；表单含复合列/唯一开关/部分索引 WHERE）、`ViewManager`（视图表 sqlite_master+预览展开 DDL）、`TriggerManager`（触发表+时机·事件从 DDL 正则解析）、`TransactionManager`（BEGIN/COMMIT/ROLLBACK+BEGIN 模式分段+SAVEPOINT+未提交语句清单）、`ConcurrencyTester`（并发/超时/自定义语句/journal_mode/busy_timeout 分段+进度/统计/结果表+CSV/JSON/MD 报告）、`ResultPanel`（原生 tabs+表格+分页+导出，expose `addLog`）、`QueryBuilder`（props `tables: string[]` + `tableFields`）

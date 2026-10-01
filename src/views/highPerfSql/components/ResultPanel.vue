@@ -2,9 +2,12 @@
 /**
  * 结果面板（SQL 控制台 / 高级 SQL 共用）：数据表格 + 执行计划 + 消息日志。
  * 数据源 = index.vue 的 execute/explain 结果（new-sql:execute 返回 rows）。
+ *
+ * 表格已切换到 Element Plus 的 el-table；数据/执行计划的分页已切换到 el-pagination，
+ * 分页栏常驻面板底部（表格区滚动、分页栏 flex-shrink:0）。
  */
 import { ref, computed, watch } from "vue";
-import { ChevronLeft, ChevronRight, Download } from "@lucide/vue";
+import { Download } from "@lucide/vue";
 
 interface LogEntry {
   time: string;
@@ -30,7 +33,6 @@ const columns = computed(() => (props.resultData.length > 0 ? Object.keys(props.
 const explainColumns = computed(() => (props.explainData.length > 0 ? Object.keys(props.explainData[0]) : []));
 
 const total = computed(() => props.resultData.length);
-const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)));
 const currentPageData = computed(() => {
   const start = (currentPage.value - 1) * pageSize;
   return props.resultData.slice(start, start + pageSize);
@@ -107,46 +109,47 @@ defineExpose({ addLog });
 
     <div v-if="activeTab === 'data'" class="rp-body">
       <div v-if="errorMessage" class="rp-error">{{ errorMessage }}</div>
-      <div v-else-if="resultData.length > 0" class="rp-table-wrap">
-        <table class="rp-table">
-          <thead>
-            <tr>
-              <th v-for="c in columns" :key="c">{{ c }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(row, i) in currentPageData" :key="i">
-              <td v-for="c in columns" :key="c" :title="fmtCell(row[c])">{{ fmtCell(row[c]) }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div v-else class="rp-empty">暂无数据，执行一条 SQL 试试</div>
-      <div v-if="resultData.length > pageSize" class="rp-pager">
-        <button class="mini-btn" :disabled="currentPage <= 1" @click="currentPage--">
-          <ChevronLeft class="mini-icon" />上一页
-        </button>
-        <span class="pager-meta">第 {{ currentPage }} / {{ totalPages }} 页</span>
-        <button class="mini-btn" :disabled="currentPage >= totalPages" @click="currentPage++">
-          下一页<ChevronRight class="mini-icon" />
-        </button>
-      </div>
+      <template v-else>
+        <div v-if="resultData.length > 0" class="rp-table-wrap">
+          <el-table :data="currentPageData" class="rp-el-table" height="100%" empty-text="暂无数据">
+            <el-table-column
+              v-for="c in columns"
+              :key="c"
+              :prop="c"
+              :label="c"
+              show-overflow-tooltip
+            >
+              <template #default="{ row }">{{ fmtCell(row[c]) }}</template>
+            </el-table-column>
+          </el-table>
+        </div>
+        <div v-else class="rp-empty">暂无数据，执行一条 SQL 试试</div>
+        <el-pagination
+          v-if="resultData.length > pageSize"
+          class="rp-pager"
+          background
+          layout="total, prev, pager, next, jumper"
+          :total="total"
+          :page-size="pageSize"
+          :current-page="currentPage"
+          @current-change="(p: number) => (currentPage = p)"
+        />
+      </template>
     </div>
 
     <div v-else-if="activeTab === 'explain'" class="rp-body">
       <div v-if="explainData.length > 0" class="rp-table-wrap">
-        <table class="rp-table">
-          <thead>
-            <tr>
-              <th v-for="c in explainColumns" :key="c">{{ c }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(row, i) in explainData" :key="i">
-              <td v-for="c in explainColumns" :key="c" :title="fmtCell(row[c])">{{ fmtCell(row[c]) }}</td>
-            </tr>
-          </tbody>
-        </table>
+        <el-table :data="explainData" class="rp-el-table" height="100%" empty-text="暂无执行计划">
+          <el-table-column
+            v-for="c in explainColumns"
+            :key="c"
+            :prop="c"
+            :label="c"
+            show-overflow-tooltip
+          >
+            <template #default="{ row }">{{ fmtCell(row[c]) }}</template>
+          </el-table-column>
+        </el-table>
       </div>
       <div v-else class="rp-empty">暂无执行计划</div>
     </div>
@@ -277,40 +280,21 @@ defineExpose({ addLog });
   font-size: 12px;
 }
 
+/* 表格区：flex 纵向；表格滚动，分页栏常驻底部 */
 .rp-table-wrap {
   flex: 1 1 auto;
-  /* 撑满 .rp-body（其 min-height 为 300px）；自身滚动，
-     不用 min-height:0 —— 否则在仅有 min-height 的父级里会塌成 0 高 */
   min-height: 240px;
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
 }
 
-.rp-table {
+.rp-el-table {
+  flex: 1;
+  min-height: 0;
   width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-
-  th,
-  td {
-    padding: 6px 10px;
-    text-align: left;
-    border-bottom: 1px solid var(--border-subtle);
-    white-space: nowrap;
-    max-width: 240px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  thead th {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    background: var(--bg-hover);
-    color: var(--text-secondary);
-    font-weight: 600;
-  }
 }
 
 .rp-empty {
@@ -320,16 +304,14 @@ defineExpose({ addLog });
   font-size: 12px;
 }
 
+/* 分页栏：常驻面板底部 */
 .rp-pager {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
-}
-
-.pager-meta {
-  font-size: 11px;
-  color: var(--text-muted);
+  padding-top: 8px;
 }
 
 /* 消息日志：跟随 .rp-body 的 300px 最小高度，自身负责滚动 */

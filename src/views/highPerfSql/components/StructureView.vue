@@ -153,32 +153,29 @@ async function addColumn() {
       <div v-if="error" class="sv-error">{{ error }}</div>
 
       <div class="sv-table-wrap">
-        <table class="sv-table">
-          <thead>
-            <tr>
-              <th>字段名</th>
-              <th>类型</th>
-              <th>主键</th>
-              <th>非空</th>
-              <th>默认值</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="c in columns" :key="c.name">
-              <td class="col-name">
-                <KeyRound v-if="c.pk" class="pk-icon" />
-                {{ c.name }}
-              </td>
-              <td>{{ c.type }}</td>
-              <td>
-                <span v-if="c.pk" class="yes-tag">是</span>
-                <span v-else class="no-tag">—</span>
-              </td>
-              <td>{{ c.notnull ? "是" : "—" }}</td>
-              <td>{{ c.dflt ?? "—" }}</td>
-            </tr>
-          </tbody>
-        </table>
+        <el-table :data="columns" class="sv-el-table" height="100%" empty-text="暂无字段">
+          <el-table-column label="字段名" min-width="160">
+            <template #default="{ row }">
+              <span class="col-name">
+                <KeyRound v-if="row.pk" class="pk-icon" />
+                {{ row.name }}
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="type" label="类型" width="120" />
+          <el-table-column label="主键" width="90">
+            <template #default="{ row }">
+              <span v-if="row.pk" class="yes-tag">是</span>
+              <span v-else class="no-tag">—</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="非空" width="90">
+            <template #default="{ row }">{{ row.notnull ? "是" : "—" }}</template>
+          </el-table-column>
+          <el-table-column label="默认值" min-width="120">
+            <template #default="{ row }">{{ row.dflt ?? "—" }}</template>
+          </el-table-column>
+        </el-table>
       </div>
 
       <p class="sv-note">SQLite 不支持删除/改名字段（旧版本）；如需调整请到「SQL 控制台」按官方流程重建表。</p>
@@ -317,31 +314,18 @@ async function addColumn() {
 .sv-table-wrap {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   border: 1px solid var(--border-subtle);
   border-radius: 10px;
   background: var(--bg-card);
 }
 
-.sv-table {
+.sv-el-table {
+  flex: 1;
+  min-height: 0;
   width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-
-  th,
-  td {
-    padding: 8px 12px;
-    text-align: left;
-    border-bottom: 1px solid var(--border-subtle);
-  }
-
-  thead th {
-    position: sticky;
-    top: 0;
-    background: var(--bg-hover);
-    color: var(--text-secondary);
-    font-weight: 600;
-  }
 }
 
 .col-name {

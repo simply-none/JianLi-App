@@ -5,9 +5,15 @@
  * 数据通道（刻意避开 ensure 自动补列污染任意表）：
  * - 读：new-sql:read（SELECT rowid AS __rid, *，参数化 LIKE 搜索，LIMIT/OFFSET 分页）
  * - 增/改/删：new-sql:transaction（参数化 INSERT/UPDATE/DELETE，无 ensure）
+ *
+ * 表格/分页已切换到 Element Plus 的 el-table + el-pagination：
+ * - 列头排序用 sortable="custom" + @sort-change，复用 sortCol/sortDir 重新发起
+ *   带 ORDER BY … LIMIT/OFFSET 的服务端查询（不退化成前端排序）。
+ * - 多选走 el-table 的 @selection-change（替换原 Set 逻辑）。
+ * - 分页栏常驻表格卡底部（表格区滚动、分页栏 flex-shrink:0）。
  */
 import { ref, computed, watch } from "vue";
-import { Search, Plus, Pencil, Trash2, RefreshCw, Download, X, ChevronUp, ChevronDown } from "@lucide/vue";
+import { Search, Plus, Pencil, Trash2, RefreshCw, Download, X } from "@lucide/vue";
 import { runRead, runWrite } from "../visual/api";
 
 const props = defineProps<{ tableName: string }>();
@@ -17,7 +23,8 @@ const emit = defineEmits<{
   (e: "count-changed", delta: number): void;
 }>();
 
-const PAGE_SIZE = 20;
+const pageSize = ref(20);
+const PAGE_SIZES = [10, 20, 50, 100];
 
 interface ColumnInfo {
   name: string;
@@ -30,7 +37,7 @@ const rows = ref<Record<string, any>[]>([]);
 const total = ref(0);
 const page = ref(1);
 const keyword = ref("");
-const selected = ref<Set<number>>(new Set());
+const selectedRows = ref<Record<string, any>[]>([]);
 const loading = ref(false);
 const rowidOk = ref(true);
 const sortCol = ref("");
@@ -43,16 +50,9 @@ const editValues = ref<Record<string, string>>({});
 const confirmDelete = ref(false);
 const saving = ref(false);
 
-const totalPages = computed(() => Math.max(1, Math.ceil(total.value / PAGE_SIZE)));
-const pageNumbers = computed(() => {
-  const cur = page.value;
-  const start = Math.max(1, Math.min(cur - 2, totalPages.value - 4));
-  const list: number[] = [];
-  for (let p = start; p <= Math.min(totalPages.value, start + 4); p++) list.push(p);
-  return list;
-});
+const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)));
 
-const selectedRows = computed(() => rows.value.filter((r) => selected.value.has(r.__rid)));
+const selectedRowsCount = computed(() => selectedRows.value.length);
 const displayColumns = computed(() => columns.value.filter((c) => c.name !== "__rid"));
 
 async function loadColumns() {
@@ -77,13 +77,13 @@ async function loadRows() {
   const base = rowidOk.value
     ? `SELECT rowid AS __rid, * FROM ${t}`
     : `SELECT * FROM ${t}`;
-  const offset = (page.value - 1) * PAGE_SIZE;
+  const offset = (page.value - 1) * pageSize.value;
   const orderCol = sortCol.value
     ? `"${sortCol.value.replace(/"/g, '""')}" ${sortDir.value}`
     : rowidOk.value
       ? "rowid"
       : `"${(displayColumns.value[0]?.name || "rowid").replace(/"/g, '""')}"`;
-  const sql = `${base} ${lw ? lw.where : ""} ORDER BY ${orderCol} LIMIT ${PAGE_SIZE} OFFSET ${offset}`;
+  const sql = `${base} ${lw ? lw.where : ""} ORDER BY ${orderCol} LIMIT ${pageSize.value} OFFSET ${offset}`;
   const cntSql = `SELECT COUNT(*) AS cnt FROM ${t} ${lw ? lw.where : ""}`;
 
   const [rowsRes, cntRes] = await Promise.all([
@@ -101,13 +101,14 @@ async function loadRows() {
     emit("op-done", `读取失败：${rowsRes.error}`, false);
     rows.value = [];
     total.value = 0;
+    selectedRows.value = [];
     loading.value = false;
     return;
   }
 
   rows.value = (rowsRes.data || []) as Record<string, any>[];
   total.value = cntRes.success && Array.isArray(cntRes.data) ? Number(cntRes.data[0]?.cnt ?? 0) : rows.value.length;
-  selected.value = new Set();
+  selectedRows.value = [];
   loading.value = false;
 }
 
@@ -127,30 +128,38 @@ watch(keyword, () => {
 });
 watch(page, loadRows);
 
-function toggleAll(e: Event) {
-  const checked = (e.target as HTMLInputElement).checked;
-  selected.value = checked ? new Set(rows.value.map((r) => r.__rid)) : new Set();
+function rowKey(row: any): string | number {
+  return row && row.__rid != null ? row.__rid : JSON.stringify(row);
 }
 
-function toggleSort(col: string) {
-  if (sortCol.value !== col) {
-    sortCol.value = col;
-    sortDir.value = "ASC";
-  } else if (sortDir.value === "ASC") {
-    sortDir.value = "DESC";
-  } else {
+function onSelectionChange(rowsList: any[]) {
+  selectedRows.value = rowsList;
+}
+
+function onRowDblclick(row: any) {
+  if (rowidOk.value) openEdit(row);
+}
+
+function onSortChange(payload: { prop: string; order: "ascending" | "descending" | null }) {
+  const { prop, order } = payload;
+  if (!prop || order == null) {
     sortCol.value = "";
     sortDir.value = "ASC";
+  } else if (order === "ascending") {
+    sortCol.value = prop;
+    sortDir.value = "ASC";
+  } else {
+    sortCol.value = prop;
+    sortDir.value = "DESC";
   }
   page.value = 1;
   loadRows();
 }
 
-function toggleRow(rid: number) {
-  const next = new Set(selected.value);
-  if (next.has(rid)) next.delete(rid);
-  else next.add(rid);
-  selected.value = next;
+function onSizeChange(size: number) {
+  pageSize.value = size;
+  page.value = 1;
+  loadRows();
 }
 
 function openAdd() {
@@ -223,7 +232,7 @@ async function saveEdit() {
 }
 
 async function doDelete() {
-  const rids = [...selected.value];
+  const rids = selectedRows.value.map((r) => r.__rid).filter((x) => x != null);
   if (rids.length === 0) return;
   const t = `"${props.tableName.replace(/"/g, '""')}"`;
   const sqls = rids.map(() => `DELETE FROM ${t} WHERE rowid = ?`);
@@ -285,7 +294,7 @@ function fmtCell(v: any): string {
         <button class="primary-btn" @click="openAdd"><Plus class="btn-icon" />新增一行</button>
         <button
           class="tb-btn"
-          :disabled="selectedRows.length !== 1 || !rowidOk"
+          :disabled="selectedRowsCount !== 1 || !rowidOk"
           :title="rowidOk ? '' : '该表无法用 rowid 定位行，请用 SQL 控制台编辑'"
           @click="openEdit()"
         >
@@ -293,7 +302,7 @@ function fmtCell(v: any): string {
         </button>
         <button
           class="tb-btn danger"
-          :disabled="selectedRows.length === 0 || !rowidOk"
+          :disabled="selectedRowsCount === 0 || !rowidOk"
           :title="rowidOk ? '' : '该表无法用 rowid 定位行，请用 SQL 控制台删除'"
           @click="confirmDelete = true"
         >
@@ -304,56 +313,49 @@ function fmtCell(v: any): string {
       </div>
     </div>
 
-    <!-- 数据表格卡（设计稿 3:126：44px 表头 + 48px 行 + 底部 48px 分页栏） -->
+    <!-- 数据表格卡（设计稿 3:126：表格区滚动 + 底部分页栏常驻） -->
     <div class="db-table-wrap">
-      <table class="db-table">
-        <thead>
-          <tr>
-            <th class="col-check"><input type="checkbox" :checked="rows.length > 0 && selected.size === rows.length" @change="toggleAll" /></th>
-            <th v-for="c in displayColumns" :key="c.name" class="sortable" @click="toggleSort(c.name)">
-              {{ c.name }}
-              <span v-if="c.pk" class="pk-tag">PK</span>
-              <ChevronUp v-if="sortCol === c.name && sortDir === 'ASC'" class="sort-icon" />
-              <ChevronDown v-else-if="sortCol === c.name" class="sort-icon" />
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="row in rows"
-            :key="row.__rid ?? JSON.stringify(row)"
-            :class="{ picked: selected.has(row.__rid) }"
-            @dblclick="rowidOk && openEdit(row)"
-          >
-            <td class="col-check">
-              <input type="checkbox" :checked="selected.has(row.__rid)" @change="toggleRow(row.__rid)" />
-            </td>
-            <td v-for="c in displayColumns" :key="c.name" :title="fmtCell(row[c.name])">{{ fmtCell(row[c.name]) }}</td>
-          </tr>
-          <tr v-if="!loading && rows.length === 0">
-            <td :colspan="displayColumns.length + 1" class="empty-cell">暂无数据</td>
-          </tr>
-        </tbody>
-      </table>
+      <el-table
+        :data="rows"
+        :row-key="rowKey"
+        class="db-el-table"
+        height="100%"
+        empty-text="暂无数据"
+        :v-loading="loading"
+        @selection-change="onSelectionChange"
+        @sort-change="onSortChange"
+        @row-dblclick="onRowDblclick"
+      >
+        <el-table-column type="selection" width="40" :selectable="() => rowidOk" />
+        <el-table-column
+          v-for="c in displayColumns"
+          :key="c.name"
+          :prop="c.name"
+          :label="c.name"
+          sortable="custom"
+          show-overflow-tooltip
+        >
+          <template #header>
+            <span class="col-head">{{ c.name }}</span><span v-if="c.pk" class="pk-tag">PK</span>
+          </template>
+          <template #default="{ row }">
+            <span>{{ fmtCell(row[c.name]) }}</span>
+          </template>
+        </el-table-column>
+      </el-table>
 
-      <!-- 分页底栏（设计稿 3:207：表格卡内 48px，border-top） -->
-      <div class="db-footer">
-        <span class="footer-meta">共 {{ total.toLocaleString("zh-CN") }} 条 · 每页 {{ PAGE_SIZE }} ·
-          显示 {{ rows.length ? (page - 1) * PAGE_SIZE + 1 : 0 }}-{{ (page - 1) * PAGE_SIZE + rows.length }}</span>
-        <div class="pager">
-          <button class="page-btn" :disabled="page <= 1" @click="page--">上一页</button>
-          <button
-            v-for="p in pageNumbers"
-            :key="p"
-            class="page-btn"
-            :class="{ current: p === page }"
-            @click="page = p"
-          >
-            {{ p }}
-          </button>
-          <button class="page-btn" :disabled="page >= totalPages" @click="page++">下一页</button>
-        </div>
-      </div>
+      <!-- 分页底栏：表格卡内常驻，border-top（设计稿 3:207） -->
+      <el-pagination
+        class="db-pager"
+        background
+        layout="total, sizes, prev, pager, next, jumper"
+        :total="total"
+        :page-size="pageSize"
+        :current-page="page"
+        :page-sizes="PAGE_SIZES"
+        @current-change="(p: number) => (page = p)"
+        @size-change="onSizeChange"
+      />
     </div>
 
     <!-- 新增 / 编辑弹窗 -->
@@ -390,7 +392,7 @@ function fmtCell(v: any): string {
       <div v-if="confirmDelete" class="edit-mask" @click.self="confirmDelete = false">
         <div class="del-dialog">
           <div class="del-title">确认删除</div>
-          <p class="del-text">将删除选中的 {{ selected.size }} 行数据，此操作无法自动撤销。</p>
+          <p class="del-text">将删除选中的 {{ selectedRowsCount }} 行数据，此操作无法自动撤销。</p>
           <div class="edit-actions">
             <button class="cancel-btn" @click="confirmDelete = false">取消</button>
             <button class="danger-btn" @click="doDelete">删除</button>
@@ -520,63 +522,26 @@ function fmtCell(v: any): string {
   height: 14px;
 }
 
+/* 表格卡：flex 纵向；表格区滚动，分页栏常驻底部 */
 .db-table-wrap {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: auto;
+  overflow: hidden;
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
   background: var(--bg-card);
 }
 
-.db-table {
+.db-el-table {
+  flex: 1;
+  min-height: 0;
   width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-
-  th,
-  td {
-    padding: 12px;
-    text-align: left;
-    border-bottom: 1px solid var(--border-subtle);
-    white-space: nowrap;
-    max-width: 260px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  thead th {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    height: 44px;
-    padding: 0 12px;
-    background: var(--bg-hover);
-    color: var(--text-secondary);
-    font-weight: 600;
-  }
-
-  tbody tr {
-    height: 48px;
-  }
-
-  tbody tr:hover {
-    background: var(--bg-hover);
-  }
-
-  tbody tr.picked {
-    background: var(--color-primary-light);
-  }
 }
 
-.col-check {
-  width: 40px;
-
-  input {
-    accent-color: var(--color-primary);
-  }
+.col-head {
+  font-weight: 600;
 }
 
 .pk-tag {
@@ -588,33 +553,9 @@ function fmtCell(v: any): string {
   font-size: 9px;
 }
 
-.sortable {
-  cursor: pointer;
-  user-select: none;
-
-  &:hover {
-    color: var(--color-primary);
-  }
-}
-
-.sort-icon {
-  width: 11px;
-  height: 11px;
-  vertical-align: -1px;
-  color: var(--color-primary);
-}
-
-.empty-cell {
-  text-align: center;
-  color: var(--text-muted);
-  padding: 32px 0 !important;
-}
-
-/* 分页底栏：表格卡内 48px + border-top（设计稿 3:207） */
-.db-footer {
+/* 分页底栏：表格卡内常驻，border-top（设计稿 3:207） */
+.db-pager {
   flex-shrink: 0;
-  position: sticky;
-  bottom: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -624,39 +565,6 @@ function fmtCell(v: any): string {
   padding: 0 16px;
   background: var(--bg-card);
   border-top: 1px solid var(--border-subtle);
-}
-
-.footer-meta {
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-.pager {
-  display: flex;
-  gap: 6px;
-}
-
-.page-btn {
-  min-width: 28px;
-  height: 28px;
-  padding: 0 8px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 6px;
-  background: var(--bg-card);
-  color: var(--text-secondary);
-  font-size: 12px;
-  cursor: pointer;
-
-  &:disabled {
-    opacity: 0.4;
-    cursor: default;
-  }
-
-  &.current {
-    background: var(--color-primary);
-    border-color: var(--color-primary);
-    color: #fff;
-  }
 }
 
 .edit-mask {
