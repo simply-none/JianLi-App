@@ -292,7 +292,7 @@ export function initRecurrence() {
   generateRecurrenceInstances();
   purgeExpiredDeleted();
 
-  // 渲染端保存重复待办后触发即时补生成
+  // 渲染端保存重复待办后触发即时补生成（系列配置同步由渲染端直写完成后再触发本通道）
   ipcMain.on('recurrence:sync', () => {
     generateRecurrenceInstances();
   });

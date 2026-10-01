@@ -128,7 +128,15 @@
 - `todoSource` 已改走 `new-sql:read`（参数化 SELECT、只读连接、不建表）——❌ 严禁改回 execute；SQL 带 deleted 过滤；无关键词首位「今日待办」命令；无命中时「新建待办：xxx」快速创建（先 fetchTodos 再设 highlightKey，否则滚动定位不到）。
 
 ### 特有坑（本批次新增）
+- **发 IPC 前必须剥离响应式（方案 B 已根治）**：store 来的 TodoItem 是深层 Proxy（parentIds 数组也是 Proxy），浅展开后发 IPC 会抛「An object could not be cloned」。剥离已收敛到 todoApi 的 ipc() 封装层：payload 整体过 common.ts 的 toPlain()（递归解包 ref/proxy、二进制/Date/Map/Set 原样放行，对齐 send/setStore 系列封装的既有方向），调用方无需各自处理；JSON round-trip 一版方案已弃（破坏 Date/Map/Set、丢 undefined）。
 - 主进程 `update-todo-reminders` 监听**只在 recurrence.ts 注册**（initRecurrence 内，提醒重排+on_complete 补生成串联）；newReminder.ts 不再注册，勿重复添加（双监听=双重重排）。
 - 批量删除/批量编辑/标签管理/父任务选择的候选集合一律用 `store.activeTodos`（回收站内条目不可见不可选）。
 - 统计口径：totalCount/四状态计数/完成率/今日完成/逾期 全部基于 activeTodos（不含回收站）。
 - E2「首页今日待办卡」评估后**顺延**：home 视图是主页主题画廊非仪表盘，硬插卡片破坏设计；今日能力由 D2 覆盖。
+
+### 系列配置同步（2026-10-01 补丁·二版，用户拍板语义）
+- **修改重复字段 = 整系列生效**：在详情弹窗编辑模板或实例的重复字段（rule/interval/weekdays/end/mode 任一变化）并保存时，渲染端检测变更（`originalTodo` 对比 + `canonicalWeekdays` 规范化比较周几）。
+- **同步在渲染端直写**（`TodoDetailDialog.applySeriesConfigSync`）：`new-sql:read`（参数化只读）查模板行 + `recurrenceId` 全部实例，展开整行后只覆盖重复字段与 updateTime，逐行 `new-sql:upsert`；完成后发**裸** `recurrence:sync` 让主进程按新配置补生成。⚠️ 刻意不走主进程新载荷——一版曾放主进程 `recurrence:sync` 载荷分支，因改主进程需重启 Electron 而失效（旧监听器忽略载荷），渲染端直写对重启状态免疫。
+- 背景：此前编辑实例只写自身，模板仍按旧配置生成（改了规则后新实例仍按旧周期出现）。规则被清空（改「不重复」）时不同步——模板自身 rule=null 即停止生成。
+- **el-radio change 校验警告根治**：element-plus `radioEmits` 对 change 载荷校验 string|number|boolean，「不重复」原用 `:value="null"` 会触发「Invalid event arguments」警告；现经 `recurrenceRuleModel` computed 在边界做 `''` ↔ null 映射。
+- ⚠️ 移动端实例本就禁改重复规则，模板编辑路径是否做系列同步为**待定项**（未实现）。

@@ -103,6 +103,13 @@
 
   /* ===================== 遮罩 / 阴影 Mask & Shadow ===================== */
   --el-mask-color:        color-mix(in srgb, var(--bg-base) 65%, transparent);
-  --el-box-shadow:        0 2px 12px color-mix(in srgb, var(--bg-base) 45%, transparent);
-  --el-box-shadow-light:  0 1px 4px color-mix(in srgb, var(--bg-base) 35%, transparent);
+  /* 浮层投影：指向每套主题同名定义的 --shadow-dialog / --shadow-popover。
+     旧写法（bg-base 45% 透明的 color-mix）是用页面底色给浮在页面上的元素投影，几乎不可见，
+     且暗色主题下黑影叠黑底也分不出边界；新 token 在暗色主题里自带「亮色描边圈」负责分边界。
+     依赖清单：dialog / message-box（box-shadow）、popover / select / dropdown / cascader /
+     autocomplete / picker / menu--popup / table-filter / notification / message / tour（box-shadow-light）、
+     drawer（box-shadow-dark）。 */
+  --el-box-shadow:        var(--shadow-dialog);
+  --el-box-shadow-light:  var(--shadow-popover);
+  --el-box-shadow-dark:   var(--shadow-dialog);
 }

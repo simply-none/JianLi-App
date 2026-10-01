@@ -6,6 +6,9 @@
   --color-primary-solid: #00a8ff;
 
   --bg-base: #111111;
+  /* 浮层投影 token：模态层用 --shadow-dialog，轻浮层用 --shadow-popover；暗色底黑影不可见，描边圈负责分边界 */
+  --shadow-dialog: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.12);
+  --shadow-popover: 0 6px 24px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
   --bg-card: #222222;
   --bg-sidebar: #0a0a0a;
 

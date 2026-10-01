@@ -11,6 +11,9 @@
 
   /* 背景色 */
   --bg-base: #f5f6fa;
+  /* 浮层投影 token：模态层（el-dialog / message-box）用 --shadow-dialog，轻浮层（popover / 下拉 / 通知）用 --shadow-popover */
+  --shadow-dialog: 0 8px 32px rgba(0, 0, 0, 0.16), 0 2px 8px rgba(0, 0, 0, 0.1);
+  --shadow-popover: 0 4px 16px rgba(0, 0, 0, 0.1), 0 1px 4px rgba(0, 0, 0, 0.06);
   --bg-card: #ffffff;
   --bg-sidebar: #ffffff;
 
@@ -143,6 +146,9 @@
   --color-primary-solid: #7aa2f7;
 
   --bg-base: #1a1b26;
+  /* 浮层投影 token：模态层用 --shadow-dialog，轻浮层用 --shadow-popover；暗色底黑影不可见，描边圈负责分边界 */
+  --shadow-dialog: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.12);
+  --shadow-popover: 0 6px 24px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
   --bg-card: #24283b;
   --bg-sidebar: #1f2335;
 

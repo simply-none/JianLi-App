@@ -102,6 +102,9 @@ input {
   --el-table-bg-color: var(--el-bg-color) !important;
   --el-table-tr-bg-color: var(--el-bg-color) !important;
   --el-table-row-hover-bg-color: var(--bg-hover) !important;
+  /* 兜回：--el-box-shadow-light 已重映射为带描边圈的 --shadow-popover，
+     固定列（--el-table-fixed-box-shadow）若吃到描边圈会出现亮色矩形，改用普通投影 token */
+  --el-table-fixed-box-shadow: var(--shadow-top) !important;
 }
 
 .el-table td,
@@ -122,6 +125,10 @@ input {
   max-height: 75%;
   display: flex;
   flex-direction: column;
+  /* 遮罩为全透明（.el-overlay 背景色 #ffffff00），弹窗边界全靠自身撑起：
+     细边框 + 每套主题同名 token --shadow-dialog（暗色主题自带亮色描边圈，亮色主题为纯投影） */
+  border: 1px solid var(--border-subtle) !important;
+  box-shadow: var(--shadow-dialog) !important;
   &.is-fullscreen {
     max-height: 100%;
   }
@@ -151,6 +158,9 @@ input {
 
 .el-message-box {
   background-color: var(--el-bg-color) !important;
+  /* 与 .el-dialog 同理：遮罩全透明，确认框边界靠细边框 + 主题投影 token 撑起 */
+  border: 1px solid var(--border-subtle) !important;
+  box-shadow: var(--shadow-dialog) !important;
 }
 
 .el-message-box__title {
@@ -316,6 +326,8 @@ input {
 
 .el-tooltip__popper {
   background-color: rgba(0, 0, 0, 0.8) !important;
+  /* tooltip 是黑底浮层、EP 默认无阴影，暗色主题下会与页面糊在一起；补同款轻浮层投影（暗色主题带描边圈） */
+  box-shadow: var(--shadow-popover) !important;
 }
 
 .el-autocomplete {

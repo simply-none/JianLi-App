@@ -8,10 +8,14 @@
  */
 import type { TodoItem, Tag } from '../types';
 import { deriveStatusFromCompleted } from '../statusConfig';
+import { toPlain } from '@/utils/common';
 
-/** 统一 IPC 调用封装 */
+/** 统一 IPC 调用封装：payload 先经 toPlain 递归剥离 Vue 代理/ref。
+ *  Proxy 不可结构化克隆——store 来的对象浅展开后嵌套的 parentIds 数组仍是 Proxy，
+ *  直传会抛「An object could not be cloned」。对齐 common.ts send/setStore 系列
+ *  封装「封装层内置剥离」的既有方向，调用方无需各自处理。 */
 function ipc<T = any>(method: string, payload: Record<string, unknown>): Promise<T> {
-  return window.ipcRenderer.handlePromise(method, payload) as Promise<T>;
+  return window.ipcRenderer.handlePromise(method, toPlain(payload)) as Promise<T>;
 }
 
 /** 解析父子关联：新数据 parentIds(JSON 数组)，旧数据兼容单 parentId */
@@ -77,7 +81,7 @@ export async function fetchTags(): Promise<Tag[]> {
   return (res?.data || res?.rows || []) as Tag[];
 }
 
-/** 保存（新增/更新）单条待办，按 key 主键 upsert */
+/** 保存（新增/更新）单条待办，按 key 主键 upsert；响应式剥离由 ipc() 统一 toPlain 处理 */
 export async function saveTodo(todo: TodoItem) {
   return ipc('new-sql:upsert', {
     tableName: 'todo_list',
@@ -102,6 +106,7 @@ export async function saveTag(tag: Tag): Promise<Tag> {
   const existing = await fetchTags();
   const hit = tag.id ? undefined : existing.find((t) => t.name === tag.name);
   const finalTag: Tag = hit ? { ...tag, id: hit.id, key: hit.key } : tag;
+  // 响应式剥离由 ipc() 统一 toPlain 处理
   await ipc('new-sql:upsert', {
     tableName: 'todo_tags',
     data: finalTag,

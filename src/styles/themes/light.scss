@@ -8,6 +8,9 @@
   --color-primary-solid: #4f46e5;
 
   --bg-base: #f5f6fa;
+  /* 浮层投影 token：模态层（el-dialog / message-box）用 --shadow-dialog，轻浮层（popover / 下拉 / 通知）用 --shadow-popover */
+  --shadow-dialog: 0 8px 32px rgba(0, 0, 0, 0.16), 0 2px 8px rgba(0, 0, 0, 0.1);
+  --shadow-popover: 0 4px 16px rgba(0, 0, 0, 0.1), 0 1px 4px rgba(0, 0, 0, 0.06);
   --bg-card: #ffffff;
   --bg-sidebar: #ffffff;
 

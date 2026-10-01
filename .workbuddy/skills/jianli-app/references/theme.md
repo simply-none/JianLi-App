@@ -62,6 +62,33 @@
 > 注意：各主题文件（如 `cobalt.scss`）里手写的 `--el-*` 仍保留作为兜底，但会被本文件覆盖；
 > 新增主题时**无需再手写 `--el-*`**，本文件已统一覆盖。
 
+## 弹窗浮层边界约定（遮罩全透明）
+全项目 `.el-overlay` 遮罩在 `src/style.scss` 被刻意设为**全透明**（`background-color: #ffffff00`，不挡背景），
+因此 dialog / message-box / popover 等浮层的边界全靠自身样式撑起（2026-10-01 起）。
+
+**token（每套主题 + `light.scss :root` 同名定义，亮暗自动适配）**：
+| token | 消费方 |
+|---|---|
+| `--shadow-dialog` | el-dialog / el-message-box / el-drawer（模态级抬升投影） |
+| `--shadow-popover` | popover / select / dropdown / cascader / autocomplete / date-picker / menu--popup / table-filter / notification / message / tour / tooltip（轻浮层投影） |
+
+亮色主题 = 纯黑投影；暗色主题 = 深黑投影 + **`0 0 0 1px` 亮色描边圈**（暗底上黑影不可见，描边圈才是分边界的主体）。
+
+**接线方式（别在业务组件里重复写阴影）**：
+- `src/styles/element-plus-theme.scss` 把 `--el-box-shadow → var(--shadow-dialog)`、
+  `--el-box-shadow-light → var(--shadow-popover)`、`--el-box-shadow-dark → var(--shadow-dialog)` 集中重映射，
+  EP 浮层组件自动继承。
+- `src/style.scss` 另给 `.el-dialog` / `.el-message-box` 显式加 `border: 1px solid var(--border-subtle)`
+  与 `box-shadow: var(--shadow-dialog)`；`.el-tooltip__popper` 补 `box-shadow: var(--shadow-popover)`
+  （EP 的 tooltip 黑底默认无阴影）。
+- ⚠️ 表格固定列要兜回：`.el-table { --el-table-fixed-box-shadow: var(--shadow-top) }` 已在 style.scss 处理，
+  否则固定列会吃到描边圈渲染出亮色矩形。
+
+**根因备注**：旧映射把 `--el-box-shadow` 写成「`--bg-base` 45% 透明」色——用页面底色给浮在页面上的元素投影
+几乎不可见，且暗色主题黑影叠黑底分不出边界，这是浮层「像没有阴影」的原因。
+新增主题时**必须**同步带上这两个 token（值可抄相邻主题的亮/暗变体）；某弹窗要自绘特殊外观时，
+必须保留至少一种边界手段（边框或投影之一）。
+
 ## 正例 / 反例
 反例（数据获取页旧写法，部分主题不跟随主题）：
 ```scss

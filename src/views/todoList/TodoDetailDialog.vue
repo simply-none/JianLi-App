@@ -74,10 +74,10 @@
           </el-form-item>
         </template>
 
-        <!-- 重复配置：不重复 / 每天 / 每周 / 每月 / 每年（E4） -->
+        <!-- 重复配置：不重复 / 每天 / 每周 / 每月 / 每年（E4）；规则经 recurrenceRuleModel 边界映射（'' ↔ null） -->
         <el-form-item label="重复">
-          <el-radio-group v-model="form.recurrenceRule" @change="onRecurrenceChange">
-            <el-radio :value="null" class="rc-none">不重复</el-radio>
+          <el-radio-group v-model="recurrenceRuleModel">
+            <el-radio value="" class="rc-none">不重复</el-radio>
             <el-radio value="daily">每天</el-radio>
             <el-radio value="weekly">每周</el-radio>
             <el-radio value="monthly">每月</el-radio>
@@ -293,9 +293,13 @@ const form = ref<TodoItem>(blankForm());
 /** 被加载的原始待办 key：编辑时 upsert 必须以它为主键，避免在表单竞态下误用新 key 插入 */
 const loadedKey = ref<string | null>(null);
 
+/** 加载时的原始行（浅拷贝）：用于检测「重复字段是否被修改」，触发系列配置同步 */
+const originalTodo = ref<TodoItem | null>(null);
+
 /** 从已有待办载入表单，并归一化类型字段 */
 function loadForm(todo: TodoItem | null) {
   loadedKey.value = todo ? todo.key ?? null : null;
+  originalTodo.value = todo ? { ...todo } : null;
   if (todo) {
     form.value = {
       ...blankForm(),
@@ -395,6 +399,19 @@ function removeParent(key: string) {
 // ===== 重复 =====
 const weekdayModel = ref<number[]>([]);
 
+/**
+ * 重复规则（radio 双向绑定）：表单内用 '' 表示「不重复」。
+ * element-plus 的 radioEmits 对 change 载荷校验「string|number|boolean」，
+ * 直接 emit null 会触发「Invalid event arguments」控制台警告，故在边界把 null 映射为 ''。
+ */
+const recurrenceRuleModel = computed<string>({
+  get: () => form.value.recurrenceRule || '',
+  set: (v) => {
+    form.value.recurrenceRule = (v || null) as TodoItem['recurrenceRule'];
+    onRecurrenceChange();
+  },
+});
+
 /** F2 生成方式（radio 双向绑定）：缺省按 fixed（到点自动生成） */
 const recurrenceModeModel = computed<'fixed' | 'on_complete'>({
   get: () => (form.value.recurrenceMode === 'on_complete' ? 'on_complete' : 'fixed'),
@@ -466,18 +483,102 @@ async function handleSave() {
     updateTime: now,
   };
 
-  await window.ipcRenderer.handlePromise('new-sql:upsert', {
-    tableName: 'todo_list',
-    data: parentData,
-    config: { primaryKey: 'key' },
-  });
-
-  ElMessage.success('保存成功');
-  // 通知主进程：重排截止提醒（带 key 增量，B4）+ 重新生成重复实例
+  // ===== 系列配置同步（用户拍板 2026-10-01）：重复字段被修改 = 整系列生效 =====
+  // 渲染端直写（new-sql:read 查 + new-sql:upsert 逐行 patch，全部合规通道），
+  // 不依赖主进程重启状态；完成后再发裸 recurrence:sync 让主进程按新配置即时补生成。
+  const seriesSync = buildSeriesConfigSync(parentData);
+  if (seriesSync) {
+    const synced = await applySeriesConfigSync(seriesSync.applyConfigTo, seriesSync.config);
+    ElMessage.success(`保存成功，新重复配置已同步到该系列 ${synced} 条待办`);
+  } else {
+    ElMessage.success('保存成功');
+  }
+  // 通知主进程：重排截止提醒（带 key 增量，B4）+ 按新配置即时补生成当天实例
   window.ipcRenderer.send('update-todo-reminders', parentKey);
   window.ipcRenderer.send('recurrence:sync');
   emit('save', parentData);
   emit('update:visible', false);
+}
+
+/**
+ * 系列配置同步：把新重复配置 patch 到模板行与该模板全部实例。
+ * 展开整行再覆盖重复字段（不动各行状态/留痕/截止），模板 + 实例逐行 upsert。
+ * @returns 同步的总行数（模板 1 + 命中实例数），供保存提示展示
+ */
+async function applySeriesConfigSync(templateKey: string, config: Record<string, unknown>): Promise<number> {
+  const now = moment().format('YYYY-MM-DD HH:mm:ss');
+  const patch = { ...config, updateTime: now };
+  const readRows = async (sql: string, params: unknown[]): Promise<any[]> => {
+    const res: any = await window.ipcRenderer.handlePromise('new-sql:read', { sql, params });
+    return res?.success ? res.data || [] : [];
+  };
+  const upsertRow = (row: any) =>
+    window.ipcRenderer.handlePromise('new-sql:upsert', {
+      tableName: 'todo_list',
+      data: row,
+      config: { primaryKey: 'key' },
+    });
+  let count = 0;
+  const tpl = await readRows('SELECT * FROM todo_list WHERE key = ?', [templateKey]);
+  if (tpl[0]) {
+    await upsertRow({ ...tpl[0], ...patch });
+    count++;
+  }
+  const instances = await readRows('SELECT * FROM todo_list WHERE recurrenceId = ?', [templateKey]);
+  for (const row of instances) {
+    await upsertRow({ ...row, ...patch });
+    count++;
+  }
+  console.info(`[todo] 系列配置同步：模板 ${templateKey}，共更新 ${count} 行`, patch);
+  return count;
+}
+
+/** 周几 JSON 的规范化比较形态（排序后逗号连接），避免顺序差异误判为变更 */
+function canonicalWeekdays(v: string | null | undefined): string {
+  try {
+    const arr = v ? (JSON.parse(v) as number[]) : [];
+    return [...arr].sort((a, b) => a - b).join(',');
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * 检测本次保存是否「重复字段变更」且被编辑的是系列成员（模板/实例）；
+ * 命中则返回 recurrence:sync 的系列同步载荷（目标模板 key + 新配置），否则返回 null。
+ * 规则被清空（改为不重复）时不同步：模板自身 rule=null 即停止生成，实例保留旧元数据即可。
+ */
+function buildSeriesConfigSync(parentData: TodoItem):
+  | { applyConfigTo: string; config: Record<string, unknown> }
+  | null {
+  const orig = originalTodo.value;
+  if (!orig || !parentData.recurrenceRule) return null;
+  // 系列成员：实例（recurrenceId 指向模板）或模板本身（rule 非空且非实例）
+  const isInstance = Number(orig.isRecurrenceInstance) === 1;
+  const isTemplate = !!(orig.recurrenceRule && !orig.recurrenceId && !isInstance);
+  if (!isInstance && !isTemplate) return null;
+  const templateKey = isInstance ? orig.recurrenceId || '' : orig.key;
+  if (!templateKey) return null;
+
+  const changed =
+    (orig.recurrenceRule || null) !== (parentData.recurrenceRule || null) ||
+    Math.max(1, Number(orig.recurrenceInterval) || 1) !== Number(parentData.recurrenceInterval) ||
+    canonicalWeekdays(orig.recurrenceWeekdays) !== canonicalWeekdays(parentData.recurrenceWeekdays) ||
+    (orig.recurrenceEnd || null) !== (parentData.recurrenceEnd || null) ||
+    (orig.recurrenceMode === 'on_complete' ? 'on_complete' : 'fixed') !==
+      (parentData.recurrenceMode === 'on_complete' ? 'on_complete' : 'fixed');
+  if (!changed) return null;
+
+  return {
+    applyConfigTo: templateKey,
+    config: {
+      recurrenceRule: parentData.recurrenceRule,
+      recurrenceInterval: parentData.recurrenceInterval,
+      recurrenceWeekdays: parentData.recurrenceWeekdays,
+      recurrenceEnd: parentData.recurrenceEnd,
+      recurrenceMode: parentData.recurrenceMode === 'on_complete' ? 'on_complete' : 'fixed',
+    },
+  };
 }
 
 function handleClose() {
