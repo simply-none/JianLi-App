@@ -78,6 +78,9 @@
 48. **Vite 6→8 升级可行性已评估，暂不执行**：`vite build` 的 `Unknown input/output options: platform/codeSplitting` 警告属 `vite-plugin-electron@1.1.2` 兼容层缺陷（Rollup 忽略未知选项，功能无影响，纯噪声）。兼容矩阵已核实（仅 `vite.config.ts` 2 处 `rollupOptions`→`rolldownOptions` + `plugin-vue` 升 6.x）。**🗓 决策：用户选择「先不动」**——警告无害，勿擅自升级 Vite 或加 `onwarn`；待有其它理由动构建链时一并处理。
 49. **打包体积审计：`dependencies` 归位是 Setup.exe 瘦身大头**：机制 `external` = `Object.keys(pkg.dependencies)` 全量 + electron-builder 按 `dependencies` 递归闭包收集 node_modules（与 `files` 无关）→ 渲染端专用包写在 `dependencies` 整包进 app。**已实施**：13 个渲染端专用包 `dependencies`→`devDependencies`（@dagrejs/dagre、@lucide/vue、@vue-flow/*、diff、epubjs、jsqr、jszip、pdfjs-dist、qr-code-styling 等），`dependencies` 剩 14 个主进程必需。⚠️ `sherpa-onnx-node`(+win-x64) 被运行时 `createRequire().resolve` 动态解析，必须留 `dependencies`（TTS 缺即哑）；pdfjs-dist 移走后 `@napi-rs/canvas` 链自动消失。打包后验证：主进程能起、PDF/TTS 正常、`resources/app/node_modules` 里 pdfjs-dist/@napi-rs/@lucide 已消失。
 
+50. **字符串拼 SQL 时 OR 条件组必须整体加括号再与 AND 组合**：可归类笔记重构曾把标签条件以裸 `a OR b` 与关键词 AND 相接 → `kw AND a OR b` 因优先级 = `(kw AND a) OR b`，仅含标签 b 的笔记绕过关键词筛选（单标签时不带括号恰好没错，**多标签才炸，极易漏测**）。修法：`conditions.push('(' + ors.join(' OR ') + ')')`；断言脚本用多标签 + 关键词组合用例覆盖。
+51. **`defineExpose` 的方法依赖模板 `ref` 绑定，声明了 ref 忘绑 `ref="xxx"` 不报错、静默 `undefined`**：可归类笔记重构中父组件声明 `detailPanelRef` 但模板漏绑，脏数据守卫 `detailPanelRef.value?.isDirty()` 永远 undefined → 守卫静默失效。凡是「子组件 expose 守卫/校验函数、父级调用决定流程」的结构，vue-tsc 不会抓，须人工核对模板绑定（或父级降级为「未挂载即视为脏」的保守默认）。
+
 ## 维护建议
 - 每次大改动后更新对应 `references/modules/*.md` 与 `risks.md`，保持 skill 与代码同步。
 - skill 内容会随代码演进过时，把它作为「项目知识基线」，发现不符就改。

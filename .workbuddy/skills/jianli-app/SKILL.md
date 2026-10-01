@@ -70,6 +70,8 @@ agent_created: true
 ### 变更里程碑（现状 + 关键决策）
 > 按功能归并；详细的逐轮调试 / 补丁过程见各模块文档与 `risks.md`，此处只留「当前状态 + 关键架构决策」。
 
+- **可归类笔记 UI/交互重构（categorizable-notes）**：卡片网格 + 详情弹窗 → **三栏主从布局**（TagSidebar 标签导航 / NoteListPanel 搜索+行式列表+无限滚动 / NoteDetailPanel 右栏内联查看·编辑），**编辑不再弹窗**；新增脏数据守卫（切换/取消先确认丢弃）与 Ctrl+S / Esc 快捷键；数据出口收敛到 `composables/useNotes.ts`（IPC 契约、表结构、标签 store 均不变）。零主进程改动。沙箱自证：vue-tsc 全绿 + SFC 编译 + 图标登记扫描 + 数据层真实源码断言（25 条，抓到 SQL OR 组缺括号优先级 bug）。交互/视觉/26 主题须本地 `npm run dev` 实机确认。详见 `references/modules/categorizable-notes.md`。
+
 - **思维导图（mindmap）**：P0–P13 全部落地（撤销重做 / JSON·MD 导入导出 / 六向布局 / 搜索定位 / 节点右键菜单 / 剪切粘贴子树 / 分支聚焦 / 大纲面板 / 框选多选 / 拖放换父 / 节点背景色·文字色·图标·超链接 / MiniMap / SVG·PNG 导出 / XMind·FreeMind·OPML 互操作 / 待办·笔记·主题对话一键生成 / 字体字号版式）。全程零主进程改动、零新依赖（MiniMap 自研，未装 `@vue-flow/minimap`）。核心决策：① **树是唯一真源、坐标只派生绝不落库**（换布局零数据迁移）；② 撤销埋点只在 `useMindDoc.commit()` 一处；③ 分支 / 背景 / 文字 / 图标色只存 key，用主题令牌 + `color-mix()` 派生（26 套主题自适应）；④ 导出从「树 + 布局」直出 SVG，颜色过 `resolveCssColor()` 折算 sRGB；⑤ 右键菜单独立组件 `Teleport to="body"`，只存视口坐标，关闭用 window 捕获阶段 `pointerdown` 判点外（避开「全屏遮罩关浮层」零坐标事件陷阱）；⑥ 工具条「滚动层」与「浮层」必须分层（`overflow-x:auto` ≠ 滚轮能滚，须手写 `onWheel`）。累计断言 400+（沙箱四板斧）。⚠️ 交互 / 视觉 / 26 主题观感须本地 `npm run dev` 实机确认。详见 `references/modules/mindmap.md`。
 
 - **剪贴板（clipboard）**：Electron 44 异步 Clipboard API 全面迁移（新增 `clipboardCompat.ts` 兼容层，业务侧 = 加 `await` + 换函数名）；性能根因修复——四层守卫（`readText()` → `availableFormats()` → `cheapImageKey()` 不编码 → 仅新图 `toDataURL()`）、`clipboard_history` 补 `idx_clipboard_create_time` 索引（列表 444ms → 15ms）、`newSql.ensureTableColumns` 加缓存、两处轮询加重入锁（`busy`/`polling`）。⚠️ 改主进程须重启。详见 `references/modules/clipboard.md` 与 `risks.md` #29。
