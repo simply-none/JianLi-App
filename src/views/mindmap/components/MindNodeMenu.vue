@@ -79,6 +79,22 @@
 
       <div class="mind-menu__sep" />
 
+      <!-- 视图与联动：聚焦分支 / 导出为待办 -->
+      <button
+        v-for="item in viewItems"
+        :key="item.key"
+        type="button"
+        class="mind-menu__item"
+        :disabled="item.disabled"
+        @click="run(item)"
+      >
+        <LucideIcon :name="item.icon" :size="14" class="mind-menu__icon" />
+        <span class="mind-menu__label">{{ item.label }}</span>
+        <span v-if="item.shortcut" class="mind-menu__shortcut">{{ item.shortcut }}</span>
+      </button>
+
+      <div class="mind-menu__sep" />
+
       <!-- 删除：单独一段，视觉上离开常用区 -->
       <button
         type="button"
@@ -98,7 +114,9 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch, type CSSProperties } from 'vue'
 
 import LucideIcon from '@/components/LucideIcon.vue'
+import { MIND_MENU_TEXT } from '../constants'
 import { useMindActions } from '../composables/useMindActions'
+import { useMindClipboard } from '../composables/useMindClipboard'
 import { useMindDoc } from '../composables/useMindDoc'
 import { useMindView } from '../composables/useMindView'
 import type { MindColorKey } from '../types'
@@ -126,6 +144,7 @@ interface MenuItem {
 const mind = useMindDoc()
 const view = useMindView()
 const actions = useMindActions()
+const clipboard = useMindClipboard()
 
 /** 当前被右键的节点；节点已被删掉时自动收菜单 */
 const node = computed(() => {
@@ -159,10 +178,32 @@ const structItems = computed<MenuItem[]>(() => [
   },
   {
     key: 'duplicate',
-    label: '复制节点',
+    label: MIND_MENU_TEXT.copy,
     icon: 'Copy',
     run: id => {
       mind.duplicateById(id)
+    },
+  },
+  {
+    key: 'cut',
+    label: MIND_MENU_TEXT.cut,
+    icon: 'Scissors',
+    shortcut: 'Ctrl + X',
+    // 根是文档本体，剪掉就没有图了（与「删除」同一条底线）
+    disabled: isRoot.value,
+    run: id => {
+      clipboard.cut(id)
+    },
+  },
+  {
+    key: 'paste',
+    label: MIND_MENU_TEXT.paste,
+    icon: 'ClipboardPaste',
+    shortcut: 'Ctrl + V',
+    // 剪贴板为空时点了没有任何反应，不如直接置灰（也顺带告诉用户「现在粘不了」）
+    disabled: !clipboard.hasClipboard.value,
+    run: id => {
+      clipboard.paste(id)
     },
   },
   {
@@ -202,6 +243,42 @@ const deleteItem = computed<MenuItem>(() => ({
   // 与工具条按钮、Delete 快捷键走的是同一条路径，不会出现行为漂移。
   run: () => void actions.deleteSelected(),
 }))
+
+/**
+ * 分支聚焦：把该子树当作整张图来渲染。
+ *
+ * 同一个入口一进一出（标签随状态切换）—— 聚焦后再右键同一个节点，
+ * 用户期望的必然是「退出」，而不是「再聚焦一次」。
+ * ⚠️ `focused` 必须在 computed 里算好、由闭包捕获：`run()` 会**先关菜单再执行**，
+ *    那时若再去读 `focusRootId` 也还好（它不随菜单关闭而变），但读 menuNodeId 就读不到了。
+ *    与坑 37 同一条纪律：动作所需的信息一律在关菜单之前取出。
+ */
+const focusItem = computed<MenuItem>(() => {
+  const id = view.menuNodeId.value
+  const focused = Boolean(id) && view.focusRootId.value === id
+  return {
+    key: 'focus',
+    label: focused ? MIND_MENU_TEXT.unfocus : MIND_MENU_TEXT.focus,
+    icon: 'Crosshair',
+    // 聚焦根节点 = 聚焦整张图，没有意义，置灰
+    disabled: isRoot.value,
+    run: target => (focused ? view.exitFocus() : view.enterFocus(target)),
+  }
+})
+
+/**
+ * 导出为待办：把该子树（文本 → 标题、备注 → 描述、父子 → parentIds）一次性写进 `todo_list`。
+ * 带确认与结果汇报，策略全在 `useMindActions.exportSubtreeToTodos` 里（只有一份）。
+ */
+const exportTodosItem = computed<MenuItem>(() => ({
+  key: 'export-todos',
+  label: MIND_MENU_TEXT.exportTodos,
+  icon: 'ListPlus',
+  run: target => void actions.exportSubtreeToTodos(target),
+}))
+
+/** 「视图与联动」一段的两项：与 structItems 共用同一套 MenuItem 契约，模板里一个 v-for 渲染 */
+const viewItems = computed<MenuItem[]>(() => [focusItem.value, exportTodosItem.value])
 
 /**
  * 执行一条菜单项：**先取出 id，再收菜单，最后执行**。

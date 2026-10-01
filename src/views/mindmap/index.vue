@@ -12,7 +12,11 @@
       @open-generate="showGenerate = true"
     />
 
-    <MindCanvas ref="canvasRef" class="mindmap-page__canvas" />
+    <!-- 主体：左侧大纲（可开合）+ 右侧画布。大纲与画布共用同一份树，不是两份数据 -->
+    <div class="mindmap-page__body">
+      <MindOutline v-if="view.outlineOpen.value" />
+      <MindCanvas ref="canvasRef" class="mindmap-page__canvas" />
+    </div>
 
     <MindDocDialog v-model="showDocs" />
     <!-- 节点属性弹窗自己按单例里的 nodePanelId 决定开关，不需要父级传 v-model -->
@@ -30,16 +34,18 @@
  * 一层不越界：布局算法不认识 vue-flow，vue-flow 不认识数据库，
  * 所以将来换布局（鱼骨图 / 组织结构图）或换渲染层都不需要动数据。
  */
-import { onMounted, onUnmounted, ref } from 'vue'
+import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 
 import MindCanvas from './components/MindCanvas.vue'
 import MindDocDialog from './components/MindDocDialog.vue'
 import MindGenerateDialog from './components/MindGenerateDialog.vue'
 import MindHelpDialog from './components/MindHelpDialog.vue'
 import MindNodeDialog from './components/MindNodeDialog.vue'
+import MindOutline from './components/MindOutline.vue'
 import MindToolbar from './components/MindToolbar.vue'
 import { useMindActions } from './composables/useMindActions'
 import { useMindShortcuts } from './composables/useMindShortcuts'
+import { useMindView } from './composables/useMindView'
 
 const showDocs = ref(false)
 const showHelp = ref(false)
@@ -49,6 +55,7 @@ const showGenerate = ref(false)
 const canvasRef = ref<InstanceType<typeof MindCanvas> | null>(null)
 
 const actions = useMindActions()
+const view = useMindView()
 
 /**
  * 快捷键只在页面存活期间监听 window。
@@ -62,6 +69,23 @@ const shortcuts = useMindShortcuts({
 
 onMounted(() => shortcuts.attach())
 onUnmounted(() => shortcuts.detach())
+
+/**
+ * 大纲开合后画布宽度变了，需要重新适应一次内容。
+ *
+ * 只调 `fit()`（fitView）而**不**请求重排：节点的坐标由算法按树算，
+ * 与画布多宽无关 —— 重排纯属浪费，还会把用户手动拖过的节点重新摆一遍。
+ *
+ * 必须在 `nextTick()` 之后：Vue 的 DOM 更新排在微任务里，
+ * 立刻测量到的是**旧宽度**（坑 43：写完响应式样式就读几何 = 读到上一帧）。
+ */
+watch(
+  () => view.outlineOpen.value,
+  async () => {
+    await nextTick()
+    canvasRef.value?.fit()
+  },
+)
 </script>
 
 <style scoped lang="scss">
@@ -74,8 +98,14 @@ onUnmounted(() => shortcuts.detach())
   background: var(--bg-base);
 }
 
-.mindmap-page__canvas {
+.mindmap-page__body {
+  display: flex;
   flex: 1;
   min-height: 0;
+}
+
+.mindmap-page__canvas {
+  flex: 1;
+  min-width: 0;
 }
 </style>

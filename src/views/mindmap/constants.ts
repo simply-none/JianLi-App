@@ -42,6 +42,22 @@ export const NODE_MIN_WIDTH = 72
 export const NODE_MAX_WIDTH = 264
 export const NODE_MIN_HEIGHT = 34
 
+/**
+ * 节点图标（emoji）占用的水平宽度 —— 含它右侧的间距。
+ * ⚠️ 与 `MindNode.vue` 里 `.mind-node__icon` 的 `font-size` + `gap` 存在**数值耦合**：
+ *    图标盒 18px + 与文本之间 6px = 24px。只改一侧会让首帧估算与实测差出 24px。
+ */
+export const NODE_ICON_WIDTH = 24
+
+/** 节点图标最多允许的**码点数**（emoji 是代理对，不能用 `.length` 数） */
+export const MAX_ICON_CODEPOINTS = 4
+
+/** 链接长度上限（防御性） */
+export const MAX_LINK_LEN = 500
+
+/** 单次「导出为待办」最多生成多少条（超出截断，避免一次写爆待办表） */
+export const MAX_EXPORT_TODOS = 200
+
 /** 内边距（节点盒） */
 export const NODE_PADDING_X = 14
 export const NODE_PADDING_Y = 8
@@ -56,6 +72,14 @@ export const V_GAP = 12
 export const VERT_SIBLING_GAP = 24
 /** `down` 布局：层级之间的垂直间距 */
 export const VERT_LEVEL_GAP = 44
+/** 鱼骨图：主干上相邻两根支骨的起点间距 */
+export const FISHBONE_GAP = 120
+/** 鱼骨图：支骨的竖直投影长度（斜率 45° ⇒ 水平投影同值） */
+export const FISHBONE_RISE = 96
+/** 时间轴：主轴相邻两个里程碑的间距 */
+export const TIMELINE_GAP = 132
+/** 时间轴：一层节点离主轴的竖直距离（上/下交错） */
+export const TIMELINE_OFFSET = 64
 
 /**
  * 首帧尺寸估算参数（实测尺寸就绪前的兜底）。
@@ -65,6 +89,20 @@ export const VERT_LEVEL_GAP = 44
  */
 export const ESTIMATE = {
   asciiRatio: 0.55,
+  /**
+   * **默认字号（13px）下的单行行高估计值**。
+   *
+   * ⚠️ 它不是一个「干净」的数（`line-height: 1.4` 推算出来应该是 18.2），
+   *    而是**含了节点 1px 上下边框补偿**的经验值：实测 `.mind-node` 的 `offsetHeight`
+   *    = 上下内边距 16 + 上下边框 2 + 行盒 1.4×字号 ⇒ 默认态 36.2 → 36，
+   *    而 `ceil(lineHeight + paddingY×2)` 用 20 恰好也得到 36 ⇒ **默认态估算与实测逐像素相等**。
+   *    若改成 1.4×字号，默认态反而会少 1~2px（丢失了那 2px 边框）。
+   *    （对照断言见 `C:\src\tmp\mm_fontsync_test.cjs` 的 E 组：估算 vs 真实 `offsetHeight`。）
+   *
+   * 消费侧（`utils/measure.ts`）会按 `字号 / DEFAULT_FONT_SIZE` **等比缩放**它 ——
+   * 所以它恒等于「字号 = 13 时的行高」，改这个数只影响默认态。
+   * 估算只决定**首帧**观感，第二段布局一律用实测值，因此它不参与任何持久化数据。
+   */
   lineHeight: 20,
   minWidth: NODE_MIN_WIDTH,
   maxWidth: NODE_MAX_WIDTH,
@@ -72,12 +110,62 @@ export const ESTIMATE = {
   paddingY: NODE_PADDING_Y,
 } as const
 
-/** 各层级字号（与 MindNode.vue 的 CSS 同步） */
-export function fontSizeOf(level: number): number {
-  if (level <= 0) return 15
-  if (level === 1) return 13.5
-  return 13
+/* ------------------------------------------------------------------ 字号 */
+
+/**
+ * **基准字号（px）** = 二级及更深层级节点的字号；根 / 一级相对它各加一个固定增量。
+ *
+ * 为什么写成「基准 + 增量」而不是三档写死：字号要能**全图统一调**（画布右上角「设置」）。
+ * 写成增量后 `fontSizeOf(level, 13)` 恰好等于 15 / 13.5 / 13 —— 与改造前**逐像素一致**，
+ * 所以老数据零迁移，库里也不需要存一个「默认字号」占位。
+ */
+export const DEFAULT_FONT_SIZE = 13
+
+/** 基准字号的调整区间：再小读不清、再大节点之间会互相压 */
+export const MIN_FONT_SIZE = 10
+export const MAX_FONT_SIZE = 24
+
+/** 根 / 一级相对基准的增量（⇒ 默认态正好是 15 / 13.5） */
+const FONT_STEP_ROOT = 2
+const FONT_STEP_L1 = 0.5
+
+/** 字号档位元信息（UI 的滑块用；`step` 允许半档，避免只能整数级跳） */
+export const FONT_SIZE_RANGE = { min: MIN_FONT_SIZE, max: MAX_FONT_SIZE, step: 0.5 } as const
+
+/**
+ * 把任意输入夹进合法字号区间。
+ * ⚠️ 非有限数（含 `NaN` / `Infinity` / 字符串 / `undefined`）一律回落 `DEFAULT_FONT_SIZE` ——
+ *    这是**反序列化**（手改 JSON）与**调用方传参**共用的唯一一道闸，别在两处各写一份。
+ */
+export function clampFontSize(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_FONT_SIZE
+  return Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, value))
 }
+
+/**
+ * 各层级字号（与 `MindNode.vue` 的内联 `font-size` 同步）。
+ *
+ * @param level 可见树深度（根 = 0）
+ * @param base  文档级基准字号（`MindDocData.fontSize`）；缺省 / `undefined` = `DEFAULT_FONT_SIZE`
+ */
+export function fontSizeOf(level: number, base: number = DEFAULT_FONT_SIZE): number {
+  const size = clampFontSize(base)
+  if (level <= 0) return size + FONT_STEP_ROOT
+  if (level === 1) return size + FONT_STEP_L1
+  return size
+}
+
+/** 字体族字符串长度上限（防御性：挡住手改 JSON 塞进来的超长串） */
+export const MAX_FONT_FAMILY_LEN = 120
+
+/**
+ * 「跟随应用字体」的哨兵值（画布设置字体下拉的第一项）。
+ *
+ * ⚠️ 它**不会**被写进文档数据：`utils/tree.ts` 的 `normalizeFontFamily` 把它归一成
+ *    `undefined`，渲染侧于是完全不覆盖 `font-family`（继承应用的全局字体）。
+ *    选这个词是因为它同时是一条合法 CSS 关键字，语义不会歧义。
+ */
+export const FONT_INHERIT_VALUE = 'inherit'
 
 /** 各层级字重（与 MindNode.vue 的 CSS 同步） */
 export function fontWeightOf(level: number): number {
@@ -227,10 +315,25 @@ export const LAYOUT_OPTIONS: { value: MindLayoutDir; label: string }[] = [
   { value: 'right', label: '右向' },
   { value: 'left', label: '左向' },
   { value: 'down', label: '向下' },
+  { value: 'fishbone', label: '鱼骨' },
+  { value: 'timeline', label: '时间轴' },
 ]
 
 /** 合法布局方向集合（反序列化时用于校验） */
 export const LAYOUT_DIR_VALUES: MindLayoutDir[] = LAYOUT_OPTIONS.map((item) => item.value)
+
+/**
+ * 该方向的边是否画直线（而不是贝塞尔）。
+ * 鱼骨图的支骨是**斜直线**，用贝塞尔会把「骨」画弯，一眼就不像鱼骨了。
+ * ⚠️ 这个判断同时被画布（`useMindGraph` 的 edge.type）与 SVG 导出（`svgExport.curvePath`）
+ *    消费，改这里两处一起变，不会出现「屏幕上是斜线、导出变成弧线」。
+ */
+export function isStraightEdge(dir: MindLayoutDir): boolean {
+  return dir === 'fishbone'
+}
+
+/** 工具条「布局」分段按钮在窄窗口下需要换行，这里给出每行最多几个（纯展示用） */
+export const LAYOUT_BUTTONS_PER_ROW = 6
 
 /* ---------------------------------------------------------------- 快捷键 */
 
@@ -250,7 +353,7 @@ export interface MindShortcutHint {
  *    不存在「文档写了但没实现」或「改了按键忘了改说明」的问题。
  */
 export const SHORTCUT_HINTS: MindShortcutHint[] = [
-  { group: '节点', keys: '节点上右键', desc: '打开节点操作菜单（子节点 / 同级 / 复制 / 颜色…）' },
+  { group: '节点', keys: '节点上右键', desc: '打开节点操作菜单（子节点 / 同级 / 复制 / 剪切 / 颜色…）' },
   { group: '节点', keys: 'Tab', desc: '为选中节点添加子节点' },
   { group: '节点', keys: 'Enter', desc: '添加同级节点（根节点则添加子节点）' },
   { group: '节点', keys: 'F2 / 双击', desc: '重命名选中节点' },
@@ -258,6 +361,10 @@ export const SHORTCUT_HINTS: MindShortcutHint[] = [
   { group: '节点', keys: 'Space', desc: '折叠 / 展开选中节点' },
   { group: '节点', keys: '↑ / ↓', desc: '在兄弟节点间移动选中' },
   { group: '节点', keys: '← / →', desc: '跳到父节点 / 第一个子节点' },
+  { group: '节点', keys: 'Ctrl + C / X / V', desc: '复制 / 剪切子树、粘贴为选中节点的子节点（剪贴板跨文档共享）' },
+  { group: '节点', keys: '双击空白处', desc: '在最近的节点下新建子节点' },
+  { group: '节点', keys: 'Shift + 拖拽空白', desc: '框选多个节点（Delete 批量删除，色板批量改色）' },
+  { group: '节点', keys: '拖到目标节点上松手', desc: '把该节点（含子树）挂为目标节点的子节点' },
 
   { group: '文档', keys: 'Ctrl + S', desc: '保存到本地数据库' },
   { group: '文档', keys: 'Ctrl + Z', desc: '撤销' },
@@ -266,7 +373,47 @@ export const SHORTCUT_HINTS: MindShortcutHint[] = [
   { group: '视图', keys: 'Ctrl + F', desc: '打开 / 关闭节点搜索' },
   { group: '视图', keys: 'Ctrl + 0', desc: '画布适应内容' },
   { group: '视图', keys: 'Ctrl + A', desc: '折叠全部 / 再按展开全部' },
+  { group: '视图', keys: 'Ctrl + Shift + O', desc: '打开 / 关闭左侧大纲' },
 ]
 
 /** 分组标题的展示顺序（与 SHORTCUT_HINTS 的书写顺序一致） */
 export const SHORTCUT_GROUPS: string[] = ['节点', '文档', '视图']
+
+/* ---------------------------------------------------------------- 视图偏好 */
+
+/**
+ * MiniMap 开关的 localStorage 键。
+ * ⚠️ 刻意**不进 `mindmap` 表的数据**：缩略图开不开是「这台机器上我喜欢怎么看」，
+ *    不是文档内容 —— 同一份导图在别人的机器上应该按别人的偏好渲染。
+ *    这与 ebook 的阅读设置走 localStorage 是同一个惯例。
+ */
+export const MINIMAP_STORAGE_KEY = 'mindmap:minimap-open'
+
+/** 大纲面板宽度（px）；`index.vue` 的 flex 布局与开合动画都用它 */
+export const OUTLINE_WIDTH = 260
+
+/** 节点超过这个数量时，MiniMap 默认关闭（每个节点一个 rect，大图会明显掉帧） */
+export const MINIMAP_NODE_LIMIT = 300
+
+/**
+ * 跨窗口「待打开导图」的桥接键（写主进程 electron-store）。
+ *
+ * 命令面板跑在**独立小窗**里，两个窗口不共享 JS 运行时 —— 小窗没法直接调主窗口的
+ * `useMindView.requestOpen`。链路是：小窗 `setStore`（主进程 store 两个窗口共享）
+ * → 小窗发 `palette-navigate` 让主窗口切到导图页 → 导图页挂载时 `getStore` 取回 id。
+ * 全程复用现成的 `get-store` / `set-store` 通道，**零主进程改动**。
+ */
+export const OPEN_DOC_STORE_KEY = 'mindmap:open-doc'
+
+/* ---------------------------------------------------------------- 文案 */
+
+/** 右键菜单 / 大纲里共用的动作文案（多处引用，避免各写一份漂移） */
+export const MIND_MENU_TEXT = {
+  cut: '剪切',
+  copy: '复制节点',
+  paste: '粘贴为子节点',
+  focus: '聚焦此分支',
+  unfocus: '退出聚焦',
+  backToAll: '返回全图',
+  exportTodos: '导出为待办',
+} as const

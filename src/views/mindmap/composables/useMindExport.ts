@@ -14,6 +14,7 @@
  *    只有画布尚未同步（节点缺失）时才回落到 layoutTree 现算一遍，避免导出一坨叠在原点的方块。
  */
 
+import { nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useVueFlow } from '@vue-flow/core'
 
@@ -32,6 +33,7 @@ import {
 } from '../utils/svgExport'
 import { flattenVisible } from '../utils/tree'
 import { useMindDoc } from './useMindDoc'
+import { useMindView } from './useMindView'
 
 /** PNG 输出倍率：2 倍够清晰，又不至于把大图撑到几十 MB */
 const PNG_SCALE = 2
@@ -52,6 +54,10 @@ const FALLBACK = {
   noteBg: '#fdf3d8',
   noteBorder: '#d9ab3a',
   noteText: '#a8791a',
+  /* 链接徽标取不到时的兜底（信息蓝） */
+  linkBg: '#e3f0fd',
+  linkBorder: '#5aa2e0',
+  linkText: '#2b6cb0',
   foldBg: '#f2f2f2',
   foldBorder: '#d9d9d9',
   foldText: '#666666',
@@ -63,6 +69,7 @@ const FALLBACK = {
 
 export function useMindExport() {
   const mind = useMindDoc()
+  const view = useMindView()
   const { getNodes } = useVueFlow(MINDMAP_FLOW_ID)
 
   /* ---------------------------------------------------------- 主题色 */
@@ -105,10 +112,16 @@ export function useMindExport() {
       noteBg: cssColor(style, '--mm-note-bg', FALLBACK.noteBg),
       noteBorder: cssColor(style, '--mm-note-border', FALLBACK.noteBorder),
       noteText: cssColor(style, '--mm-note-text', FALLBACK.noteText),
+      linkBg: cssColor(style, '--mm-link-bg', FALLBACK.linkBg),
+      linkBorder: cssColor(style, '--mm-link-border', FALLBACK.linkBorder),
+      linkText: cssColor(style, '--mm-link-text', FALLBACK.linkText),
       foldBg: cssColor(style, '--mm-fold-bg', FALLBACK.foldBg),
       foldBorder: cssColor(style, '--mm-node-border', FALLBACK.foldBorder),
       foldText: cssColor(style, '--mm-fold-text', FALLBACK.foldText),
-      fontFamily: style.fontFamily || 'sans-serif',
+      // 字体族：**文档级字体优先**于 `.mind-canvas` 上算出来的那个。
+      // 因为节点是用内联 font-family 覆盖的，画布自身的 computed font-family 仍是应用字体 ——
+      // 直接读它会让「画布上换了字体、导出还是老字体」。
+      fontFamily: mind.doc.value.data.fontFamily || style.fontFamily || 'sans-serif',
       branch,
       tone,
       toneSoft,
@@ -129,7 +142,8 @@ export function useMindExport() {
     if (flat.some(item => !flowById.has(item.node.id))) {
       fallback = layoutTree(root, {
         direction: dir,
-        measure: (node, level) => estimateSize(node.text, level),
+        measure: (node, level) =>
+          estimateSize(node.text, level, node.icon, mind.fontSize.value),
       }).positions
     }
 
@@ -140,7 +154,8 @@ export function useMindExport() {
         flow && flow.dimensions.width && flow.dimensions.height
           ? { width: flow.dimensions.width, height: flow.dimensions.height }
           : undefined
-      const size = measured ?? estimateSize(item.node.text, item.level)
+      const size =
+        measured ?? estimateSize(item.node.text, item.level, item.node.icon, mind.fontSize.value)
       const position = flow?.position ?? fallback[item.node.id] ?? { x: 0, y: 0 }
 
       return {
@@ -159,11 +174,31 @@ export function useMindExport() {
         // 比走 flow data 更稳：画布尚未同步（flow 缺节点）时树里的值照样拿得到
         bg: item.node.bgColor,
         fg: item.node.textColor,
+        // 图标 / 链接同理直接读树（它们都是「本节点自己的东西」，没有继承语义）
+        icon: item.node.icon,
+        link: item.node.link,
         hasNote: Boolean(item.node.note),
         hasChildren: item.node.children.length > 0,
         collapsed: item.node.collapsed === true,
       }
     })
+  }
+
+  /**
+   * 导出前**临时退出分支聚焦**。
+   *
+   * 为什么必须退出而不是「照聚焦态导出」：`buildSceneNodes` 吃的是**画布实测节点**，
+   * 而聚焦态画布上只有那棵子树 ⇒ 直接导出会**静默只导出子树**，用户以为导出了整张图。
+   * 把「整图」的语义固定下来，比在导出管线里到处判聚焦安全得多。
+   *
+   * 退出聚焦会触发画布重排，所以这里等两帧再取场景 —— 即便还没排完，
+   * `buildSceneNodes` 也会回落到 `layoutTree` 现算坐标，不会导出空图。
+   */
+  async function prepareFullScene(): Promise<void> {
+    if (!view.focusRootId.value) return
+    view.exitFocus()
+    await nextTick()
+    await nextTick()
   }
 
   /** 生成当前图的 SVG（返回 undefined = 画布为空） */
@@ -172,6 +207,8 @@ export function useMindExport() {
     if (!nodes.length) return undefined
     return buildMindSvg(mind.layout.value, nodes, readTheme(), {
       title: mind.doc.value.name,
+      // 字号与画布同源（`mind.fontSize`）—— 否则改过字号后导出会比屏幕小一号
+      fontSize: mind.fontSize.value,
     })
   }
 
@@ -211,8 +248,9 @@ export function useMindExport() {
 
   /* -------------------------------------------------------------- 导出 */
 
-  /** 导出为 SVG（矢量，可继续编辑） */
-  function exportSvg(): boolean {
+  /** 导出为 SVG（矢量，可继续编辑）。聚焦态会先退出，保证导出的是**整张图** */
+  async function exportSvg(): Promise<boolean> {
+    await prepareFullScene()
     const built = buildSvg()
     if (!built) {
       ElMessage.warning('画布为空，没有可导出的内容')
@@ -227,6 +265,7 @@ export function useMindExport() {
 
   /** 导出为 PNG（同一份 SVG 栅格化，2 倍图） */
   async function exportPng(): Promise<boolean> {
+    await prepareFullScene()
     const built = buildSvg()
     if (!built) {
       ElMessage.warning('画布为空，没有可导出的内容')

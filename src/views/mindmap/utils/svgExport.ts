@@ -21,7 +21,7 @@
  *    同时允许注入 `measureText`，这样纯逻辑断言可以在 Node 里跑（见模块文档验证小节）。
  */
 
-import { MIND_COLORS, NODE_PADDING_X, fontSizeOf, fontWeightOf } from '../constants'
+import { MIND_COLORS, NODE_ICON_WIDTH, NODE_PADDING_X, fontSizeOf, fontWeightOf, isStraightEdge } from '../constants'
 import type { MindBranchColor, MindColorKey, MindLayoutDir, MindSide } from '../types'
 import { escapeXml } from './xml'
 
@@ -47,6 +47,10 @@ export interface SvgExportNode {
   bg?: MindColorKey
   /** 自定义文字色 key（未设 = 主题默认文字色） */
   fg?: MindColorKey
+  /** 节点图标（emoji）；未设则不画 */
+  icon?: string
+  /** 节点链接；只用于画一个徽标（导出的是静态图，点不开） */
+  link?: string
   hasNote: boolean
   hasChildren: boolean
   collapsed: boolean
@@ -66,6 +70,10 @@ export interface SvgTheme {
   noteBg: string
   noteBorder: string
   noteText: string
+  /** 链接徽标（与画布上的 `--mm-link-*` 对应） */
+  linkBg: string
+  linkBorder: string
+  linkText: string
   foldBg: string
   foldBorder: string
   foldText: string
@@ -94,6 +102,12 @@ export interface SvgBuildOptions {
   padding?: number
   /** 文档名，写进 `<title>`（无标题的 SVG 在部分工具里显示为空白） */
   title?: string
+  /**
+   * 文档级**基准字号**（`MindDocData.fontSize`）；缺省 = `DEFAULT_FONT_SIZE`。
+   * ⚠️ 必须与画布上的节点同源，否则会出现「屏幕一个字大、导出另一个字大」。
+   *    （与 `theme.fontFamily` 的分工：那个管字体族，这个管字号。）
+   */
+  fontSize?: number
   /** 文本测量函数（注入点；默认走离屏 canvas） */
   measureText?: (text: string, font: string) => number
 }
@@ -104,6 +118,8 @@ export interface SvgBuildOptions {
 const FOLD_RADIUS = 8
 /** 备注浮标半径（与 MindNode.vue 的 15px 圆钮对应） */
 const NOTE_RADIUS = 7.5
+/** 链接徽标半径（同 15px 圆钮） */
+const LINK_RADIUS = 7.5
 /** 节点圆角（与 MindNode.vue 的 border-radius: 10px 对应） */
 const NODE_RADIUS = 10
 /** 连线控制点的最小回旋半径（太小会拉成直角，太大又变成绕远） */
@@ -244,7 +260,15 @@ function edgeAnchors(
   }
 }
 
-/** 三次贝塞尔：左右类横向进出，`down` 纵向进出 */
+/**
+ * 连线路径。
+ * - 鱼骨图：**直线**（支骨本身就是一条斜直线，画成曲线就不像鱼骨了）；
+ * - `down`：纵向进出的贝塞尔；
+ * - 水平类：横向进出的贝塞尔。
+ *
+ * ⚠️ 判据来自 `constants.isStraightEdge()`，与画布上 `edge.type` 的取值同源 ——
+ *    否则会出现「屏幕上斜直线、导出变成弧线」这种两边不一致。
+ */
 function curvePath(
   dir: MindLayoutDir,
   x1: number,
@@ -252,6 +276,9 @@ function curvePath(
   x2: number,
   y2: number,
 ): string {
+  if (isStraightEdge(dir)) {
+    return `M ${round(x1)} ${round(y1)} L ${round(x2)} ${round(y2)}`
+  }
   if (dir === 'down') {
     const k = Math.max(MIN_CURVE, Math.abs(y2 - y1) * 0.5)
     return `M ${round(x1)} ${round(y1)} C ${round(x1)} ${round(y1 + k)}, ${round(x2)} ${round(y2 - k)}, ${round(x2)} ${round(y2)}`
@@ -305,6 +332,39 @@ export function buildMindSvg(
     `<rect x="0" y="0" width="${width}" height="${height}" fill="${theme.background}"/>`,
   )
 
+  /* -------------------------------------------------------- 骨架线层 */
+  /*
+    鱼骨图的**主轴**与时间轴的**里程碑短线**不是「节点之间的边」，而是布局自带的视觉骨架。
+    它们由「根 + 一层节点」现算即可，不需要额外的数据结构：
+      · 鱼骨：主轴 = 从根右缘到最右一根支骨起点的水平线（y 取根的中心）；
+      · 时间轴：每个一层节点在自己中心 x 上，从主轴拉到自己的中心 y。
+    两者都画在节点层**之下**（先 push ⇒ 后画的节点会盖住它们）。
+  */
+  const root = nodes.find(item => item.isRoot)
+  if (root && (dir === 'fishbone' || dir === 'timeline')) {
+    const axisY = root.y + root.height / 2
+    const level1 = nodes.filter(item => item.level === 1)
+    if (dir === 'fishbone' && level1.length) {
+      const endX = Math.max(...level1.map(item => item.x))
+      parts.push(
+        `<path d="M ${round(root.x + root.width + dx)} ${round(axisY + dy)} H ${round(endX + dx)}" fill="none" stroke="${theme.line}" stroke-width="1.5"/>`,
+      )
+    }
+    if (dir === 'timeline' && level1.length) {
+      const startX = root.x + root.width
+      const endX = Math.max(...level1.map(item => item.x + item.width))
+      parts.push(
+        `<path d="M ${round(startX + dx)} ${round(axisY + dy)} H ${round(endX + dx)}" fill="none" stroke="${theme.line}" stroke-width="1.5"/>`,
+      )
+      for (const item of level1) {
+        const cx = item.x + item.width / 2
+        parts.push(
+          `<path d="M ${round(cx + dx)} ${round(axisY + dy)} V ${round(item.y + item.height / 2 + dy)}" fill="none" stroke="${theme.line}" stroke-width="1"/>`,
+        )
+      }
+    }
+  }
+
   /* ------------------------------------------------------------ 连线 */
   for (const node of nodes) {
     if (!node.parentId) continue
@@ -337,7 +397,7 @@ export function buildMindSvg(
     const textFill = node.fg ? theme.tone[node.fg] : theme.nodeText
     const border =
       accent ?? (node.isRoot ? theme.rootBorder : node.level === 1 ? theme.l1Border : theme.nodeBorder)
-    const fontSize = fontSizeOf(node.level)
+    const fontSize = fontSizeOf(node.level, options.fontSize)
     const weight = fontWeightOf(node.level)
 
     parts.push(`<rect x="${round(x)}" y="${round(y)}" width="${round(node.width)}" height="${round(node.height)}" rx="${NODE_RADIUS}" fill="${bg}" stroke="${border}" stroke-width="1"/>`)
@@ -350,13 +410,23 @@ export function buildMindSvg(
     }
 
     // 文本：竖向居中，根节点水平居中、其余左对齐
+    // （有图标时根节点也改左对齐：图标已经占掉左侧，居中文本会跟它叠在一起）
+    const iconWidth = node.icon ? NODE_ICON_WIDTH : 0
     const font = `${weight} ${fontSize}px ${theme.fontFamily}`
-    const innerWidth = Math.max(node.width - NODE_PADDING_X * 2, fontSize)
+    const innerWidth = Math.max(node.width - NODE_PADDING_X * 2 - iconWidth, fontSize)
     const lines = wrapText(node.text, innerWidth, font, measure)
     const lineHeight = fontSize * 1.4
     const startY = y + node.height / 2 - (lines.length * lineHeight) / 2
-    const anchor = node.isRoot ? 'middle' : 'start'
-    const textX = node.isRoot ? x + node.width / 2 : x + NODE_PADDING_X
+    const centered = node.isRoot && !node.icon
+    const anchor = centered ? 'middle' : 'start'
+    const textX = centered ? x + node.width / 2 : x + NODE_PADDING_X + iconWidth
+
+    if (node.icon) {
+      parts.push(
+        `<text x="${round(x + NODE_PADDING_X)}" y="${round(y + node.height / 2)}" text-anchor="start" dominant-baseline="central" font-size="${fontSize + 2}">${escapeXml(node.icon)}</text>`,
+      )
+    }
+
     lines.forEach((line, index) => {
       const centerY = startY + lineHeight * (index + 0.5)
       parts.push(
@@ -402,6 +472,18 @@ export function buildMindSvg(
       )
       parts.push(
         `<path d="M ${round(cx - 3)} ${round(cy - 1.6)} H ${round(cx + 3)} M ${round(cx - 3)} ${round(cy + 1.6)} H ${round(cx + 1)}" fill="none" stroke="${theme.noteText}" stroke-width="1.1" stroke-linecap="round"/>`,
+      )
+    }
+
+    // 链接徽标：左上角（与备注浮标错开），画一个朝右上的箭头示意「外链」
+    if (node.link) {
+      const cx = x + 0.5
+      const cy = y + 0.5
+      parts.push(
+        `<circle cx="${round(cx)}" cy="${round(cy)}" r="${LINK_RADIUS}" fill="${theme.linkBg}" stroke="${theme.linkBorder}" stroke-width="1"/>`,
+      )
+      parts.push(
+        `<path d="M ${round(cx - 3)} ${round(cy + 3)} L ${round(cx + 3)} ${round(cy - 3)} M ${round(cx + 0.5)} ${round(cy - 3)} H ${round(cx + 3)} V ${round(cy - 0.5)}" fill="none" stroke="${theme.linkText}" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>`,
       )
     }
   }

@@ -23,8 +23,11 @@
  *      避免「导图里的 id 与业务表 id 混为一谈」，将来导入别的格式也不会撞车。
  */
 
+import moment from 'moment'
+import { v4 as uuidv4 } from 'uuid'
+
 import { noteTitle, stripHtml } from '@/utils/noteContent'
-import { MAX_NOTE_LEN } from '../constants'
+import { MAX_EXPORT_TODOS, MAX_NOTE_LEN } from '../constants'
 import type { MindNode } from '../types'
 import { markdownToTree } from './markdown'
 import { createNode } from './tree'
@@ -296,4 +299,133 @@ export function themesToTree(
   }
 
   return createNode(options.rootText.trim() || '主题对话', roots)
+}
+
+/* ============================================================ 反向：导图 → 待办 */
+
+/**
+ * 一条待办写入载荷。
+ *
+ * ⚠️ 字段与 `views/todoList/types.ts` 的 `TodoItem` **一一对应**
+ *    （读写都吃同一份表结构）。刻意不 import 那边的类型：
+ *    跨模块只走数据库、不走代码 —— 与「一键生成导图」只读 SELECT 是同一条边界约定。
+ */
+export interface TodoWritePayload {
+  key: string
+  title: string
+  description: string
+  /** 标签 key 列表的 JSON 字符串（这里恒为空数组） */
+  tags: string
+  completed: number
+  completedTime: string
+  priority: 'high' | 'medium' | 'low'
+  dueDate: string
+  status: string
+  deadlineReminder: number
+  remindCount: number
+  remindInterval: number
+  remindIntervalUnit: string
+  createTime: string
+  updateTime: string
+  /**
+   * 父任务 key 数组的 **JSON 字符串**（不是数组！）
+   * —— `views/todoList/api/todoApi.ts` 的 `parseParentIds` 是这一字段的权威读法：
+   *    它 `JSON.parse` 一个字符串，失败才退回旧的单值 `parentId`。
+   *    写成真数组会让那边的解析走到 catch 分支，层级直接丢光。
+   */
+  parentIds: string
+  sortOrder: number
+  recurrenceRule: string | null
+  recurrenceInterval: number
+  recurrenceWeekdays: string | null
+  recurrenceEnd: string | null
+  recurrenceId: string | null
+  isRecurrenceInstance: number
+}
+
+export interface TreeToTodosOptions {
+  /** key 生成器（注入点，纯逻辑断言里传确定性实现） */
+  makeKey?: () => string
+  /** 时间戳文案（注入点，同上） */
+  now?: string
+  /** 最多生成多少条（默认 `MAX_EXPORT_TODOS`） */
+  max?: number
+  /** 生成待办的优先级（v1 统一给一个值，不做映射） */
+  priority?: 'high' | 'medium' | 'low'
+}
+
+/**
+ * 导图子树 → 待办数组（**纯函数，不碰 IPC**）。
+ *
+ * 映射规则：
+ *   · 节点文本 → 待办标题；节点备注 → 待办描述；
+ *   · 父子结构 → `parentIds`，且**指向本次新生成的父待办 key**，
+ *     **绝不沿用导图节点 id**（与坑 32「不沿用来源表主键」是同一条红线的反向）。
+ *     被导出的那棵子树的根 ⇒ `parentIds: '[]'`（是根任务，不挂在任何外来父下）。
+ *   · 折叠态 / 三类颜色 / 图标 / 链接 / 手动坐标 **一律不映射** —— 待办表达不了，
+ *     硬塞进去只会污染待办数据。
+ *   · **空文本节点被跳过**，但它的子节点**不会跟着丢**：继续以「被跳过节点的父」为父
+ *     往下走一层，宁可少一层层级，也不要静默吞掉一整支。
+ *   · 超过 `max` 条直接截断（调用方在确认弹窗里已经告知了数量）。
+ *
+ * v1 **不做去重**：这是一次性导出，明确不同步、不记录映射关系。
+ * 半截的同步语义（改了导图待办不跟着变）比「明确的一次性导出」更难解释。
+ */
+export function treeToTodos(root: MindNode, options: TreeToTodosOptions = {}): TodoWritePayload[] {
+  const makeKey = options.makeKey ?? (() => uuidv4())
+  const now = options.now ?? moment().format('YYYY-MM-DD HH:mm:ss')
+  const max = options.max ?? MAX_EXPORT_TODOS
+  const priority = options.priority ?? 'medium'
+
+  const out: TodoWritePayload[] = []
+
+  const make = (title: string, description: string, parentKey: string | null, sortOrder: number) => {
+    out.push({
+      key: makeKey(),
+      title,
+      description,
+      tags: '[]',
+      completed: 0,
+      completedTime: '',
+      priority,
+      dueDate: '',
+      status: 'not_started',
+      deadlineReminder: 0,
+      remindCount: 1,
+      remindInterval: 30,
+      remindIntervalUnit: 'minute',
+      createTime: now,
+      updateTime: now,
+      parentIds: parentKey ? JSON.stringify([parentKey]) : '[]',
+      sortOrder,
+      recurrenceRule: null,
+      recurrenceInterval: 1,
+      recurrenceWeekdays: null,
+      recurrenceEnd: null,
+      recurrenceId: null,
+      isRecurrenceInstance: 0,
+    })
+    return out[out.length - 1]
+  }
+
+  /**
+   * 递归写入。`parentKey` 是**本次新建的父待办 key**（顶层为 null ⇒ 根任务）。
+   * 空文本节点只跳过自己，后代继续挂到它的父下 —— 不吞子树。
+   */
+  const walk = (node: MindNode, parentKey: string | null, sortOrder: number): void => {
+    if (out.length >= max) return
+    const title = node.text.trim().slice(0, MAX_NOTE_LEN)
+    if (!title) {
+      node.children.forEach((child, index) => walk(child, parentKey, sortOrder + index))
+      return
+    }
+    const created = make(title, node.note?.trim() ?? '', parentKey, sortOrder)
+    node.children.forEach((child, index) => {
+      if (out.length >= max) return
+      walk(child, created.key, index)
+    })
+  }
+
+  walk(root, null, 0)
+  return out
 }

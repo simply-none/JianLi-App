@@ -33,9 +33,18 @@
 <template>
   <div
     class="mind-node"
-    :class="[`mind-node--${levelClass}`, { 'is-selected': isSelected, 'is-editing': isEditing, nodrag: isEditing }]"
+    :class="[
+      `mind-node--${levelClass}`,
+      {
+        'is-selected': isSelected,
+        'is-primary': isPrimarySelection,
+        'is-drop-target': data.dropTarget === true,
+        'is-editing': isEditing,
+        nodrag: isEditing,
+      },
+    ]"
     :data-branch="data.branch || undefined"
-    :style="colorStyle"
+    :style="nodeStyle"
     @click.stop="onClick"
     @dblclick.stop="onDblClick"
     @contextmenu="onContextMenu"
@@ -51,6 +60,19 @@
       @pointerdown.stop
     >
       <LucideIcon name="StickyNotePlus" :size="10" />
+    </button>
+
+    <!-- 链接徽标：只有真正设了链接才出现；**点它才开链接**，单击节点仍是选中 / 拖动 -->
+    <button
+      v-if="data.hasLink"
+      type="button"
+      class="mind-node__link nodrag"
+      :title="data.link"
+      @click.stop="onOpenLink"
+      @dblclick.stop
+      @pointerdown.stop
+    >
+      <LucideIcon name="ExternalLink" :size="9" />
     </button>
 
     <!-- ---- 左右类布局的 Handle ---- -->
@@ -100,7 +122,11 @@
       @commit="onEditCommit"
       @cancel="onEditCancel"
     />
-    <span v-else class="mind-node__text">{{ data.text }}</span>
+    <template v-else>
+      <!-- 图标（emoji）：排在文本左侧，宽度已在 `measure.ts` 里计入估算 -->
+      <span v-if="data.icon" class="mind-node__icon">{{ data.icon }}</span>
+      <span class="mind-node__text">{{ data.text }}</span>
+    </template>
 
     <button
       v-if="foldOnRight"
@@ -161,7 +187,7 @@ import { computed, type CSSProperties } from 'vue'
 import { Handle, Position } from '@vue-flow/core'
 
 import LucideIcon from '@/components/LucideIcon.vue'
-import { HANDLE, branchVar, nodeHandles, toneSoftVar, toneVar } from '../constants'
+import { HANDLE, branchVar, fontSizeOf, nodeHandles, toneSoftVar, toneVar } from '../constants'
 import { useMindDoc } from '../composables/useMindDoc'
 import { useMindView } from '../composables/useMindView'
 import type { MindFlowNodeData, MindMenuAnchor } from '../types'
@@ -179,7 +205,15 @@ const props = defineProps<{
 const mind = useMindDoc()
 const view = useMindView()
 
-const isSelected = computed(() => mind.selectedId.value === props.id)
+const isSelected = computed(() => mind.selectedIds.value.has(props.id))
+/**
+ * 「主选中」：多选时有且仅有一个节点是主选中（`useMindDoc` 的不变式：
+ * 它是**最后进入集合的那个**）。给它一圈更亮的描边，让用户知道
+ * 「Tab / Enter / 粘贴」这些单节点操作会落在谁身上。
+ */
+const isPrimarySelection = computed(
+  () => isSelected.value && mind.selectedIds.value.size > 1 && mind.selectedId.value === props.id,
+)
 const isEditing = computed(() => mind.editingId.value === props.id)
 
 const isRoot = computed(() => props.data.isRoot)
@@ -188,7 +222,10 @@ const side = computed(() => props.data.side)
 /** 是否左右类布局（`down` 用上下 Handle，折叠钮也换边） */
 const horizontal = computed(() => props.data.dir !== 'down')
 
-/** 字号 / 字重档位，与 constants.fontSizeOf 的层级保持一致 */
+/**
+ * 层级档位类名 —— 只承载**字重 / 描边 / 底色**（字号已改为内联给出，见 `nodeStyle`）。
+ * 档位划分与 `constants.fontSizeOf` / `fontWeightOf` 的层级判断保持一致（根 / 一级 / 其余）。
+ */
 const levelClass = computed(() => {
   if (isRoot.value) return 'root'
   return props.data.level <= 1 ? 'l1' : 'l2'
@@ -235,9 +272,9 @@ const foldOnBottom = computed(() => props.data.hasChildren && !horizontal.value)
 /* ---------------------------------------------------- 分支色 / 背景 / 文字 */
 
 /**
- * 节点自定义外观：分支色 → 描边与色条；背景色 → 铺底；文字色 → 字色。
+ * 节点的**内联样式**（外观色 + 文档级版式）。
  *
- * 三者都只从 data 里拿到 **key**，这里映射成 CSS 变量：
+ * 一、颜色：三者都只从 data 里拿到 **key**，这里映射成 CSS 变量：
  *   `--mm-node-accent`     分支色实色（描边 + 左缘色条，旧行为）
  *   `--mm-node-bg-user`    背景色低透铺底
  *   `--mm-node-text-user`  文字色实色
@@ -249,13 +286,25 @@ const foldOnBottom = computed(() => props.data.hasChildren && !horizontal.value)
  *    `var(--mm-node-bg-user, var(--mm-root-bg))`）而不是直接覆盖 background：
  *    层级默认底色是按层级分档的（根 / 一级 / 更深各不相同），
  *    只有把默认值留在 fallback 位置，才能做到「没设背景色时完全维持原样」。
+ *
+ * 二、版式（字体 / 字号）：**直接写内联**，不是 CSS 变量。
+ *   - `font-size` 由 `fontSizeOf(level, doc.data.fontSize)` 算出。内联样式优先级高于
+ *     层级类（原先 `.mind-node--root { font-size: 15px }` 那一组已删掉），
+ *     所以「层级档位」只有这一处说了算；
+ *   - ⚠️ `utils/measure.ts` 的 `estimateSize` 用的是**同一个函数、同一个基准字号**
+ *     ⇒ 「首帧估算 == 实测」这条不变量在改过字号之后依然成立（否则画布会先跳一下）。
+ *   - `font-family` **只在文档设过时才写**；未设就不写 ⇒ 节点继承应用的全局字体
+ *     （写 `inherit` 也行，但「不写」少一个变量，且与「没设过」在 JSON 里同形）。
  */
-const colorStyle = computed<CSSProperties | undefined>(() => {
+const nodeStyle = computed<CSSProperties>(() => {
   const style: Record<string, string> = {}
   if (props.data.branch) style['--mm-node-accent'] = branchVar(props.data.branch)
   if (props.data.bg) style['--mm-node-bg-user'] = toneSoftVar(props.data.bg)
   if (props.data.fg) style['--mm-node-text-user'] = toneVar(props.data.fg)
-  return Object.keys(style).length ? (style as CSSProperties) : undefined
+  style.fontSize = `${fontSizeOf(props.data.level, mind.fontSize.value)}px`
+  const family = mind.fontFamily.value
+  if (family) style.fontFamily = family
+  return style as CSSProperties
 })
 
 /* --------------------------------------------------------------- 交互 */
@@ -331,6 +380,22 @@ function onOpenNote() {
   view.openNodePanel(props.id)
 }
 
+/**
+ * 打开链接：`window.open(url, '_blank')`。
+ *
+ * 与 `QrDropZone.vue` 完全一致的做法，**零主进程改动**
+ * （`remoteControl` 那条 `open-url` 是远程控制专用通道，不复用）。
+ *
+ * ⚠️ 这里再挡一次协议白名单：归一化时已经挡过（`utils/tree.ts` 的 `normalizeLink`），
+ *    但徽标是一个「把字符串交给浏览器执行」的出口，值得第二次校验 ——
+ *    数据可能来自导入、或将来某个没走 normalize 的写入口。
+ */
+function onOpenLink() {
+  const url = props.data.link
+  if (!url || !/^https?:\/\//i.test(url)) return
+  window.open(url, '_blank')
+}
+
 function onEditCommit(value: string) {
   mind.renameNode(props.id, value)
   mind.endEdit()
@@ -379,11 +444,17 @@ function onEditCancel() {
   pointer-events: none;
 }
 
-/* ---- 层级：根节点主色描边、一级节点淡主色底、更深的层级统一留白 ---- */
+/*
+  ---- 层级：根节点主色描边、一级节点淡主色底、更深的层级统一留白 ----
+
+  ⚠️ 这里**刻意不再写 `font-size`**：字号是「文档级可调」的（画布右上角「设置」），
+     由 `nodeStyle` 用 `fontSizeOf(level, doc.data.fontSize)` 以内联样式给出，
+     而内联优先级高于类选择器 ⇒ 留在这里就是**死代码**，还会误导人「改这里能改字号」。
+  （层级 → 字重的对应仍留在下面，与 `constants.fontWeightOf(level)` 一致。）
+*/
 .mind-node--root {
   border-color: var(--mm-node-accent, var(--mm-root-border));
   background: var(--mm-node-bg-user, var(--mm-root-bg));
-  font-size: 15px;
   font-weight: 600;
   text-align: center;
 }
@@ -391,12 +462,10 @@ function onEditCancel() {
 .mind-node--l1 {
   border-color: var(--mm-node-accent, var(--mm-l1-border));
   background: var(--mm-node-bg-user, var(--mm-l1-bg));
-  font-size: 13.5px;
   font-weight: 600;
 }
 
 .mind-node--l2 {
-  font-size: 13px;
   font-weight: 400;
 }
 
@@ -405,11 +474,36 @@ function onEditCancel() {
   box-shadow: 0 0 0 3px var(--mm-selected-glow);
 }
 
+/*
+  主选中（多选里最后点的那个）用**更亮的一圈**区分：
+  灰色多选环容易让人分不清「Tab 会加到谁下面」。三圈叠加的优先级靠后写。
+*/
+.mind-node.is-primary {
+  box-shadow: 0 0 0 3px var(--mm-selected-glow), 0 0 0 6px var(--mm-selected-glow);
+}
+
+/* 拖动中的「换父候选」高亮：用虚线环，与实线选中环区分开（它只是候选，还没发生） */
+.mind-node.is-drop-target {
+  border-color: var(--mm-selected-border);
+  box-shadow: 0 0 0 3px var(--mm-selected-glow);
+  outline: 2px dashed var(--mm-selected-border);
+  outline-offset: 3px;
+}
+
 .mind-node.is-editing {
   min-width: 150px;
   border-color: var(--mm-selected-border);
   box-shadow: 0 0 0 3px var(--mm-selected-glow);
   cursor: text;
+}
+
+/* 节点图标（emoji）：宽度与 constants.NODE_ICON_WIDTH 对应（18px 盒 + 6px 间距 = 24px） */
+.mind-node__icon {
+  flex: none;
+  width: 18px;
+  font-size: 15px;
+  line-height: 1;
+  text-align: center;
 }
 
 .mind-node__text {
@@ -463,7 +557,7 @@ function onEditCancel() {
   transform: translateX(-50%);
 }
 
-/* ---- 备注浮标 ---- */
+/* ---- 备注浮标（右上角） ---- */
 .mind-node__note {
   position: absolute;
   right: -7px;
@@ -484,6 +578,35 @@ function onEditCancel() {
 
   &:hover {
     background: var(--mm-note-bg-hover);
+    color: var(--mm-node-text-user, var(--mm-node-text));
+  }
+}
+
+/*
+  ---- 链接徽标（左上角） ----
+  与备注浮标错开：备注占右上、链接占左上，两个都设了也不会叠在一起。
+  与浮标一样是绝对定位，**不占布局空间** —— estimateSize 的估算宽度才等于真实宽度。
+*/
+.mind-node__link {
+  position: absolute;
+  left: -7px;
+  top: -7px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  border: 1px solid var(--mm-link-border);
+  border-radius: 50%;
+  background: var(--mm-link-bg);
+  color: var(--mm-link-text);
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+
+  &:hover {
+    background: var(--mm-link-bg-hover);
     color: var(--mm-node-text-user, var(--mm-node-text));
   }
 }

@@ -53,3 +53,24 @@ export async function queryTodoRows<T = Record<string, any>>(sql: string, params
     return []
   }
 }
+
+/**
+ * 思维导图文档查询：与笔记同款 `new-sql:query` 通道（顶层 SqlStr）。
+ *
+ * ⚠️ 表可能**还不存在**（用户从没保存过导图）：这时主进程会返回 success:false 或抛错，
+ *    两种情况都在这里收敛成空数组 —— 面板不该因为「一个还没用过的功能」而报错。
+ */
+export async function queryMindmapRows<T = Record<string, any>>(sql: string): Promise<T[]> {
+  try {
+    const result = await invoke<{ rows?: T[] } | T[]>('new-sql:query', {
+      tableName: 'mindmap',
+      SqlStr: sql,
+    })
+    if (!result?.success) return []
+    const data = (result as any).data
+    return (Array.isArray(data) ? data : []) as T[]
+  } catch (err) {
+    console.error('[commandPalette] 导图查询失败:', sql, err)
+    return []
+  }
+}

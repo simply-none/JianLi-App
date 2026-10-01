@@ -5,7 +5,7 @@
  */
 
 /** 命令项分类：决定分组标题、图标与右侧类型标签 */
-export type CommandType = 'route' | 'action' | 'note' | 'todo' | 'habit' | 'countdown'
+export type CommandType = 'route' | 'action' | 'note' | 'todo' | 'habit' | 'countdown' | 'mindmap'
 
 /** 面板执行动作时可用的上下文 */
 export interface CommandContext {

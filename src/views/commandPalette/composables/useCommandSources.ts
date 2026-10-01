@@ -5,13 +5,22 @@ import { noteSource } from '../sources/noteSource'
 import { todoSource } from '../sources/todoSource'
 import { habitSource } from '../sources/habitSource'
 import { countdownSource } from '../sources/countdownSource'
+import { mindmapSource } from '../sources/mindmapSource'
 import { MAX_TOTAL, SCOPE_PREFIX_MAP } from '../config/paletteConfig'
 
 /**
  * 数据源注册表。
  * 新增一个可搜索的模块：写好 source 后在这里加一行即可，面板本体不用改。
  */
-const REGISTRY: CommandSource[] = [routeSource, actionSource, noteSource, todoSource, habitSource, countdownSource]
+const REGISTRY: CommandSource[] = [
+  routeSource,
+  actionSource,
+  noteSource,
+  todoSource,
+  habitSource,
+  countdownSource,
+  mindmapSource,
+]
 
 export type SearchOptions = {
   /** 作用域前缀（'@' / '#' / '/' / '!'），为空表示搜索全部数据源 */

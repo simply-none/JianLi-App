@@ -17,8 +17,10 @@
  */
 
 import type { NavDirection } from '../utils/tree'
+import { useMindClipboard } from './useMindClipboard'
 import { useMindDoc } from './useMindDoc'
 import { useMindSearch } from './useMindSearch'
+import { useMindView } from './useMindView'
 
 export interface MindShortcutHandlers {
   /** Ctrl/Cmd + S：保存 */
@@ -38,9 +40,11 @@ function isTypingTarget(target: EventTarget | null): boolean {
 
 export function useMindShortcuts(handlers: MindShortcutHandlers) {
   const mind = useMindDoc()
-  // 撤销 / 重做 / 搜索都是「纯状态操作、没有确认策略」，直接在这里调；
+  // 撤销 / 重做 / 搜索 / 剪贴板都是「纯状态操作、没有确认策略」，直接在这里调；
   // 只有 删除 / 保存 / 适应画布 这些需要与工具条共享策略的才走 handlers。
   const search = useMindSearch()
+  const clipboard = useMindClipboard()
+  const view = useMindView()
 
   /** 折叠 / 展开选中节点 */
   function foldSelection() {
@@ -96,6 +100,39 @@ export function useMindShortcuts(handlers: MindShortcutHandlers) {
       if (key === 'f') {
         event.preventDefault()
         search.toggle()
+        return
+      }
+      /*
+        剪贴板三键：必须落在上面三道闸（IME / 内联编辑 / 输入控件）**之后** ——
+        否则在「文档名输入框」里按 Ctrl+C / Ctrl+V 会被我们抢走，
+        变成「复制不了自己刚输入的文档名」。位置放对了就不需要额外判断：
+        输入框里的按键在规则 2 就已经 return 了。
+      */
+      if (key === 'c') {
+        const id = mind.selectedId.value
+        if (!id) return
+        event.preventDefault()
+        clipboard.copy(id)
+        return
+      }
+      if (key === 'x') {
+        const id = mind.selectedId.value
+        if (!id) return
+        event.preventDefault()
+        // 剪切根节点没有语义（根是文档本体），静默忽略比弹提示更合适
+        clipboard.cut(id)
+        return
+      }
+      if (key === 'v') {
+        if (!clipboard.hasClipboard.value) return
+        event.preventDefault()
+        clipboard.paste()
+        return
+      }
+      // Ctrl + Shift + O：左侧大纲开关（避开 Ctrl+F / Ctrl+B 这些浏览器与应用占用）
+      if (event.shiftKey && key === 'o') {
+        event.preventDefault()
+        view.toggleOutline()
         return
       }
       return

@@ -5,8 +5,9 @@
 
 ## 关键文件
 - 小窗壳：`src/views/commandPalette/index.vue`（薄壳，仅挂 `CommandPalette`）
-- 核心：`src/views/commandPalette/CommandPalette.vue`、`composables/useCommandSources.ts`（`REGISTRY:13`）、`composables/useCommandPalette.ts`、`usePaletteKeyboard.ts`
-- 数据源：`src/views/commandPalette/sources/`（routeSource/actionSource/noteSource/todoSource/habitSource）
+- 核心：`src/views/commandPalette/CommandPalette.vue`、`composables/useCommandSources.ts`（`REGISTRY:15`，共 7 源）、`composables/useCommandPalette.ts`、`usePaletteKeyboard.ts`
+- 数据源：`src/views/commandPalette/sources/`（routeSource / actionSource / noteSource / todoSource / habitSource / countdownSource / mindmapSource）
+  - `mindmapSource`（id `mindmap`）：查 `mindmap` 表（type='mindmap'、name LIKE），命中项 run = 写主进程 store `OPEN_DOC_STORE_KEY`（`mindmap:open-doc`）+ `navigate('mindmap')`。命令面板跑在独立小窗、与主窗口不共享 JS 运行时，故跨窗只能靠 `get/set-store` 桥接；主窗口导图页在 `useMindActions.bootstrap()` 里一次性消费该值（详见 `mindmap.md` P13）。
 - 配置：`src/views/commandPalette/config/paletteConfig.ts`（`WINDOW_NAME='commandPaletteMiniWindow':4`、`DEFAULT_SHORTCUT='Ctrl+Space':10`、`SCOPE_PREFIX_MAP:37`）
 - 类型/util：`types.ts`、`utils/db.ts`、`utils/score.ts`、`utils/text.ts`
 
@@ -19,7 +20,8 @@
 - 快捷键触发：主进程 `registerShortcut.ts:353` 的 `open_command_palette` 类型 → `createOtherWindow('commandPaletteMiniWindow', {...,mouseEvents:true}:223)`
 
 ## 复用 / 集成点
-- **命令面板 REGISTRY**：新增可搜索模块只需在 `useCommandSources.ts:13` 的 `REGISTRY` 数组追加一个 `CommandSource`，面板本体不动（仿 habit 链式动作注册表模式）。
+- **命令面板 REGISTRY**：新增可搜索模块只需在 `useCommandSources.ts:15` 的 `REGISTRY` 数组追加一个 `CommandSource`，面板本体不动（仿 habit 链式动作注册表模式）。
+- **新增 source 还要同步三处配置**：① `types.ts` 的 `CommandType` 加类型字面量；② `config/paletteConfig.ts` 的 `TYPE_META` 加 `{label,color}`（否则命中项无标签/颜色）；③ 若挂到某作用域前缀，`SCOPE_PREFIX_MAP['/']` 里追加其 id。mindmap 即按此三处接入（`TYPE_META.mindmap = {label:'导图', color:'var(--color-primary)'}`）。
 - **小窗四件套**：配置在 `windowSections.ts:250`（key=`commandPalette`）。注意主进程 `DEFAULT_COMMAND_PALETTE_CONFIG` 兜底尺寸 640×460，因为 `createOtherWindow` 默认只有 108×81。
 - **被快捷键注册页纳管**：`registerShortcut` 里有 `commandPaletteShortcut`（type=`open_command_palette`）。
 

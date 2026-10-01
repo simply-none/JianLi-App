@@ -29,6 +29,7 @@ export const TYPE_META: Record<CommandType, { label: string; color: string }> = 
   todo: { label: '待办', color: 'var(--color-warning)' },
   habit: { label: '习惯', color: 'var(--color-error)' },
   countdown: { label: '倒计时', color: 'var(--color-primary)' },
+  mindmap: { label: '导图', color: 'var(--color-primary)' },
 }
 
 /**
@@ -38,7 +39,7 @@ export const TYPE_META: Record<CommandType, { label: string; color: string }> = 
 export const SCOPE_PREFIX_MAP: Record<string, string[]> = {
   '@': ['note'],
   '#': ['todo'],
-  '/': ['route', 'action'],
+  '/': ['route', 'action', 'mindmap'],
   '!': ['habit'],
   '>': ['countdown'],
 }

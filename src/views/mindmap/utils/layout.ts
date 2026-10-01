@@ -23,7 +23,16 @@
  * 而「整理布局」（清掉所有 pos）可一键回到纯自动排版。
  */
 
-import { H_GAP, VERT_LEVEL_GAP, VERT_SIBLING_GAP, V_GAP } from '../constants'
+import {
+  FISHBONE_GAP,
+  FISHBONE_RISE,
+  H_GAP,
+  TIMELINE_GAP,
+  TIMELINE_OFFSET,
+  VERT_LEVEL_GAP,
+  VERT_SIBLING_GAP,
+  V_GAP,
+} from '../constants'
 import type {
   MindLayoutDir,
   MindNode,
@@ -84,27 +93,178 @@ export function layoutTree(root: MindNode, options: LayoutOptions): LayoutResult
     return size
   }
 
+  /** 水平方向上的子树宽度：`自身宽 + (有子节点时 H_GAP + 最宽的那一支)` */
+  const subtreeWidthRight = (node: MindNode): number => {
+    const children = visibleChildren(node)
+    const own = sizeOf(node).width
+    if (!children.length) return own
+    const widest = Math.max(...children.map(subtreeWidthRight))
+    return own + H_GAP + widest
+  }
+
+  /**
+   * 垂直方向上的子树高度（水平族布局用来给兄弟分槽位）。
+   * 水平类布局与鱼骨图共用同一份计算，避免两处实现漂移。
+   */
+  const subtreeHeights = new Map<string, number>()
+  const subtreeHeightOf = (node: MindNode): number => {
+    const cached = subtreeHeights.get(node.id)
+    if (cached !== undefined) return cached
+    const children = visibleChildren(node)
+    let height = sizeOf(node).height
+    if (children.length) {
+      let stacked = 0
+      children.forEach((child, index) => {
+        stacked += subtreeHeightOf(child) + (index ? V_GAP : 0)
+      })
+      height = Math.max(height, stacked)
+    }
+    subtreeHeights.set(node.id, height)
+    return height
+  }
+
+  /** 垂直方向上的子树宽度（`down` 类堆叠用；时间轴的后代按向下子树摆） */
+  const subtreeWidthDown = (node: MindNode): number => {
+    const children = visibleChildren(node)
+    let width = sizeOf(node).width
+    if (children.length) {
+      let stacked = 0
+      children.forEach((child, index) => {
+        stacked += subtreeWidthDown(child) + (index ? VERT_SIBLING_GAP : 0)
+      })
+      width = Math.max(width, stacked)
+    }
+    return width
+  }
+
+  /**
+   * 从 `node` 起，把它**后代**按水平类语义向右递归（`node` 自身坐标已定）。
+   * 与水平类的 `place` 是同一套堆叠规则，只是不给 `node` 写坐标 ——
+   * 鱼骨图的支骨末端、以及子节点都由调用方先定好位置。
+   */
+  const spreadRight = (node: MindNode, centerX: number, centerY: number) => {
+    const children = visibleChildren(node)
+    if (!children.length) return
+    const size = sizeOf(node)
+    const total = children.reduce(
+      (sum, child, index) => sum + subtreeHeightOf(child) + (index ? V_GAP : 0),
+      0,
+    )
+    let offset = -total / 2
+    for (const child of children) {
+      const height = subtreeHeightOf(child)
+      const childSize = sizeOf(child)
+      const own: MindPoint = child.pos ?? {
+        x: centerX + size.width / 2 + H_GAP,
+        y: centerY + offset + height / 2 - childSize.height / 2,
+      }
+      positions[child.id] = own
+      sides[child.id] = 'right'
+      spreadRight(child, own.x + childSize.width / 2, own.y + childSize.height / 2)
+      offset += height + V_GAP
+    }
+  }
+
+  /**
+   * 从 `node` 起，把它**后代**按 `down` 语义向下堆叠（node 自身坐标已定）。
+   * 与 `placeDown` 的唯一区别：本函数不给 `node` 写坐标。
+   */
+  const placeDescendantsDown = (node: MindNode, centerX: number, bottomY: number) => {
+    const children = visibleChildren(node)
+    if (!children.length) return
+    const total = children.reduce(
+      (sum, child, index) => sum + subtreeWidthDown(child) + (index ? VERT_SIBLING_GAP : 0),
+      0,
+    )
+    let cursor = centerX - total / 2
+    for (const child of children) {
+      const width = subtreeWidthDown(child)
+      const size = sizeOf(child)
+      const own: MindPoint = child.pos ?? {
+        x: cursor + width / 2 - size.width / 2,
+        y: bottomY + VERT_LEVEL_GAP,
+      }
+      positions[child.id] = own
+      sides[child.id] = 'right'
+      placeDescendantsDown(child, own.x + size.width / 2, own.y + size.height)
+      cursor += width + VERT_SIBLING_GAP
+    }
+  }
+
+  /**
+   * 鱼骨图（v1）。
+   *
+   * 结构：一条**主轴**从根节点右缘向右延伸，一层子节点沿主轴**交替**挂在上下两侧，
+   * 每根支骨是一条**斜直线**（`isStraightEdge('fishbone') === true`，画布与 SVG 导出一致）；
+   * 二层及以上作为该支骨的子树，沿用水平类的「垂直堆叠」递归。
+   *
+   * 已知取舍（v1 刻意接受的简化，写在这里以免将来被当成 bug）：
+   *   · 支骨的竖直投影取**常量** `FISHBONE_RISE`，斜率随节点序号略有变化，不是严格 45°。
+   *     严格 45° 会把后面的支骨越拉越远，反而更难读。
+   *   · 子树以支骨末端为中心上下堆叠，深层子树（总高 > 2×RISE）会贴近主轴。
+   *     鱼骨图本来就是「一层看全局」的视图，深层请配合折叠使用。
+   */
+  if (direction === 'fishbone') {
+    const rootSize = sizeOf(root)
+    const rootPos: MindPoint = root.pos ?? { x: 0, y: -rootSize.height / 2 }
+    positions[root.id] = rootPos
+    sides[root.id] = 'right'
+    const spineY = rootPos.y + rootSize.height / 2
+
+    let cursor = rootPos.x + rootSize.width + H_GAP
+    visibleChildren(root).forEach((child, index) => {
+      const size = sizeOf(child)
+      const up = index % 2 === 0
+      const own: MindPoint = child.pos ?? {
+        x: cursor,
+        y: spineY + (up ? -FISHBONE_RISE : FISHBONE_RISE) - size.height / 2,
+      }
+      positions[child.id] = own
+      sides[child.id] = 'right'
+      spreadRight(child, own.x + size.width / 2, own.y + size.height / 2)
+      cursor += subtreeWidthRight(child) + FISHBONE_GAP
+    })
+
+    return { positions, sides, levels }
+  }
+
+  /**
+   * 时间轴（v1）。
+   *
+   * 结构：根在起点，主轴水平向右；一层节点沿主轴依次排开、**上下交错**
+   * （像里程碑带上交替的标签位）；三层及以上作为一层节点的**向下子树**堆叠。
+   * SVG 导出会在主轴 y 上给每个一层节点补一条竖向里程碑短线（见 svgExport）。
+   *
+   * ⚠️ 刻意不规定「时间轴只有两层」：树是任意深的，硬限制层数会让深层节点凭空消失。
+   */
+  if (direction === 'timeline') {
+    const rootSize = sizeOf(root)
+    const rootPos: MindPoint = root.pos ?? { x: 0, y: -rootSize.height / 2 }
+    positions[root.id] = rootPos
+    sides[root.id] = 'right'
+    const axisY = rootPos.y + rootSize.height / 2
+
+    let cursor = rootPos.x + rootSize.width + H_GAP
+    visibleChildren(root).forEach((child, index) => {
+      const size = sizeOf(child)
+      const up = index % 2 === 0
+      const own: MindPoint = child.pos ?? {
+        x: cursor,
+        y: axisY + (up ? -TIMELINE_OFFSET : TIMELINE_OFFSET) - size.height / 2,
+      }
+      positions[child.id] = own
+      sides[child.id] = 'right'
+      placeDescendantsDown(child, own.x + size.width / 2, own.y + size.height)
+      cursor += subtreeWidthDown(child) + TIMELINE_GAP
+    })
+
+    return { positions, sides, levels }
+  }
+
   /* ================================================================ 水平类 */
 
   if (direction !== 'down') {
-    const subtreeHeights = new Map<string, number>()
-
-    /* -------- 第 1 趟：子树高度 -------- */
-    const subtreeHeight = (node: MindNode): number => {
-      const cached = subtreeHeights.get(node.id)
-      if (cached !== undefined) return cached
-      const children = visibleChildren(node)
-      let height = sizeOf(node).height
-      if (children.length) {
-        let stacked = 0
-        children.forEach((child, index) => {
-          stacked += subtreeHeight(child) + (index ? V_GAP : 0)
-        })
-        height = Math.max(height, stacked)
-      }
-      subtreeHeights.set(node.id, height)
-      return height
-    }
+    // 子树高度由文件顶部的 `subtreeHeightOf` 统一提供（鱼骨图复用同一份实现）
 
     /* -------- 第 2 趟：摆放（沿 side 方向推进层级） -------- */
     const place = (node: MindNode, x: number, centerY: number, side: MindSide) => {
@@ -118,14 +278,14 @@ export function layoutTree(root: MindNode, options: LayoutOptions): LayoutResult
       if (!children.length) return
 
       const total = children.reduce(
-        (sum, child, index) => sum + subtreeHeight(child) + (index ? V_GAP : 0),
+        (sum, child, index) => sum + subtreeHeightOf(child) + (index ? V_GAP : 0),
         0,
       )
       // 子节点以**本节点最终位置**的垂直中心为基准堆叠 —— 拖动父节点时子树随之移动
       let cursor = own.y + size.height / 2 - total / 2
 
       for (const child of children) {
-        const childHeight = subtreeHeight(child)
+        const childHeight = subtreeHeightOf(child)
         const childSize = sizeOf(child)
         const childX =
           side === 'right' ? own.x + size.width + H_GAP : own.x - childSize.width - H_GAP
@@ -148,12 +308,12 @@ export function layoutTree(root: MindNode, options: LayoutOptions): LayoutResult
       const placeGroup = (group: MindNode[], side: MindSide) => {
         if (!group.length) return
         const total = group.reduce(
-          (sum, child, index) => sum + subtreeHeight(child) + (index ? V_GAP : 0),
+          (sum, child, index) => sum + subtreeHeightOf(child) + (index ? V_GAP : 0),
           0,
         )
         let cursor = rootCenterY - total / 2
         for (const child of group) {
-          const childHeight = subtreeHeight(child)
+          const childHeight = subtreeHeightOf(child)
           const childSize = sizeOf(child)
           const childX =
             side === 'right' ? rootPos.x + rootSize.width + H_GAP : rootPos.x - childSize.width - H_GAP
@@ -174,26 +334,9 @@ export function layoutTree(root: MindNode, options: LayoutOptions): LayoutResult
 
   /* ================================================================ 垂直类 */
 
-  const subtreeWidths = new Map<string, number>()
+  /* 子树宽度由文件顶部的 `subtreeWidthDown` 统一提供（时间轴复用同一份实现） */
 
-  /* -------- 第 1 趟：子树宽度 -------- */
-  const subtreeWidth = (node: MindNode): number => {
-    const cached = subtreeWidths.get(node.id)
-    if (cached !== undefined) return cached
-    const children = visibleChildren(node)
-    let width = sizeOf(node).width
-    if (children.length) {
-      let stacked = 0
-      children.forEach((child, index) => {
-        stacked += subtreeWidth(child) + (index ? VERT_SIBLING_GAP : 0)
-      })
-      width = Math.max(width, stacked)
-    }
-    subtreeWidths.set(node.id, width)
-    return width
-  }
-
-  /* -------- 第 2 趟：摆放（层级向下推进） -------- */
+  /* -------- 摆放（层级向下推进） -------- */
   const placeDown = (node: MindNode, centerX: number, y: number) => {
     const size = sizeOf(node)
     // 与水平类同理：手动固定过坐标的节点直接采用它
@@ -205,14 +348,14 @@ export function layoutTree(root: MindNode, options: LayoutOptions): LayoutResult
     if (!children.length) return
 
     const total = children.reduce(
-      (sum, child, index) => sum + subtreeWidth(child) + (index ? VERT_SIBLING_GAP : 0),
+      (sum, child, index) => sum + subtreeWidthDown(child) + (index ? VERT_SIBLING_GAP : 0),
       0,
     )
     // 子节点以本节点最终位置的水平中心为基准排开
     let cursor = own.x + size.width / 2 - total / 2
 
     for (const child of children) {
-      const childWidth = subtreeWidth(child)
+      const childWidth = subtreeWidthDown(child)
       placeDown(child, cursor + childWidth / 2, own.y + size.height + VERT_LEVEL_GAP)
       cursor += childWidth + VERT_SIBLING_GAP
     }

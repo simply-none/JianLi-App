@@ -11,10 +11,15 @@
 import {
   DEFAULT_CHILD_TEXT,
   DEFAULT_ROOT_TEXT,
+  FONT_INHERIT_VALUE,
   LAYOUT_DIR_VALUES,
+  MAX_FONT_FAMILY_LEN,
+  MAX_ICON_CODEPOINTS,
+  MAX_LINK_LEN,
   MAX_NOTE_LEN,
   MIND_COLOR_VALUES,
   MIND_DOC_VERSION,
+  clampFontSize,
 } from '../constants'
 import type {
   MindBranchColor,
@@ -51,9 +56,9 @@ export function createDocData(rootText: string, layout: MindLayoutDir = 'both'):
 }
 
 /**
- * 深拷贝一棵子树，并给**每个节点**生成全新 id（「复制节点」用）。
+ * 深拷贝一棵子树，并给**每个节点**生成全新 id（「复制节点」/「粘贴子树」用）。
  *
- * 保留：文本 / 折叠态 / 备注 / 分支色 / 背景色 / 文字色；
+ * 保留：文本 / 折叠态 / 备注 / 分支色 / 背景色 / 文字色 / 图标 / 链接；
  * 丢弃：`pos` —— 坐标是派生数据，复制出来的子树应该交回布局算法重新摆。
  *       若把坐标一起抄过来，副本会**严丝合缝地盖在原件上**（坐标逐个相同），
  *       看起来就像「右键没反应」。
@@ -68,7 +73,16 @@ export function cloneSubtree(node: MindNode): MindNode {
     color: node.color,
     bgColor: node.bgColor,
     textColor: node.textColor,
+    icon: node.icon,
+    link: node.link,
   }
+}
+
+/** 丢掉某个节点的 `pos`（「换父」时用：位置应该交回布局算法重排） */
+function withoutPos(node: MindNode): MindNode {
+  if (!node.pos) return node
+  const { pos: _removed, ...rest } = node
+  return rest
 }
 
 /* ------------------------------------------------------------- 查询 / 遍历 */
@@ -204,6 +218,18 @@ export function setNodeTextColor(root: MindNode, id: string, color?: MindColorKe
   )
 }
 
+/** 设置节点图标（emoji）；传空清除。非法长度按 `normalizeIcon` 的规则丢弃 */
+export function setNodeIcon(root: MindNode, id: string, icon?: string): MindNode {
+  const next = normalizeIcon(icon)
+  return replaceNode(root, id, node => (node.icon === next ? node : { ...node, icon: next }))
+}
+
+/** 设置节点链接；只放行 http/https，非法值视为「清除」 */
+export function setNodeLink(root: MindNode, id: string, link?: string): MindNode {
+  const next = normalizeLink(link)
+  return replaceNode(root, id, node => (node.link === next ? node : { ...node, link: next }))
+}
+
 /**
  * 固定某个节点的手动坐标；传 undefined 表示恢复自动排版。
  *
@@ -333,6 +359,132 @@ export function removeNode(root: MindNode, id: string): MindNode {
   return removeIn(root)
 }
 
+/**
+ * 批量删除（框选多选后用）。
+ *
+ * ⚠️ **必须过滤掉「祖先也被选中」的节点**：先删祖先再删后代时，
+ *    后代节点早已不在树上（`removeNode` 会原样返回），看似无害；
+ *    但反过来先删后代再删祖先时，祖先的子树里少了一个节点 —— 结果虽然一样，
+ *    却会**多记若干次无效变换**。统一先做祖先过滤，语义清晰、行为可预期。
+ *    （不做这层过滤最典型的症状是：断言里「结果树不含残余」通不过。）
+ *
+ * 全部被过滤后返回**同引用** ⇒ 上层 `commit()` 短路，不产生空的撤销步。
+ */
+export function removeMany(root: MindNode, ids: string[]): MindNode {
+  const selected = new Set(ids)
+  selected.delete(root.id) // 根是文档本体，不可删
+  if (!selected.size) return root
+
+  const effective = [...selected].filter(id => {
+    const path = pathIds(root, id)
+    if (!path.length) return false // 树上没这个 id
+    return !path.slice(0, -1).some(ancestor => selected.has(ancestor))
+  })
+  if (!effective.length) return root
+
+  let next = root
+  for (const id of effective) next = removeNode(next, id)
+  return next
+}
+
+/**
+ * 「换父」：把 `id` 整棵子树挂到 `newParentId` 的末位子节点位置。
+ *
+ * 语义边界（每条都有断言）：
+ *   · 根节点不能被换父 ⇒ 返回同引用（根是文档本体）；
+ *   · 拖到自己身上 / 拖到**自己的后代**上 ⇒ 返回同引用（**防环**，
+ *     靠 `collectSubtreeIds` 判定 —— 这是唯一可靠的手段，光看 id 相等挡不住环）；
+ *   · 目标节点不存在 / 已在目标末位 ⇒ 返回同引用（不产生空的撤销步）；
+ *   · 换父后**清掉被拖节点的 `pos`**：位置交回布局算法，挂到新父下方；
+ *   · 目标节点若处于折叠态 ⇒ 展开（复用 `insertChild` 的既有语义）。
+ *
+ * ⚠️ 必须**一次变换、一次 commit = 一步撤销**：不许写成「先删再插」两次 commit，
+ *    否则用户按一次 Ctrl+Z 只回来一半，看起来像撤销坏了。
+ */
+export function reparent(root: MindNode, id: string, newParentId: string): MindNode {
+  if (root.id === id) return root
+  if (!newParentId || newParentId === id) return root
+  const moving = findNode(root, id)
+  if (!moving) return root
+  if (!findNode(root, newParentId)) return root
+  // 防环：目标落在被拖子树内（含自身）⇒ 不合法
+  if (collectSubtreeIds(root, id).includes(newParentId)) return root
+
+  const oldParent = findParent(root, id)
+  if (oldParent && oldParent.id === newParentId) {
+    // 同父：等价于「挪到末尾」。已经在末尾就什么都不做
+    if (oldParent.children[oldParent.children.length - 1]?.id === id) return root
+  }
+
+  const detached = removeNode(root, id)
+  if (detached === root) return root
+  return insertChild(detached, newParentId, withoutPos(moving))
+}
+
+/* -------------------------------------------------------------- 批量变更 */
+
+/**
+ * 对一批节点各做一次 `fn`（逐个走 `replaceNode`）。
+ *
+ * 为什么不像 `collectBranches` 那样一次遍历：`replaceNode` 已经把
+ * 「无改动返回同引用」的语义做对了，串行套用它就天然得到
+ * 「整批都没改动 ⇒ 返回原树」的性质 —— 而 `commit()` 正是靠这个引用相等短路。
+ * 复杂度 O(k·n)，k / n 都在数百量级（框选场景），实测无感。
+ */
+function applyMany(
+  root: MindNode,
+  ids: string[],
+  fn: (node: MindNode) => MindNode,
+): MindNode {
+  if (!ids.length) return root
+  let next = root
+  const seen = new Set<string>()
+  for (const id of ids) {
+    if (seen.has(id)) continue
+    seen.add(id)
+    next = replaceNode(next, id, fn)
+  }
+  return next
+}
+
+/** 批量设置分支色（三者互不干扰，见 `setNodeColor`） */
+export function setNodeColorMany(
+  root: MindNode,
+  ids: string[],
+  color?: MindBranchColor,
+): MindNode {
+  return applyMany(root, ids, node => (node.color === color ? node : { ...node, color }))
+}
+
+/** 批量设置背景色 */
+export function setNodeBgMany(root: MindNode, ids: string[], color?: MindColorKey): MindNode {
+  return applyMany(root, ids, node => (node.bgColor === color ? node : { ...node, bgColor: color }))
+}
+
+/** 批量设置文字色 */
+export function setNodeTextColorMany(
+  root: MindNode,
+  ids: string[],
+  color?: MindColorKey,
+): MindNode {
+  return applyMany(root, ids, node =>
+    node.textColor === color ? node : { ...node, textColor: color },
+  )
+}
+
+/**
+ * 批量折叠 / 展开。
+ * 无子节点的节点跳过（折叠一个叶子毫无意义）；根节点也跳过 ——
+ * 把根折叠起来整张图只剩一个点，属于误操作而不是功能。
+ */
+export function setCollapsedMany(root: MindNode, ids: string[], collapsed: boolean): MindNode {
+  return applyMany(root, ids, node => {
+    if (node.id === root.id || !node.children.length) return node
+    const next = collapsed ? true : undefined
+    return node.collapsed === next ? node : { ...node, collapsed: next }
+  })
+}
+
 /* ------------------------------------------------------------ 方向键导航 */
 
 export type NavDirection = 'prev' | 'next' | 'parent' | 'firstChild' | 'lastChild'
@@ -388,8 +540,78 @@ function isColorKey(value: unknown): value is MindColorKey {
 }
 
 /**
+ * 归一化节点图标。
+ *
+ * ⚠️ 长度必须用 `Array.from(...).length`（**码点**）而不是 `.length`（**码元**）：
+ *    emoji 基本都在 BMP 之外，`'🙂'.length === 2` 而它是**一个**字符。
+ *    用 `.length` 把上限判成 4 会放过一串 8 个 emoji，节点宽度估算跟着失真。
+ */
+function normalizeIcon(raw: unknown): string | undefined {
+  if (typeof raw !== 'string') return undefined
+  const trimmed = raw.trim()
+  if (!trimmed) return undefined
+  const codepoints = Array.from(trimmed)
+  if (codepoints.length > MAX_ICON_CODEPOINTS) return undefined
+  return codepoints.join('')
+}
+
+/**
+ * 归一化节点链接 —— **只放行 http / https**。
+ *
+ * 白名单是安全边界而不是风格偏好：节点文本可以来自导入的 JSON / Markdown，
+ * 若放行 `javascript:` / `data:`，点一下徽标就等于执行他人写入的脚本。
+ * 非法值**丢弃**（不是回落成空串），与备注 / 颜色的处理保持一致。
+ */
+function normalizeLink(raw: unknown): string | undefined {
+  if (typeof raw !== 'string') return undefined
+  const trimmed = raw.trim().slice(0, MAX_LINK_LEN)
+  if (!trimmed) return undefined
+  try {
+    const url = new URL(trimmed)
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return undefined
+    return trimmed
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * 归一化文档级字体族。
+ *
+ * 三类值归一成 `undefined` ＝ 「节点不覆盖 `font-family`」（继承应用的全局字体）：
+ *   · 空串 / 非字符串；
+ *   · `inherit` —— 画布设置里「跟随应用字体」那一项的哨兵值；
+ *   · `initial` —— `globalFontOpsC` 默认项「系统字体」的值。**它在节点上等于
+ *     「UA 默认字体」**（会渲染成衬线体），与「跟随应用」不是一回事，
+ *     留着它必然表现成「选了系统字体反而更丑」的一个 bug。
+ *
+ * ⚠️ 不在这里写死任何**具体字体名**：把应用全局字体悄悄顶掉、换台机器就变样，
+ *    都比「不设置」更糟。非法值一律**丢弃**（与备注 / 颜色的处理一致）。
+ */
+export function normalizeFontFamily(raw: unknown): string | undefined {
+  if (typeof raw !== 'string') return undefined
+  const trimmed = raw.trim().slice(0, MAX_FONT_FAMILY_LEN)
+  if (!trimmed || trimmed === FONT_INHERIT_VALUE || trimmed === 'initial') return undefined
+  return trimmed
+}
+
+/**
+ * 归一化文档级基准字号：非有限数丢弃（= 用默认值），越界夹回区间。
+ * ⚠️ 与 `MindDocData.fontSize` 的「可选」语义配套：返回 `undefined` 表示
+ *    「没有覆盖」，而不是「字号是 13」—— 否则老数据一存一读就多出一个字段。
+ */
+export function normalizeFontSize(raw: unknown): number | undefined {
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) return undefined
+  return clampFontSize(raw)
+}
+
+/**
  * 把数据库中读出的 JSON 归一化成合法图数据。
  * 脏数据（缺字段 / 类型不对 / 非对象）一律回落为「单根节点」的新图，不抛错。
+ *
+ * ⚠️ 文档级字段（`fontFamily` / `fontSize`）**只在有值时才写进结果对象** ——
+ *    这样 `JSON.stringify` 出来的 JSON 与「从没设过」完全一致，脏标记（`dirty`）
+ *    不会因为一次「载入即归一化」就无故变脏。
  */
 export function normalizeDocData(raw: unknown, fallbackLayout: MindLayoutDir = 'both'): MindDocData {
   let parsed: unknown = raw
@@ -406,7 +628,13 @@ export function normalizeDocData(raw: unknown, fallbackLayout: MindLayoutDir = '
   const layout: MindLayoutDir = isLayoutDir(source.layout) ? source.layout : fallbackLayout
   const root = normalizeNode(source.root)
   if (!root) return createDocData(DEFAULT_ROOT_TEXT, layout)
-  return { version: MIND_DOC_VERSION, layout, root }
+
+  const next: MindDocData = { version: MIND_DOC_VERSION, layout, root }
+  const fontFamily = normalizeFontFamily(source.fontFamily)
+  const fontSize = normalizeFontSize(source.fontSize)
+  if (fontFamily) next.fontFamily = fontFamily
+  if (fontSize !== undefined) next.fontSize = fontSize
+  return next
 }
 
 /** 递归归一化单个节点（见 normalizeDocData 的容错约定） */
@@ -429,6 +657,9 @@ function normalizeNode(raw: unknown): MindNode | null {
   const textColor = isColorKey(source.textColor) ? source.textColor : undefined
   // 手动坐标同为可选：非法值丢弃（回到自动排版），而不是回落成 (0,0) —— 那会把节点钉在原点
   const pos = normalizePos(source.pos)
+  // 图标 / 链接同为可选：非法值一律丢弃（见 normalizeIcon / normalizeLink 的说明）
+  const icon = normalizeIcon(source.icon)
+  const link = normalizeLink(source.link)
   return {
     id,
     text,
@@ -439,5 +670,7 @@ function normalizeNode(raw: unknown): MindNode | null {
     bgColor,
     textColor,
     pos,
+    icon,
+    link,
   }
 }

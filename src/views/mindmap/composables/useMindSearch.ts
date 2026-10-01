@@ -13,6 +13,7 @@
 import { computed, ref, watch } from 'vue'
 
 import type { MindNode } from '../types'
+import { collectSubtreeIds } from '../utils/tree'
 import { useMindDoc } from './useMindDoc'
 import { useMindView } from './useMindView'
 
@@ -106,11 +107,20 @@ export function useMindSearch() {
 
   /**
    * 选中并定位到第 index 条命中。
-   * 顺序：展开祖先 → 选中 → 请求画布定位 → 关闭面板。
+   * 顺序：**退出聚焦（若命中的在聚焦子树外）→ 展开祖先 → 选中 → 请求画布定位 → 关面板**。
+   *
+   * ⚠️ 搜索范围是整棵树（见文件头），所以很可能命中聚焦之外的节点。
+   *    不先退出聚焦的话，「展开祖先 + 选中」都会执行、节点也确实被选中了，
+   *    但画布上根本渲染不出它（聚焦态只渲染那棵子树）—— 表现成「点了搜索结果什么都没发生」，
+   *    是最难解释的一类 bug。所以这里必须先判、先退出。
    */
   function pick(index: number = activeIndex.value): string | undefined {
     const hit = hits.value[index]
     if (!hit) return undefined
+    const focusId = view.focusRootId.value
+    if (focusId && !collectSubtreeIds(mind.tree.value, focusId).includes(hit.id)) {
+      view.exitFocus()
+    }
     mind.revealNode(hit.id)
     mind.select(hit.id)
     view.requestFocus(hit.id)

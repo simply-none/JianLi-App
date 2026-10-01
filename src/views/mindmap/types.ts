@@ -16,8 +16,13 @@
  * - `right` 全部向右（逻辑图）
  * - `left`  全部向左（`right` 的镜像）
  * - `down`  根在上、层级向下展开（组织架构图 / 树形图）
+ * - `fishbone` 鱼骨图：根在主干左端，一层子节点交替挂上下两侧
+ * - `timeline` 时间轴：根为起点，一层节点沿主轴排开、上下交错
+ *
+ * ⚠️ 后两种只改**布局算法与连线造型**，不动数据结构 —— 它们同样是「树 = 唯一真源，
+ *    坐标是派生」这条底线的产物，所以老数据零迁移（见 utils/layout.ts）。
  */
-export type MindLayoutDir = 'both' | 'right' | 'left' | 'down'
+export type MindLayoutDir = 'both' | 'right' | 'left' | 'down' | 'fishbone' | 'timeline'
 
 /** 节点相对根的侧向，决定左右类布局下的 Handle 落点（`down` 布局不使用） */
 export type MindSide = 'left' | 'right'
@@ -83,6 +88,24 @@ export interface MindNode {
    */
   textColor?: MindColorKey
   /**
+   * **节点图标**：单个 emoji（最多 4 个码点，用 `Array.from` 数的），显示在文本左侧。
+   *
+   * 为什么是 emoji 而不是图标库 key：零 UI 成本就能覆盖 80% 的「我想给这一支加个标记」，
+   * 而图标选择器（几百个 Lucide 名字 + 搜索）是一个独立的功能量级。
+   * 字段本身是普通字符串，将来换成图标 key 也只是语义替换，不影响结构。
+   *
+   * ⚠️ 宽度要参与首帧尺寸估算（见 `utils/measure.ts`），否则图标一出现布局就会偏。
+   */
+  icon?: string
+  /**
+   * **节点链接**：只允许 `http:` / `https:`（协议白名单）。
+   *
+   * 白名单是必须的：节点文本来自导入的 JSON / Markdown，若放行 `javascript:`，
+   * 点一下徽标就等于在渲染进程里执行了他人写入的脚本。
+   * 非法值在 `normalizeDocData` 里直接丢弃（不是回落成空串）。
+   */
+  link?: string
+  /**
    * **手动固定坐标**（左上角，画布坐标系）。
    *
    * 只有被用户拖动过的节点才有这个字段。存在时：
@@ -107,6 +130,32 @@ export interface MindDocData {
   layout: MindLayoutDir
   /** 根节点 */
   root: MindNode
+  /**
+   * **全图字体族**（CSS `font-family` 值，可以带引号与逗号回退链）。
+   *
+   * 为什么是**文档级**而不是全局设置 / localStorage：
+   *   「这份导图用什么字体」属于**内容版式**，与树、布局同级 —— 同一份图在别人机器上
+   *   打开应该长得一样，导出的 JSON 也该把它带走（对比 MiniMap 开关：那是「这台机器上
+   *   我喜欢怎么看」，所以走 localStorage）。
+   *
+   * 未设 = 跟随应用全局字体（节点**不覆盖** `font-family`，直接继承）。
+   * ⚠️ 老数据没有该字段 ⇒ **零迁移**；`null` / 空串 / 非字符串在 `normalizeDocData` 里
+   *    一律丢弃（而不是回落成某个具体字体名，那会把用户的全局字体悄悄改掉）。
+   */
+  fontFamily?: string
+  /**
+   * **全图基准字号（px）** = 二级及更深层级节点的字号；根 / 一级相对它各加一个固定增量
+   * （见 `constants.fontSizeOf`），以保持「根 > 一级 > 其余」的层次感。
+   *
+   * 同样放在文档级（理由同 `fontFamily`）。未设 = `DEFAULT_FONT_SIZE`（13），
+   * 且 `fontSizeOf(level, 13)` 与「三档写死 15 / 13.5 / 13」逐像素一致 ⇒ 零迁移。
+   *
+   * ⚠️ 改它会让每个节点的**实测尺寸**都变 ⇒ 必须重排。重排由画布的 `watch(revision)`
+   *    自动触发（见 `useMindGraph.sync`）；改字号会重渲染节点，vue-flow 自带的
+   *    ResizeObserver 随之把新尺寸刷回 store，第二段布局读到的就是新值
+   *    （真库实测见坑 54 与 `C:\src\tmp\mm_fontsync_test.cjs`）。
+   */
+  fontSize?: number
 }
 
 /** 表 `mindmap` 的一行（数值列由 sqlite 直接给 number，文本列给 string） */
@@ -164,8 +213,20 @@ export type MindFlowNodeData = {
   bg?: MindColorKey
   /** 节点自定义文字色 key（未设 = 用主题默认文字色）；不继承 */
   fg?: MindColorKey
+  /** 节点图标（emoji，单字符或短序列）；未设则不渲染 */
+  icon?: string
+  /** 是否有链接（决定是否显示链接徽标） */
+  hasLink: boolean
+  /** 链接地址（徽标 title 显示完整 URL） */
+  link?: string
   /** 是否有备注（决定是否显示浮标） */
   hasNote: boolean
+  /**
+   * 拖动中成为「换父候选」时为 true —— 仅用于给节点加一圈高亮环。
+   * ⚠️ 这是**瞬时渲染状态**，由 `useMindGraph` 在拖动过程中改写，
+   *    不进树、不落库、不进撤销栈。
+   */
+  dropTarget?: boolean
 }
 
 /** 扁平平铺后的可见节点（供画布建节点/边使用） */

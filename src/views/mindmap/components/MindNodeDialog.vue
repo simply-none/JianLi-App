@@ -43,6 +43,52 @@
         />
       </div>
 
+      <!-- 图标：一个 emoji，排在节点文字左侧；留空即清除 -->
+      <div class="mind-panel__section">
+        <div class="mind-panel__label">
+          <span>图标</span>
+          <span class="mind-panel__hint">
+            一个 emoji（最多 {{ MAX_ICON_CODEPOINTS }} 个码点），显示在节点文字左侧
+          </span>
+        </div>
+        <div class="mind-panel__row">
+          <el-input
+            v-model="iconDraft"
+            class="mind-panel__input"
+            size="small"
+            :maxlength="8"
+            placeholder="例如 🚀（留空即清除）"
+            @keydown.stop
+            @change="onApplyIcon"
+          />
+          <button type="button" class="mind-panel__btn" :disabled="!node.icon" @click="onClearIcon">
+            清除
+          </button>
+        </div>
+      </div>
+
+      <!-- 链接：只放行 http/https；设好后节点左上角会出现跳转徽标 -->
+      <div class="mind-panel__section">
+        <div class="mind-panel__label">
+          <span>链接</span>
+          <span class="mind-panel__hint">只支持 http / https，留空即清除</span>
+        </div>
+        <div class="mind-panel__row">
+          <el-input
+            v-model="linkDraft"
+            class="mind-panel__input"
+            size="small"
+            :maxlength="MAX_LINK_LEN"
+            placeholder="https://…（留空即清除）"
+            @keydown.stop
+            @change="onApplyLink"
+          />
+          <button type="button" class="mind-panel__btn" :disabled="!node.link" @click="onClearLink">
+            清除
+          </button>
+        </div>
+      </div>
+
       <!-- 位置：节点被拖过后坐标会固定下来，这里给它一个明确的「还原」出口 -->
       <div class="mind-panel__section">
         <div class="mind-panel__label">
@@ -130,7 +176,7 @@ import { ElMessage } from 'element-plus'
 
 import AppDialog from '@/components/AppDialog.vue'
 import LucideIcon from '@/components/LucideIcon.vue'
-import { MAX_NOTE_LEN } from '../constants'
+import { MAX_ICON_CODEPOINTS, MAX_LINK_LEN, MAX_NOTE_LEN } from '../constants'
 import { useMindDoc } from '../composables/useMindDoc'
 import { useMindView } from '../composables/useMindView'
 import type { MindColorKey } from '../types'
@@ -156,12 +202,16 @@ const node = computed(() => {
 })
 
 const noteDraft = ref('')
+const iconDraft = ref('')
+const linkDraft = ref('')
 
-// 换节点时把备注草稿重新灌一次（只按 id 变化触发，避免自己打字时被回写覆盖）
+// 换节点时把三个草稿重新灌一次（只按 id 变化触发，避免自己打字时被回写覆盖）
 watch(
   () => node.value?.id,
   () => {
     noteDraft.value = node.value?.note ?? ''
+    iconDraft.value = node.value?.icon ?? ''
+    linkDraft.value = node.value?.link ?? ''
   },
   { immediate: true },
 )
@@ -196,6 +246,54 @@ function onResetPos() {
   const target = node.value
   if (!target || !target.pos) return
   if (mind.setNodePos(target.id)) ElMessage.success('已恢复自动位置')
+}
+
+/* ------------------------------------------------------- 图标 / 链接 */
+
+/*
+  ⚠️ 这两个输入走 `@change`（失焦 / 回车）提交，**不是**每次按键都写 ——
+     每一次成功写入都是一步撤销（commit），逐字符提交会把撤销栈刷满，
+     用户按 Ctrl+Z 会变成「一个一个字符地退」，完全没法用。
+     与备注「填完再点保存」是同一个道理，只是这里省掉了保存按钮。
+*/
+
+/** 应用图标：非法（超长 / 非 emoji）时 `normalizeIcon` 会回落成清除 */
+function onApplyIcon() {
+  const target = node.value
+  if (!target) return
+  mind.setNodeIcon(target.id, iconDraft.value)
+  // 回读真实落库值：被 normalize 掉的内容要让输入框立刻反映出来，不留「看起来设上了」的假象
+  iconDraft.value = findNode(mind.tree.value, target.id)?.icon ?? ''
+}
+
+function onClearIcon() {
+  const target = node.value
+  if (!target) return
+  iconDraft.value = ''
+  mind.setNodeIcon(target.id, '')
+}
+
+/**
+ * 应用链接。
+ * 非 http/https 的输入会被 `normalizeLink` 当作清除处理（协议白名单是硬底线 ——
+ * 这个字符串最终会交给浏览器打开）。这种情况下给一句明确提示，
+ * 而不是默默把用户刚粘的东西擦掉、让人以为是程序坏了。
+ */
+function onApplyLink() {
+  const target = node.value
+  if (!target) return
+  const raw = linkDraft.value.trim()
+  mind.setNodeLink(target.id, raw)
+  const saved = findNode(mind.tree.value, target.id)?.link ?? ''
+  linkDraft.value = saved
+  if (raw && !saved) ElMessage.warning('只支持 http / https 链接，已清除')
+}
+
+function onClearLink() {
+  const target = node.value
+  if (!target) return
+  linkDraft.value = ''
+  mind.setNodeLink(target.id, '')
 }
 
 function onSaveNote() {
@@ -278,6 +376,12 @@ function onClearNote() {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+/* 图标 / 链接那一行的输入框：占满剩余宽度（右侧留一个「清除」按钮） */
+.mind-panel__input {
+  flex: 1;
+  min-width: 0;
 }
 
 .mind-panel__pill {

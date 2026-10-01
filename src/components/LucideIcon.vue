@@ -144,6 +144,11 @@ import { AlarmClock, AlarmClockCheck, AlarmClockMinus, AlarmClockPlus, ArrowDown
   ChartLine,
   // —— 天气数据源标识用图标（中国天气网 HTTP 接口） ——
   Satellite,
+  // —— 思维导图扩展用图标（剪切 / 粘贴 / 大纲 / 缩略图） ——
+  Scissors,
+  ClipboardPaste,
+  ListTree,
+  Map,
 } from '@lucide/vue';
 import { ArrowLeftRight } from '@lucide/vue';
 import { ref } from 'vue';
@@ -480,6 +485,11 @@ let nameMap = ref<Record<any, any>>({
   ClipboardCopy,
   ArrowDownLeft,
   ArrowUpRight,
+  // —— 思维导图扩展用图标（剪切 / 粘贴 / 大纲 / 缩略图） ——
+  Scissors,
+  ClipboardPaste,
+  ListTree,
+  Map,
 })
 
 function getPadding(padding: string | number): string {
