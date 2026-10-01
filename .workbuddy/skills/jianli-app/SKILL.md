@@ -99,6 +99,6 @@ agent_created: true
 ### 跨模块通用教训（详细见 `risks.md`，此处索引）
 - 不要用类型断言「创造」API（绕过报错 ≠ 存在，搜二进制符号 / 最小复现验证）。
 - 性能排查用真实 DB 实测耗时与执行计划，别只看代码。
-- 把 Vue 响应式数据发主进程（invoke / send）前必须递归 `toRaw()` 剥离 Proxy。
+- 把 Vue 响应式数据发主进程前必须剥离 Proxy（Proxy 不可结构化克隆，报「An object could not be cloned」）。**已在 preload 入口统一根治（2026-10-01）**：`electron/preload/index.ts` 对原始 ipcRenderer 的 invoke / send / sendSync 做实例级包装，出参整体过 `toCloneable`（递归解包 Proxy/ref 为纯对象；Date/RegExp/Map/Set/ArrayBuffer/TypedArray 原样放行；函数参数原样放行不掩盖错误），覆盖渲染端全部直调与 preload 嵌套 API；渲染端调用方**无需再各自 toRaw/toPlain**，新增出站通道自动被覆盖。改 preload 需重启 Electron。
 - 浮层避免「全屏遮罩 + 遮罩上关浮层」（派发中途元素移除 → Chromium 重发零坐标事件）；定位类 bug 先量化症状。
 - 写完响应式样式立刻读 DOM 几何读的是上一帧，须 `await nextTick()` 或改量不依赖本次写入的量。

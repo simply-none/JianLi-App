@@ -128,7 +128,7 @@
 - `todoSource` 已改走 `new-sql:read`（参数化 SELECT、只读连接、不建表）——❌ 严禁改回 execute；SQL 带 deleted 过滤；无关键词首位「今日待办」命令；无命中时「新建待办：xxx」快速创建（先 fetchTodos 再设 highlightKey，否则滚动定位不到）。
 
 ### 特有坑（本批次新增）
-- **发 IPC 前必须剥离响应式（方案 B 已根治）**：store 来的 TodoItem 是深层 Proxy（parentIds 数组也是 Proxy），浅展开后发 IPC 会抛「An object could not be cloned」。剥离已收敛到 todoApi 的 ipc() 封装层：payload 整体过 common.ts 的 toPlain()（递归解包 ref/proxy、二进制/Date/Map/Set 原样放行，对齐 send/setStore 系列封装的既有方向），调用方无需各自处理；JSON round-trip 一版方案已弃（破坏 Date/Map/Set、丢 undefined）。
+- **发 IPC 前必须剥离响应式（已两级根治）**：store 来的 TodoItem 是深层 Proxy（parentIds 数组也是 Proxy），浅展开后发 IPC 会抛「An object could not be cloned」。① **preload 入口全量消毒（2026-10-01）**：原始 ipcRenderer 的 invoke/send/sendSync 实例级包装 + toCloneable，覆盖全项目所有出站 IPC（详见 ipc-channels.md 头注）；② todoApi 的 ipc() 封装保留 toPlain 作二道防线。JSON round-trip 方案已弃（破坏 Date/Map/Set、丢 undefined）。
 - 主进程 `update-todo-reminders` 监听**只在 recurrence.ts 注册**（initRecurrence 内，提醒重排+on_complete 补生成串联）；newReminder.ts 不再注册，勿重复添加（双监听=双重重排）。
 - 批量删除/批量编辑/标签管理/父任务选择的候选集合一律用 `store.activeTodos`（回收站内条目不可见不可选）。
 - 统计口径：totalCount/四状态计数/完成率/今日完成/逾期 全部基于 activeTodos（不含回收站）。

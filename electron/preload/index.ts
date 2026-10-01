@@ -1,5 +1,61 @@
 const { ipcRenderer, contextBridge, clipboard } = require('electron')
 
+// ----------------------------------------------------------------------
+// IPC 出参统一消毒（方案 B：封装层内置剥离，2026-10-01）
+// ----------------------------------------------------------------------
+// 渲染端把 Vue 响应式对象（Proxy）直接发 IPC 时，structured clone 会抛
+// 「Error: An object could not be cloned」（典型：store 来的 TodoItem 浅展开后
+// 嵌套的 parentIds 数组仍是 Proxy）。本应用全部出站 IPC（渲染端 254 处直调 +
+// preload 内 101 个嵌套 API 方法）最终都经过 ipcRenderer 的 invoke / send /
+// sendSync 三条原始通道，故在此做实例级包装（own property 遮蔽原型方法），
+// 一处覆盖全部发送路径；渲染端调用方无需各自 toRaw / toPlain。
+// 规则：
+// - 接收侧（on / once / off）不处理：入站数据来自主进程 structured clone，天然纯对象；
+// - 函数参数原样放行：发送函数本就会克隆失败，不掩盖此类编程错误；
+// - Date / RegExp / Map / Set / ArrayBuffer / TypedArray / DataView 原样放行
+//   （结构化克隆原生支持；用 toString tag 判定，跨 realm 安全）；
+// - 循环引用用 WeakSet 兜底，原样返回（与旧行为一致：循环引用本就无法克隆）。
+function toCloneable(value: any, seen = new WeakSet()): any {
+  const t = typeof value
+  if (value === null || (t !== 'object' && t !== 'function')) return value
+  if (t === 'function') return value
+  const tag = Object.prototype.toString.call(value)
+  if (
+    tag === '[object Date]' ||
+    tag === '[object RegExp]' ||
+    tag === '[object Map]' ||
+    tag === '[object Set]' ||
+    tag === '[object ArrayBuffer]' ||
+    tag === '[object DataView]' ||
+    tag.endsWith('Array]') // TypedArray 家族（Int8Array / Uint8Array / Float32Array ...）
+  ) {
+    return value
+  }
+  if (seen.has(value)) return value
+  seen.add(value)
+  if (Array.isArray(value)) {
+    const out: any[] = []
+    for (let i = 0; i < value.length; i++) out[i] = toCloneable(value[i], seen)
+    return out
+  }
+  const out: Record<string, any> = {}
+  for (const key of Object.keys(value)) {
+    out[key] = toCloneable(value[key], seen)
+  }
+  return out
+}
+
+// 实例级包装三条原始出站通道（必须在 contextBridge.exposeInMainWorld 之前：
+// 下方暴露的 handlePromise / send / sendSync / invoke 以及 ebook / tts / pdf /
+// scraper 等嵌套 API 内部都调用 ipcRenderer.invoke(...)，经实例属性解析到包装版本，
+// 自动获得消毒能力）
+const rawInvoke = ipcRenderer.invoke.bind(ipcRenderer)
+const rawSend = ipcRenderer.send.bind(ipcRenderer)
+const rawSendSync = ipcRenderer.sendSync.bind(ipcRenderer)
+;(ipcRenderer as any).invoke = (channel: string, ...args: any[]) => rawInvoke(channel, ...args.map((a) => toCloneable(a)))
+;(ipcRenderer as any).send = (channel: string, ...args: any[]) => rawSend(channel, ...args.map((a) => toCloneable(a)))
+;(ipcRenderer as any).sendSync = (channel: string, ...args: any[]) => rawSendSync(channel, ...args.map((a) => toCloneable(a)))
+
 // --------- Expose some API to the Renderer process ---------
 contextBridge.exposeInMainWorld('ipcRenderer', {
   // 新增handle方法

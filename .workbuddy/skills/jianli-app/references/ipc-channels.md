@@ -1,6 +1,8 @@
 # IPC 通道契约（ipc-channels）
 
 > 渲染端统一经 `src/utils/common.ts` 的 `getStore` / `setStore` / `send` / `sendSync` / `invoke` → `window.ipcRenderer.*`。通道名多为字符串常量，分三类：请求-响应（invoke/handle）、单向通知（send/on）、主→渲染推送（webContents.send / ipcRenderer.on）。
+>
+> **出参消毒（2026-10-01，方案 B）**：preload 对原始 ipcRenderer 的 `invoke / send / sendSync` 做了实例级包装（`toCloneable` 递归剥离 Vue 代理，Date/Map/Set/二进制原样放行，函数不掩盖），**全部出站 IPC 自动消毒**——渲染端直调 `window.ipcRenderer.*`（254 处）、preload 嵌套 API（101 个方法）、common.ts 封装均被覆盖；调用方无需各自 toRaw/toPlain。改 preload 需重启 Electron。
 
 ## 数据层 / 存储
 | 通道 | 方向 | 用途 |
