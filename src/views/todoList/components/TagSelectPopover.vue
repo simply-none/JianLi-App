@@ -149,9 +149,10 @@ async function createTag() {
     return;
   }
   const tag: Tag = { key: uuidv4(), name, color: pickColor.value };
-  await saveTag(tag);
+  // saveTag 同名命中时返回携带原行 id/key 的最终标签，选中须用返回值里的 key
+  const saved = await saveTag(tag);
   await store.fetchTags();
-  if (!model.value.includes(tag.key)) model.value = [...model.value, tag.key];
+  if (!model.value.includes(saved.key)) model.value = [...model.value, saved.key];
   newName.value = '';
   creating.value = false;
   pickColor.value = palette[0];

@@ -88,3 +88,47 @@
 - 子任务作为独立待办展示（`parentIds` 非空），通过卡片/列表/日历的「父任务」标记体现关联；命令面板与迷你窗仍仅显示顶层任务。
 - **编辑变新增（致命坑 #21）**：`TodoDetailDialog.handleSave` 必须以「被加载原始待办的 key」作为 upsert 主键，绝不可在保存时把 `key` 重新生成。实现上用独立 `loadedKey` ref（在 `loadForm` 首行从 `todo.key` 取值），`parentKey = loadedKey.value || uuidv4()`；新建时 `loadedKey=null` 走 uuidv4，编辑时必等于原 key → `ON CONFLICT(key)` 命中更新而非插入。后端 `newSql.ensureTableExists` 已对 `todo_list(key)` 建 `uq_todo_list_key` 唯一索引，索引存在时 upsert 一律更新。
 - **重复关联别在保存时清零（致命坑 #22）**：`handleSave` 的 `parentData` 切勿硬编码 `recurrenceId: null` 覆盖 `...form.value` 携带的重复字段。编辑重复实例/模板时若把 `recurrenceId` 置 null，会导致该待办脱离重复关联、被 `recurrence:sync` 触发 `generateForTemplate` 误判并重新生成实例（表现为「编辑后多出一条」）。正确做法：让 `recurrenceId`/`isRecurrenceInstance` 沿用 `form.value` 加载到的值（新建为 null/0，实例保留原模板 key）。模板判定见 `recurrence.ts getTemplates()`：`recurrenceRule IN ('daily','weekly') AND (recurrenceId IS NULL OR '')`。
+
+## 2026-10-01 优化增强批次（40+ 项，执行清单见 `C:\cod\jianli\待办事项功能优化与增强_执行清单_2026-10-01.md`）
+
+### 架构变化（写码前必读）
+- **写库收口（B1/B2）**：单条增/改/状态切换一律走 `useTodo` 的 `commitTodo(todo)`（upsert + store 局部原位更新 + 带 key 增量重排提醒 + 广播小窗）；删除走 `removeTodo`（**软删除进回收站**）/ `purgeTodo`（物理删除，仅回收站用）/ `restoreTodo`（恢复）。不再「写库后 fetchTodos() 全量重拉」（批量导入/同步刷新/对话框保存仍全量兜底）。
+- **状态双写收口（C2）**：任何状态切换必须走 `statusConfig.ts` 的 `applyStatus(item, status, now?)`（一次维护 status/completed/completedTime/updateTime；completedTime 语义=首次完成时刻，再次完成保留旧值）。视图层禁止散落手写四字段。
+- **时间统一（C1）**：`src/views/todoList/utils/time.ts` —— `parseTodoDate` / `isOverdueItem(dueDate, isDone)` / `dueSegment`（筛选用，对齐移动端 todo_filter）/ `dueGroupKeyOf`（分组用，多「明天」档）。禁止再造 replace(/-/g,'/')、字符串比较等第三种写法。
+- **提醒增量（B4）**：`update-todo-reminders` IPC 可带单个待办 key（字符串载荷）做增量重排；不带 key 全量兜底（批量场景）。主进程 `syncTodoReminders(key)` 已按 key 过滤清理与查询。
+- **跨窗口刷新（B1）**：`useTodo` store 内监听 `sync-data-to-other-window`（arg.todoUpdated → fetchTodos）；主进程广播排除发送者，故 commitTodo 不会触发自身重拉。小窗轮询保留作兜底。
+
+### 数据模型（todo_list 新增列，newSql 自动加列）
+- `deleted`(TEXT '0'/'1')：**E5 回收站软删除**。回收站内不参与列表/统计/子任务关联/提醒/命令面板；主进程每日 00:05 + 启动时物理清理 30 天前的条目（recurrence.ts `purgeExpiredDeleted`，走 transaction 参数化 DELETE）。⚠️ 与移动端 drift 的 `deleted` 列**必须同批上线**（同步按本表列过滤，单端先上会静默丢列）。
+- `focusedMinutes`(TEXT 数字)：**E3 番茄钟联动**。番茄钟小窗在专注段（work→非 work）结束时向 KV 存储 `todo.pomodoroLink` 指向的待办累加（单段上限 180 分钟）；关联入口=卡片/列表 ⋯ 菜单「番茄钟专注此待办」；限制：小窗关窗期间的段不累计。
+- `recurrenceMode`(TEXT 'fixed'/'on_complete')：**F2 生成方式**。fixed（缺省）=到点自动生成；on_complete=完成实例后才由主进程补生成下一期（`recurrence.ts generateOnCompleteNext`，挂在 update-todo-reminders 带 key 的调用后；基准日=max(今天,已完成实例 dueDate)，按 模板+dueDate日 去重，超 recurrenceEnd 不生成）。on_complete 模板**不参与**每日懒生成（getTemplates 过滤）。
+
+### 重复任务（E4 扩展）
+- 规则扩展为 5 种：daily / weekly / **monthly / yearly**（monthly=按模板当日「几号」，当月无此号跳过；yearly=按「月-日」，2/29 只在闰年命中）。核心公式收口在 `recurrence.ts ruleHit()`（统一 daysDiff>=0 方向约束）+ `nextHitDate()`（F2 用）+ `buildInstance()`（两条生成路径共用）。
+- **双端对齐红线**：移动端 `_nextOccurrence` 公式与 PC `ruleHit` 逐字对齐（防双端各自生成→同步后双份实例）；两端同步合并后都有「同 recurrenceId+dueDate 去重」兜底（移动端 `dedupeRecurrenceInstances`，PC 端生成前 `getInstances` 按 dueDate 去重）。
+
+### 视图与筛选
+- **逾期高亮（C4）**：卡片/列表/日历弹窗对「未完成且截止已过」条目截止文字标红（`isOverdueItem`）。
+- **到期段筛选（D1）**：`store.dueFilter`（overdue/today/thisweek/thismonth/later/nodate），口径与移动端对齐；「已逾期」段额外限定未完成。
+- **今日聚焦（D2）**：`store.todayFocus` + `setTodayFocus()`（与 dueFilter 互斥）；命令面板无关键词时首位给「查看今日待办」命令。
+- **排序（D7）**：`store.sortMode`（updated/due/priority/created），客户端排序，视图/筛选态一起持久化。
+- **视图态持久化（C3）**：`view/groupBy/statusFilter/tagFilters/dueFilter/sortMode/showCompleted/showTemplates` 存 localStorage `todoList.viewState`；todayFocus/highlightKey 等瞬态不存。
+- **卡片分批渲染（B3）**：`TodoList.vue` 每批 60 条，el-scrollbar 触底（距底 300px）追加；数据口径（分组/筛选/数量）变化时重置。
+- **快捷键（D8）**：页面级 keydown（输入框/isComposing 守卫）：N 新建、Ctrl/Cmd+F 聚焦搜索、Esc 清筛选（弹窗打开时让位给弹窗）。
+
+### 标签 / 批量 / 导出 / 统计
+- **saveTag 修复（A4）**：按 name 查命中则携带原 id/key 更新（todo_tags 主键是自增 id，不带 id 的 upsert 永不命中冲突、退化重复插入）；显式带 id（标签管理编辑）直接按 id 更新。返回落库后的最终 Tag（调用方须用返回值的 key 做选中）。
+- **标签管理（D5）**：`TagManageDialog.vue` 重命名/改色/删除；删除时清理 todo_list.tags JSON 引用（逐条 upsert）+ 删 todo_tags 行。
+- **批量编辑（D6）**：`TodoBatchEditPanel.vue`（与批量删除同款条件模型）批量改状态/优先级/截止/追加标签，逐条 upsert 后一次全量重排提醒。
+- **导出（D4）**：`utils/exportTodo.ts` Markdown（按到期段分组+复选框语法）/CSV（BOM+转义），走统一规范 `exportToFile`+`fileNotify`；导出 `store.filteredTodos`（所见即所得）。
+- **统计（E1）**：store 扩展 `completionRate/todayDoneCount/overdueCount`；`TodoStatsDialog.vue` 核心指标+近 30 天完成趋势（**零依赖 CSS 柱状图**，非 ECharts）+标签分布。
+- **小窗（D9）**：todoMiniWindow 已完成条目保留在列表底部（置灰划线）、点击可重开；完成/重开都显式维护 status 并带 key 重排提醒。
+
+### 命令面板
+- `todoSource` 已改走 `new-sql:read`（参数化 SELECT、只读连接、不建表）——❌ 严禁改回 execute；SQL 带 deleted 过滤；无关键词首位「今日待办」命令；无命中时「新建待办：xxx」快速创建（先 fetchTodos 再设 highlightKey，否则滚动定位不到）。
+
+### 特有坑（本批次新增）
+- 主进程 `update-todo-reminders` 监听**只在 recurrence.ts 注册**（initRecurrence 内，提醒重排+on_complete 补生成串联）；newReminder.ts 不再注册，勿重复添加（双监听=双重重排）。
+- 批量删除/批量编辑/标签管理/父任务选择的候选集合一律用 `store.activeTodos`（回收站内条目不可见不可选）。
+- 统计口径：totalCount/四状态计数/完成率/今日完成/逾期 全部基于 activeTodos（不含回收站）。
+- E2「首页今日待办卡」评估后**顺延**：home 视图是主页主题画廊非仪表盘，硬插卡片破坏设计；今日能力由 D2 覆盖。

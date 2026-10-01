@@ -11,10 +11,36 @@
             <LucideIcon name="Plus" />
             新建待办
           </el-button>
+          <el-button @click="statsVisible = true">
+            <LucideIcon name="TrendingUp" />
+            统计
+          </el-button>
+          <el-button @click="batchEditVisible = true">
+            <LucideIcon name="PenLine" />
+            批量编辑
+          </el-button>
           <el-button @click="openBatchDelete">
             <LucideIcon name="Trash2" />
             批量删除
           </el-button>
+          <el-button @click="recycleBinVisible = true">
+            <LucideIcon name="Trash" />
+            回收站
+          </el-button>
+          <!-- 导出（D4）：Markdown / CSV，走统一导出规范 -->
+          <el-dropdown @command="(f: string) => exportTodos(store.filteredTodos, store.tags, f as 'md' | 'csv')">
+            <el-button>
+              <LucideIcon name="Download" />
+              导出
+              <LucideIcon name="ChevronDown" />
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="md">Markdown</el-dropdown-item>
+                <el-dropdown-item command="csv">CSV 表格</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
       </div>
 
@@ -30,6 +56,7 @@
           <div class="toolbar-left">
             <div class="search-box">
               <el-input
+                ref="searchInputRef"
                 v-model="store.keyword"
                 placeholder="搜索待办内容..."
                 clearable
@@ -41,6 +68,15 @@
                 </template>
               </el-input>
             </div>
+            <el-button
+              :type="store.todayFocus ? 'primary' : 'default'"
+              size="default"
+              class="today-btn"
+              @click="store.setTodayFocus(!store.todayFocus)"
+            >
+              <LucideIcon name="Calendar" :size="14" />
+              今日
+            </el-button>
             <el-select v-model="store.priorityFilter" placeholder="优先级" size="default" clearable>
               <el-option label="高" value="high" />
               <el-option label="中" value="medium" />
@@ -48,6 +84,10 @@
             </el-select>
             <el-select v-model="store.statusFilter" placeholder="状态" size="default" clearable>
               <el-option v-for="opt in TODO_STATUS_LIST" :key="opt.value" :label="opt.label" :value="opt.value" />
+            </el-select>
+            <!-- 到期段筛选（D1）：口径与移动端 todo_filter 对齐 -->
+            <el-select v-model="store.dueFilter" placeholder="到期" size="default" clearable class="due-select">
+              <el-option v-for="(label, key) in DUE_SEGMENT_LABELS" :key="key" :label="label" :value="key" />
             </el-select>
           </div>
           <div class="toolbar-right">
@@ -62,6 +102,13 @@
               <el-option label="按状态" value="status" />
               <el-option label="按截止日期" value="due" />
               <el-option label="按父任务" value="parent" />
+            </el-select>
+            <!-- 排序（D7）：客户端排序 -->
+            <el-select v-model="store.sortMode" placeholder="排序" size="default" class="sort-select">
+              <el-option label="按更新时间" value="updated" />
+              <el-option label="按截止时间" value="due" />
+              <el-option label="按优先级" value="priority" />
+              <el-option label="按创建时间" value="created" />
             </el-select>
             <el-checkbox v-model="store.showCompleted" class="tb-check">显示已完成</el-checkbox>
             <el-checkbox v-model="store.showTemplates" class="tb-check">重复模板</el-checkbox>
@@ -82,12 +129,16 @@
           <LucideIcon name="Tag" :size="14" class="tags-label-icon" />
           <span class="tags-label">标签</span>
           <TagSelectPopover v-model="store.tagFilters" class="tags-popover" />
+          <el-button link type="primary" size="small" class="tags-manage" @click="tagManageVisible = true">
+            <LucideIcon name="Tags" :size="14" />
+            管理
+          </el-button>
         </div>
       </div>
 
       <div ref="contentRef" class="todo-content">
-        <TodoList v-show="store.view === 'card'" :tags="allTags" @view="openView" @edit="openEdit" @delete="handleDelete" @status-change="handleStatusChange" @record="openRecord" @view-parent="openReadOnly" />
-        <TodoListView v-show="store.view === 'list'" :tags="allTags" @view="openView" @edit="openEdit" @delete="handleDelete" @status-change="handleStatusChange" @record="openRecord" @view-parent="openReadOnly" />
+        <TodoList v-show="store.view === 'card'" :tags="allTags" :focus-key="store.pomodoroLinkKey" @view="openView" @edit="openEdit" @delete="handleDelete" @status-change="handleStatusChange" @record="openRecord" @view-parent="openReadOnly" @focus="handleFocus" />
+        <TodoListView v-show="store.view === 'list'" :tags="allTags" :focus-key="store.pomodoroLinkKey" @view="openView" @edit="openEdit" @delete="handleDelete" @status-change="handleStatusChange" @record="openRecord" @view-parent="openReadOnly" @focus="handleFocus" />
         <TodoCalendarView v-show="store.view === 'calendar'" :tags="allTags" @view="openView" @edit="openEdit" @delete="handleDelete" @status-change="handleStatusChange" @record="openRecord" @view-parent="openReadOnly" />
       </div>
     </div>
@@ -116,6 +167,17 @@
       @update:visible="deleteDialogVisible = $event"
     />
 
+    <TodoBatchEditDialog
+      :visible="batchEditVisible"
+      @update:visible="batchEditVisible = $event"
+    />
+
+    <TagManageDialog v-model="tagManageVisible" />
+
+    <TodoStatsDialog v-model="statsVisible" />
+
+    <RecycleBinDialog v-model="recycleBinVisible" />
+
     <RecordProgressDialog
       :visible="recordDialogVisible"
       :todo="recordTodo"
@@ -125,13 +187,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import LucideIcon from '@/components/LucideIcon.vue';
 import TopTabs from '@/components/TopTabs.vue';
 import useTheme from '@/store/useTheme';
 import { useTodoStore } from '@/store/useTodo';
 import { TODO_STATUS_LIST } from './statusConfig';
+import { DUE_SEGMENT_LABELS } from './utils/time';
 import type { TodoItem, Tag } from './types';
 import type { TodoView } from '@/store/useTodo';
 import TodoList from './TodoList.vue';
@@ -139,8 +202,13 @@ import TodoListView from './TodoListView.vue';
 import TodoCalendarView from './TodoCalendarView.vue';
 import TodoDetailDialog from './TodoDetailDialog.vue';
 import TodoBatchDeleteDialog from './TodoBatchDeleteDialog.vue';
+import TodoBatchEditDialog from './TodoBatchEditDialog.vue';
+import TagManageDialog from './components/TagManageDialog.vue';
+import TodoStatsDialog from './TodoStatsDialog.vue';
+import RecycleBinDialog from './RecycleBinDialog.vue';
 import RecordProgressDialog from './RecordProgressDialog.vue';
 import TagSelectPopover from './components/TagSelectPopover.vue';
+import { exportTodos } from './utils/exportTodo';
 
 const themeStore = useTheme();
 const { currentTheme } = themeStore;
@@ -159,9 +227,14 @@ const currentTodo = ref<TodoItem | null>(null);
 const readOnlyVisible = ref(false);
 const readOnlyTodo = ref<TodoItem | null>(null);
 const deleteDialogVisible = ref(false);
+const batchEditVisible = ref(false);
+const tagManageVisible = ref(false);
+const statsVisible = ref(false);
+const recycleBinVisible = ref(false);
 const recordDialogVisible = ref(false);
 const recordTodo = ref<TodoItem | null>(null);
 const contentRef = ref<HTMLElement | null>(null);
+const searchInputRef = ref<any>(null); // Ctrl+F 聚焦搜索框（D8）
 
 function createNewTodo() {
   currentTodo.value = null;
@@ -190,38 +263,41 @@ function openReadOnly(todo: TodoItem) {
 }
 
 async function handleStatusChange(todo: TodoItem) {
-  const res: any = await window.ipcRenderer.handlePromise('new-sql:upsert', {
-    tableName: 'todo_list',
-    data: todo,
-    config: { primaryKey: 'key' },
-  });
-  if (res.success) {
-    window.ipcRenderer.send('update-todo-reminders');
+  // 单条状态切换走 store 统一收口（upsert + 局部更新 + 重排提醒 + 通知小窗），不再全量重拉
+  try {
+    await store.commitTodo(todo);
     ElMessage.success('状态已更新');
-    store.fetchTodos();
-  } else {
-    ElMessage.error('操作失败:' + res.error);
+  } catch (e) {
+    ElMessage.error('操作失败:' + ((e as Error)?.message || e));
   }
 }
 
 async function handleDelete(todo: TodoItem) {
   try {
-    await ElMessageBox.confirm('确定要删除这个待办事项吗？', '确认删除', {
+    await ElMessageBox.confirm('确定要删除这个待办事项吗？删除后可在回收站恢复（保留 30 天）。', '确认删除', {
       confirmButtonText: '删除',
       cancelButtonText: '取消',
       type: 'warning',
     });
-    const res: any = await window.ipcRenderer.handlePromise('new-sql:delete', {
-      tableName: 'todo_list',
-      condition: { key: todo.key },
-    });
-    if (res.success) {
-      window.ipcRenderer.send('update-todo-reminders');
-      ElMessage.success('删除成功');
-      store.fetchTodos();
-    }
   } catch {
-    /* 取消 */
+    return; /* 用户取消 */
+  }
+  try {
+    await store.removeTodo(todo.key);
+    ElMessage.success('已移入回收站');
+  } catch (e) {
+    ElMessage.error('删除失败:' + ((e as Error)?.message || e));
+  }
+}
+
+/** 番茄钟专注关联（E3）：再次点击同一待办取消关联 */
+function handleFocus(todo: TodoItem) {
+  if (store.pomodoroLinkKey === todo.key) {
+    store.focusTodo(null);
+    ElMessage.success('已取消番茄钟专注关联');
+  } else {
+    store.focusTodo(todo);
+    ElMessage.success(`已关联专注目标「${todo.title || '无标题'}」，番茄钟专注段将累计到该待办`);
   }
 }
 
@@ -246,10 +322,47 @@ function applyHighlight(key: string) {
 
 watch(() => store.highlightKey, (key) => applyHighlight(key));
 
+// ===== 快捷键（D8）：非输入焦点下 N 新建 / Ctrl+F 聚焦搜索 / Esc 清空筛选 =====
+function isTypingTarget(e: KeyboardEvent): boolean {
+  const t = e.target as HTMLElement | null;
+  if (!t) return false;
+  const tag = (t.tagName || '').toLowerCase();
+  return tag === 'input' || tag === 'textarea' || tag === 'select' || t.isContentEditable;
+}
+
+function onKeydown(e: KeyboardEvent) {
+  if (isTypingTarget(e) || e.isComposing) return;
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) {
+    e.preventDefault();
+    searchInputRef.value?.focus?.();
+    return;
+  }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === 'n' || e.key === 'N') {
+    e.preventDefault();
+    createNewTodo();
+    return;
+  }
+  if (e.key === 'Escape') {
+    // 有弹窗打开时交给弹窗自身的 Esc 行为，不清筛选
+    if (dialogVisible.value || readOnlyVisible.value || deleteDialogVisible.value || recordDialogVisible.value)
+      return;
+    store.keyword = '';
+    store.dueFilter = '';
+    store.todayFocus = false;
+    store.tagFilters = [];
+  }
+}
+
 onMounted(() => {
   Promise.all([store.fetchTags(), store.fetchTodos()]).then(() => {
     if (store.highlightKey) applyHighlight(store.highlightKey);
   });
+  window.addEventListener('keydown', onKeydown);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKeydown);
 });
 </script>
 
@@ -345,6 +458,15 @@ onMounted(() => {
   }
   .group-select {
     width: 120px;
+  }
+  .sort-select {
+    width: 132px;
+  }
+  .due-select {
+    width: 120px;
+  }
+  .today-btn {
+    flex-shrink: 0;
   }
   .tb-check {
     margin-right: 4px;

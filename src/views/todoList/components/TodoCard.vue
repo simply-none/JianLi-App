@@ -60,6 +60,10 @@
           <LucideIcon name="EllipsisVertical" class="more-icon" />
           <template #dropdown>
             <el-dropdown-menu>
+              <el-dropdown-item @click.stop="$emit('focus', todo)">
+                <LucideIcon name="Timer" />
+                {{ isFocusTarget ? '取消专注关联' : '番茄钟专注此待办' }}
+              </el-dropdown-item>
               <el-dropdown-item @click.stop="$emit('edit', todo)">
                 <LucideIcon name="Pencil" /> 编辑
               </el-dropdown-item>
@@ -113,11 +117,15 @@
         >{{ p.title }}</span>
       </div>
 
-      <!-- 底部信息：截止 + 记录进展 -->
+      <!-- 底部信息：截止 + 专注累计 + 记录进展 -->
       <div class="todo-footer">
-        <span v-if="todo.dueDate" class="todo-due">
+        <span v-if="todo.dueDate" class="todo-due" :class="{ 'is-overdue': isOverdue }" :title="isOverdue ? '已逾期' : ''">
           <LucideIcon name="Calendar" :size="12" />
           {{ formatDate(todo.dueDate) }}
+        </span>
+        <span v-if="Number(todo.focusedMinutes) > 0" class="todo-focus" title="番茄钟累计专注时长">
+          <LucideIcon name="Timer" :size="12" />
+          {{ todo.focusedMinutes }} 分钟
         </span>
         <span class="todo-record" @click.stop="$emit('record', todo)">
           <LucideIcon name="FileText" :size="12" /> 记录进展
@@ -134,13 +142,16 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import LucideIcon from '@/components/LucideIcon.vue';
 import moment from 'moment';
 import { useTodoStore } from '@/store/useTodo';
-import { TODO_STATUS_LIST, getTodoStatusMeta, formatRecurrence } from '../statusConfig';
+import { TODO_STATUS_LIST, getTodoStatusMeta, formatRecurrence, applyStatus, type TodoStatus } from '../statusConfig';
+import { isOverdueItem } from '../utils/time';
 import type { TodoItem, Tag } from '../types';
 import TodoSubtaskProgress from './TodoSubtaskProgress.vue';
 
 const props = defineProps<{
   todo: TodoItem;
   tags: Tag[];
+  /** 当前番茄钟专注关联的待办 key（E3，用于菜单态与高亮） */
+  focusKey?: string;
 }>();
 
 const emit = defineEmits<{
@@ -150,9 +161,13 @@ const emit = defineEmits<{
   (e: 'status-change', todo: TodoItem): void;
   (e: 'record', todo: TodoItem): void;
   (e: 'view-parent', todo: TodoItem): void;
+  (e: 'focus', todo: TodoItem): void;
 }>();
 
 const store = useTodoStore();
+
+/** 是否为当前专注关联目标（E3） */
+const isFocusTarget = computed(() => !!props.focusKey && props.focusKey === props.todo.key);
 
 const showDesc = ref(false);
 
@@ -160,6 +175,8 @@ const meta = computed(() => getTodoStatusMeta(props.todo.status));
 const effectiveStatus = computed(() => store.effectiveStatus(props.todo));
 const isDone = computed(() => effectiveStatus.value === 'completed');
 const isCancelled = computed(() => effectiveStatus.value === 'cancelled');
+// 逾期高亮（C4）：未完成且截止时刻已过
+const isOverdue = computed(() => isOverdueItem(props.todo.dueDate, isDone.value));
 
 const priorityText = computed(() => ({ high: '高', medium: '中', low: '低' }[props.todo.priority] || '中'));
 
@@ -182,16 +199,8 @@ const recurrenceText = computed(() =>
 
 function changeStatus(newStatus: string) {
   if (effectiveStatus.value === newStatus) return;
-  const isCompleted = newStatus === 'completed';
-  const now = moment().format('YYYY-MM-DD HH:mm:ss');
-  const updated: TodoItem = {
-    ...props.todo,
-    status: newStatus as TodoItem['status'],
-    completed: isCompleted ? 1 : 0,
-    completedTime: isCompleted ? props.todo.completedTime || now : '',
-    updateTime: now,
-  };
-  emit('status-change', updated);
+  // 状态双写统一走 applyStatus（status/completed/completedTime/updateTime 一次性维护）
+  emit('status-change', applyStatus(props.todo, newStatus as TodoStatus));
 }
 
 async function handleDelete() {
@@ -448,12 +457,26 @@ function formatTime(time: string) {
   border-top: 1px solid var(--border-subtle);
   flex-wrap: wrap;
 
+  .todo-focus {
+    font-size: 12px;
+    color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
   .todo-due {
     font-size: 12px;
     color: var(--text-muted);
     display: inline-flex;
     align-items: center;
     gap: 4px;
+
+    // 逾期高亮（C4）：与 statusConfig 阻塞红一致
+    &.is-overdue {
+      color: #ef4444;
+      font-weight: 600;
+    }
   }
 
   .todo-record {

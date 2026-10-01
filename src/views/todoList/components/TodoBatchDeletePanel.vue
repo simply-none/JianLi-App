@@ -162,8 +162,10 @@ import { ref, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import LucideIcon from '@/components/LucideIcon.vue';
 import { useTodoStore } from '@/store/useTodo';
-import { deleteTodo as apiDeleteTodo } from '@/views/todoList/api/todoApi';
+import { deleteTodo as apiDeleteTodo, saveTodo } from '@/views/todoList/api/todoApi';
 import { TODO_STATUS_LIST, getTodoStatusMeta } from '@/views/todoList/statusConfig';
+import { parseTodoDate } from '@/views/todoList/utils/time';
+import moment from 'moment';
 import type { TodoItem } from '@/views/todoList/types';
 
 const props = defineProps<{
@@ -204,7 +206,7 @@ const matched = computed<TodoItem[]>(() => {
   const before = dueBefore.value;
   const type = typeSel.value;
 
-  return store.todos.filter((t) => {
+  return store.activeTodos.filter((t) => {
     // 关键词
     if (kw) {
       const hay = `${t.title || ''} ${t.description || ''}`.toLowerCase();
@@ -224,12 +226,12 @@ const matched = computed<TodoItem[]>(() => {
       }
       if (!tagSet.some((g) => keys.includes(g))) return false;
     }
-    // 截止日期范围
+    // 截止日期范围（按天粒度比较，统一走 parseTodoDate，替代原 YYYY-MM-DD 字符串比较）
     if (after || before) {
-      if (!t.dueDate) return false;
-      const day = t.dueDate.slice(0, 10);
-      if (after && day < after) return false;
-      if (before && day > before) return false;
+      const due = parseTodoDate(t.dueDate);
+      if (!due) return false;
+      if (after && due.isBefore(moment(after, 'YYYY-MM-DD'), 'day')) return false;
+      if (before && due.isAfter(moment(before, 'YYYY-MM-DD'), 'day')) return false;
     }
     // 任务类型
     switch (type) {
@@ -282,20 +284,28 @@ async function doDelete(keys: string[]) {
   if (!keys.length) return;
   try {
     await ElMessageBox.confirm(
-      `确定删除选中的 ${keys.length} 条待办吗？此操作不可恢复。`,
+      `确定删除选中的 ${keys.length} 条待办吗？删除后可在回收站恢复（保留 30 天）。`,
       '批量删除确认',
       { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' },
     );
   } catch {
     return;
   }
+  // E5：批量删除 = 逐条软删除进回收站（可恢复）；不在内存中的 key 兜底物理删除
+  const activeMap = new Map(store.activeTodos.map((t) => [t.key, t]));
+  const now = moment().format('YYYY-MM-DD HH:mm:ss');
   for (const k of keys) {
-    await apiDeleteTodo(k);
+    const item = activeMap.get(k);
+    if (item) {
+      await saveTodo({ ...item, deleted: 1, updateTime: now } as TodoItem);
+    } else {
+      await apiDeleteTodo(k);
+    }
   }
   // 删除后重排截止提醒并刷新重复实例生成
   window.ipcRenderer.send('update-todo-reminders');
   window.ipcRenderer.send('recurrence:sync');
-  ElMessage.success(`已删除 ${keys.length} 条待办`);
+  ElMessage.success(`已删除 ${keys.length} 条待办（可在回收站恢复）`);
   emit('deleted', keys);
 }
 

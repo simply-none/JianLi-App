@@ -54,6 +54,10 @@ export function normalize(row: Record<string, any>): TodoItem {
     recurrenceEnd: row.recurrenceEnd || null,
     recurrenceId: row.recurrenceId || null,
     isRecurrenceInstance: Number(row.isRecurrenceInstance) || 0,
+    // E5 回收站 / E3 专注累计 / F2 生成方式（缺省：未删除 / 0 / 到点自动生成）
+    deleted: Number(row.deleted) || 0,
+    focusedMinutes: Number(row.focusedMinutes) || 0,
+    recurrenceMode: row.recurrenceMode === 'on_complete' ? 'on_complete' : 'fixed',
   };
 }
 
@@ -87,11 +91,26 @@ export async function deleteTodo(key: string) {
   return ipc('new-sql:delete', { tableName: 'todo_list', condition: { key } });
 }
 
-/** 保存标签（新增标签时调用） */
-export async function saveTag(tag: Tag) {
-  return ipc('new-sql:upsert', {
+/**
+ * 保存标签（新增标签时调用）。
+ * todo_tags 主键是 INTEGER 自增 id：不带 id 的 upsert 永远不会命中 ON CONFLICT(id)，
+ * 会退化为每次重复插入 —— 故先按 name 查已有标签，命中则携带其 id/key 更新原行。
+ * 返回落库后的最终标签（含生效 key，供调用方自动选中，避免选中悬空的临时 key）。
+ * 显式携带 id 时（标签管理编辑）直接按 id 更新。
+ */
+export async function saveTag(tag: Tag): Promise<Tag> {
+  const existing = await fetchTags();
+  const hit = tag.id ? undefined : existing.find((t) => t.name === tag.name);
+  const finalTag: Tag = hit ? { ...tag, id: hit.id, key: hit.key } : tag;
+  await ipc('new-sql:upsert', {
     tableName: 'todo_tags',
-    data: tag,
+    data: finalTag,
     config: { primaryKey: 'id' },
   });
+  return finalTag;
+}
+
+/** 删除标签（todo_tags 按 id 物理删除）；待办上的引用由调用方（标签管理弹窗）清理 */
+export async function deleteTag(id: number) {
+  return ipc('new-sql:delete', { tableName: 'todo_tags', condition: { id } });
 }

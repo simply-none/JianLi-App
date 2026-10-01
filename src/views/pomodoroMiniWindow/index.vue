@@ -21,7 +21,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, markRaw } from 'vue';
+import { ref, computed, onMounted, watch, markRaw } from 'vue';
 import moment from 'moment';
 import LayoutDefault from './layouts/LayoutDefault.vue';
 import LayoutSimple from './layouts/LayoutSimple.vue';
@@ -33,6 +33,7 @@ import useTipsRuntime from '@/store/useTipsRuntime';
 import useNewReminder from '@/store/useNewReminder';
 import { isInIdlePeriod } from '@/utils/idleTime';
 import { setupTipsBridge } from '@/hooks/useTipsBridge';
+import { fetchAllTodos, saveTodo, normalize } from '@/views/todoList/api/todoApi';
 
 // 复用与主窗口一致的番茄钟运行时 store（时间线完全由主进程 stateful 引擎下发，杜绝旧锚点漂移）
 const runtime = useTipsRuntime()
@@ -237,6 +238,9 @@ onMounted(() => {
   // 监听主进程状态下发，跨窗口同步 enabled 开关（主窗口拨动开关时刷新本地提醒表）
   window.ipcRenderer.on('tips-state-sync', onPomodoroStateSync)
   window.ipcRenderer.on('tips-state-change', onPomodoroStateSync)
+  // E3：挂载时已在专注段则记起点，并监听 work 段结束累计专注时长
+  if (runtime.currentStateKey === 'work') workStartTs = Date.now()
+  watchFocusState()
   countDown()
 })
 
@@ -253,6 +257,55 @@ function updateProgressByRange(startTime: number | null, nextTimeTs: number | nu
     return;
   }
   progressPercentValue.value = Math.max(0, Math.min(100, (elapsed / total) * 100));
+}
+
+// ===== 番茄钟联动待办（E3）：专注段（work → 非 work 切换）结束时，向关联待办累计 focusedMinutes =====
+// 关联目标由待办页「番茄钟专注此待办」写入 KV 存储（todo.pomodoroLink）；小窗每次专注段结束读取并累加。
+// 限制：累计依赖本小窗处于打开状态（状态推进的展示端），关窗期间的段不累计。
+const POMODORO_LINK_KEY = 'todo.pomodoroLink'
+let workStartTs = 0
+
+function watchFocusState() {
+  watch(
+    () => runtime.currentStateKey,
+    (next, old) => {
+      if (next === 'work' && old !== 'work') {
+        workStartTs = Date.now()
+      } else if (old === 'work' && next !== 'work') {
+        const start = workStartTs
+        workStartTs = 0
+        if (start) accumulateFocus(start)
+      }
+    },
+  )
+}
+
+/** 专注段结束：向关联待办累计专注分钟（单段上限 180，防挂机爆表） */
+async function accumulateFocus(startTs: number) {
+  try {
+    let linkKey = ''
+    try {
+      const v = window.ipcRenderer.sendSync('get-store', POMODORO_LINK_KEY)
+      linkKey = typeof v === 'string' ? v : ''
+    } catch {
+      return
+    }
+    if (!linkKey) return
+    const minutes = Math.round((Date.now() - startTs) / 60000)
+    if (minutes < 1) return
+    const todos = await fetchAllTodos()
+    const todo = todos.find((t) => t.key === linkKey)
+    if (!todo) return
+    const todoData = normalize({
+      ...todo,
+      focusedMinutes: (Number(todo.focusedMinutes) || 0) + Math.min(minutes, 180),
+      updateTime: moment().format('YYYY-MM-DD HH:mm:ss'),
+    })
+    await saveTodo(todoData)
+    window.ipcRenderer.send('sync-data-to-other-window', { todoUpdated: true })
+  } catch (e) {
+    console.error('[pomodoro] 累计专注时长失败:', e)
+  }
 }
 </script>
 

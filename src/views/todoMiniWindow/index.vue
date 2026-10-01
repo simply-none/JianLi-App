@@ -25,9 +25,10 @@
 
       <div class="todo-list" ref="todoListRef">
         <div
-          v-for="todo in pendingTodos"
+          v-for="todo in visibleTodos"
           :key="todo.key"
           class="todo-item"
+          :class="{ 'is-completed': todo.completed === 1 }"
           @click="toggleTodo(todo)"
         >
           <div class="todo-left">
@@ -43,13 +44,13 @@
             </span>
             <span class="priority-dot" :class="todo.priority"></span>
           </div>
-          
+
           <div class="todo-tooltip" v-if="todo.description">
             <div class="tooltip-desc">{{ todo.description }}</div>
           </div>
         </div>
 
-        <div v-if="pendingTodos.length === 0" class="empty-todo">
+        <div v-if="visibleTodos.length === 0" class="empty-todo">
           <LucideIcon name="CheckCircle" class="empty-icon" />
           <span>暂无待办</span>
         </div>
@@ -81,18 +82,31 @@ const themes = [
   'amber', 'white', 'dark', 'gray', 'aurora'
 ];
 
-const pendingTodos = computed(() => {
-  return allTodos.value
-    // 只显示未完成的顶层任务
-    .filter(t => t.completed == 0)
-    // 排除子任务（迷你窗只看顶层），parentIds 非空即视为子任务
-    .filter(t => !(t.parentIds && t.parentIds.length))
-    // 排除重复模板（只显示各周期实例），与主窗口默认行为一致
-    .filter(t => !(t.recurrenceRule && !t.recurrenceId))
-    .sort((a, b) => {
-      const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
-      return (priorityOrder[a.priority] || 1) - (priorityOrder[b.priority] || 1);
-    });
+/** 顶层任务公共过滤：排除子任务、重复模板与回收站内条目（迷你窗只看顶层/实例，E5） */
+function topLevelOnly(t: TodoItem): boolean {
+  return (
+    !Number(t.deleted) &&
+    !(t.parentIds && t.parentIds.length) &&
+    !(t.recurrenceRule && !t.recurrenceId)
+  );
+}
+
+const byPriority = (a: TodoItem, b: TodoItem) => {
+  const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
+  return (priorityOrder[a.priority] || 1) - (priorityOrder[b.priority] || 1);
+};
+
+// 头部计数：未完成顶层任务数
+const pendingTodos = computed(() => allTodos.value.filter((t) => t.completed == 0 && topLevelOnly(t)));
+
+// 列表（D9）：未完成在前（按优先级），已完成置灰排底部、点击可重开
+const visibleTodos = computed(() => {
+  const top = allTodos.value.filter(topLevelOnly);
+  const open = top.filter((t) => t.completed == 0).sort(byPriority);
+  const done = top
+    .filter((t) => t.completed == 1)
+    .sort((a, b) => (b.updateTime || '').localeCompare(a.updateTime || ''));
+  return [...open, ...done];
 });
 
 const cycleTheme = () => {
@@ -179,10 +193,12 @@ async function addNewTodo() {
 }
 
 async function toggleTodo(todo: TodoItem) {
+  // D9：已完成条目点击 = 重新打开，未完成条目点击 = 标记完成
+  const reopening = todo.completed === 1;
   try {
     await ElMessageBox.confirm(
-      `确定要将"${todo.title}"标记为已完成吗？`,
-      '确认完成',
+      reopening ? `确定要将"${todo.title}"重新打开吗？` : `确定要将"${todo.title}"标记为已完成吗？`,
+      reopening ? '重新打开' : '确认完成',
       {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
@@ -191,21 +207,24 @@ async function toggleTodo(todo: TodoItem) {
     );
 
     const now = moment().format('YYYY-MM-DD HH:mm:ss');
-    // 归一化后写库，保证字段结构与主数据层一致
-    const todoData = normalize({
-      ...todo,
-      completed: 1,
-      completedTime: now,
-      updateTime: now,
-    });
+    // 归一化后写库，保证字段结构与主数据层一致；
+    // status 必须显式维护（normalize 不会用 completed 反推已存在的 status，漏写会状态漂移）
+    const todoData = normalize(
+      reopening
+        ? { ...todo, status: 'not_started', completed: 0, completedTime: '', updateTime: now }
+        : { ...todo, status: 'completed', completed: 1, completedTime: now, updateTime: now },
+    );
 
     await saveTodo(todoData);
+    // 保留在列表内原位更新（已完成项移到列表底部，可再次点击重开）
     const index = allTodos.value.findIndex(t => t.key === todo.key);
     if (index > -1) {
-      allTodos.value.splice(index, 1);
+      allTodos.value.splice(index, 1, todoData);
     }
     window.ipcRenderer.send('sync-data-to-other-window', { todoUpdated: true });
-    ElMessage.success('已标记为完成');
+    // 状态变化后必须重排截止提醒（带 key 增量）
+    window.ipcRenderer.send('update-todo-reminders', todo.key);
+    ElMessage.success(reopening ? '已重新打开' : '已标记为完成');
   } catch (error) {
     if (error !== 'cancel') {
       console.error('操作失败:', error);
@@ -423,6 +442,15 @@ html, body {
   cursor: pointer;
   transition: background 0.2s;
   position: relative;
+
+  // D9：已完成条目置灰划线，排在列表底部，点击可重开
+  &.is-completed {
+    opacity: 0.55;
+
+    .todo-text {
+      text-decoration: line-through;
+    }
+  }
 
   &:hover {
     background: rgba(255, 255, 255, 0.1);

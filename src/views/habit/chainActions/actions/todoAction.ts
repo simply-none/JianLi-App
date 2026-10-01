@@ -9,21 +9,22 @@ import type { HabitChainAction } from "../types";
 import { invoke } from "../registry";
 import { dateTimeToStr } from "../../utils/streak";
 
-/** 转义单引号，避免 key 里带引号破坏 SQL 字面量 */
-function esc(v: unknown): string {
-  return String(v ?? "").replace(/'/g, "''");
-}
-
-/** 查询待办（走 new-sql:query + SqlStr，不做列推导，避免污染表结构） */
-async function queryTodos(sql: string): Promise<any[]> {
+/** 按主键查单条待办（走 new-sql:query 条件对象，自动参数化 col = ?，避免拼接 SQL） */
+async function queryTodoByKey(key: string): Promise<any[]> {
   const res = await invoke("new-sql:query", {
     tableName: "todo_list",
-    conditions: { SqlStr: sql },
+    conditions: { key },
   });
   const data = res?.data;
   if (Array.isArray(data)) return data;
   if (Array.isArray(data?.rows)) return data.rows;
   return [];
+}
+
+/** 按一批 key 查待办（逐 key 参数化查询后合并，保持入参顺序） */
+async function queryTodosByKeys(keys: string[]): Promise<any[]> {
+  const groups = await Promise.all(keys.map((k) => queryTodoByKey(k)));
+  return groups.flat();
 }
 
 /** 从 params 里取出待办 key 列表 */
@@ -43,8 +44,7 @@ const todoAction: HabitChainAction = {
     if (!keys.length) return;
 
     const now = dateTimeToStr(new Date());
-    const inList = keys.map((k) => `'${esc(k)}'`).join(",");
-    const rows = await queryTodos(`SELECT * FROM todo_list WHERE key IN (${inList})`);
+    const rows = await queryTodosByKeys(keys);
     if (!rows.length) return;
 
     for (const row of rows) {
@@ -71,8 +71,7 @@ const todoAction: HabitChainAction = {
     if (!keys.length) return;
 
     const now = dateTimeToStr(new Date());
-    const inList = keys.map((k) => `'${esc(k)}'`).join(",");
-    const rows = await queryTodos(`SELECT * FROM todo_list WHERE key IN (${inList})`);
+    const rows = await queryTodosByKeys(keys);
     if (!rows.length) return;
 
     for (const row of rows) {

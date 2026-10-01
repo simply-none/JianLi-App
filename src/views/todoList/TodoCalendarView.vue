@@ -83,7 +83,12 @@
               :model-value="store.effectiveStatus(t) === 'completed'"
               @change="(v: any) => changeStatus(t, v)"
             />
-            <span class="dp-title" @click="openDetail(t)">{{ t.title || '无标题' }}</span>
+            <span
+              class="dp-title"
+              :class="{ 'is-overdue': overdueOf(t) }"
+              :title="overdueOf(t) ? '已逾期' : ''"
+              @click="openDetail(t)"
+            >{{ t.title || '无标题' }}</span>
             <span v-if="store.isSubtask(t)" class="dp-sub">子</span>
             <span
               v-for="p in parentItemsOf(t)"
@@ -106,6 +111,8 @@ import { computed, onMounted, onUnmounted, nextTick, reactive, ref } from 'vue';
 import LucideIcon from '@/components/LucideIcon.vue';
 import moment from 'moment';
 import { useTodoStore } from '@/store/useTodo';
+import { applyStatus, type TodoStatus } from './statusConfig';
+import { isOverdueItem } from './utils/time';
 import type { TodoItem, Tag } from './types';
 
 const props = defineProps<{
@@ -225,17 +232,21 @@ function parentItemsOf(t: TodoItem): TodoItem[] {
 }
 
 function changeStatus(item: TodoItem, checked: boolean) {
-  const newStatus = checked ? 'completed' : 'not_started';
-  if (store.effectiveStatus(item) === newStatus) return;
-  const now = moment().format('YYYY-MM-DD HH:mm:ss');
-  const updated: TodoItem = {
-    ...item,
-    status: newStatus as TodoItem['status'],
-    completed: checked ? 1 : 0,
-    completedTime: checked ? now : '',
-    updateTime: now,
-  };
-  emit('status-change', updated);
+  const current = store.effectiveStatus(item);
+  // 勾选 = 完成；取消勾选仅当原状态就是完成态才回「未开始」，否则保留原状态（兼容 status 与 completed 漂移的旧行）
+  const nextStatus = checked
+    ? 'completed'
+    : current === 'completed'
+      ? 'not_started'
+      : (current as TodoStatus);
+  if (current === nextStatus) return;
+  // 状态双写统一走 applyStatus（status/completed/completedTime/updateTime 一次性维护）
+  emit('status-change', applyStatus(item, nextStatus as TodoStatus));
+}
+
+/** 逾期高亮（C4）：未完成且截止时刻已过 */
+function overdueOf(t: TodoItem): boolean {
+  return isOverdueItem(t.dueDate, store.effectiveStatus(t) === 'completed');
 }
 </script>
 
@@ -428,6 +439,11 @@ function changeStatus(item: TodoItem, checked: boolean) {
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+
+        // 逾期高亮（C4）：与 statusConfig 阻塞红一致
+        &.is-overdue {
+          color: #ef4444;
+        }
       }
 
       .dp-sub {

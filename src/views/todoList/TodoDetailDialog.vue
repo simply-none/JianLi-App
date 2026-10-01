@@ -74,12 +74,14 @@
           </el-form-item>
         </template>
 
-        <!-- 重复配置：不重复 / 每天 / 每周 -->
+        <!-- 重复配置：不重复 / 每天 / 每周 / 每月 / 每年（E4） -->
         <el-form-item label="重复">
           <el-radio-group v-model="form.recurrenceRule" @change="onRecurrenceChange">
             <el-radio :value="null" class="rc-none">不重复</el-radio>
             <el-radio value="daily">每天</el-radio>
             <el-radio value="weekly">每周</el-radio>
+            <el-radio value="monthly">每月</el-radio>
+            <el-radio value="yearly">每年</el-radio>
           </el-radio-group>
         </el-form-item>
 
@@ -109,6 +111,32 @@
           </el-form-item>
         </template>
 
+        <!-- 每月：按模板当日的「几号」重复（该月无此号则跳过，如 31 号）；每年：按模板的「月-日」重复（E4） -->
+        <template v-if="form.recurrenceRule === 'monthly' || form.recurrenceRule === 'yearly'">
+          <el-form-item label="间隔">
+            <div class="interval-wrap">
+              <span class="fixed-text">每</span>
+              <el-input-number v-model="form.recurrenceInterval" :min="1" :max="form.recurrenceRule === 'monthly' ? 12 : 10" :step="1" />
+              <span class="fixed-text">{{ form.recurrenceRule === 'monthly' ? '个月' : '年' }}</span>
+            </div>
+            <span class="form-hint">
+              {{ form.recurrenceRule === 'monthly' ? '按模板当天的「几号」重复，当月无此号则跳过' : '按模板当天的「月-日」重复' }}
+            </span>
+          </el-form-item>
+        </template>
+
+        <!-- 生成方式（F2）：到点自动生成 / 完成后生成下一次 -->
+        <el-form-item v-if="form.recurrenceRule" label="生成">
+          <div class="mode-wrap">
+            <el-radio-group v-model="recurrenceModeModel">
+              <el-radio v-for="opt in RECURRENCE_MODE_OPTIONS" :key="opt.value" :value="opt.value">
+                {{ opt.label }}
+              </el-radio>
+            </el-radio-group>
+            <span class="form-hint">{{ currentModeHint }}</span>
+          </div>
+        </el-form-item>
+
         <el-form-item v-if="form.recurrenceRule" label="结束于">
           <el-date-picker
             v-model="form.recurrenceEnd"
@@ -117,6 +145,11 @@
             format="YYYY-MM-DD"
             value-format="YYYY-MM-DD"
           />
+        </el-form-item>
+
+        <!-- 番茄钟累计专注（E3，只读展示） -->
+        <el-form-item v-if="Number(form.focusedMinutes) > 0" label="已专注">
+          <span class="form-hint">🍅 累计 {{ form.focusedMinutes }} 分钟（由番茄钟专注段自动累计）</span>
         </el-form-item>
 
         <!-- 关联父任务：弹窗选择（多选），子任务作为独立待办存在 -->
@@ -205,7 +238,7 @@ import LucideIcon from '@/components/LucideIcon.vue';
 import moment from 'moment';
 import { v4 as uuidv4 } from 'uuid';
 import { useTodoStore } from '@/store/useTodo';
-import { TODO_STATUS_LIST, DEFAULT_TODO_STATUS, deriveStatusFromCompleted } from './statusConfig';
+import { TODO_STATUS_LIST, DEFAULT_TODO_STATUS, deriveStatusFromCompleted, RECURRENCE_MODE_OPTIONS } from './statusConfig';
 import type { TodoItem, Tag } from './types';
 import TagSelectPopover from './components/TagSelectPopover.vue';
 import TodoParentSelectDialog from './components/TodoParentSelectDialog.vue';
@@ -249,6 +282,9 @@ function blankForm(): TodoItem {
     recurrenceEnd: null,
     recurrenceId: null,
     isRecurrenceInstance: 0,
+    recurrenceMode: 'fixed',
+    focusedMinutes: 0,
+    deleted: 0,
   };
 }
 
@@ -272,6 +308,8 @@ function loadForm(todo: TodoItem | null) {
       recurrenceRule: todo.recurrenceRule || null,
       recurrenceWeekdays: todo.recurrenceWeekdays || null,
       recurrenceEnd: todo.recurrenceEnd || null,
+      recurrenceMode: todo.recurrenceMode === 'on_complete' ? 'on_complete' : 'fixed',
+      focusedMinutes: Number(todo.focusedMinutes) || 0,
       parentIds: parseParentIds(todo.parentIds),
       sortOrder: Number(todo.sortOrder) || 0,
       status: todo.status || deriveStatusFromCompleted(todo.completed),
@@ -357,6 +395,17 @@ function removeParent(key: string) {
 // ===== 重复 =====
 const weekdayModel = ref<number[]>([]);
 
+/** F2 生成方式（radio 双向绑定）：缺省按 fixed（到点自动生成） */
+const recurrenceModeModel = computed<'fixed' | 'on_complete'>({
+  get: () => (form.value.recurrenceMode === 'on_complete' ? 'on_complete' : 'fixed'),
+  set: (v) => {
+    form.value.recurrenceMode = v;
+  },
+});
+const currentModeHint = computed(
+  () => RECURRENCE_MODE_OPTIONS.find((o) => o.value === recurrenceModeModel.value)?.hint || '',
+);
+
 function onRecurrenceChange() {
   if (!form.value.recurrenceRule) {
     form.value.recurrenceInterval = 1;
@@ -424,8 +473,8 @@ async function handleSave() {
   });
 
   ElMessage.success('保存成功');
-  // 通知主进程：重排截止提醒 + 重新生成重复实例
-  window.ipcRenderer.send('update-todo-reminders');
+  // 通知主进程：重排截止提醒（带 key 增量，B4）+ 重新生成重复实例
+  window.ipcRenderer.send('update-todo-reminders', parentKey);
   window.ipcRenderer.send('recurrence:sync');
   emit('save', parentData);
   emit('update:visible', false);

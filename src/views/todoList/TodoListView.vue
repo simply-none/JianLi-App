@@ -60,7 +60,12 @@
               >{{ p.title }}</span>
             </div>
             <div class="row-line3">
-              <span v-if="item.dueDate" class="row-due">
+              <span
+                v-if="item.dueDate"
+                class="row-due"
+                :class="{ 'is-overdue': overdueOf(item) }"
+                :title="overdueOf(item) ? '已逾期' : ''"
+              >
                 <LucideIcon name="Calendar" :size="11" /> {{ formatDate(item.dueDate) }}
               </span>
               <TodoSubtaskProgress
@@ -82,6 +87,9 @@
               <LucideIcon name="EllipsisVertical" class="more-icon" />
               <template #dropdown>
                 <el-dropdown-menu>
+                  <el-dropdown-item @click.stop="emit('focus', item)">
+                    <LucideIcon name="Timer" /> {{ focusKey === item.key ? '取消专注关联' : '番茄钟专注此待办' }}
+                  </el-dropdown-item>
                   <el-dropdown-item @click.stop="emit('edit', item)">
                     <LucideIcon name="Pencil" /> 编辑
                   </el-dropdown-item>
@@ -110,12 +118,15 @@ import LucideIcon from '@/components/LucideIcon.vue';
 import moment from 'moment';
 import VirtualList from '@/components/VirtualList.vue';
 import { useTodoStore } from '@/store/useTodo';
-import { TODO_STATUS_LIST, getTodoStatusMeta, formatRecurrence } from './statusConfig';
+import { isOverdueItem } from './utils/time';
+import { TODO_STATUS_LIST, getTodoStatusMeta, formatRecurrence, applyStatus, type TodoStatus } from './statusConfig';
 import type { TodoItem, Tag } from './types';
 import TodoSubtaskProgress from './components/TodoSubtaskProgress.vue';
 
 const props = defineProps<{
   tags: Tag[];
+  /** 当前番茄钟专注关联的待办 key（E3，用于菜单态） */
+  focusKey?: string;
 }>();
 
 const emit = defineEmits<{
@@ -125,6 +136,7 @@ const emit = defineEmits<{
   (e: 'status-change', todo: TodoItem): void;
   (e: 'record', todo: TodoItem): void;
   (e: 'view-parent', todo: TodoItem): void;
+  (e: 'focus', todo: TodoItem): void;
 }>();
 
 const store = useTodoStore();
@@ -164,20 +176,17 @@ function parentItemsOf(item: TodoItem): TodoItem[] {
 
 function changeStatus(item: TodoItem, newStatus: string) {
   if (store.effectiveStatus(item) === newStatus) return;
-  const isCompleted = newStatus === 'completed';
-  const now = moment().format('YYYY-MM-DD HH:mm:ss');
-  const updated: TodoItem = {
-    ...item,
-    status: newStatus as TodoItem['status'],
-    completed: isCompleted ? 1 : 0,
-    completedTime: isCompleted ? item.completedTime || now : '',
-    updateTime: now,
-  };
-  emit('status-change', updated);
+  // 状态双写统一走 applyStatus（status/completed/completedTime/updateTime 一次性维护）
+  emit('status-change', applyStatus(item, newStatus as TodoStatus));
 }
 
 function formatDate(date: string) {
   return date ? moment(date).format('MM-DD') : '--';
+}
+
+/** 逾期高亮（C4）：未完成且截止时刻已过 */
+function overdueOf(item: TodoItem): boolean {
+  return isOverdueItem(item.dueDate, store.effectiveStatus(item) === 'completed');
 }
 </script>
 
@@ -315,6 +324,12 @@ function formatDate(date: string) {
         display: inline-flex;
         align-items: center;
         gap: 3px;
+
+        // 逾期高亮（C4）：与 statusConfig 阻塞红一致
+        &.is-overdue {
+          color: #ef4444;
+          font-weight: 600;
+        }
       }
 
       .row-tag {

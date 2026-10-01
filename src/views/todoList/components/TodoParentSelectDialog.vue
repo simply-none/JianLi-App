@@ -133,7 +133,7 @@ watch(
  */
 const candidates = computed<TodoItem[]>(() => {
   const q = search.value.trim().toLowerCase();
-  return store.todos.filter((t) => {
+  return store.activeTodos.filter((t) => {
     if (t.key === props.excludeKey) return false;
     if (!q) return true;
     const title = (t.title || '').toLowerCase();

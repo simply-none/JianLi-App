@@ -9,11 +9,15 @@ import type { TodoStatus } from './statusConfig';
 /** 优先级：高 / 中 / 低 */
 export type Priority = 'high' | 'medium' | 'low';
 
-/** 重复规则：每天 / 每周 / 不重复(null) */
-export type RecurrenceRule = 'daily' | 'weekly' | null;
+/** 重复规则：每天 / 每周 / 每月 / 每年 / 不重复(null)（E4 扩展） */
+export type RecurrenceRule = 'daily' | 'weekly' | 'monthly' | 'yearly' | null;
 
-/** 标签（todo_tags 表） */
+/** 重复实例生成方式（F2）：fixed=到点自动生成（默认）；on_complete=完成后生成下一次 */
+export type RecurrenceMode = 'fixed' | 'on_complete' | null;
+
+/** 标签（todo_tags 表）；id 为 INTEGER 自增主键，更新已存在标签时必须携带否则 upsert 不会命中冲突 */
 export interface Tag {
+  id?: number;
   key: string;
   name: string;
   color: string;
@@ -64,4 +68,11 @@ export interface TodoItem {
   recurrenceId?: string | null;
   /** 是否为周期自动生成的实例（0/1） */
   isRecurrenceInstance?: number;
+  // ===== E5 回收站 / E3 番茄钟联动 / F2 生成方式 =====
+  /** 软删除标记（0/1）：1=在回收站，不参与常规列表/统计；30 天后主进程自动清理 */
+  deleted?: number;
+  /** 番茄钟累计专注分钟数（E3：番茄钟小窗在专注段结束时累加） */
+  focusedMinutes?: number;
+  /** 重复实例生成方式（F2）：缺省按 fixed（到点自动生成） */
+  recurrenceMode?: RecurrenceMode;
 }

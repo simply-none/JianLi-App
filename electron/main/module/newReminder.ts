@@ -377,15 +377,18 @@ export async function syncTodoReminders(key?: string): Promise<void> {
     await sqlDel({ tableName: TABLE, condition: { id } });
   }
 
-  // 2) 读待办，按「到期前 count 次 / 间隔 interval」重新生成触发点
+  // 2) 读待办，按「到期前 count 次 / 间隔 interval」重新生成触发点；
+  //    传 key 时只查该条（B4 增量化：单条编辑/完成不再全表扫描）
   const todos = await new Promise<any[]>((resolve) => {
-    db.all("SELECT * FROM todo_list", [], (err: any, rows: any[]) => {
+    const sql = key ? "SELECT * FROM todo_list WHERE key = ?" : "SELECT * FROM todo_list";
+    db.all(sql, key ? [key] : [], (err: any, rows: any[]) => {
       resolve(err ? [] : (rows || []));
     });
   });
   const now = Date.now();
   for (const todo of (todos || [])) {
     if (key && todo.key !== key) continue;
+    if (Number(todo.deleted) === 1) continue; // 回收站内的待办不排提醒（E5）
     const isDone = todo.status
       ? todo.status === "completed" || todo.status === "cancelled"
       : Number(todo.completed) === 1;
@@ -1330,11 +1333,8 @@ function registerIpc(): void {
     scheduleAll();
   });
 
-  // 待办新增/编辑/删除/完成切换后，渲染端发 update-todo-reminders 触发截止提醒重排
-  // （保持渲染端零改动：沿用旧 IPC 名，此处转调引擎的 syncTodoReminders 全量同步）
-  ipcMain.on("update-todo-reminders", () => {
-    syncTodoReminders();
-  });
+  // 待办新增/编辑/删除/完成切换后的截止提醒重排，已由 recurrence.ts 统一接管
+  // （recurrence:sync 与 update-todo-reminders 都在 initRecurrence 注册，避免双监听重复重排）
 }
 
 // ============================ 启动 ============================

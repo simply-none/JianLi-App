@@ -5,14 +5,14 @@
   - 子任务/折叠/密度等优化在 TodoCard 内完成
 -->
 <template>
-  <el-scrollbar class="todo-list">
+  <el-scrollbar ref="scrollbarRef" class="todo-list" @scroll="onScroll">
     <div v-if="!loading && flatList.length === 0" class="empty-state">
       <el-empty description="暂无待办事项，点击右上角新建吧" />
     </div>
 
     <!-- 分区分组 -->
     <template v-if="groupBy !== 'none'">
-      <section v-for="g in groups" :key="g.key" class="todo-group">
+      <section v-for="g in visibleGroups" :key="g.key" class="todo-group">
         <div class="group-header">
           <span class="group-label">{{ g.label }}</span>
           <span class="group-count">{{ g.items.length }}</span>
@@ -23,12 +23,14 @@
             :key="todo.key"
             :todo="todo"
             :tags="tags"
+            :focus-key="focusKey"
             @view="emit('view', $event)"
             @edit="emit('edit', $event)"
             @delete="emit('delete', $event)"
             @status-change="emit('status-change', $event)"
             @record="emit('record', $event)"
             @view-parent="emit('view-parent', $event)"
+            @focus="emit('focus', $event)"
           />
         </div>
       </section>
@@ -37,18 +39,23 @@
     <!-- 不分區 -->
     <div v-else class="todo-grid">
       <TodoCard
-        v-for="todo in flatList"
+        v-for="todo in visibleFlat"
         :key="todo.key"
         :todo="todo"
         :tags="tags"
+        :focus-key="focusKey"
         @view="emit('view', $event)"
         @edit="emit('edit', $event)"
         @delete="emit('delete', $event)"
         @status-change="emit('status-change', $event)"
         @record="emit('record', $event)"
         @view-parent="emit('view-parent', $event)"
+        @focus="emit('focus', $event)"
       />
     </div>
+
+    <!-- B3 分批加载提示 -->
+    <div v-if="hasMore" class="load-more-hint">下滑加载更多（已显示 {{ Math.min(renderLimit, flatList.length) }} / {{ flatList.length }}）</div>
 
     <div v-if="loading && flatList.length > 0" class="loading-state">
       <div class="loading-spinner"></div>
@@ -58,13 +65,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import type { TodoItem, Tag } from './types';
 import { useTodoStore } from '@/store/useTodo';
 import TodoCard from './components/TodoCard.vue';
 
 const props = defineProps<{
   tags: Tag[];
+  /** 当前番茄钟专注关联的待办 key（E3 透传给卡片） */
+  focusKey?: string;
 }>();
 
 const emit = defineEmits<{
@@ -74,6 +83,7 @@ const emit = defineEmits<{
   (e: 'status-change', todo: TodoItem): void;
   (e: 'record', todo: TodoItem): void;
   (e: 'view-parent', todo: TodoItem): void;
+  (e: 'focus', todo: TodoItem): void;
 }>();
 
 const store = useTodoStore();
@@ -83,6 +93,55 @@ const groupBy = computed(() => store.groupBy);
 const loading = computed(() => store.loading);
 // 不分區时用于空态判断的扁平列表
 const flatList = computed(() => store.filteredTodos);
+
+// ===== B3 分批渲染：卡片网格无虚拟列表，待办多时 DOM 全量挂载会卡 =====
+const BATCH_SIZE = 60;
+const renderLimit = ref(BATCH_SIZE);
+const scrollbarRef = ref<any>(null);
+
+// 数据口径变化时重置分批（编辑单条不改变数量/筛选，不触发重置）
+watch(
+  () => [
+    store.groupBy,
+    flatList.value.length,
+    store.keyword,
+    store.dueFilter,
+    store.todayFocus,
+    store.statusFilter,
+    store.tagFilters.length,
+    store.showCompleted,
+    store.showTemplates,
+  ],
+  () => {
+    renderLimit.value = BATCH_SIZE;
+  },
+);
+
+/** 分批后的分组：累计条数不超过 renderLimit，滚动触底追加 */
+const visibleGroups = computed(() => {
+  let budget = renderLimit.value;
+  const out: typeof groups.value = [];
+  for (const g of groups.value) {
+    if (budget <= 0) break;
+    const items = g.items.length > budget ? g.items.slice(0, budget) : g.items;
+    out.push({ ...g, items });
+    budget -= items.length;
+  }
+  return out;
+});
+
+const visibleFlat = computed(() => flatList.value.slice(0, renderLimit.value));
+const hasMore = computed(() => flatList.value.length > renderLimit.value);
+
+/** 滚动接近底部时追加一批 */
+function onScroll({ scrollTop, scrollHeight }: { scrollTop: number; scrollHeight: number }) {
+  if (!hasMore.value) return;
+  const wrap = scrollbarRef.value?.wrapRef as HTMLElement | undefined;
+  const clientH = wrap?.clientHeight || 0;
+  if (scrollTop + clientH >= scrollHeight - 300) {
+    renderLimit.value += BATCH_SIZE;
+  }
+}
 </script>
 
 <style scoped lang="scss">
@@ -98,6 +157,13 @@ const flatList = computed(() => store.filteredTodos);
   align-items: center;
   justify-content: center;
   height: 100%;
+}
+
+.load-more-hint {
+  text-align: center;
+  padding: 12px 0 4px;
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 .todo-grid {
