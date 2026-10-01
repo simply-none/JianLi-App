@@ -30,7 +30,7 @@ PC（Electron）⇆ 移动端（Flutter）在同一局域网内**批量互传文
 
 ## 协议增强（2026-09-06 二批，向后兼容）
 
-在原 v1 三端点之上叠加下列字段/行为；**未开启时完全退化为既有明文行为**，老版本双端仍可互通（与移动端 `jianli-mobile-app/.../file-transfer-plan.md` §二之一 同构，详见 `references/file-transfer-plan.md`）。
+在原 v1 三端点之上叠加下列字段/行为；**未开启时完全退化为既有明文行为**，老版本双端仍可互通（与移动端 `jianli-mobile-app/.../file-transfer-plan.md` §二之一 同构）。
 
 - **#9 重名策略**：`store._transfer_rename`（`'rename'` 默认 / `'overwrite'`）；`transfer:set-rename` 切换并持久化。
 - **#10 选择文件 / 文件夹（2026-09-06 五批增强 + 拆两对话框修复）**：为同时支持文件与文件夹，早期在 `transfer:pick-files` 里用 `properties:['openFile','multiSelections','openDirectory']` 一个对话框——**但 Windows 原生对话框只要带 `openDirectory` 就强制「仅文件夹」模式，文件会被静默过滤掉**（OS 限制，非代码过滤）。修复：**拆成两个独立 IPC**——`transfer:pick-files`（仅 `openFile,multiSelections`，只选文件）与 `transfer:pick-folders`（仅 `openDirectory,multiSelections`，只选文件夹），二者都经 `toPickEntries()` 返回**原始选择项** `{path,name,isDir,size,fileCount}`（文件夹在此仅递归统计 `fileCount` 与 `size` 供列表展示，不拍平）。渲染端 `store.pickFiles()` / `store.pickFolders()` 共用 `addPicked()` **多次选择累加**到 `entries`（按 path 去重、默认 `checked:true`），列表逐条可勾选、可移除、可「全选/取消全选」（默认全选传送）；`send` 只发已勾选项的 path，文件夹原样传出，**真正拍平在 `sendBatch`（`flattenSendPaths` 递归 + 去重）**。TransferPanel 顶部为两个按钮「选择文件」「选择文件夹」。拖拽未实现，仅对话框选择。
@@ -98,3 +98,21 @@ PC（Electron）⇆ 移动端（Flutter）在同一局域网内**批量互传文
 - **选择列表与进度列表是两回事（2026-09-06 五批）**：`entries` 是用户勾选的「文件/文件夹」混合项（文件夹单独成行、多次累加、默认全选），仅用于决定发送哪些；`store.files` 是发送中由 `file-transfer:progress` 事件按 fid 顺序重建的**拍平**文件列表，仅驱动逐文件进度条。不要在 pick 阶段预填 `files`（否则进度条与 fid 错位）。文件夹真正拍平发生在主进程 `flattenSendPaths`（`sendBatch` 内，递归 + 按绝对路径去重）。
 
 - **Windows 单对话框无法同时选文件+文件夹（2026-09-06 修复）**：`dialog.showOpenDialog` 同时传 `openFile` 与 `openDirectory` 时，**Windows 强制进入「仅文件夹」模式，`openFile` 被静默忽略**——表现为「选文件被过滤」。这是 OS 层限制，不是代码过滤。**不要用合在一起的一个对话框**。正确做法：拆成两个独立 IPC——`transfer:pick-files`（`openFile,multiSelections`）与 `transfer:pick-folders`（`openDirectory,multiSelections`），UI 上放两个按钮。改 `transferModule.ts` 后**必须重启 Electron 主进程**才生效。
+
+## 验证清单（命令由用户本地执行）
+1. **重启 Electron**（改了主进程 transferModule/syncModule/index）。
+2. PC 发手机：批量 ≥3 文件（含大文件），逐文件进度 + 结果；手机 `Download/渐离App文件互传/` 收到（需存储权限；未授权回退沙盒）。
+3. 手机发 PC：批量发送；PC `fileNotify` 蓝色路径通知 + 历史正确。
+4. 手动 IP：模拟器填 `10.0.2.2` 直传。
+5. 边界：重名去重 ` (n)`、非法文件名、接收方关自动接收→发送端被拒。
+6. **取消批次**：发大文件途中点「取消发送」→ 当前文件进度转橙色（canceled）、后续文件不再发送、历史出现 `canceled` 记录、按钮恢复可用；取消后 PC 不应崩溃、可再次发送。
+7. **热点场景**：手机开热点给 PC，PC 侧点「扫描」应能发现手机（定向广播 + 网关单播）；再双向收发一次。
+8. **sha256 校验**：正常收发后两端历史均 `done`；可人为截断接收（如中途杀进程）观察孤立 `.part` 被 `sweepStale` 清掉；校验失败路径历史记 `failed` 且 `error` 非空、不弹通知。
+9. **历史可操作**：桌面端成功记录点「打开文件」「打开所在文件夹」应正确打开/定位；移动端成功记录点「打开」「分享」。
+10. **总进度/速率/ETA**：发送中面板顶部显示批次总进度条 + 速率 + 剩余时间。
+11. **#11 最近设备 / #9 重名 / #14 加密 / #15 接收询问 / #16 磁盘预估 / #17 并发守卫 / #20 分页清理**：对应开关与行为逐项验证。
+
+## 实施状态
+- PC 桌面端 T1–T12 全部完成（2026-09-06），向后兼容增强 #9–#21 均已落地；移动端同协议同历史表。
+- 原决策记录（`file-transfer-plan.md`）已并入本文档，避免双份维护。
+- 不做：传输历史跨设备同步（设备本地）；云端中转（纯局域网直连）。
