@@ -519,11 +519,25 @@ export function useEpubRender(ctx: EpubCtx) {
   const EPUB_FORCED_STYLE_ID = 'ebook-forced-style';
   /** 每个 iframe 文档只测量一次原始基准字号与各标题层级比例，缓存避免被已注入的强制字号污染 */
   const forcedRatioCache = new WeakMap<Document, { ratios: Record<string, number> }>();
-  /** 强制继承排版属性的正文文本元素（标题另算，不参与继承覆盖） */
+  /** 强制继承排版属性的正文文本元素（标题另算，不参与继承覆盖）
+   *
+   *  ⚠️ 必须包含所有「浏览器 UA 样式自带 font-size 规则」的元素，否则该标签会保留
+   *  UA 档位字号，表现为「部分段落字号与设置不统一」。典型：
+   *  - <font size="2">：Chromium UA `font[size="2"] { font-size: small }`（约 0.81×正文），
+   *    废弃标签 size/face/color 表现属性也一并被 inherit !important 中和；
+   *  - big(larger)、small(smaller，已在列)、rt(ruby 注音 50%)、sup/sub(smaller，已在列)、
+   *    xmp/listing/plaintext(monospace smaller)。
+   *  规则带 !important，能压过 UA 非 important 规则与元素内联 style（但不敌内联 !important）。
+   */
   const FORCED_TEXT_TAGS = [
     'p', 'div', 'span', 'li', 'a', 'td', 'th', 'blockquote', 'pre', 'code',
     'em', 'strong', 'b', 'i', 'u', 'small', 'sub', 'sup', 'label',
     'figcaption', 'caption', 'dl', 'dt', 'dd', 'table', 'tr', 'section', 'article',
+    // 2026-10-01 补：UA 样式自带字号档位的老标签 + 常见内联文本/容器标签，杜绝漏网字号
+    'font', 'big', 'tt', 'kbd', 'samp', 'var', 'dfn', 'q', 'cite', 'abbr', 'acronym',
+    's', 'strike', 'ins', 'del', 'mark', 'time', 'data', 'bdi', 'bdo',
+    'ruby', 'rt', 'rp', 'address', 'main', 'figure', 'nav', 'header', 'footer',
+    'ul', 'ol', 'center', 'xmp', 'listing', 'plaintext',
   ];
 
   /** 测量并缓存当前文档各标题层级相对 body 的字号比例（仅首次挂载时真正测量） */

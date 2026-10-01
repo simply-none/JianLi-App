@@ -32,6 +32,7 @@ EPUB / TXT / PDF / CBZ 四格式阅读：进度保存、书架、分类、笔记
 
 ### 本批次踩坑与约定
 - **EPUB「设置变更→整本重建」是为划线定位准确特意设计的（用户拍板保留）**，禁止再提「轻量设置变更」类改动。
+- **EPUB 强制样式是「元素白名单继承」**：`FORCED_TEXT_TAGS` 必须包含所有「浏览器 UA 样式自带 font-size 规则」的标签，否则该标签保留 UA 档位字号，表现为「部分段落字号与设置不统一」（2026-10-01 实例：`<font size="2">` 命中 UA `font[size="2"]{font-size:small}`，译者注整段偏小；同批补齐 font/big/rt/tt/kbd/samp/xmp 等 34 个标签，白名单现 63 个）。再遇漏网往该数组补标签即可——规则带 `!important`，可压过 UA 规则与元素内联 style（不敌内联 `!important`）；`<font>` 的 size/face/color 表现属性也被一并中和。
 - epub.js 批量注册搜索命中：`annotations.remove(cfi,'highlight')` 与手动划线同 hash 空间，清除时按登记的 cfi 列表逐一移除；样式必须 hex fill + fill-opacity + `mix-blend-mode:'normal'`（红线见下文）。
 - PDF `PDFDataRangeTransport.onDataRange` 对未请求区间数据会自行忽略——预取下一段直接回调 onDataRange 是安全的。
 - 拖拽导入依赖 Electron 扩展的 `File.path`（渲染端 `f.path` 取绝对路径），CBZ/传书/导入格式注册要同步改 `SUPPORTED_EBOOK_EXT`（主进程）与 `getFormat`（渲染端）两处。
