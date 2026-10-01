@@ -15,32 +15,31 @@
     <!-- 左侧：状态切换下拉 + 主体 -->
     <div class="card-main" @click="$emit('view', todo)">
       <div class="card-top">
-        <el-dropdown
-          trigger="click"
-          class="todo-status"
-          @command="(s: string) => changeStatus(s)"
-          @click.stop
-        >
-          <span
-            class="status-badge"
-            :style="{ color: meta.color, background: meta.bg }"
-          >
-            {{ meta.label }}
-            <LucideIcon name="ChevronDown" :size="12" class="status-caret" />
-          </span>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item
-                v-for="opt in TODO_STATUS_LIST"
-                :key="opt.value"
-                :command="opt.value"
-                :class="{ 'is-active': effectiveStatus === opt.value }"
-              >
-                {{ opt.label }}
-              </el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
+        <!-- 阻断冒泡必须挂普通元素包装层：ep-dropdown 的 tooltip 触发机制会自行处理点击，
+             直接挂在组件上的 @click.stop 不生效，点击会冒泡到 card-main 误开详情弹窗（对齐 TodoListView 的 row-actions 先例） -->
+        <span class="todo-status" @click.stop>
+          <el-dropdown trigger="click" @command="(s: string) => changeStatus(s)">
+            <span
+              class="status-badge"
+              :style="{ color: meta.color, background: meta.bg }"
+            >
+              {{ meta.label }}
+              <LucideIcon name="ChevronDown" :size="12" class="status-caret" />
+            </span>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item
+                  v-for="opt in TODO_STATUS_LIST"
+                  :key="opt.value"
+                  :command="opt.value"
+                  :class="{ 'is-active': effectiveStatus === opt.value }"
+                >
+                  {{ opt.label }}
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </span>
 
         <div class="priority-badge" :class="todo.priority">
           {{ priorityText }}
@@ -56,23 +55,25 @@
           子任务
         </span>
 
-        <el-dropdown trigger="click" class="todo-actions" @click.stop>
-          <LucideIcon name="EllipsisVertical" class="more-icon" />
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item @click.stop="$emit('focus', todo)">
-                <LucideIcon name="Timer" />
-                {{ isFocusTarget ? '取消专注关联' : '番茄钟专注此待办' }}
-              </el-dropdown-item>
-              <el-dropdown-item @click.stop="$emit('edit', todo)">
-                <LucideIcon name="Pencil" /> 编辑
-              </el-dropdown-item>
-              <el-dropdown-item divided @click.stop="handleDelete">
-                <LucideIcon name="Trash2" /> 删除
-              </el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
+        <span class="todo-actions" @click.stop>
+          <el-dropdown trigger="click">
+            <LucideIcon name="EllipsisVertical" class="more-icon" />
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item @click.stop="$emit('focus', todo)">
+                  <LucideIcon name="Timer" />
+                  {{ isFocusTarget ? '取消专注关联' : '番茄钟专注此待办' }}
+                </el-dropdown-item>
+                <el-dropdown-item @click.stop="$emit('edit', todo)">
+                  <LucideIcon name="Pencil" /> 编辑
+                </el-dropdown-item>
+                <el-dropdown-item divided @click.stop="handleDelete">
+                  <LucideIcon name="Trash2" /> 删除
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </span>
       </div>
 
       <h3 class="todo-title">{{ todo.title || '无标题' }}</h3>
